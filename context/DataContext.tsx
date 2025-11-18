@@ -19,11 +19,17 @@ interface DataContextType {
   createTrip: (trip: Trip) => void;
   updateTrip: (trip: Trip) => void;
   deleteTrip: (tripId: string) => void;
+
+  // Admin Actions
+  toggleTripStatus: (tripId: string) => void; // Admin can suspend/activate specific trips
   
   // Getters
-  getPublicTrips: () => Trip[]; // Filters out inactive agency trips
-  getAgencyTrips: (agencyId: string) => Trip[];
+  getPublicTrips: () => Trip[]; // All active trips from active agencies
+  getAgencyPublicTrips: (agencyId: string) => Trip[]; // Trips for a specific agency profile
+  getAgencyTrips: (agencyId: string) => Trip[]; // All trips for agency dashboard
   getTripById: (id: string) => Trip | undefined;
+  getReviewsByTripId: (tripId: string) => Review[];
+  hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -54,11 +60,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  const getAgencyPublicTrips = (agencyId: string) => {
+    // For the public profile page of an agency
+    if (!isAgencyActive(agencyId)) return [];
+    return trips.filter(t => t.agencyId === agencyId && t.active);
+  };
+
   const getAgencyTrips = (agencyId: string) => {
     return trips.filter(t => t.agencyId === agencyId);
   };
 
   const getTripById = (id: string) => trips.find(t => t.id === id);
+
+  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
+
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => {
+    return bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+  };
 
   const addBooking = (booking: Booking) => {
     setBookings(prev => [...prev, booking]);
@@ -66,7 +84,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addReview = (review: Review) => {
     setReviews(prev => [...prev, review]);
-    // Update trip rating logic would go here in a real app
+    
+    // Recalculate rating
+    const tripReviews = [...reviews.filter(r => r.tripId === review.tripId), review];
+    const avg = tripReviews.reduce((acc, curr) => acc + curr.rating, 0) / tripReviews.length;
+    
+    setTrips(prev => prev.map(t => t.id === review.tripId ? { ...t, rating: avg, totalReviews: tripReviews.length } : t));
   };
 
   const createTrip = (trip: Trip) => {
@@ -80,6 +103,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteTrip = (tripId: string) => {
     setTrips(prev => prev.filter(t => t.id !== tripId));
   };
+
+  const toggleTripStatus = (tripId: string) => {
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: !t.active } : t));
+  }
 
   const updateAgencySubscription = (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
     setAgencies(prev => prev.map(a => {
@@ -124,9 +151,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createTrip,
       updateTrip,
       deleteTrip,
+      toggleTripStatus,
       getPublicTrips,
+      getAgencyPublicTrips,
       getAgencyTrips,
-      getTripById
+      getTripById,
+      getReviewsByTripId,
+      hasUserPurchasedTrip
     }}>
       {children}
     </DataContext.Provider>

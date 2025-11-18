@@ -3,18 +3,18 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Trip, UserRole } from '../types';
 import { PLANS } from '../services/mockData';
-import { Plus, Edit, Trash2, TrendingUp, Users, DollarSign, AlertTriangle, Lock, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, Users, DollarSign, AlertTriangle, Lock, CheckCircle, X } from 'lucide-react';
 
 const AgencyDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, deleteTrip, agencies, bookings } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, bookings } = useData();
   
-  // States for Tab Navigation - Simulating routing within dashboard
   const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION'>('TRIPS');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTripId, setEditingTripId] = useState<string | null>(null);
   
-  // Create Trip Form State
-  const [newTrip, setNewTrip] = useState<Partial<Trip>>({
+  // Form State
+  const [formData, setFormData] = useState<Partial<Trip>>({
     title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: ''
   });
 
@@ -24,37 +24,53 @@ const AgencyDashboard: React.FC = () => {
   if (!myAgency) return <div>Agência não encontrada.</div>;
 
   const myTrips = getAgencyTrips(user.id);
-  
-  // Mock Stats Calculation
   const myBookings = bookings.filter(b => myTrips.find(t => t.id === b.tripId));
   const totalSales = myBookings.reduce((acc, curr) => acc + curr.totalPrice, 0);
   const totalViews = myTrips.length * 150; // Mock views
 
-  // Strictly check expiration date
   const now = new Date();
   const expires = new Date(myAgency.subscriptionExpiresAt);
   const isSubscriptionActive = myAgency.subscriptionStatus === 'ACTIVE' && expires > now;
 
-  const handleCreateTrip = (e: React.FormEvent) => {
+  const handleOpenCreate = () => {
+    setEditingTripId(null);
+    setFormData({ title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: '' });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (trip: Trip) => {
+    setEditingTripId(trip.id);
+    setFormData({ ...trip });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTrip.title) return;
     
-    createTrip({
-      ...newTrip,
-      id: `t${Date.now()}`,
-      agencyId: user.id,
-      active: true,
-      rating: 0,
-      totalReviews: 0,
-      images: ['https://picsum.photos/800/600?random=' + Date.now()],
-      startDate: new Date().toISOString(),
-      endDate: new Date().toISOString(),
-      included: ['Hospedagem', 'Guia'], // default
-    } as Trip);
+    const tripData = {
+        ...formData,
+        agencyId: user.id,
+        images: formData.images && formData.images.length > 0 ? formData.images : ['https://picsum.photos/800/600?random=' + Date.now()],
+    } as Trip;
+
+    if (editingTripId) {
+        updateTrip(tripData);
+        alert('Viagem atualizada com sucesso!');
+    } else {
+        createTrip({
+          ...tripData,
+          id: `t${Date.now()}`,
+          active: true,
+          rating: 0,
+          totalReviews: 0,
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+          included: formData.included?.length ? formData.included : ['Hospedagem', 'Guia'],
+        });
+        alert('Viagem criada com sucesso!');
+    }
     
-    setIsCreateModalOpen(false);
-    setNewTrip({ title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, description: '' });
-    alert('Viagem criada com sucesso!');
+    setIsModalOpen(false);
   };
 
   const handleRenewSubscription = (planId: 'BASIC' | 'PREMIUM') => {
@@ -100,7 +116,6 @@ const AgencyDashboard: React.FC = () => {
              <div className="p-2 bg-green-100 text-green-600 rounded-lg"><DollarSign size={20} /></div>
           </div>
           <p className="text-3xl font-bold text-gray-900">R$ {totalSales.toLocaleString('pt-BR')}</p>
-          <p className="text-xs text-green-600 mt-2 font-medium">+12% vs mês anterior</p>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
@@ -108,7 +123,6 @@ const AgencyDashboard: React.FC = () => {
              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><TrendingUp size={20} /></div>
           </div>
           <p className="text-3xl font-bold text-gray-900">{totalViews}</p>
-          <p className="text-xs text-gray-400 mt-2 font-medium">Total acumulado</p>
         </div>
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
@@ -116,7 +130,6 @@ const AgencyDashboard: React.FC = () => {
              <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Users size={20} /></div>
           </div>
           <p className="text-3xl font-bold text-gray-900">{isSubscriptionActive ? myTrips.length : 0} <span className="text-lg font-normal text-gray-400">/ {myTrips.length}</span></p>
-          <p className="text-xs text-gray-400 mt-2 font-medium">Viagens cadastradas</p>
         </div>
       </div>
 
@@ -144,7 +157,7 @@ const AgencyDashboard: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-800">Meus Pacotes de Viagem</h2>
               <button 
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={handleOpenCreate}
                 disabled={!isSubscriptionActive}
                 className={`flex items-center px-4 py-2 rounded-lg text-white font-bold shadow-sm transition-all ${isSubscriptionActive ? 'bg-primary-600 hover:bg-primary-700 hover:shadow' : 'bg-gray-300 cursor-not-allowed'}`}
               >
@@ -192,7 +205,7 @@ const AgencyDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-primary-600 hover:text-primary-900 mr-4 bg-primary-50 p-2 rounded-lg hover:bg-primary-100 transition-colors"><Edit size={18} /></button>
+                        <button onClick={() => handleOpenEdit(trip)} disabled={!isSubscriptionActive} className={`mr-4 p-2 rounded-lg transition-colors ${isSubscriptionActive ? 'text-primary-600 bg-primary-50 hover:bg-primary-100' : 'text-gray-300 cursor-not-allowed'}`}><Edit size={18} /></button>
                         <button onClick={() => deleteTrip(trip.id)} className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition-colors"><Trash2 size={18} /></button>
                       </td>
                     </tr>
@@ -210,34 +223,19 @@ const AgencyDashboard: React.FC = () => {
 
         {activeTab === 'SUBSCRIPTION' && (
           <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-10">
-               <h2 className="text-2xl font-bold text-gray-900">Escolha o plano ideal</h2>
-               <p className="text-gray-500">Potencialize suas vendas com nossos planos exclusivos para agências.</p>
-            </div>
-
             <div className="grid md:grid-cols-2 gap-8">
               {PLANS.map(plan => (
                 <div key={plan.id} className={`relative border rounded-2xl p-8 bg-white flex flex-col transition-all ${myAgency.subscriptionPlan === plan.id && isSubscriptionActive ? 'ring-2 ring-primary-500 border-transparent shadow-lg' : 'border-gray-200 hover:shadow-lg'}`}>
-                   
                    {myAgency.subscriptionPlan === plan.id && isSubscriptionActive && (
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                         Seu Plano Atual
                       </div>
                    )}
-                   
                    <h4 className="text-xl font-bold text-gray-900">{plan.name}</h4>
                    <div className="mt-4 mb-8">
                      <span className="text-4xl font-extrabold text-gray-900">R$ {plan.price.toFixed(2)}</span>
                      <span className="text-gray-500 font-medium">/mês</span>
                    </div>
-                   <ul className="space-y-4 mb-8 flex-1">
-                     {plan.features.map((feat, idx) => (
-                       <li key={idx} className="flex items-center text-gray-600 text-sm">
-                         <div className="h-5 w-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3 text-xs">✓</div>
-                         {feat}
-                       </li>
-                     ))}
-                   </ul>
                    <button 
                      onClick={() => handleRenewSubscription(plan.id as 'BASIC' | 'PREMIUM')}
                      className={`w-full py-3 rounded-xl font-bold transition-all transform active:scale-95 ${
@@ -255,24 +253,25 @@ const AgencyDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Create Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+      {/* Modal for Create/Edit */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl animate-[fadeIn_0.2s_ease-out] relative">
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <X size={24} />
+            </button>
             <div className="flex justify-between items-center mb-6">
-               <h2 className="text-2xl font-bold text-gray-900">Criar Nova Viagem</h2>
-               <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><Plus size={20} className="rotate-45" /></button>
+               <h2 className="text-2xl font-bold text-gray-900">{editingTripId ? 'Editar Viagem' : 'Criar Nova Viagem'}</h2>
             </div>
             
-            <form onSubmit={handleCreateTrip} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Título do Pacote</label>
                   <input 
                     className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" 
-                    placeholder="Ex: Fim de semana em Salvador" 
-                    value={newTrip.title} 
-                    onChange={e => setNewTrip({...newTrip, title: e.target.value})}
+                    value={formData.title} 
+                    onChange={e => setFormData({...formData, title: e.target.value})}
                     required
                   />
                 </div>
@@ -280,9 +279,8 @@ const AgencyDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
                   <input 
                     className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" 
-                    placeholder="Cidade, Estado" 
-                    value={newTrip.destination} 
-                    onChange={e => setNewTrip({...newTrip, destination: e.target.value})}
+                    value={formData.destination} 
+                    onChange={e => setFormData({...formData, destination: e.target.value})}
                     required
                   />
                 </div>
@@ -290,10 +288,9 @@ const AgencyDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Preço (R$)</label>
                   <input 
                     className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" 
-                    placeholder="0.00" 
                     type="number"
-                    value={newTrip.price || ''} 
-                    onChange={e => setNewTrip({...newTrip, price: Number(e.target.value)})}
+                    value={formData.price || ''} 
+                    onChange={e => setFormData({...formData, price: Number(e.target.value)})}
                     required
                   />
                 </div>
@@ -301,8 +298,8 @@ const AgencyDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                   <select 
                     className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none bg-white"
-                    value={newTrip.category}
-                    onChange={e => setNewTrip({...newTrip, category: e.target.value as any})}
+                    value={formData.category}
+                    onChange={e => setFormData({...formData, category: e.target.value as any})}
                   >
                      {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map(c => (
                        <option key={c} value={c}>{c}</option>
@@ -315,8 +312,8 @@ const AgencyDashboard: React.FC = () => {
                     className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" 
                     type="number"
                     min="1"
-                    value={newTrip.durationDays || 1} 
-                    onChange={e => setNewTrip({...newTrip, durationDays: Number(e.target.value)})}
+                    value={formData.durationDays || 1} 
+                    onChange={e => setFormData({...formData, durationDays: Number(e.target.value)})}
                   />
                 </div>
                 <div className="col-span-2">
@@ -324,15 +321,16 @@ const AgencyDashboard: React.FC = () => {
                    <textarea 
                       className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       rows={4}
-                      placeholder="Descreva os detalhes incríveis dessa viagem..."
-                      value={newTrip.description || ''}
-                      onChange={e => setNewTrip({...newTrip, description: e.target.value})}
+                      value={formData.description || ''}
+                      onChange={e => setFormData({...formData, description: e.target.value})}
                    />
                 </div>
               </div>
               <div className="flex gap-4 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 border border-gray-300 rounded-xl text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-md hover:bg-primary-700">Criar Pacote</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border border-gray-300 rounded-xl text-gray-600 font-medium hover:bg-gray-50">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-md hover:bg-primary-700">
+                   {editingTripId ? 'Salvar Alterações' : 'Criar Pacote'}
+                </button>
               </div>
             </form>
           </div>

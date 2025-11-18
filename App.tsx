@@ -6,6 +6,8 @@ import Layout from './components/Layout';
 import Home from './pages/Home';
 import TripList from './pages/TripList';
 import TripDetails from './pages/TripDetails';
+import AgencyList from './pages/AgencyList';
+import AgencyProfile from './pages/AgencyProfile';
 import AgencyDashboard from './pages/AgencyDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
@@ -22,7 +24,8 @@ const App: React.FC = () => {
               <Route index element={<Home />} />
               <Route path="trips" element={<TripList />} />
               <Route path="trip/:id" element={<TripDetails />} />
-              <Route path="agencies" element={<div className="p-8 text-center">Lista de agências (Em construção)</div>} />
+              <Route path="agencies" element={<AgencyList />} />
+              <Route path="agency/:id" element={<AgencyProfile />} />
               
               {/* Auth Routes */}
               <Route path="login" element={<Login />} />

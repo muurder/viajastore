@@ -2,15 +2,20 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { getTripById, addBooking, agencies } = useData();
+  const { getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
+  
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [passengers, setPassengers] = useState(1);
+  
+  // Review State
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
 
   const trip = getTripById(id || '');
   
@@ -18,6 +23,9 @@ const TripDetails: React.FC = () => {
 
   const agency = agencies.find(a => a.id === trip.agencyId);
   const totalPrice = trip.price * passengers;
+  const reviews = getReviewsByTripId(trip.id);
+  
+  const canReview = user?.role === 'CLIENT' && hasUserPurchasedTrip(user.id, trip.id);
 
   const handleBooking = () => {
     if (!user) {
@@ -29,7 +37,6 @@ const TripDetails: React.FC = () => {
       return;
     }
     
-    // Mock Payment & Booking
     addBooking({
       id: `b${Date.now()}`,
       tripId: trip.id,
@@ -40,13 +47,30 @@ const TripDetails: React.FC = () => {
       passengers
     });
 
-    alert('Compra realizada com sucesso! (Simulação)');
+    alert('Compra realizada com sucesso! Você já pode ver o voucher no seu painel.');
     setIsBookingModalOpen(false);
-    navigate('/');
+    navigate('/client/dashboard');
+  };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    addReview({
+      id: `r${Date.now()}`,
+      tripId: trip.id,
+      clientId: user.id,
+      clientName: user.name,
+      rating,
+      comment,
+      date: new Date().toISOString()
+    });
+    setComment('');
+    alert('Avaliação enviada!');
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto pb-12">
       {/* Images Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-2xl overflow-hidden mb-8 h-[400px]">
         <img src={trip.images[0]} alt="Main" className="w-full h-full object-cover" />
@@ -67,7 +91,7 @@ const TripDetails: React.FC = () => {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{trip.title}</h1>
             <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span className="flex items-center"><Star size={16} className="text-amber-400 fill-current mr-1" /> {trip.rating} ({trip.totalReviews} avaliações)</span>
+              <span className="flex items-center"><Star size={16} className="text-amber-400 fill-current mr-1" /> {trip.rating.toFixed(1)} ({trip.totalReviews} avaliações)</span>
               <span className="flex items-center"><Clock size={16} className="mr-1" /> {trip.durationDays} Dias</span>
             </div>
           </div>
@@ -96,10 +120,65 @@ const TripDetails: React.FC = () => {
                 <div>
                    <p className="text-xs text-gray-500 uppercase font-bold">Organizado por</p>
                    <h4 className="text-lg font-bold">{agency.name}</h4>
-                   <p className="text-sm text-gray-600 line-clamp-1">{agency.description}</p>
+                   <p className="text-sm text-gray-600 line-clamp-1 mb-2">{agency.description}</p>
+                   <button onClick={() => navigate(`/agency/${agency.id}`)} className="text-primary-600 text-sm font-medium hover:underline">
+                     Ver todas as viagens dessa agência
+                   </button>
                 </div>
              </div>
           )}
+
+          {/* Reviews Section */}
+          <div className="pt-8 border-t border-gray-100">
+             <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+               <MessageCircle className="mr-2" /> Avaliações
+             </h3>
+             
+             {/* Review Form */}
+             {canReview && (
+               <form onSubmit={handleSubmitReview} className="bg-gray-50 p-4 rounded-xl mb-8">
+                 <h4 className="font-bold text-sm mb-2">Deixe sua avaliação</h4>
+                 <div className="flex items-center gap-2 mb-3">
+                   {[1,2,3,4,5].map(star => (
+                     <button type="button" key={star} onClick={() => setRating(star)}>
+                       <Star size={20} className={`${star <= rating ? 'text-amber-400 fill-current' : 'text-gray-300'}`} />
+                     </button>
+                   ))}
+                 </div>
+                 <div className="flex gap-2">
+                   <input 
+                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500" 
+                     placeholder="Conte como foi sua experiência..."
+                     value={comment}
+                     onChange={e => setComment(e.target.value)}
+                     required
+                   />
+                   <button type="submit" className="bg-primary-600 text-white px-4 rounded-lg hover:bg-primary-700">
+                     <Send size={18} />
+                   </button>
+                 </div>
+               </form>
+             )}
+
+             <div className="space-y-4">
+               {reviews.length > 0 ? reviews.map(review => (
+                 <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0">
+                    <div className="flex justify-between items-start mb-1">
+                       <span className="font-bold text-gray-900">{review.clientName}</span>
+                       <span className="text-xs text-gray-400">{new Date(review.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex text-amber-400 mb-2">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={12} className={i < review.rating ? "fill-current" : "text-gray-200"} />
+                      ))}
+                    </div>
+                    <p className="text-gray-600 text-sm">{review.comment}</p>
+                 </div>
+               )) : (
+                 <p className="text-gray-500 text-sm italic">Ainda não há avaliações para esta viagem.</p>
+               )}
+             </div>
+          </div>
         </div>
 
         {/* Sticky Booking Card */}

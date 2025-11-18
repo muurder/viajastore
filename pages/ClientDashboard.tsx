@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download } from 'lucide-react';
 
 const ClientDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -15,6 +15,10 @@ const ClientDashboard: React.FC = () => {
   const myBookings = bookings.filter(b => b.clientId === user.id);
   const currentClient = clients.find(c => c.id === user.id);
   const favoriteTrips = currentClient ? currentClient.favorites.map(id => getTripById(id)).filter(t => t !== undefined) : [];
+
+  const handleDownloadVoucher = () => {
+    alert("Voucher baixado com sucesso! (Simulação)");
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -117,7 +121,12 @@ const ClientDashboard: React.FC = () => {
                              <p className="text-sm text-gray-500">Total Pago</p>
                              <p className="text-xl font-bold text-gray-900">R$ {booking.totalPrice}</p>
                            </div>
-                           <button className="mt-4 text-primary-600 text-sm font-bold hover:underline">Ver Voucher</button>
+                           <button 
+                            onClick={handleDownloadVoucher}
+                            className="mt-4 text-primary-600 text-sm font-bold hover:underline flex items-center"
+                           >
+                            <Download size={16} className="mr-1" /> Ver Voucher
+                           </button>
                         </div>
                       </div>
                     );
