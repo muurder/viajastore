@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { UserRole } from '../types';
 import { Lock, Mail } from 'lucide-react';
 
@@ -14,9 +14,11 @@ const Login: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (login(email, role)) {
-      navigate('/');
+      if (role === UserRole.ADMIN) navigate('/admin/dashboard');
+      else if (role === UserRole.AGENCY) navigate('/agency/dashboard');
+      else navigate('/client/dashboard');
     } else {
-      setError('Usuário não encontrado. Verifique as credenciais de teste.');
+      setError('Usuário não encontrado. Verifique as credenciais.');
     }
   };
 
@@ -36,21 +38,24 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-[calc(100vh-160px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Entrar na sua conta
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Ou use as opções de teste abaixo
+            Bem-vindo de volta ao ViajaStore
           </p>
         </div>
         
         {/* Quick Actions for Prototype */}
-        <div className="flex justify-center gap-2 mb-4 text-xs">
-          <button onClick={() => fillCredentials('CLIENT')} className="bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200">Sou Cliente</button>
-          <button onClick={() => fillCredentials('AGENCY')} className="bg-purple-100 text-purple-800 px-2 py-1 rounded hover:bg-purple-200">Sou Agência</button>
-          <button onClick={() => fillCredentials('ADMIN')} className="bg-gray-100 text-gray-800 px-2 py-1 rounded hover:bg-gray-200">Sou Admin</button>
+        <div className="bg-gray-50 p-3 rounded-lg mb-4 text-xs text-center border border-gray-200">
+          <p className="mb-2 font-bold text-gray-500 uppercase">Acesso Rápido (Teste)</p>
+          <div className="flex justify-center gap-2">
+            <button onClick={() => fillCredentials('CLIENT')} className="bg-white border hover:bg-gray-50 px-2 py-1 rounded shadow-sm">Cliente</button>
+            <button onClick={() => fillCredentials('AGENCY')} className="bg-white border hover:bg-gray-50 px-2 py-1 rounded shadow-sm">Agência</button>
+            <button onClick={() => fillCredentials('ADMIN')} className="bg-white border hover:bg-gray-50 px-2 py-1 rounded shadow-sm">Admin</button>
+          </div>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -85,6 +90,10 @@ const Login: React.FC = () => {
 
           {error && <div className="text-red-500 text-sm text-center">{error}</div>}
 
+          <div className="flex items-center justify-between">
+             <Link to="#" className="text-sm font-medium text-primary-600 hover:text-primary-500">Esqueci minha senha</Link>
+          </div>
+
           <div>
             <button
               type="submit"
@@ -95,6 +104,13 @@ const Login: React.FC = () => {
               </span>
               Entrar
             </button>
+          </div>
+
+          <div className="text-center mt-4">
+            <span className="text-sm text-gray-600">Não tem conta? </span>
+            <Link to="/signup" className="text-sm font-medium text-primary-600 hover:text-primary-500">
+              Criar Conta
+            </Link>
           </div>
         </form>
       </div>

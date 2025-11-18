@@ -8,7 +8,9 @@ import TripList from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyDashboard from './pages/AgencyDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ClientDashboard from './pages/ClientDashboard';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 
 const App: React.FC = () => {
   return (
@@ -21,12 +23,15 @@ const App: React.FC = () => {
               <Route path="trips" element={<TripList />} />
               <Route path="trip/:id" element={<TripDetails />} />
               <Route path="agencies" element={<div className="p-8 text-center">Lista de agências (Em construção)</div>} />
-              <Route path="login" element={<Login />} />
-              <Route path="signup" element={<div className="p-8 text-center">Página de Cadastro (Fluxo similar ao Login)</div>} />
               
-              {/* Protected Routes Logic handled inside components for simplicity in prototype */}
+              {/* Auth Routes */}
+              <Route path="login" element={<Login />} />
+              <Route path="signup" element={<Signup />} />
+              
+              {/* Protected Routes */}
               <Route path="agency/dashboard" element={<AgencyDashboard />} />
               <Route path="admin/dashboard" element={<AdminDashboard />} />
+              <Route path="client/dashboard" element={<ClientDashboard />} />
             </Route>
           </Routes>
         </Router>

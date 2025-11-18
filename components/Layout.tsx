@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Plane, User, LogOut, Menu, X, Search, ShoppingBag } from 'lucide-react';
+import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -13,9 +13,6 @@ const Layout: React.FC = () => {
     logout();
     navigate('/login');
   };
-
-  // Logic to show sticky bottom bar only on mobile
-  const isMobile = window.innerWidth < 768;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -31,7 +28,7 @@ const Layout: React.FC = () => {
               
               <div className="hidden md:ml-8 md:flex md:space-x-8">
                 <Link to="/trips" className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${location.pathname === '/trips' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
-                  Explorar
+                  Viagens
                 </Link>
                 <Link to="/agencies" className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${location.pathname === '/agencies' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
                   Agências
@@ -54,7 +51,9 @@ const Layout: React.FC = () => {
                   )}
                   
                   <div className="relative flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                    <Link to={user.role === 'CLIENT' ? '/client/dashboard' : '#'} className="text-sm font-medium text-gray-700 hover:text-primary-600">
+                      Olá, {user.name}
+                    </Link>
                     <button onClick={handleLogout} className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100">
                       <LogOut size={20} />
                     </button>
@@ -93,6 +92,11 @@ const Layout: React.FC = () => {
               {user && user.role === 'AGENCY' && (
                 <Link to="/agency/dashboard" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-gray-50">
                   Painel Agência
+                </Link>
+              )}
+              {user && user.role === 'CLIENT' && (
+                <Link to="/client/dashboard" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-gray-50">
+                  Minha Conta
                 </Link>
               )}
                {user && user.role === 'ADMIN' && (
@@ -137,17 +141,57 @@ const Layout: React.FC = () => {
         <Outlet />
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200">
-        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center flex-col md:flex-row gap-4">
-             <div className="flex items-center">
+      {/* Full Footer */}
+      <footer className="bg-white border-t border-gray-200 pt-12 pb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div className="col-span-1 md:col-span-1">
+              <div className="flex items-center mb-4">
                 <Plane className="h-6 w-6 text-primary-600 mr-2" />
-                <span className="font-bold text-lg text-gray-800">ViajaStore</span>
-             </div>
-             <div className="text-gray-500 text-sm text-center">
-               © 2024 ViajaStore. Todos os direitos reservados.
-             </div>
+                <span className="font-bold text-xl text-gray-800">ViajaStore</span>
+              </div>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Conectamos você às melhores agências de turismo do Brasil. Viaje com segurança, qualidade e os melhores preços.
+              </p>
+            </div>
+            
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4">Sobre</h3>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li><Link to="#" className="hover:text-primary-600">Quem somos</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Carreiras</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Imprensa</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Blog</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4">Suporte</h3>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li><Link to="#" className="hover:text-primary-600">Central de Ajuda</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Termos e Condições</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Política de Privacidade</Link></li>
+                <li><Link to="#" className="hover:text-primary-600">Contato</Link></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-gray-900 mb-4">Social</h3>
+              <div className="flex space-x-4">
+                <a href="#" className="text-gray-400 hover:text-pink-600 transition-colors"><Instagram size={24} /></a>
+                <a href="#" className="text-gray-400 hover:text-blue-600 transition-colors"><Facebook size={24} /></a>
+                <a href="#" className="text-gray-400 hover:text-blue-400 transition-colors"><Twitter size={24} /></a>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <p className="text-sm text-gray-400 mb-4 md:mb-0">
+              © 2024 ViajaStore. Todos os direitos reservados.
+            </p>
+            <div className="flex space-x-6 text-sm text-gray-400">
+              <span>Feito com ❤️ no Brasil</span>
+            </div>
           </div>
         </div>
       </footer>
