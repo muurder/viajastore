@@ -12,7 +12,9 @@ interface DataContextType {
   // Actions
   addBooking: (booking: Booking) => void;
   addReview: (review: Review) => void;
+  deleteReview: (reviewId: string) => void;
   toggleFavorite: (tripId: string, clientId: string) => void;
+  updateClientProfile: (clientId: string, data: Partial<Client>) => void;
   
   // Agency Actions
   updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => void;
@@ -21,12 +23,12 @@ interface DataContextType {
   deleteTrip: (tripId: string) => void;
 
   // Admin Actions
-  toggleTripStatus: (tripId: string) => void; // Admin can suspend/activate specific trips
+  toggleTripStatus: (tripId: string) => void; 
   
   // Getters
-  getPublicTrips: () => Trip[]; // All active trips from active agencies
-  getAgencyPublicTrips: (agencyId: string) => Trip[]; // Trips for a specific agency profile
-  getAgencyTrips: (agencyId: string) => Trip[]; // All trips for agency dashboard
+  getPublicTrips: () => Trip[]; 
+  getAgencyPublicTrips: (agencyId: string) => Trip[];
+  getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
@@ -35,33 +37,57 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [trips, setTrips] = useState<Trip[]>(MOCK_TRIPS);
-  const [agencies, setAgencies] = useState<Agency[]>(MOCK_AGENCIES);
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS);
-  const [reviews, setReviews] = useState<Review[]>(MOCK_REVIEWS);
-  const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
+  // Initialize State from LocalStorage with fallback to Mock Data
+  const [trips, setTrips] = useState<Trip[]>(() => {
+    const s = localStorage.getItem('vs_trips');
+    return s ? JSON.parse(s) : MOCK_TRIPS;
+  });
+
+  const [agencies, setAgencies] = useState<Agency[]>(() => {
+    const s = localStorage.getItem('vs_agencies'); // synced with AuthContext theoretically, but kept separate for data concern
+    return s ? JSON.parse(s) : MOCK_AGENCIES;
+  });
+
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    const s = localStorage.getItem('vs_bookings');
+    return s ? JSON.parse(s) : MOCK_BOOKINGS;
+  });
+
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const s = localStorage.getItem('vs_reviews');
+    return s ? JSON.parse(s) : MOCK_REVIEWS;
+  });
+
+  const [clients, setClients] = useState<Client[]>(() => {
+    const s = localStorage.getItem('vs_clients');
+    return s ? JSON.parse(s) : MOCK_CLIENTS;
+  });
+
+  // Persistence Effects
+  useEffect(() => localStorage.setItem('vs_trips', JSON.stringify(trips)), [trips]);
+  useEffect(() => localStorage.setItem('vs_bookings', JSON.stringify(bookings)), [bookings]);
+  useEffect(() => localStorage.setItem('vs_reviews', JSON.stringify(reviews)), [reviews]);
+  // Clients/Agencies also persisted in AuthContext, but here we update them for data consistency in lists
+  useEffect(() => localStorage.setItem('vs_clients', JSON.stringify(clients)), [clients]);
+  useEffect(() => localStorage.setItem('vs_agencies', JSON.stringify(agencies)), [agencies]);
+
 
   // Helper: Check if agency has active subscription
   const isAgencyActive = (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
     if (!agency) return false;
-    
-    // Check if date is expired
     const now = new Date();
     const expires = new Date(agency.subscriptionExpiresAt);
-    
     return agency.subscriptionStatus === 'ACTIVE' && expires > now;
   };
 
   const getPublicTrips = () => {
     return trips.filter(trip => {
-      // Trip must be manually active AND agency must be subscription active
       return trip.active && isAgencyActive(trip.agencyId);
     });
   };
 
   const getAgencyPublicTrips = (agencyId: string) => {
-    // For the public profile page of an agency
     if (!isAgencyActive(agencyId)) return [];
     return trips.filter(t => t.agencyId === agencyId && t.active);
   };
@@ -85,11 +111,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addReview = (review: Review) => {
     setReviews(prev => [...prev, review]);
     
-    // Recalculate rating
+    // Update trip rating
     const tripReviews = [...reviews.filter(r => r.tripId === review.tripId), review];
     const avg = tripReviews.reduce((acc, curr) => acc + curr.rating, 0) / tripReviews.length;
     
     setTrips(prev => prev.map(t => t.id === review.tripId ? { ...t, rating: avg, totalReviews: tripReviews.length } : t));
+  };
+
+  const deleteReview = (reviewId: string) => {
+     setReviews(prev => prev.filter(r => r.id !== reviewId));
+     // Note: In a real app, we would need to recalculate the trip rating here too.
   };
 
   const createTrip = (trip: Trip) => {
@@ -112,7 +143,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAgencies(prev => prev.map(a => {
       if (a.id === agencyId) {
         const newExpiry = new Date();
-        newExpiry.setMonth(newExpiry.getMonth() + 1); // Add 1 month
+        newExpiry.setMonth(newExpiry.getMonth() + 1); 
         return {
           ...a,
           subscriptionStatus: status,
@@ -137,6 +168,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   };
 
+  const updateClientProfile = (clientId: string, data: Partial<Client>) => {
+      setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...data } : c));
+  };
+
   return (
     <DataContext.Provider value={{
       trips,
@@ -146,7 +181,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       clients,
       addBooking,
       addReview,
+      deleteReview,
       toggleFavorite,
+      updateClientProfile,
       updateAgencySubscription,
       createTrip,
       updateTrip,

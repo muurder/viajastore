@@ -20,6 +20,7 @@ const AgencyDashboard: React.FC = () => {
 
   if (!user || user.role !== UserRole.AGENCY) return <div className="p-8 text-center">Acesso negado. Faça login como agência.</div>;
 
+  // Get fresh agency data from Context instead of relying on AuthContext's stale user
   const myAgency = agencies.find(a => a.id === user.id);
   if (!myAgency) return <div>Agência não encontrada.</div>;
 

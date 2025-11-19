@@ -3,12 +3,19 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save } from 'lucide-react';
 
 const ClientDashboard: React.FC = () => {
-  const { user } = useAuth();
-  const { bookings, getTripById, clients } = useData();
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKINGS' | 'FAVORITES'>('PROFILE');
+  const { user, updateUser } = useAuth();
+  const { bookings, getTripById, clients, updateClientProfile } = useData();
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKINGS' | 'FAVORITES' | 'SETTINGS'>('PROFILE');
+
+  // Settings State
+  const [editForm, setEditForm] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: (user as any)?.phone || '',
+  });
 
   if (!user || user.role !== UserRole.CLIENT) return <div className="p-8 text-center">Acesso negado.</div>;
 
@@ -19,6 +26,13 @@ const ClientDashboard: React.FC = () => {
   const handleDownloadVoucher = () => {
     alert("Voucher baixado com sucesso! (Simulação)");
   }
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateUser({ name: editForm.name, email: editForm.email });
+    updateClientProfile(user.id, { phone: editForm.phone });
+    alert('Perfil atualizado com sucesso!');
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -51,7 +65,10 @@ const ClientDashboard: React.FC = () => {
             >
               <Heart size={18} className="mr-3" /> Favoritos
             </button>
-            <button className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-gray-400 hover:bg-gray-50 cursor-not-allowed">
+            <button 
+              onClick={() => setActiveTab('SETTINGS')}
+              className={`w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors ${activeTab === 'SETTINGS' ? 'bg-primary-50 text-primary-700 border-l-4 border-primary-600' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
               <Settings size={18} className="mr-3" /> Configurações
             </button>
           </nav>
@@ -74,15 +91,15 @@ const ClientDashboard: React.FC = () => {
                  </div>
                  <div>
                    <label className="block text-sm font-medium text-gray-500 mb-1">CPF</label>
-                   <input disabled value={(user as any).cpf || '---'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-800" />
+                   <input disabled value={(currentClient as any)?.cpf || '---'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-800" />
                  </div>
                  <div>
                    <label className="block text-sm font-medium text-gray-500 mb-1">Telefone</label>
-                   <input disabled value={(user as any).phone || '---'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-800" />
+                   <input disabled value={(currentClient as any)?.phone || '---'} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-800" />
                  </div>
                </div>
                <div className="mt-8 flex justify-end">
-                 <button className="px-6 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700">Editar Perfil</button>
+                 <button onClick={() => setActiveTab('SETTINGS')} className="px-6 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700">Editar Perfil</button>
                </div>
              </div>
            )}
@@ -153,6 +170,42 @@ const ClientDashboard: React.FC = () => {
                    <p className="text-gray-500">Você não favoritou nenhuma viagem ainda.</p>
                  </div>
                )}
+             </div>
+           )}
+
+           {activeTab === 'SETTINGS' && (
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+               <h2 className="text-2xl font-bold text-gray-900 mb-6">Configurações da Conta</h2>
+               <form onSubmit={handleSaveSettings} className="space-y-6 max-w-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                    <input 
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input 
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <input 
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                      className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                  <button type="submit" className="flex items-center justify-center w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors">
+                    <Save className="mr-2" size={18} /> Salvar Alterações
+                  </button>
+               </form>
              </div>
            )}
         </div>

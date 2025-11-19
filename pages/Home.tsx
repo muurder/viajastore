@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { Search, MapPin, CheckCircle, ShieldCheck, Compass } from 'lucide-react';
+import { MapPin, CheckCircle, ShieldCheck, Compass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Home: React.FC = () => {
@@ -13,21 +13,26 @@ const Home: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent parent click
     navigate(`/trips?q=${search}`);
   };
 
   return (
     <div className="space-y-16 pb-12">
       {/* Hero Section */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] flex items-center">
+      <div 
+        className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] flex items-center cursor-pointer group"
+        onClick={() => navigate('/trips')}
+        title="Explorar todos os pacotes"
+      >
         <img 
           src="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=2070&auto=format&fit=crop" 
           alt="Hero" 
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-[20s]"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent"></div>
         
-        <div className="relative z-10 px-8 md:px-16 max-w-3xl">
+        <div className="relative z-10 px-8 md:px-16 max-w-3xl w-full">
           <span className="inline-block py-1 px-3 rounded-full bg-secondary-500/20 text-secondary-500 bg-opacity-20 backdrop-blur-sm border border-secondary-500/30 font-semibold text-sm mb-4 uppercase tracking-wide">
             O Maior Marketplace de Viagens
           </span>
@@ -38,21 +43,34 @@ const Home: React.FC = () => {
             Encontre os melhores pacotes de viagens de agências verificadas. Praias, montanhas e experiências únicas esperam por você.
           </p>
 
-          <form onSubmit={handleSearch} className="bg-white p-2 rounded-xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl">
-            <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-lg">
-              <MapPin className="text-gray-400 mr-3" />
-              <input 
-                type="text" 
-                placeholder="Para onde você quer ir?" 
-                className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-500 font-medium"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-lg transition-colors shadow-md">
-              Buscar
-            </button>
-          </form>
+          {/* Search Form - Stop propagation to prevent main banner click */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleSearch} className="bg-white p-2 rounded-xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mb-6">
+              <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-lg">
+                <MapPin className="text-gray-400 mr-3" />
+                <input 
+                  type="text" 
+                  placeholder="Para onde você quer ir?" 
+                  className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-500 font-medium"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-lg transition-colors shadow-md">
+                Buscar
+              </button>
+            </form>
+          </div>
+
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/trips');
+            }}
+            className="text-white/80 hover:text-white text-sm font-medium hover:underline"
+          >
+            Ou explore todos os pacotes disponíveis &rarr;
+          </button>
         </div>
       </div>
 
@@ -67,7 +85,7 @@ const Home: React.FC = () => {
              <button 
                key={cat} 
                onClick={() => navigate(`/trips?category=${cat}`)}
-               className="group bg-white border border-gray-200 hover:border-primary-500 hover:bg-primary-50 p-6 rounded-xl text-center transition-all shadow-sm hover:shadow-md"
+               className="group bg-white border border-gray-200 hover:border-primary-500 hover:bg-primary-50 p-6 rounded-xl text-center transition-all shadow-sm hover:shadow-md cursor-pointer"
              >
                <span className="block text-sm font-bold text-gray-700 group-hover:text-primary-700 capitalize">{cat.toLowerCase()}</span>
              </button>
@@ -82,7 +100,10 @@ const Home: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900">Destaques da Semana</h2>
             <p className="text-gray-500 mt-1">As viagens mais desejadas pelos viajantes.</p>
           </div>
-          <button onClick={() => navigate('/trips')} className="text-primary-600 font-semibold hover:text-primary-700 hover:underline">
+          <button 
+            onClick={() => navigate('/trips')} 
+            className="text-primary-600 font-semibold hover:text-primary-700 hover:underline px-4 py-2 rounded-lg hover:bg-primary-50 transition-colors"
+          >
             Ver todas &rarr;
           </button>
         </div>

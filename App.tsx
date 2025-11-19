@@ -13,6 +13,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import { About, Contact, Terms, Help } from './pages/StaticPages';
+import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
 const App: React.FC = () => {
   return (
@@ -22,10 +24,23 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
+              
+              {/* Main Content Routes */}
               <Route path="trips" element={<TripList />} />
               <Route path="trip/:id" element={<TripDetails />} />
               <Route path="agencies" element={<AgencyList />} />
               <Route path="agency/:id" element={<AgencyProfile />} />
+              
+              {/* Static Pages */}
+              <Route path="about" element={<About />} />
+              <Route path="contact" element={<Contact />} />
+              <Route path="terms" element={<Terms />} />
+              <Route path="help" element={<Help />} />
+              
+              {/* Utility Routes */}
+              <Route path="checkout/success" element={<CheckoutSuccess />} />
+              <Route path="unauthorized" element={<Unauthorized />} />
+              <Route path="forgot-password" element={<ForgotPassword />} />
               
               {/* Auth Routes */}
               <Route path="login" element={<Login />} />
@@ -35,6 +50,9 @@ const App: React.FC = () => {
               <Route path="agency/dashboard" element={<AgencyDashboard />} />
               <Route path="admin/dashboard" element={<AdminDashboard />} />
               <Route path="client/dashboard" element={<ClientDashboard />} />
+
+              {/* Catch all */}
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
         </Router>

@@ -14,6 +14,26 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
+  // Helper to determine if a nav link should be active
+  const isActive = (basePath: string) => {
+    if (basePath === '/trips') {
+      return location.pathname === '/trips' || location.pathname.startsWith('/trip/');
+    }
+    if (basePath === '/agencies') {
+      return location.pathname === '/agencies' || (location.pathname.startsWith('/agency/') && !location.pathname.includes('dashboard'));
+    }
+    return location.pathname === basePath;
+  };
+
+  const getLinkClasses = (path: string) => {
+    const active = isActive(path);
+    return `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200 ${
+      active 
+        ? 'border-primary-500 text-primary-600' 
+        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+    }`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Navbar */}
@@ -27,10 +47,10 @@ const Layout: React.FC = () => {
               </Link>
               
               <div className="hidden md:ml-8 md:flex md:space-x-8">
-                <Link to="/trips" className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${location.pathname === '/trips' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+                <Link to="/trips" className={getLinkClasses('/trips')}>
                   Viagens
                 </Link>
-                <Link to="/agencies" className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${location.pathname === '/agencies' ? 'border-primary-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+                <Link to="/agencies" className={getLinkClasses('/agencies')}>
                   Agências
                 </Link>
               </div>
@@ -54,14 +74,14 @@ const Layout: React.FC = () => {
                     <Link to={user.role === 'CLIENT' ? '/client/dashboard' : '#'} className="text-sm font-medium text-gray-700 hover:text-primary-600">
                       Olá, {user.name}
                     </Link>
-                    <button onClick={handleLogout} className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100">
+                    <button onClick={handleLogout} className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors">
                       <LogOut size={20} />
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-4">
-                  <Link to="/login" className="text-gray-500 hover:text-gray-900 font-medium">
+                  <Link to="/login" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">
                     Entrar
                   </Link>
                   <Link to="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm">
@@ -83,24 +103,32 @@ const Layout: React.FC = () => {
         {isMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200">
             <div className="pt-2 pb-3 space-y-1">
-              <Link to="/trips" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">
+              <Link 
+                to="/trips" 
+                onClick={() => setIsMenuOpen(false)}
+                className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${isActive('/trips') ? 'border-primary-500 text-primary-700 bg-primary-50' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'}`}
+              >
                 Explorar Viagens
               </Link>
-              <Link to="/agencies" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800">
+              <Link 
+                to="/agencies" 
+                onClick={() => setIsMenuOpen(false)}
+                className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${isActive('/agencies') ? 'border-primary-500 text-primary-700 bg-primary-50' : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'}`}
+              >
                 Agências
               </Link>
               {user && user.role === 'AGENCY' && (
-                <Link to="/agency/dashboard" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-gray-50">
+                <Link to="/agency/dashboard" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50">
                   Painel Agência
                 </Link>
               )}
               {user && user.role === 'CLIENT' && (
-                <Link to="/client/dashboard" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-gray-50">
+                <Link to="/client/dashboard" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50">
                   Minha Conta
                 </Link>
               )}
                {user && user.role === 'ADMIN' && (
-                <Link to="/admin/dashboard" className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-gray-50">
+                <Link to="/admin/dashboard" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-600 hover:bg-gray-50">
                   Painel Admin
                 </Link>
               )}
@@ -123,10 +151,10 @@ const Layout: React.FC = () => {
                 </div>
               ) : (
                 <div className="px-4 flex flex-col gap-2">
-                  <Link to="/login" className="block w-full text-center px-4 py-2 border border-gray-300 shadow-sm text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                  <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 border border-gray-300 shadow-sm text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Entrar
                   </Link>
-                  <Link to="/signup" className="block w-full text-center px-4 py-2 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
+                  <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
                     Cadastrar
                   </Link>
                 </div>
@@ -158,7 +186,7 @@ const Layout: React.FC = () => {
             <div>
               <h3 className="font-bold text-gray-900 mb-4">Sobre</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li><Link to="#" className="hover:text-primary-600">Quem somos</Link></li>
+                <li><Link to="/about" className="hover:text-primary-600">Quem somos</Link></li>
                 <li><Link to="#" className="hover:text-primary-600">Carreiras</Link></li>
                 <li><Link to="#" className="hover:text-primary-600">Imprensa</Link></li>
                 <li><Link to="#" className="hover:text-primary-600">Blog</Link></li>
@@ -168,10 +196,10 @@ const Layout: React.FC = () => {
             <div>
               <h3 className="font-bold text-gray-900 mb-4">Suporte</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li><Link to="#" className="hover:text-primary-600">Central de Ajuda</Link></li>
-                <li><Link to="#" className="hover:text-primary-600">Termos e Condições</Link></li>
-                <li><Link to="#" className="hover:text-primary-600">Política de Privacidade</Link></li>
-                <li><Link to="#" className="hover:text-primary-600">Contato</Link></li>
+                <li><Link to="/help" className="hover:text-primary-600">Central de Ajuda</Link></li>
+                <li><Link to="/terms" className="hover:text-primary-600">Termos e Condições</Link></li>
+                <li><Link to="/terms" className="hover:text-primary-600">Política de Privacidade</Link></li>
+                <li><Link to="/contact" className="hover:text-primary-600">Contato</Link></li>
               </ul>
             </div>
 

@@ -47,9 +47,8 @@ const TripDetails: React.FC = () => {
       passengers
     });
 
-    alert('Compra realizada com sucesso! Você já pode ver o voucher no seu painel.');
     setIsBookingModalOpen(false);
-    navigate('/client/dashboard');
+    navigate('/checkout/success');
   };
 
   const handleSubmitReview = (e: React.FormEvent) => {
