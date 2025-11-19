@@ -41,7 +41,7 @@ const TripList: React.FC = () => {
 
   const styleOptions = [
     'Natureza', 'História', 'Gastronomia', 'Vida Noturna', 'Viagem barata', 
-    'Cultura', 'Arte', 'Praia', 'Aventura', 'Romântico'
+    'Cultura', 'Arte', 'Praia', 'Aventura', 'Romântico', 'Camping', 'Místico', 'Religioso'
   ];
 
   const durationOptions = [
@@ -59,8 +59,8 @@ const TripList: React.FC = () => {
   ];
 
   const popularDestinations = [
-    'Rio de Janeiro', 'Chapada dos Veadeiros', 'Bonito', 'Jalapão', 
-    'Gramado', 'Salvador', 'Foz do Iguaçu', 'Fernando de Noronha'
+    'Rio de Janeiro', 'São Thomé', 'Bonito', 'Jalapão', 
+    'Ubatuba', 'Salvador', 'Foz do Iguaçu', 'Noronha'
   ];
 
   // Helper to update URL Params
@@ -112,10 +112,11 @@ const TripList: React.FC = () => {
         );
     }
 
-    // 4. Style / Tags (OR logic)
+    // 4. Style / Tags (OR logic with Partial Match)
     if (selectedTags.length > 0) {
         result = result.filter(t => 
-            t.tags.some(tag => selectedTags.includes(tag))
+            t.tags.some(tag => selectedTags.includes(tag)) ||
+            t.tags.some(tag => selectedTags.some(sTag => tag.includes(sTag))) // Partial matching for broader filters
         );
     }
 

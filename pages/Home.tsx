@@ -53,18 +53,21 @@ const Home: React.FC = () => {
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   const allTrips = getPublicTrips();
-  const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 4);
+  const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // Init Hero Featured Trip on Mount
   useEffect(() => {
     const candidates = allTrips.filter(t => t.featured || t.popularNearSP);
+    
     if (candidates.length > 0) {
+        // Pick a random one from candidates
         const randomIndex = Math.floor(Math.random() * candidates.length);
         setFeaturedTrip(candidates[randomIndex]);
     } else {
+        // Fallback to any trip
         setFeaturedTrip(allTrips[0] || null);
     }
-  }, []); // Empty dependency array ensures it runs once per mount/refresh
+  }, []); 
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -163,7 +166,7 @@ const Home: React.FC = () => {
                     placeholder="Para onde você quer ir?" 
                     className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => setSearch.call(null, e.target.value)}
                   />
                 </div>
                 <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
@@ -177,11 +180,12 @@ const Home: React.FC = () => {
           {featuredTrip && (
             <div className="w-full md:w-auto md:max-w-xs animate-[scaleIn_0.8s] mt-4 md:mt-0">
                <Link to={`/trip/${featuredTrip.id}`} className="block bg-white/95 backdrop-blur-sm p-4 rounded-2xl shadow-2xl hover:scale-105 transition-transform duration-300 border border-white/20">
-                  <div className="relative h-32 rounded-xl overflow-hidden mb-3">
-                      <img src={featuredTrip.images[0]} alt={featuredTrip.title} className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 bg-primary-600 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide shadow-sm">
-                          {featuredTrip.popularNearSP ? 'Perto de SP' : 'Destaque'}
-                      </div>
+                  <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-gray-100">
+                      <img 
+                        src={featuredTrip.images[0] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=500&q=60'} 
+                        alt={featuredTrip.title} 
+                        className="w-full h-full object-cover" 
+                      />
                   </div>
                   <div>
                       <h3 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-1">{featuredTrip.title}</h3>
