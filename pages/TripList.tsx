@@ -180,7 +180,7 @@ const TripList: React.FC = () => {
                   <input type="radio" name="category" checked={selectedCategory === ''} onChange={() => handleCategoryChange('')} className="hidden"/>
                   <span className="text-sm">Todas</span>
                 </label>
-                {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map(cat => (
+                {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO', 'SOZINHO'].map(cat => (
                   <label key={cat} className={`flex items-center cursor-pointer p-2 rounded-lg transition-colors ${selectedCategory === cat ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-gray-50 text-gray-600'}`}>
                     <input type="radio" name="category" checked={selectedCategory === cat} onChange={() => handleCategoryChange(cat)} className="hidden"/>
                     <span className="text-sm capitalize">{cat.toLowerCase()}</span>

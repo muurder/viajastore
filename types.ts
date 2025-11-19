@@ -50,7 +50,7 @@ export interface Trip {
   endDate: string;
   durationDays: number;
   images: string[];
-  category: 'PRAIA' | 'AVENTURA' | 'FAMILIA' | 'ROMANCE' | 'URBANO';
+  category: 'PRAIA' | 'AVENTURA' | 'FAMILIA' | 'ROMANCE' | 'URBANO' | 'SOZINHO';
   active: boolean; // Controlled by agency
   rating: number;
   totalReviews: number;

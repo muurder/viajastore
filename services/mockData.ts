@@ -21,7 +21,8 @@ export const MOCK_CLIENTS: Client[] = [
   }
 ];
 
-export const MOCK_AGENCIES: Agency[] = [
+// --- BASE AGENCIES ---
+const initialAgencies: Agency[] = [
   {
     id: 'a1',
     name: 'Nordeste Explorer',
@@ -55,6 +56,33 @@ export const MOCK_AGENCIES: Agency[] = [
   }
 ];
 
+// --- GENERATE 10 NEW AGENCIES ---
+const newAgencyNames = [
+  'CVC Turismo Cover', 'Decolar Fake Tours', 'Azul Viagens Clone', 'Carioca Travel', 
+  'Minas Gerais Destinos', 'Paraná Excursões', 'São Paulo City Tours', 'Terra da Garoa Viagens', 
+  'Iguaçu Explorer', 'Rota do Ouro MG'
+];
+
+const generatedAgencies: Agency[] = newAgencyNames.map((name, index) => ({
+  id: `new_a${index + 1}`,
+  name: name,
+  email: `contato@${name.replace(/\s+/g, '').toLowerCase()}.com`,
+  password: '123',
+  role: UserRole.AGENCY,
+  cnpj: `00.${index}00.000/0001-${index}0`,
+  description: `Agência especializada em turismo regional e nacional, oferecendo os melhores pacotes para você e sua família. Experiência comprovada em ${name}.`,
+  logo: `https://ui-avatars.com/api/?name=${name.replace(' ', '+')}&background=random&color=fff`,
+  subscriptionStatus: 'ACTIVE',
+  subscriptionPlan: 'PREMIUM',
+  subscriptionExpiresAt: new Date(new Date().setMonth(new Date().getMonth() + 12)).toISOString(),
+  phone: `(11) 9${index}000-0000`,
+  website: `www.${name.replace(/\s+/g, '').toLowerCase()}.com.br`,
+  createdAt: new Date().toISOString()
+}));
+
+export const MOCK_AGENCIES: Agency[] = [...initialAgencies, ...generatedAgencies];
+
+
 export const MOCK_ADMINS: Admin[] = [
   {
     id: 'adm1',
@@ -67,7 +95,8 @@ export const MOCK_ADMINS: Admin[] = [
   }
 ];
 
-export const MOCK_TRIPS: Trip[] = [
+// --- BASE TRIPS ---
+const initialTrips: Trip[] = [
   {
     id: 't1',
     agencyId: 'a1',
@@ -182,6 +211,65 @@ export const MOCK_TRIPS: Trip[] = [
     sales: 3
   }
 ];
+
+// --- GENERATE 100 NEW TRIPS (10 per new Agency) ---
+// Focus on PR, MG, RJ, SP
+const destinations = [
+    { city: 'Foz do Iguaçu, PR', type: 'AVENTURA' as const, title: 'Cataratas do Iguaçu e Aventura', img: 'https://images.unsplash.com/photo-1583589483229-3616196d1199?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Curitiba, PR', type: 'URBANO' as const, title: 'City Tour Curitiba e Parques', img: 'https://images.unsplash.com/photo-1566297489520-55f707761736?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Ilha do Mel, PR', type: 'PRAIA' as const, title: 'Fim de Semana na Ilha do Mel', img: 'https://images.unsplash.com/photo-1564053489984-317bbd824340?auto=format&fit=crop&w=800&q=80' },
+    
+    { city: 'Ouro Preto, MG', type: 'ROMANCE' as const, title: 'História e Charme em Ouro Preto', img: 'https://images.unsplash.com/photo-1565036566849-d94124397d47?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Capitólio, MG', type: 'AVENTURA' as const, title: 'Canyons de Capitólio', img: 'https://images.unsplash.com/photo-1625246333842-25c262ae545f?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Belo Horizonte, MG', type: 'URBANO' as const, title: 'Gastronomia e Cultura em BH', img: 'https://images.unsplash.com/photo-1566033909789-896e53b128f3?auto=format&fit=crop&w=800&q=80' },
+    
+    { city: 'Rio de Janeiro, RJ', type: 'PRAIA' as const, title: 'Maravilhas do Rio de Janeiro', img: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Paraty, RJ', type: 'ROMANCE' as const, title: 'Charme Colonial em Paraty', img: 'https://images.unsplash.com/photo-1565883252377-5b56439809d1?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Búzios, RJ', type: 'PRAIA' as const, title: 'Férias em Búzios', img: 'https://images.unsplash.com/photo-1572293662354-57634b351f5f?auto=format&fit=crop&w=800&q=80' },
+    
+    { city: 'Campos do Jordão, SP', type: 'ROMANCE' as const, title: 'Inverno em Campos do Jordão', img: 'https://images.unsplash.com/photo-1634838361759-337628908d1d?auto=format&fit=crop&w=800&q=80' },
+    { city: 'Ubatuba, SP', type: 'PRAIA' as const, title: 'Praias Selvagens de Ubatuba', img: 'https://images.unsplash.com/photo-1589825589321-80e1672c594a?auto=format&fit=crop&w=800&q=80' },
+    { city: 'São Paulo, SP', type: 'URBANO' as const, title: 'São Paulo Cosmopolita', img: 'https://images.unsplash.com/photo-1578305762432-0151b480575e?auto=format&fit=crop&w=800&q=80' }
+];
+
+// Categories rotation including the new SOZINHO
+const categories: Trip['category'][] = ['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO', 'SOZINHO'];
+
+let generatedTrips: Trip[] = [];
+
+generatedAgencies.forEach((agency, agencyIdx) => {
+  for (let i = 0; i < 10; i++) {
+    // Pick a destination based on loop index to ensure variety
+    const destInfo = destinations[(agencyIdx * 10 + i) % destinations.length];
+    
+    // Determine category - force SOZINHO occasionally
+    let category: Trip['category'] = destInfo.type;
+    if (i % 6 === 5) category = 'SOZINHO'; // Every 6th trip is Solo
+    if (i % 6 === 2) category = 'FAMILIA';
+    
+    generatedTrips.push({
+      id: `t_gen_${agency.id}_${i}`,
+      agencyId: agency.id,
+      title: category === 'SOZINHO' ? `Mochilão em ${destInfo.city.split(',')[0]}` : destInfo.title,
+      description: `Experimente o melhor de ${destInfo.city}. Pacote completo com guias locais, hospedagem de qualidade e roteiros exclusivos para você aproveitar ao máximo.`,
+      destination: destInfo.city,
+      price: 500 + Math.floor(Math.random() * 3000),
+      startDate: new Date(Date.now() + Math.random() * 10000000000).toISOString(),
+      endDate: new Date(Date.now() + Math.random() * 10000000000 + 432000000).toISOString(), // +5 days
+      durationDays: 3 + Math.floor(Math.random() * 7),
+      images: [destInfo.img],
+      category: category,
+      active: true,
+      rating: 4 + Math.random(),
+      totalReviews: Math.floor(Math.random() * 100),
+      included: ['Hospedagem', 'Café da Manhã', 'Seguro Viagem'],
+      views: Math.floor(Math.random() * 5000),
+      sales: Math.floor(Math.random() * 100)
+    });
+  }
+});
+
+export const MOCK_TRIPS: Trip[] = [...initialTrips, ...generatedTrips];
 
 export const MOCK_BOOKINGS: Booking[] = [];
 

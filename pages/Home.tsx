@@ -10,7 +10,8 @@ const CATEGORY_IMAGES: Record<string, string> = {
   AVENTURA: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800&auto=format&fit=crop',
   FAMILIA: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop',
   ROMANCE: 'https://images.unsplash.com/photo-1510097477421-e5456cd63d64?q=80&w=800&auto=format&fit=crop',
-  URBANO: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?q=80&w=800&auto=format&fit=crop'
+  URBANO: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?q=80&w=800&auto=format&fit=crop',
+  SOZINHO: 'https://images.unsplash.com/photo-1501504905252-473c47e087f8?q=80&w=800&auto=format&fit=crop'
 };
 
 const Home: React.FC = () => {
@@ -21,6 +22,7 @@ const Home: React.FC = () => {
   // Logic to always show something, even if metrics are low in mock
   const allTrips = getPublicTrips();
   const featuredTrips = allTrips.sort((a, b) => b.rating - a.rating).slice(0, 6);
+  // Filter active agencies and shuffle or pick first few
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 4);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -81,8 +83,8 @@ const Home: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-900">Explore por Estilo</h2>
           <p className="text-gray-500 mt-2 text-lg">Qual tipo de viajante você é hoje?</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 px-4">
-           {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map((cat) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 px-4">
+           {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO', 'SOZINHO'].map((cat) => (
              <button 
                key={cat} 
                onClick={() => navigate(`/trips?category=${cat}`)}
