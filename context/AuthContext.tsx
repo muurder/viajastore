@@ -1,133 +1,212 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
-import { MOCK_CLIENTS, MOCK_AGENCIES, MOCK_ADMINS } from '../services/mockData';
+import { supabase } from '../services/supabase';
 
 interface AuthContextType {
   user: User | Client | Agency | Admin | null;
-  login: (email: string, password?: string, role?: UserRole) => boolean;
-  logout: () => void;
-  register: (newUser: Client | Agency) => void;
-  updateUser: (userData: Partial<User>) => void;
+  loading: boolean;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (userData: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Helper functions to get data from localStorage if available, or fall back to mocks
-  const getStoredClients = () => {
-    const stored = localStorage.getItem('vs_clients');
-    return stored ? JSON.parse(stored) : MOCK_CLIENTS;
+  // Fetch user profile/agency data based on Auth ID
+  const fetchUserData = async (authId: string, email: string) => {
+    try {
+      // 1. Check if Agency
+      const { data: agencyData } = await supabase
+        .from('agencies')
+        .select('*')
+        .eq('id', authId)
+        .single();
+
+      if (agencyData) {
+        const agencyUser: Agency = {
+          id: agencyData.id,
+          name: agencyData.name,
+          email: email,
+          role: UserRole.AGENCY,
+          cnpj: agencyData.cnpj || '',
+          description: agencyData.description || '',
+          logo: agencyData.logo_url || '',
+          subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
+          subscriptionPlan: agencyData.subscription_plan || 'BASIC',
+          subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
+          website: agencyData.website,
+          phone: agencyData.phone
+        };
+        setUser(agencyUser);
+        return;
+      }
+
+      // 2. Check if Profile (Client/Admin)
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authId)
+        .single();
+
+      if (profileData) {
+        // Determine role based on profile data or default to Client
+        // Assuming 'role' column exists in profiles or we default to CLIENT
+        const role = profileData.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT;
+        
+        const clientUser: Client | Admin = {
+          id: profileData.id,
+          name: profileData.full_name || 'Usuário',
+          email: email,
+          role: role,
+          avatar: profileData.avatar_url,
+          cpf: profileData.cpf,
+          phone: profileData.phone,
+          favorites: [], // Favorites fetched in DataContext usually, or we can fetch here
+          createdAt: profileData.created_at
+        } as Client; // Casting for simplicity
+
+        setUser(clientUser);
+        return;
+      }
+      
+      // Fallback if user exists in Auth but not in tables (shouldn't happen with correct signup)
+      setUser({ id: authId, email, name: email.split('@')[0], role: UserRole.CLIENT });
+
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+      setUser(null);
+    }
   };
-
-  const getStoredAgencies = () => {
-    const stored = localStorage.getItem('vs_agencies');
-    return stored ? JSON.parse(stored) : MOCK_AGENCIES;
-  };
-
-  const getStoredAdmins = () => MOCK_ADMINS;
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('viajastore_user');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      // Re-validate existence
-      let validUser = null;
-      if (parsedUser.role === UserRole.CLIENT) {
-        validUser = getStoredClients().find((c: Client) => c.id === parsedUser.id);
-      } else if (parsedUser.role === UserRole.AGENCY) {
-        validUser = getStoredAgencies().find((a: Agency) => a.id === parsedUser.id);
+    const initializeAuth = async () => {
+      setLoading(true);
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        await fetchUserData(session.user.id, session.user.email!);
       } else {
-        validUser = getStoredAdmins().find((a: Admin) => a.id === parsedUser.id);
+        setUser(null);
       }
+      setLoading(false);
 
-      if (validUser) {
-        setUser(validUser);
-      } else {
-        localStorage.removeItem('viajastore_user');
-      }
-    }
-    setIsInitialized(true);
+      // Listen for changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          await fetchUserData(session.user.id, session.user.email!);
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      });
+
+      return () => subscription.unsubscribe();
+    };
+
+    initializeAuth();
   }, []);
 
-  const login = (email: string, password?: string, role?: UserRole): boolean => {
-    // Always fetch fresh data from storage or mocks to ensure we have the registered users
-    const clients = getStoredClients();
-    const agencies = getStoredAgencies();
-    const admins = getStoredAdmins();
-
-    let foundUser: any;
-
-    // Filter by role if provided to avoid ambiguity
-    if (role === UserRole.CLIENT) foundUser = clients.find((c: Client) => c.email === email);
-    else if (role === UserRole.AGENCY) foundUser = agencies.find((a: Agency) => a.email === email);
-    else if (role === UserRole.ADMIN) foundUser = admins.find((a: Admin) => a.email === email);
-    else {
-        foundUser = clients.find((c: Client) => c.email === email) || 
-                    agencies.find((a: Agency) => a.email === email) || 
-                    admins.find((a: Admin) => a.email === email);
-    }
-
-    if (foundUser) {
-        // Simple password check (in production this would be hashed)
-        if (password && foundUser.password && foundUser.password !== password) {
-            return false;
-        }
-        setUser(foundUser);
-        localStorage.setItem('viajastore_user', JSON.stringify(foundUser));
-        return true;
-    }
-    return false;
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('viajastore_user');
-    // Note: Navigation logic is handled in Layout/Component to avoid hard reload
-  };
-
-  const register = (newUser: Client | Agency) => {
-    // Save to LocalStorage "Database"
-    if (newUser.role === UserRole.CLIENT) {
-      const currentClients = getStoredClients();
-      const updatedClients = [...currentClients, newUser];
-      localStorage.setItem('vs_clients', JSON.stringify(updatedClients));
-    } else if (newUser.role === UserRole.AGENCY) {
-      const currentAgencies = getStoredAgencies();
-      const updatedAgencies = [...currentAgencies, newUser];
-      localStorage.setItem('vs_agencies', JSON.stringify(updatedAgencies));
-    }
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!password) return { success: false, error: 'Senha obrigatória' };
     
-    // Set Session
-    setUser(newUser);
-    localStorage.setItem('viajastore_user', JSON.stringify(newUser));
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
   };
 
-  const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData } as User;
-      setUser(updatedUser);
-      localStorage.setItem('viajastore_user', JSON.stringify(updatedUser));
-      
-      // Also update in the "Database" via DataContext logic (which syncs with LS)
-      if (updatedUser.role === UserRole.CLIENT) {
-          const list = getStoredClients().map((c: Client) => c.id === updatedUser.id ? { ...c, ...userData } : c);
-          localStorage.setItem('vs_clients', JSON.stringify(list));
-      } else if (updatedUser.role === UserRole.AGENCY) {
-          const list = getStoredAgencies().map((a: Agency) => a.id === updatedUser.id ? { ...a, ...userData } : a);
-          localStorage.setItem('vs_agencies', JSON.stringify(list));
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
+    // 1. Sign Up in Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          full_name: data.name, // Stored in user_metadata as backup
+        }
       }
+    });
+
+    if (authError) return { success: false, error: authError.message };
+    if (!authData.user) return { success: false, error: 'Erro ao criar usuário.' };
+
+    const userId = authData.user.id;
+
+    // 2. Insert into specific tables based on Role
+    try {
+      if (role === UserRole.AGENCY) {
+        const { error: agencyError } = await supabase.from('agencies').insert({
+          id: userId,
+          name: data.name,
+          email: data.email, // Redundant but good for queries if schema allows
+          cnpj: data.cnpj,
+          phone: data.phone,
+          description: data.description,
+          logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
+          subscription_status: 'INACTIVE', // Default
+          subscription_plan: 'BASIC'
+        });
+        if (agencyError) throw agencyError;
+      } else {
+        // Client
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: userId,
+          full_name: data.name,
+          cpf: data.cpf,
+          phone: data.phone,
+          role: 'CLIENT',
+          avatar_url: data.avatar || `https://ui-avatars.com/api/?name=${data.name}`
+        });
+        if (profileError) throw profileError;
+      }
+    } catch (dbError: any) {
+      // If DB insert fails, we should strictly cleanup the auth user (optional but recommended)
+      return { success: false, error: dbError.message || 'Erro ao salvar dados do perfil.' };
+    }
+
+    return { success: true };
+  };
+
+  const updateUser = async (userData: Partial<User>) => {
+    if (!user) return;
+    
+    // Update local state optimistically
+    setUser({ ...user, ...userData } as User);
+
+    try {
+      if (user.role === UserRole.AGENCY) {
+        await supabase.from('agencies').update({
+            name: userData.name,
+            // map other fields if needed
+        }).eq('id', user.id);
+      } else {
+        await supabase.from('profiles').update({
+            full_name: userData.name,
+        }).eq('id', user.id);
+      }
+    } catch (error) {
+        console.error("Error updating user", error);
     }
   };
-
-  if (!isInitialized) return null; // Prevent flickering
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, updateUser }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, login, logout, register, updateUser }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

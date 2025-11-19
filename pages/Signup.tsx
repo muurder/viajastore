@@ -3,15 +3,15 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserRole } from '../types';
-import { User, Building, Lock, Mail, Phone, CreditCard, Check, AlertCircle } from 'lucide-react';
+import { User, Building, AlertCircle } from 'lucide-react';
 
 const Signup: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   
-  // Form States
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', confirmPassword: '',
     phone: '', cpf: '', cnpj: '', description: ''
@@ -19,65 +19,46 @@ const Signup: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setError(''); // Clear error on typing
+    setError('');
   };
 
-  const validateEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
-  // Simple regex checks for prototype
   const validateCPF = (cpf: string) => /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(cpf);
   const validateCNPJ = (cnpj: string) => /^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/.test(cnpj);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validations
+    setLoading(true);
+    setError('');
+
     if (formData.password !== formData.confirmPassword) {
         setError('As senhas não coincidem.');
+        setLoading(false);
         return;
     }
     if (formData.password.length < 6) {
         setError('A senha deve ter pelo menos 6 caracteres.');
+        setLoading(false);
         return;
     }
     if (activeTab === 'CLIENT' && !validateCPF(formData.cpf)) {
         setError('CPF inválido. Formato: 000.000.000-00');
+        setLoading(false);
         return;
     }
     if (activeTab === 'AGENCY' && !validateCNPJ(formData.cnpj)) {
         setError('CNPJ inválido. Formato: 00.000.000/0000-00');
+        setLoading(false);
         return;
     }
 
-    if (activeTab === 'CLIENT') {
-      register({
-        id: `c${Date.now()}`,
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: UserRole.CLIENT,
-        phone: formData.phone,
-        cpf: formData.cpf,
-        favorites: [],
-        avatar: `https://ui-avatars.com/api/?name=${formData.name}&background=0D8ABC&color=fff`
-      });
-      navigate('/client/dashboard');
+    const result = await register(formData, activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
+
+    if (result.success) {
+        navigate('/');
     } else {
-      register({
-        id: `a${Date.now()}`,
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: UserRole.AGENCY,
-        cnpj: formData.cnpj,
-        phone: formData.phone,
-        description: formData.description || 'Nova agência na ViajaStore',
-        logo: `https://ui-avatars.com/api/?name=${formData.name}&background=F97316&color=fff`,
-        subscriptionStatus: 'INACTIVE',
-        subscriptionPlan: 'BASIC',
-        subscriptionExpiresAt: new Date().toISOString() // Expired, needs activation
-      });
-      navigate('/agency/dashboard');
+        setError(result.error || 'Erro ao criar conta. Tente novamente.');
     }
+    setLoading(false);
   };
 
   return (
@@ -149,8 +130,8 @@ const Signup: React.FC = () => {
              </div>
           )}
 
-          <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-all">
-             Criar Conta
+          <button type="submit" disabled={loading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-all disabled:opacity-50">
+             {loading ? 'Criando conta...' : 'Criar Conta'}
           </button>
         </form>
 

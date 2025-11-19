@@ -4,25 +4,29 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Trip, UserRole } from '../types';
 import { PLANS } from '../services/mockData';
-import { Plus, Edit, Trash2, TrendingUp, Users, DollarSign, AlertTriangle, Lock, CheckCircle, X, BarChart3, Eye, ShoppingCart, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, AlertTriangle, Lock, CheckCircle, X, BarChart3, Eye, MapPin, Loader } from 'lucide-react';
 
 const AgencyDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, loading: dataLoading } = useData();
   
   const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION'>('STATS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState<Partial<Trip>>({
-    title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: ''
+    title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: '', images: []
   });
+  const [imageUrlInput, setImageUrlInput] = useState('');
 
   if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
   const myAgency = agencies.find(a => a.id === user.id);
-  if (!myAgency) return <div>Agência não encontrada.</div>;
+  
+  if (dataLoading) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600"/></div>;
+  if (!myAgency) return <div className="min-h-screen flex items-center justify-center">Agência não encontrada.</div>;
 
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
@@ -33,45 +37,60 @@ const AgencyDashboard: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingTripId(null);
-    setFormData({ title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: '' });
+    setFormData({ title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], description: '', images: [] });
+    setImageUrlInput('');
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (trip: Trip) => {
     setEditingTripId(trip.id);
     setFormData({ ...trip });
+    setImageUrlInput(trip.images[0] || ''); // Just showing the first one for simple edit
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
+    const images = [...(formData.images || [])];
+    if(imageUrlInput && !images.includes(imageUrlInput)) {
+        images.push(imageUrlInput);
+    }
+    if(images.length === 0) images.push('https://images.unsplash.com/photo-1500835556837-99ac94a94552?auto=format&fit=crop&w=800&q=80');
+
     const tripData = {
         ...formData,
         agencyId: user.id,
-        images: formData.images && formData.images.length > 0 ? formData.images : ['https://images.unsplash.com/photo-1500835556837-99ac94a94552?auto=format&fit=crop&w=800&q=80'],
+        images: images,
     } as Trip;
 
-    if (editingTripId) {
-        updateTrip(tripData);
-        alert('Viagem atualizada com sucesso!');
-    } else {
-        createTrip({
-          ...tripData,
-          id: `t${Date.now()}`,
-          active: true,
-          rating: 0,
-          totalReviews: 0,
-          startDate: new Date().toISOString(),
-          endDate: new Date(new Date().setDate(new Date().getDate() + (formData.durationDays || 5))).toISOString(),
-          included: formData.included?.length ? formData.included : ['Hospedagem', 'Guia'],
-          views: 0,
-          sales: 0
-        });
-        alert('Viagem criada com sucesso!');
+    try {
+        if (editingTripId) {
+            await updateTrip(tripData);
+            alert('Viagem atualizada com sucesso!');
+        } else {
+            await createTrip({
+              ...tripData,
+              id: '', // DB generated
+              active: true,
+              rating: 0,
+              totalReviews: 0,
+              startDate: new Date().toISOString(),
+              endDate: new Date(new Date().setDate(new Date().getDate() + (formData.durationDays || 5))).toISOString(),
+              included: formData.included?.length ? formData.included : ['Hospedagem', 'Guia'],
+              views: 0,
+              sales: 0
+            });
+            alert('Viagem criada com sucesso!');
+        }
+        setIsModalOpen(false);
+    } catch (error) {
+        alert('Erro ao salvar viagem. Tente novamente.');
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
     }
-    
-    setIsModalOpen(false);
   };
 
   return (
@@ -159,17 +178,6 @@ const AgencyDashboard: React.FC = () => {
                     <div className="text-xs text-gray-500">Média do mercado: 2.5%</div>
                 </div>
               </div>
-
-              {/* Chart Placeholder */}
-              <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
-                 <h3 className="text-lg font-bold text-gray-900 mb-4">Desempenho Mensal (Mock)</h3>
-                 <div className="h-64 flex items-end justify-center gap-4 opacity-50">
-                    {[40, 60, 45, 70, 80, 65, 85, 90].map((h, i) => (
-                        <div key={i} className="w-12 bg-primary-500 rounded-t-lg hover:bg-primary-600 transition-colors" style={{height: `${h}%`}}></div>
-                    ))}
-                 </div>
-                 <p className="mt-4 text-sm text-gray-400">Dados simulados para demonstração</p>
-              </div>
            </div>
         )}
 
@@ -217,7 +225,7 @@ const AgencyDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right flex justify-end gap-2">
                         <button onClick={() => handleOpenEdit(trip)} disabled={!isSubscriptionActive} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg disabled:text-gray-300"><Edit size={18}/></button>
-                        <button onClick={() => deleteTrip(trip.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                        <button onClick={() => { if(window.confirm('Excluir viagem?')) deleteTrip(trip.id) }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                       </td>
                     </tr>
                   ))}
@@ -290,7 +298,7 @@ const AgencyDashboard: React.FC = () => {
                         <div>
                            <label className="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
                            <select className="w-full border border-gray-300 p-3 rounded-lg" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})}>
-                               {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map(c => <option key={c} value={c}>{c}</option>)}
+                               {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO'].map(c => <option key={c} value={c}>{c}</option>)}
                            </select>
                         </div>
                         <div>
@@ -298,11 +306,17 @@ const AgencyDashboard: React.FC = () => {
                             <input type="number" className="w-full border border-gray-300 p-3 rounded-lg" value={formData.durationDays || 1} onChange={e => setFormData({...formData, durationDays: Number(e.target.value)})} required />
                         </div>
                         <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">URL da Imagem (Principal)</label>
+                            <input type="url" className="w-full border border-gray-300 p-3 rounded-lg" value={imageUrlInput} onChange={e => setImageUrlInput(e.target.value)} placeholder="https://..." />
+                        </div>
+                        <div className="md:col-span-2">
                             <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
                             <textarea rows={4} className="w-full border border-gray-300 p-3 rounded-lg" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} required />
                         </div>
                     </div>
-                    <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 shadow-lg">Salvar</button>
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 shadow-lg disabled:opacity-50">
+                        {isSubmitting ? 'Salvando...' : 'Salvar'}
+                    </button>
                 </form>
             </div>
         </div>

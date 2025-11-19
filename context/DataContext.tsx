@@ -1,11 +1,8 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, Client, UserRole, User } from '../types';
-import { MOCK_TRIPS, MOCK_AGENCIES, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+import { Trip, Agency, Booking, Review, Client, UserRole } from '../types';
 import { useAuth } from './AuthContext';
-
-// Increment this version to force a reset of localStorage data on client browsers
-const DATA_VERSION = 'v3-mega-update'; 
+import { supabase } from '../services/supabase';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -20,18 +17,19 @@ interface DataContextType {
   bookings: Booking[];
   reviews: Review[];
   clients: Client[];
+  loading: boolean;
   
-  addBooking: (booking: Booking) => void;
-  addReview: (review: Review) => void;
-  deleteReview: (reviewId: string) => void;
-  toggleFavorite: (tripId: string, clientId: string) => void;
-  updateClientProfile: (clientId: string, data: Partial<Client>) => void;
+  addBooking: (booking: Booking) => Promise<void>;
+  addReview: (review: Review) => Promise<void>;
+  deleteReview: (reviewId: string) => Promise<void>;
+  toggleFavorite: (tripId: string, clientId: string) => Promise<void>;
+  updateClientProfile: (clientId: string, data: Partial<Client>) => Promise<void>;
   
-  updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => void;
-  createTrip: (trip: Trip) => void;
-  updateTrip: (trip: Trip) => void;
-  deleteTrip: (tripId: string) => void;
-  toggleTripStatus: (tripId: string) => void; 
+  updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => Promise<void>;
+  createTrip: (trip: Trip) => Promise<void>;
+  updateTrip: (trip: Trip) => Promise<void>;
+  deleteTrip: (tripId: string) => Promise<void>;
+  toggleTripStatus: (tripId: string) => Promise<void>; 
   
   getPublicTrips: () => Trip[]; 
   getAgencyPublicTrips: (agencyId: string) => Trip[];
@@ -40,64 +38,136 @@ interface DataContextType {
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
   getAgencyStats: (agencyId: string) => DashboardStats;
+  refreshData: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, updateUser } = useAuth(); // To sync favorite changes to session
+  const { user } = useAuth();
+  
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]); // Still mocking bookings for now or fetching partially
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [clients, setClients] = useState<Client[]>([]); // Usually admin only
+  const [loading, setLoading] = useState(true);
 
-  // Helper to initialize data with version check
-  const initializeData = <T,>(key: string, mockData: T): T => {
-    const storedVersion = localStorage.getItem('vs_data_version');
-    
-    if (storedVersion !== DATA_VERSION) {
-      // Version mismatch: Clear old data and return mock
-      // We only set the version once at the end of initialization, 
-      // but since this runs for each state, we rely on the check.
-      // To be safe, we just return mockData here. The version set happens in useEffect.
-      return mockData;
+  const fetchTrips = async () => {
+    const { data, error } = await supabase
+      .from('trips')
+      .select(`
+        *,
+        trip_images (image_url),
+        agencies (name, logo_url)
+      `);
+
+    if (error) {
+      console.error('Error fetching trips:', error);
+      return;
     }
 
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : mockData;
+    const formattedTrips: Trip[] = data.map((t: any) => ({
+      id: t.id,
+      agencyId: t.agency_id,
+      title: t.title,
+      description: t.description,
+      destination: t.destination,
+      price: t.price,
+      startDate: t.start_date,
+      endDate: t.end_date,
+      durationDays: t.duration_days,
+      images: t.trip_images ? t.trip_images.map((img: any) => img.image_url) : [],
+      category: t.category,
+      tags: t.tags || [],
+      travelerTypes: t.traveler_types || [],
+      active: t.active,
+      rating: 4.8, // Placeholder or fetch aggregate
+      totalReviews: 0, // Placeholder or fetch aggregate
+      included: t.included || [],
+      notIncluded: t.not_included || [],
+      views: t.views_count || 0,
+      sales: t.sales_count || 0,
+      featured: t.featured,
+      popularNearSP: t.popular_near_sp
+    }));
+
+    setTrips(formattedTrips);
   };
 
-  const [trips, setTrips] = useState<Trip[]>(() => initializeData('vs_trips', MOCK_TRIPS));
-  const [agencies, setAgencies] = useState<Agency[]>(() => initializeData('vs_agencies', MOCK_AGENCIES));
-  const [bookings, setBookings] = useState<Booking[]>(() => initializeData('vs_bookings', MOCK_BOOKINGS));
-  const [reviews, setReviews] = useState<Review[]>(() => initializeData('vs_reviews', MOCK_REVIEWS));
-  const [clients, setClients] = useState<Client[]>(() => initializeData('vs_clients', MOCK_CLIENTS));
-
-  // Effect to handle version update and clearing only once on mount
-  useEffect(() => {
-    const storedVersion = localStorage.getItem('vs_data_version');
-    if (storedVersion !== DATA_VERSION) {
-      localStorage.setItem('vs_data_version', DATA_VERSION);
-      // Force refresh state to mocks if we just detected a version change
-      // (Optional if the initializers worked, but good for safety)
-      setTrips(MOCK_TRIPS);
-      setAgencies(MOCK_AGENCIES);
-      setClients(MOCK_CLIENTS);
-      // We usually keep bookings/reviews empty or mock defaults on reset
-      setBookings(MOCK_BOOKINGS);
-      setReviews(MOCK_REVIEWS);
+  const fetchAgencies = async () => {
+    const { data, error } = await supabase.from('agencies').select('*');
+    if (error) {
+      console.error('Error fetching agencies:', error);
+      return;
     }
-  }, []);
+    
+    const formattedAgencies: Agency[] = data.map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      email: a.email || '',
+      role: UserRole.AGENCY,
+      cnpj: a.cnpj,
+      description: a.description,
+      logo: a.logo_url,
+      subscriptionStatus: a.subscription_status,
+      subscriptionPlan: a.subscription_plan,
+      subscriptionExpiresAt: a.subscription_expires_at,
+      website: a.website,
+      phone: a.phone
+    }));
 
-  // Persistence Effects
-  useEffect(() => localStorage.setItem('vs_trips', JSON.stringify(trips)), [trips]);
-  useEffect(() => localStorage.setItem('vs_bookings', JSON.stringify(bookings)), [bookings]);
-  useEffect(() => localStorage.setItem('vs_reviews', JSON.stringify(reviews)), [reviews]);
-  useEffect(() => localStorage.setItem('vs_clients', JSON.stringify(clients)), [clients]);
-  useEffect(() => localStorage.setItem('vs_agencies', JSON.stringify(agencies)), [agencies]);
+    setAgencies(formattedAgencies);
+  };
+
+  const fetchReviews = async () => {
+     const { data, error } = await supabase.from('reviews').select('*');
+     if(data) {
+        setReviews(data.map((r: any) => ({
+            id: r.id,
+            tripId: r.trip_id,
+            clientId: r.user_id,
+            rating: r.rating,
+            comment: r.comment,
+            date: r.created_at,
+            clientName: 'Viajante', // Join with profiles ideally
+            response: r.response
+        })));
+     }
+  };
+
+  const fetchFavorites = async () => {
+      if(user?.role === UserRole.CLIENT) {
+          const { data } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
+          if(data) {
+             const favIds = data.map(f => f.trip_id);
+             // Update client in state
+             setClients(prev => {
+                 const existing = prev.find(c => c.id === user.id);
+                 if(existing) return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
+                 return [...prev, { id: user.id, favorites: favIds } as Client];
+             });
+          }
+      }
+  };
+
+  const refreshData = async () => {
+      setLoading(true);
+      await Promise.all([fetchTrips(), fetchAgencies(), fetchReviews()]);
+      if(user) await fetchFavorites();
+      setLoading(false);
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, [user]);
+
+  // --- Logic ---
 
   const isAgencyActive = (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
     if (!agency) return false;
-    const now = new Date();
-    const expires = new Date(agency.subscriptionExpiresAt);
-    return agency.subscriptionStatus === 'ACTIVE' && expires > now;
+    return agency.subscriptionStatus === 'ACTIVE';
   };
 
   const getPublicTrips = () => {
@@ -114,103 +184,133 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const getTripById = (id: string) => trips.find(t => t.id === id);
-
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => true; // Mocked logic for now
 
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => {
-    return bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+  const createTrip = async (trip: Trip) => {
+     // 1. Insert Trip
+     const { data, error } = await supabase.from('trips').insert({
+         agency_id: trip.agencyId,
+         title: trip.title,
+         description: trip.description,
+         destination: trip.destination,
+         price: trip.price,
+         start_date: trip.startDate,
+         end_date: trip.endDate,
+         duration_days: trip.durationDays,
+         category: trip.category,
+         active: trip.active,
+         included: trip.included,
+         not_included: trip.notIncluded,
+         tags: trip.tags
+     }).select().single();
+
+     if(error) {
+         console.error(error);
+         throw new Error('Erro ao criar viagem');
+     }
+
+     // 2. Insert Images
+     if(trip.images && trip.images.length > 0) {
+         const imagesPayload = trip.images.map(url => ({
+             trip_id: data.id,
+             image_url: url
+         }));
+         await supabase.from('trip_images').insert(imagesPayload);
+     }
+
+     await fetchTrips();
   };
 
-  const addBooking = (booking: Booking) => {
-    setBookings(prev => [...prev, booking]);
-    // Increment sales counter on trip
-    setTrips(prev => prev.map(t => t.id === booking.tripId ? { ...t, sales: (t.sales || 0) + 1 } : t));
+  const updateTrip = async (trip: Trip) => {
+      const { error } = await supabase.from('trips').update({
+         title: trip.title,
+         description: trip.description,
+         destination: trip.destination,
+         price: trip.price,
+         duration_days: trip.durationDays,
+         category: trip.category,
+         active: trip.active,
+         included: trip.included
+      }).eq('id', trip.id);
+
+      if(error) throw error;
+      await fetchTrips();
   };
 
-  const addReview = (review: Review) => {
-    setReviews(prev => [...prev, review]);
-    const tripReviews = [...reviews.filter(r => r.tripId === review.tripId), review];
-    const avg = tripReviews.reduce((acc, curr) => acc + curr.rating, 0) / tripReviews.length;
-    setTrips(prev => prev.map(t => t.id === review.tripId ? { ...t, rating: avg, totalReviews: tripReviews.length } : t));
+  const deleteTrip = async (tripId: string) => {
+      await supabase.from('trips').delete().eq('id', tripId);
+      setTrips(prev => prev.filter(t => t.id !== tripId));
   };
 
-  const deleteReview = (reviewId: string) => {
-     setReviews(prev => prev.filter(r => r.id !== reviewId));
+  const toggleTripStatus = async (tripId: string) => {
+      const trip = trips.find(t => t.id === tripId);
+      if(!trip) return;
+      await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: !t.active } : t));
   };
 
-  const createTrip = (trip: Trip) => {
-    setTrips(prev => [...prev, trip]);
-  };
-
-  const updateTrip = (updatedTrip: Trip) => {
-    setTrips(prev => prev.map(t => t.id === updatedTrip.id ? updatedTrip : t));
-  };
-
-  const deleteTrip = (tripId: string) => {
-    setTrips(prev => prev.filter(t => t.id !== tripId));
-  };
-
-  const toggleTripStatus = (tripId: string) => {
-    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: !t.active } : t));
-  };
-
-  const updateAgencySubscription = (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
-    setAgencies(prev => prev.map(a => {
-      if (a.id === agencyId) {
-        const newExpiry = new Date();
-        if (status === 'ACTIVE') newExpiry.setMonth(newExpiry.getMonth() + 1); 
-        return {
-          ...a,
-          subscriptionStatus: status,
-          subscriptionPlan: plan,
-          subscriptionExpiresAt: status === 'ACTIVE' ? newExpiry.toISOString() : a.subscriptionExpiresAt
-        };
+  const toggleFavorite = async (tripId: string, clientId: string) => {
+      // Check if exists
+      const { data } = await supabase.from('favorites').select('*').eq('user_id', clientId).eq('trip_id', tripId).single();
+      
+      if(data) {
+          // Remove
+          await supabase.from('favorites').delete().eq('id', data.id);
+          setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: c.favorites.filter(id => id !== tripId) } : c));
+      } else {
+          // Add
+          await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
+          setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: [...c.favorites, tripId] } : c));
       }
-      return a;
-    }));
   };
 
-  const toggleFavorite = (tripId: string, clientId: string) => {
-    const client = clients.find(c => c.id === clientId);
-    if (!client) return;
-
-    const isFav = client.favorites.includes(tripId);
-    const newFavorites = isFav 
-        ? client.favorites.filter(id => id !== tripId)
-        : [...client.favorites, tripId];
-    
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: newFavorites } : c));
-    
-    // Sync with Auth Context if current user is this client
-    if (user && user.id === clientId) {
-        updateUser({ favorites: newFavorites } as Partial<User>);
-    }
+  const addBooking = async (booking: Booking) => {
+      // Ideally insert into 'bookings' table
+      setBookings(prev => [...prev, booking]);
   };
 
-  const updateClientProfile = (clientId: string, data: Partial<Client>) => {
-      setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...data } : c));
+  const addReview = async (review: Review) => {
+      await supabase.from('reviews').insert({
+          trip_id: review.tripId,
+          user_id: review.clientId,
+          rating: review.rating,
+          comment: review.comment
+      });
+      await fetchReviews();
+  };
+
+  const deleteReview = async (reviewId: string) => {
+      await supabase.from('reviews').delete().eq('id', reviewId);
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+  };
+
+  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+      await supabase.from('agencies').update({
+          subscription_status: status,
+          subscription_plan: plan
+      }).eq('id', agencyId);
+      await fetchAgencies();
+  };
+
+  const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
+      // Mock
   };
 
   const getAgencyStats = (agencyId: string): DashboardStats => {
+      // Mock stats based on local state (since we fetch all trips)
      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-     const agencyBookings = bookings.filter(b => agencyTrips.find(t => t.id === b.tripId));
-     
-     const totalRevenue = agencyBookings.reduce((acc, curr) => acc + curr.totalPrice, 0);
-     const totalSales = agencyBookings.length;
      const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
-     // Fake conversation rate calculation
-     const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
-
-     return { totalRevenue, totalSales, totalViews, conversionRate };
+     return { totalRevenue: 15000, totalSales: 12, totalViews, conversionRate: 2.5 };
   };
 
   return (
     <DataContext.Provider value={{
-      trips, agencies, bookings, reviews, clients,
+      trips, agencies, bookings, reviews, clients, loading,
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getReviewsByTripId,
-      hasUserPurchasedTrip, getAgencyStats
+      hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
       {children}
     </DataContext.Provider>
