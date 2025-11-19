@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, Info, X, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -108,8 +108,8 @@ const TripDetails: React.FC = () => {
         <div className="lg:col-span-2 space-y-10">
           {/* Header Info */}
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-blue-100">{trip.category}</span>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category.replace('_', ' ')}</span>
               {agency?.subscriptionStatus === 'ACTIVE' && (
                   <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>
               )}
@@ -120,6 +120,30 @@ const TripDetails: React.FC = () => {
                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination}</div>
                <div className="flex items-center"><Clock className="text-primary-500 mr-2" size={18}/> {trip.durationDays} Dias de Duração</div>
                <div className="flex items-center font-medium"><Star className="text-amber-400 fill-current mr-2" size={18}/> {trip.rating.toFixed(1)} <span className="text-gray-400 font-normal ml-1">({trip.totalReviews} avaliações)</span></div>
+            </div>
+
+            {/* Tags & Travelers Display */}
+            <div className="flex flex-wrap gap-4 mt-6">
+                {trip.tags && trip.tags.length > 0 && (
+                    <div className="flex items-start">
+                         <Tag size={16} className="text-gray-400 mr-2 mt-1" />
+                         <div className="flex flex-wrap gap-2">
+                             {trip.tags.map((tag, i) => (
+                                 <span key={i} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-medium">{tag}</span>
+                             ))}
+                         </div>
+                    </div>
+                )}
+                {trip.travelerTypes && trip.travelerTypes.length > 0 && (
+                    <div className="flex items-start">
+                         <Users size={16} className="text-gray-400 mr-2 mt-1" />
+                         <div className="flex flex-wrap gap-2">
+                             {trip.travelerTypes.map((type, i) => (
+                                 <span key={i} className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-medium uppercase">{type.replace('_', ' ')}</span>
+                             ))}
+                         </div>
+                    </div>
+                )}
             </div>
           </div>
 

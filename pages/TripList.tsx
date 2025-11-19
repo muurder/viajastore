@@ -3,124 +3,176 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
 import { useSearchParams } from 'react-router-dom';
-import { Filter, X, ArrowUpDown, Globe, Shield, Tag, Search } from 'lucide-react';
+import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 const TripList: React.FC = () => {
   const { getPublicTrips } = useData();
   const [searchParams, setSearchParams] = useSearchParams();
-  
   const allTrips = getPublicTrips();
+  
   const [filteredTrips, setFilteredTrips] = useState(allTrips);
-
-  // Filter States
-  // Start with 0 or a high number to indicate "no limit" logic, but UI needs to reflect "Any"
-  // A better approach: priceMax state is number, default is highest possible.
-  const [priceMax, setPriceMax] = useState<number>(20000);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'RELEVANCE' | 'LOW_PRICE' | 'HIGH_PRICE' | 'RATING'>('RELEVANCE');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
+     traveler: true, style: true, duration: true, price: true, dest: true
+  });
 
-  // Extract params
-  const q = searchParams.get('q');
-  const c = searchParams.get('category');
-  const p = searchParams.get('maxPrice');
-  const s = searchParams.get('sort');
+  // Extract URL Params
+  const q = searchParams.get('q') || '';
+  const tagsParam = searchParams.get('tags'); // comma separated
+  const travelerParam = searchParams.get('traveler'); // comma separated
+  const durationParam = searchParams.get('duration'); // '1-3', '4-7' etc
+  const priceParam = searchParams.get('price'); // '0-500', '500-1000' etc
+  const categoryParam = searchParams.get('category');
+  const sortParam = searchParams.get('sort') || 'RELEVANCE';
 
-  useEffect(() => {
-    setSearchTerm(q || '');
-    setSelectedCategory(c || '');
-    if (p) setPriceMax(Number(p));
-    if (s) setSortBy(s as any);
-  }, [q, c, p, s]);
+  // Derived State from URL
+  const selectedTags = tagsParam ? tagsParam.split(',') : [];
+  const selectedTravelerTypes = travelerParam ? travelerParam.split(',') : [];
+  
+  // Options Data
+  const travelerOptions = [
+    { id: 'SOZINHO', label: 'Sozinho' },
+    { id: 'CASAL', label: 'Casal' },
+    { id: 'FAMILIA', label: 'Família' },
+    { id: 'AMIGOS', label: 'Amigos' },
+    { id: 'MOCHILAO', label: 'Mochilão' },
+    { id: 'MELHOR_IDADE', label: 'Melhor Idade' }
+  ];
 
+  const styleOptions = [
+    'Natureza', 'História', 'Gastronomia', 'Vida Noturna', 'Viagem barata', 
+    'Cultura', 'Arte', 'Praia', 'Aventura', 'Romântico'
+  ];
+
+  const durationOptions = [
+    { id: '1-3', label: '1 a 3 dias' },
+    { id: '4-7', label: '4 a 7 dias' },
+    { id: '8-14', label: '8 a 14 dias' },
+    { id: '15+', label: '15+ dias' }
+  ];
+
+  const priceOptions = [
+    { id: '0-500', label: 'Até R$ 500' },
+    { id: '500-1000', label: 'R$ 500 - R$ 1.000' },
+    { id: '1000-3000', label: 'R$ 1.000 - R$ 3.000' },
+    { id: '3000+', label: 'Acima de R$ 3.000' }
+  ];
+
+  const popularDestinations = [
+    'Rio de Janeiro', 'Chapada dos Veadeiros', 'Bonito', 'Jalapão', 
+    'Gramado', 'Salvador', 'Foz do Iguaçu', 'Fernando de Noronha'
+  ];
+
+  // Helper to update URL Params
+  const updateUrl = (key: string, value: string | string[] | null) => {
+      const newParams = new URLSearchParams(searchParams);
+      if (!value || (Array.isArray(value) && value.length === 0)) {
+          newParams.delete(key);
+      } else {
+          newParams.set(key, Array.isArray(value) ? value.join(',') : value);
+      }
+      setSearchParams(newParams, { replace: true });
+  };
+
+  const toggleSelection = (key: string, currentList: string[], item: string) => {
+     const newList = currentList.includes(item) 
+        ? currentList.filter(i => i !== item)
+        : [...currentList, item];
+     updateUrl(key, newList);
+  };
+
+  const toggleAccordion = (section: string) => {
+     setOpenFilterSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Filter Logic
   useEffect(() => {
     let result = [...allTrips];
 
-    if (searchTerm) {
-      const lower = searchTerm.toLowerCase();
-      result = result.filter(t => 
-        t.title.toLowerCase().includes(lower) || 
-        t.destination.toLowerCase().includes(lower) ||
-        t.description.toLowerCase().includes(lower)
-      );
+    // 1. Search Term
+    if (q) {
+       const lower = q.toLowerCase();
+       result = result.filter(t => 
+         t.title.toLowerCase().includes(lower) || 
+         t.destination.toLowerCase().includes(lower) ||
+         t.description.toLowerCase().includes(lower) || 
+         t.tags.some(tag => tag.toLowerCase().includes(lower))
+       );
     }
 
-    if (selectedCategory) {
-      result = result.filter(t => t.category === selectedCategory);
+    // 2. Category
+    if (categoryParam) {
+        result = result.filter(t => t.category === categoryParam);
     }
 
-    // Filter by Price
-    result = result.filter(t => t.price <= priceMax);
+    // 3. Traveler Type (OR logic)
+    if (selectedTravelerTypes.length > 0) {
+        result = result.filter(t => 
+           t.travelerTypes.some(type => selectedTravelerTypes.includes(type))
+        );
+    }
+
+    // 4. Style / Tags (OR logic)
+    if (selectedTags.length > 0) {
+        result = result.filter(t => 
+            t.tags.some(tag => selectedTags.includes(tag))
+        );
+    }
+
+    // 5. Duration
+    if (durationParam) {
+        // Parse duration param e.g., '1-3', '15+'
+        result = result.filter(t => {
+            if (durationParam === '15+') return t.durationDays >= 15;
+            const [min, max] = durationParam.split('-').map(Number);
+            return t.durationDays >= min && t.durationDays <= max;
+        });
+    }
+
+    // 6. Price
+    if (priceParam) {
+        result = result.filter(t => {
+             if (priceParam === '3000+') return t.price >= 3000;
+             const [min, max] = priceParam.split('-').map(Number);
+             return t.price >= min && t.price <= max;
+        });
+    }
 
     // Sorting
-    switch (sortBy) {
-      case 'LOW_PRICE':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'HIGH_PRICE':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'RATING':
-        result.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'RELEVANCE':
-      default:
-        // Default relevance: Rating + Views + Recency (mock logic)
-        result.sort((a, b) => (b.rating * 10 + (b.views || 0) / 100) - (a.rating * 10 + (a.views || 0) / 100));
-        break;
+    switch (sortParam) {
+        case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
+        case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
+        case 'RATING': result.sort((a, b) => b.rating - a.rating); break;
+        default: // RELEVANCE
+           result.sort((a, b) => (b.rating * 10 + (b.views || 0) / 100) - (a.rating * 10 + (a.views || 0) / 100));
     }
 
     setFilteredTrips(result);
-  }, [searchTerm, selectedCategory, priceMax, sortBy, allTrips]);
-
-  const updateUrlParam = (key: string, value: string | null) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (value) newParams.set(key, value);
-    else newParams.delete(key);
-    setSearchParams(newParams, { replace: true });
-  };
-
-  const handleCategoryChange = (cat: string) => {
-    setSelectedCategory(cat);
-    updateUrlParam('category', cat || null);
-  };
-
-  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as any;
-    setSortBy(val);
-    updateUrlParam('sort', val === 'RELEVANCE' ? null : val);
-  };
-
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPriceMax(Number(e.target.value));
-  };
-
-  const handlePriceCommit = () => {
-     // Only update URL on release
-    updateUrlParam('maxPrice', priceMax === 20000 ? null : priceMax.toString());
-  };
+  }, [allTrips, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam]);
 
   const clearFilters = () => {
-    setPriceMax(20000);
-    setSearchTerm('');
-    setSelectedCategory('');
-    setSortBy('RELEVANCE');
-    setSearchParams({}, { replace: true });
+      setSearchParams({});
   };
 
   return (
     <div className="space-y-8 pb-12">
       {/* Compact Hero */}
-      <div className="bg-primary-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
+      <div className="bg-gray-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
          <div className="relative z-10">
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Encontre sua próxima viagem</h1>
-            <p className="text-primary-200 text-sm">Explore centenas de pacotes com as melhores tarifas.</p>
+            <p className="text-gray-400 text-sm">Explore centenas de pacotes com as melhores tarifas.</p>
          </div>
-         <div className="relative z-10 w-full md:w-auto flex gap-4 text-xs font-medium text-primary-200">
-            <div className="flex items-center"><Globe size={14} className="mr-1" /> +50 Destinos</div>
-            <div className="flex items-center"><Shield size={14} className="mr-1" /> Verificado</div>
-            <div className="flex items-center"><Tag size={14} className="mr-1" /> Melhor Preço</div>
+         <div className="relative z-10 w-full md:w-auto">
+            <div className="relative">
+               <Search size={16} className="absolute left-3 top-3 text-gray-500" />
+               <input 
+                 type="text" 
+                 value={q}
+                 onChange={(e) => updateUrl('q', e.target.value || null)}
+                 placeholder="Destino, agência ou estilo..."
+                 className="w-full md:w-80 pl-10 pr-4 py-2.5 rounded-lg text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none"
+               />
+            </div>
          </div>
          <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       </div>
@@ -128,70 +180,139 @@ const TripList: React.FC = () => {
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Filters */}
         <aside className={`
-          md:w-64 flex-shrink-0 bg-white md:bg-transparent p-6 md:p-0 
+          md:w-72 flex-shrink-0 bg-white md:bg-transparent p-6 md:p-0 
           fixed md:static inset-0 z-40 overflow-y-auto transition-transform duration-300
           ${showMobileFilters ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          md:block
+          md:block h-full
         `}>
           <div className="flex justify-between items-center md:hidden mb-4">
             <h2 className="text-xl font-bold">Filtros</h2>
             <button onClick={() => setShowMobileFilters(false)}><X /></button>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-6 sticky top-24">
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Buscar</h3>
-              <div className="relative">
-                  <Search size={14} className="absolute left-3 top-3 text-gray-400"/>
-                  <input 
-                    type="text" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onBlur={() => updateUrlParam('q', searchTerm || null)}
-                    className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                    placeholder="Destino, agência..."
-                  />
-              </div>
-            </div>
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-6">
+             
+             {/* A - Traveler Type */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('traveler')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <span>Tipo de Viajante</span>
+                    {openFilterSections['traveler'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['traveler'] && (
+                    <div className="space-y-2">
+                        {travelerOptions.map(type => (
+                            <label key={type.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${selectedTravelerTypes.includes(type.id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400'}`}>
+                                    {selectedTravelerTypes.includes(type.id) && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </div>
+                                <input 
+                                  type="checkbox" 
+                                  className="hidden" 
+                                  checked={selectedTravelerTypes.includes(type.id)} 
+                                  onChange={() => toggleSelection('traveler', selectedTravelerTypes, type.id)} 
+                                />
+                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-medium' : 'text-gray-600'}`}>{type.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                )}
+             </div>
 
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Preço Máximo</h3>
-              <input 
-                type="range" 
-                min="500" 
-                max="20000" 
-                step="100"
-                value={priceMax}
-                onChange={handlePriceChange}
-                onMouseUp={handlePriceCommit}
-                onTouchEnd={handlePriceCommit}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-              />
-              <div className="flex justify-between text-xs text-gray-600 mt-2 font-medium">
-                <span>R$ 500</span>
-                <span className="text-primary-600">{priceMax >= 20000 ? 'Sem Limite' : `R$ ${priceMax.toLocaleString()}`}</span>
-              </div>
-            </div>
+             {/* B - Style / Tags */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('style')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <span>Estilo de Viagem</span>
+                    {openFilterSections['style'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['style'] && (
+                    <div className="flex flex-wrap gap-2">
+                        {styleOptions.map(tag => (
+                            <button 
+                              key={tag}
+                              onClick={() => toggleSelection('tags', selectedTags, tag)}
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
+                )}
+             </div>
 
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Categoria</h3>
-              <div className="space-y-1">
-                <label className={`flex items-center cursor-pointer p-2 rounded-lg transition-colors ${selectedCategory === '' ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-gray-50 text-gray-600'}`}>
-                  <input type="radio" name="category" checked={selectedCategory === ''} onChange={() => handleCategoryChange('')} className="hidden"/>
-                  <span className="text-sm">Todas</span>
-                </label>
-                {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO', 'SOZINHO'].map(cat => (
-                  <label key={cat} className={`flex items-center cursor-pointer p-2 rounded-lg transition-colors ${selectedCategory === cat ? 'bg-primary-50 text-primary-700 font-medium' : 'hover:bg-gray-50 text-gray-600'}`}>
-                    <input type="radio" name="category" checked={selectedCategory === cat} onChange={() => handleCategoryChange(cat)} className="hidden"/>
-                    <span className="text-sm capitalize">{cat.toLowerCase()}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+             {/* C - Duration */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('duration')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <span>Duração</span>
+                    {openFilterSections['duration'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['duration'] && (
+                    <div className="space-y-2">
+                        {durationOptions.map(opt => (
+                            <label key={opt.id} className="flex items-center cursor-pointer">
+                                <input 
+                                  type="radio" 
+                                  name="duration"
+                                  className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-gray-300"
+                                  checked={durationParam === opt.id}
+                                  onChange={() => updateUrl('duration', opt.id === durationParam ? null : opt.id)}
+                                />
+                                <span className="ml-3 text-sm text-gray-600">{opt.label}</span>
+                            </label>
+                        ))}
+                        {durationParam && <button onClick={() => updateUrl('duration', null)} className="text-xs text-gray-400 hover:text-red-500 mt-1 ml-7">Limpar</button>}
+                    </div>
+                )}
+             </div>
 
-            <button onClick={clearFilters} className="w-full py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition-colors">
-              Limpar Filtros
-            </button>
+             {/* D - Price */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('price')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <span>Preço por Pessoa</span>
+                    {openFilterSections['price'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['price'] && (
+                    <div className="space-y-2">
+                        {priceOptions.map(opt => (
+                            <label key={opt.id} className="flex items-center cursor-pointer">
+                                <input 
+                                  type="radio" 
+                                  name="price"
+                                  className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-gray-300"
+                                  checked={priceParam === opt.id}
+                                  onChange={() => updateUrl('price', opt.id === priceParam ? null : opt.id)}
+                                />
+                                <span className="ml-3 text-sm text-gray-600">{opt.label}</span>
+                            </label>
+                        ))}
+                         {priceParam && <button onClick={() => updateUrl('price', null)} className="text-xs text-gray-400 hover:text-red-500 mt-1 ml-7">Limpar</button>}
+                    </div>
+                )}
+             </div>
+
+             {/* E - Popular Destinations */}
+             <div>
+                <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <span>Destinos Populares</span>
+                    {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['dest'] && (
+                    <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
+                        {popularDestinations.map(dest => (
+                            <button 
+                              key={dest}
+                              onClick={() => updateUrl('q', dest)}
+                              className={`block w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-50 ${q.includes(dest) ? 'text-primary-600 font-bold bg-primary-50' : 'text-gray-600'}`}
+                            >
+                                {dest}
+                            </button>
+                        ))}
+                    </div>
+                )}
+             </div>
+
+             <button onClick={clearFilters} className="w-full py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition-colors">
+               Limpar Todos os Filtros
+             </button>
           </div>
         </aside>
 
@@ -209,14 +330,14 @@ const TripList: React.FC = () => {
                   className="md:hidden flex-1 flex items-center justify-center text-gray-700 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm"
                   onClick={() => setShowMobileFilters(true)}
               >
-                  <Filter size={16} className="mr-2" /> Filtrar
+                  <Filter size={16} className="mr-2" /> Filtros
               </button>
 
               <div className="relative flex-1 sm:flex-initial min-w-[200px]">
                 <ArrowUpDown size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
                 <select 
-                    value={sortBy}
-                    onChange={handleSortChange}
+                    value={sortParam}
+                    onChange={(e) => updateUrl('sort', e.target.value)}
                     className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer hover:bg-gray-50"
                 >
                     <option value="RELEVANCE">Mais Relevantes</option>

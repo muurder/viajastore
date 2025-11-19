@@ -39,6 +39,28 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
+// Updated Category List based on requirements
+export type TripCategory = 
+  | 'PRAIA' 
+  | 'AVENTURA' 
+  | 'FAMILIA' 
+  | 'ROMANTICO' 
+  | 'URBANO' 
+  | 'NATUREZA' 
+  | 'CULTURA' 
+  | 'GASTRONOMICO' 
+  | 'VIDA_NOTURNA' 
+  | 'VIAGEM_BARATA' 
+  | 'ARTE';
+
+export type TravelerType = 
+  | 'SOZINHO' 
+  | 'CASAL' 
+  | 'FAMILIA' 
+  | 'AMIGOS' 
+  | 'MOCHILAO' 
+  | 'MELHOR_IDADE';
+
 export interface Trip {
   id: string;
   agencyId: string;
@@ -50,7 +72,12 @@ export interface Trip {
   endDate: string;
   durationDays: number;
   images: string[];
-  category: 'PRAIA' | 'AVENTURA' | 'FAMILIA' | 'ROMANCE' | 'URBANO' | 'SOZINHO';
+  
+  // New Fields
+  category: TripCategory;
+  tags: string[]; // E.g., 'História', 'Trilhas', 'Pet-friendly'
+  travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
+
   active: boolean; // Controlled by agency
   rating: number;
   totalReviews: number;

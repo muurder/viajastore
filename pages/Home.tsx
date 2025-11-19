@@ -2,32 +2,52 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { MapPin, CheckCircle, ShieldCheck, Compass, ArrowRight, Building } from 'lucide-react';
+import { MapPin, ArrowRight, Building, Search } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const CATEGORY_IMAGES: Record<string, string> = {
   PRAIA: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop',
   AVENTURA: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800&auto=format&fit=crop',
   FAMILIA: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop',
-  ROMANCE: 'https://images.unsplash.com/photo-1510097477421-e5456cd63d64?q=80&w=800&auto=format&fit=crop',
-  URBANO: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?q=80&w=800&auto=format&fit=crop',
-  SOZINHO: 'https://images.unsplash.com/photo-1501504905252-473c47e087f8?q=80&w=800&auto=format&fit=crop'
+  ROMANTICO: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=800&auto=format&fit=crop',
+  URBANO: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=800&auto=format&fit=crop',
+  NATUREZA: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=800&auto=format&fit=crop',
+  CULTURA: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?q=80&w=800&auto=format&fit=crop',
+  GASTRONOMICO: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop',
+  VIDA_NOTURNA: 'https://images.unsplash.com/photo-1514525253440-b393452e233e?q=80&w=800&auto=format&fit=crop',
+  VIAGEM_BARATA: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=800&auto=format&fit=crop',
+  ARTE: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=800&auto=format&fit=crop',
 };
+
+const SEARCH_CHIPS = [
+  'Natureza', 'História', 'Gastronomia', 'Vida Noturna', 'Viagem barata', 
+  'Cultura', 'Arte', 'Praia', 'Aventura', 'Romântico'
+];
 
 const Home: React.FC = () => {
   const { getPublicTrips, agencies } = useData();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [selectedChips, setSelectedChips] = useState<string[]>([]);
 
-  // Logic to always show something, even if metrics are low in mock
   const allTrips = getPublicTrips();
   const featuredTrips = allTrips.sort((a, b) => b.rating - a.rating).slice(0, 6);
-  // Filter active agencies and shuffle or pick first few
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 4);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate(`/trips?q=${search}`);
+    const params = new URLSearchParams();
+    if (search) params.append('q', search);
+    if (selectedChips.length > 0) params.append('tags', selectedChips.join(','));
+    navigate(`/trips?${params.toString()}`);
+  };
+
+  const toggleChip = (chip: string) => {
+    if (selectedChips.includes(chip)) {
+      setSelectedChips(selectedChips.filter(c => c !== chip));
+    } else {
+      setSelectedChips([...selectedChips, chip]);
+    }
   };
 
   return (
@@ -58,7 +78,7 @@ const Home: React.FC = () => {
           </p>
 
           <div className="animate-[fadeInUp_1.1s]">
-            <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl">
+            <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl relative z-20">
               <div className="flex-1 flex items-center px-4 py-4 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
                 <MapPin className="text-primary-500 mr-3" />
                 <input 
@@ -73,30 +93,51 @@ const Home: React.FC = () => {
                 Buscar
               </button>
             </form>
+
+            {/* Chips Section */}
+            <div className="mt-6 max-w-2xl overflow-x-auto pb-2 scrollbar-hide">
+               <div className="flex gap-2">
+                  {SEARCH_CHIPS.map((chip) => (
+                     <button
+                        key={chip}
+                        onClick={() => toggleChip(chip)}
+                        className={`
+                           whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border
+                           ${selectedChips.includes(chip) 
+                             ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-105' 
+                             : 'bg-white/10 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm'
+                           }
+                        `}
+                     >
+                        {chip}
+                     </button>
+                  ))}
+               </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Categories */}
+      {/* Categories Grid */}
       <div>
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-gray-900">Explore por Estilo</h2>
           <p className="text-gray-500 mt-2 text-lg">Qual tipo de viajante você é hoje?</p>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 px-4">
-           {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO', 'SOZINHO'].map((cat) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 px-4 max-w-7xl mx-auto">
+           {Object.keys(CATEGORY_IMAGES).map((cat) => (
              <button 
                key={cat} 
                onClick={() => navigate(`/trips?category=${cat}`)}
-               className="group relative h-48 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+               className="group relative h-40 rounded-2xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
              >
                <img 
                   src={CATEGORY_IMAGES[cat]} 
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                   alt={cat}
                />
-               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-80 group-hover:opacity-90 transition-opacity flex items-center justify-center">
-                  <span className="text-white font-bold text-lg uppercase tracking-widest border-b-2 border-transparent group-hover:border-white transition-all drop-shadow-lg">{cat}</span>
+               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-90 group-hover:opacity-100 transition-opacity flex items-end justify-center p-4">
+                  <span className="text-white font-bold text-sm uppercase tracking-wider text-center">{cat.replace('_', ' ')}</span>
                </div>
              </button>
            ))}
@@ -157,59 +198,6 @@ const Home: React.FC = () => {
             </Link>
          </div>
       </div>
-
-      {/* Trust Section */}
-      <section className="bg-gradient-to-br from-primary-900 to-blue-900 rounded-3xl p-8 md:p-20 text-white shadow-xl overflow-hidden relative">
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-primary-500 rounded-full opacity-20 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-72 h-72 bg-purple-500 rounded-full opacity-20 blur-3xl"></div>
-        
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-6">Por que escolher a ViajaStore?</h2>
-                <div className="space-y-6">
-                    <div className="flex gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
-                            <ShieldCheck className="text-green-400" size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-xl">100% Seguro</h3>
-                            <p className="text-gray-300 text-sm mt-1">Pagamentos processados com criptografia de ponta. Garantia de viagem ou seu dinheiro de volta.</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
-                            <Compass className="text-blue-400" size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-xl">Curadoria de Destinos</h3>
-                            <p className="text-gray-300 text-sm mt-1">Selecionamos apenas as melhores experiências e agências com alta reputação.</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
-                            <CheckCircle className="text-yellow-400" size={24} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-xl">Transparência Total</h3>
-                            <p className="text-gray-300 text-sm mt-1">Sem taxas escondidas. O preço que você vê é o preço que você paga.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-8 border border-white/10">
-                <h3 className="text-2xl font-bold mb-2">Baixe o App (Em breve)</h3>
-                <p className="text-gray-300 text-sm mb-6">Leve a ViajaStore no seu bolso e receba ofertas exclusivas.</p>
-                <div className="flex gap-4">
-                   <button className="flex-1 bg-black rounded-xl py-3 flex items-center justify-center gap-2 hover:bg-gray-900 transition-colors">
-                      <span className="text-2xl"></span> <div className="text-left leading-none"><div className="text-[10px] uppercase">Download on the</div><div className="font-bold text-sm">App Store</div></div>
-                   </button>
-                   <button className="flex-1 bg-black rounded-xl py-3 flex items-center justify-center gap-2 hover:bg-gray-900 transition-colors">
-                      <span className="text-xl">▶</span> <div className="text-left leading-none"><div className="text-[10px] uppercase">Get it on</div><div className="font-bold text-sm">Google Play</div></div>
-                   </button>
-                </div>
-            </div>
-        </div>
-      </section>
     </div>
   );
 };
