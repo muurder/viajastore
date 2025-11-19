@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: profileData.full_name || 'Usuário',
           email: email,
           role: role,
-          avatar: profileData.avatar_url,
+          avatar: profileData.avatar_url, // Safe to read even if undefined
           cpf: profileData.cpf,
           phone: profileData.phone,
           favorites: [], // Favorites fetched in DataContext usually, or we can fetch here
@@ -164,13 +164,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (agencyError) throw agencyError;
       } else {
         // Client
+        // Removing avatar_url because it might not exist in the schema, causing errors
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           full_name: data.name,
           cpf: data.cpf,
           phone: data.phone,
-          role: 'CLIENT',
-          avatar_url: data.avatar || `https://ui-avatars.com/api/?name=${data.name}`
+          role: 'CLIENT'
         });
         if (profileError) throw profileError;
       }
