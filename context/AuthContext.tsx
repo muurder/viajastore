@@ -1,60 +1,86 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { MOCK_CLIENTS, MOCK_AGENCIES, MOCK_ADMINS } from '../services/mockData';
 
 interface AuthContextType {
   user: User | Client | Agency | Admin | null;
-  login: (email: string, role: UserRole) => boolean;
+  login: (email: string, password?: string, role?: UserRole) => boolean;
   logout: () => void;
   register: (newUser: Client | Agency) => void;
   updateUser: (userData: Partial<User>) => void;
-  allClients: Client[];
-  allAgencies: Agency[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Initialize from LocalStorage or fallback to Mock
-  const [clients, setClients] = useState<Client[]>(() => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Load initial lists logic is now handled purely via DataContext for the source of truth,
+  // But AuthContext needs to verify credentials against stored data.
+  // To avoid circular dependencies or complex rewrites, we will read from localStorage here too for Auth purposes.
+
+  const getStoredClients = () => {
     const stored = localStorage.getItem('vs_clients');
     return stored ? JSON.parse(stored) : MOCK_CLIENTS;
-  });
+  };
 
-  const [agencies, setAgencies] = useState<Agency[]>(() => {
+  const getStoredAgencies = () => {
     const stored = localStorage.getItem('vs_agencies');
     return stored ? JSON.parse(stored) : MOCK_AGENCIES;
-  });
+  };
 
-  const [admins] = useState<Admin[]>(MOCK_ADMINS); // Admins usually static in frontend mocks
-  
-  const [user, setUser] = useState<User | null>(null);
-
-  // Persist changes to LS whenever lists change
-  useEffect(() => {
-    localStorage.setItem('vs_clients', JSON.stringify(clients));
-  }, [clients]);
+  const getStoredAdmins = () => MOCK_ADMINS;
 
   useEffect(() => {
-    localStorage.setItem('vs_agencies', JSON.stringify(agencies));
-  }, [agencies]);
+    const storedUser = localStorage.getItem('viajastore_user');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      // Re-validate existence
+      let validUser = null;
+      if (parsedUser.role === UserRole.CLIENT) {
+        validUser = getStoredClients().find((c: Client) => c.id === parsedUser.id);
+      } else if (parsedUser.role === UserRole.AGENCY) {
+        validUser = getStoredAgencies().find((a: Agency) => a.id === parsedUser.id);
+      } else {
+        validUser = getStoredAdmins().find((a: Admin) => a.id === parsedUser.id);
+      }
 
-  const login = (email: string, role: UserRole): boolean => {
-    let foundUser: User | undefined;
+      if (validUser) {
+        setUser(validUser);
+      } else {
+        localStorage.removeItem('viajastore_user');
+      }
+    }
+    setIsInitialized(true);
+  }, []);
 
-    // Refresh data from state
-    if (role === UserRole.CLIENT) {
-      foundUser = clients.find(c => c.email === email);
-    } else if (role === UserRole.AGENCY) {
-      foundUser = agencies.find(a => a.email === email);
-    } else if (role === UserRole.ADMIN) {
-      foundUser = admins.find(a => a.email === email);
+  const login = (email: string, password?: string, role?: UserRole): boolean => {
+    const clients = getStoredClients();
+    const agencies = getStoredAgencies();
+    const admins = getStoredAdmins();
+
+    let foundUser: any;
+
+    // If role is provided, search specific list, otherwise search all (less performant but flexible)
+    if (role === UserRole.CLIENT) foundUser = clients.find((c: Client) => c.email === email);
+    else if (role === UserRole.AGENCY) foundUser = agencies.find((a: Agency) => a.email === email);
+    else if (role === UserRole.ADMIN) foundUser = admins.find((a: Admin) => a.email === email);
+    else {
+        foundUser = clients.find((c: Client) => c.email === email) || 
+                    agencies.find((a: Agency) => a.email === email) || 
+                    admins.find((a: Admin) => a.email === email);
     }
 
     if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('viajastore_user', JSON.stringify(foundUser));
-      return true;
+        // Simple password check (in production this would be hashed)
+        if (password && foundUser.password && foundUser.password !== password) {
+            return false;
+        }
+        setUser(foundUser);
+        localStorage.setItem('viajastore_user', JSON.stringify(foundUser));
+        return true;
     }
     return false;
   };
@@ -62,15 +88,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     setUser(null);
     localStorage.removeItem('viajastore_user');
+    window.location.href = '/'; // Hard redirect to clear any temp states
   };
 
   const register = (newUser: Client | Agency) => {
+    // Save to LocalStorage "Database"
     if (newUser.role === UserRole.CLIENT) {
-      setClients(prev => [...prev, newUser as Client]);
+      const currentClients = getStoredClients();
+      const updatedClients = [...currentClients, newUser];
+      localStorage.setItem('vs_clients', JSON.stringify(updatedClients));
     } else if (newUser.role === UserRole.AGENCY) {
-      setAgencies(prev => [...prev, newUser as Agency]);
+      const currentAgencies = getStoredAgencies();
+      const updatedAgencies = [...currentAgencies, newUser];
+      localStorage.setItem('vs_agencies', JSON.stringify(updatedAgencies));
     }
-    // Auto login
+    
+    // Set Session
     setUser(newUser);
     localStorage.setItem('viajastore_user', JSON.stringify(newUser));
   };
@@ -80,49 +113,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const updatedUser = { ...user, ...userData } as User;
       setUser(updatedUser);
       localStorage.setItem('viajastore_user', JSON.stringify(updatedUser));
-
-      // Update in the lists
-      if (user.role === UserRole.CLIENT) {
-        setClients(prev => prev.map(c => c.id === user.id ? { ...c, ...userData } as Client : c));
-      } else if (user.role === UserRole.AGENCY) {
-        setAgencies(prev => prev.map(a => a.id === user.id ? { ...a, ...userData } as Agency : a));
+      
+      // Also update in the "Database" via DataContext logic (which syncs with LS)
+      // But since we are in AuthContext, we must update LS directly here to ensure consistency on reload
+      if (updatedUser.role === UserRole.CLIENT) {
+          const list = getStoredClients().map((c: Client) => c.id === updatedUser.id ? { ...c, ...userData } : c);
+          localStorage.setItem('vs_clients', JSON.stringify(list));
+      } else if (updatedUser.role === UserRole.AGENCY) {
+          const list = getStoredAgencies().map((a: Agency) => a.id === updatedUser.id ? { ...a, ...userData } : a);
+          localStorage.setItem('vs_agencies', JSON.stringify(list));
       }
     }
   };
 
-  // Restore session on load
-  useEffect(() => {
-    const stored = localStorage.getItem('viajastore_user');
-    if (stored) {
-      const parsedUser = JSON.parse(stored);
-      // Verify if user still exists in our "DB" to avoid stale sessions
-      let validUser = null;
-      if (parsedUser.role === UserRole.CLIENT) {
-        validUser = clients.find(c => c.id === parsedUser.id);
-      } else if (parsedUser.role === UserRole.AGENCY) {
-        validUser = agencies.find(a => a.id === parsedUser.id);
-      } else {
-        validUser = admins.find(a => a.id === parsedUser.id);
-      }
-
-      if (validUser) {
-         setUser(validUser);
-      } else {
-         localStorage.removeItem('viajastore_user'); // Invalid session
-      }
-    }
-  }, []); // Run once on mount, but we rely on initial state for lists
+  if (!isInitialized) return null; // Prevent flickering
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      register, 
-      updateUser,
-      allClients: clients,
-      allAgencies: agencies 
-    }}>
+    <AuthContext.Provider value={{ user, login, logout, register, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -8,8 +9,10 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string; // Added for auth simulation
   role: UserRole;
   avatar?: string;
+  createdAt?: string;
 }
 
 export interface Client extends User {
@@ -17,6 +20,7 @@ export interface Client extends User {
   cpf?: string;
   phone?: string;
   favorites: string[]; // Trip IDs
+  notificationsEnabled?: boolean;
 }
 
 export interface Agency extends User {
@@ -27,6 +31,8 @@ export interface Agency extends User {
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
   subscriptionExpiresAt: string; // ISO Date
+  website?: string;
+  phone?: string;
 }
 
 export interface Admin extends User {
@@ -49,16 +55,21 @@ export interface Trip {
   rating: number;
   totalReviews: number;
   included: string[];
+  notIncluded?: string[];
+  views?: number; // For stats
+  sales?: number; // For stats
 }
 
 export interface Booking {
   id: string;
   tripId: string;
   clientId: string;
-  date: string;
+  date: string; // Booking date
   status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
   totalPrice: number;
   passengers: number;
+  voucherCode: string;
+  paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
 }
 
 export interface Review {
@@ -69,6 +80,7 @@ export interface Review {
   comment: string;
   date: string;
   clientName: string;
+  response?: string; // Agency response
 }
 
 export interface Plan {

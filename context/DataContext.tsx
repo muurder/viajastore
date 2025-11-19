@@ -1,6 +1,15 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, Client } from '../types';
+import { Trip, Agency, Booking, Review, Client, UserRole, User } from '../types';
 import { MOCK_TRIPS, MOCK_AGENCIES, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+import { useAuth } from './AuthContext';
+
+interface DashboardStats {
+  totalRevenue: number;
+  totalViews: number;
+  totalSales: number;
+  conversionRate: number;
+}
 
 interface DataContextType {
   trips: Trip[];
@@ -9,42 +18,41 @@ interface DataContextType {
   reviews: Review[];
   clients: Client[];
   
-  // Actions
   addBooking: (booking: Booking) => void;
   addReview: (review: Review) => void;
   deleteReview: (reviewId: string) => void;
   toggleFavorite: (tripId: string, clientId: string) => void;
   updateClientProfile: (clientId: string, data: Partial<Client>) => void;
   
-  // Agency Actions
   updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => void;
   createTrip: (trip: Trip) => void;
   updateTrip: (trip: Trip) => void;
   deleteTrip: (tripId: string) => void;
-
-  // Admin Actions
   toggleTripStatus: (tripId: string) => void; 
   
-  // Getters
   getPublicTrips: () => Trip[]; 
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
+  getAgencyStats: (agencyId: string) => DashboardStats;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user, updateUser } = useAuth(); // To sync favorite changes to session
+
   // Initialize State from LocalStorage with fallback to Mock Data
   const [trips, setTrips] = useState<Trip[]>(() => {
     const s = localStorage.getItem('vs_trips');
     return s ? JSON.parse(s) : MOCK_TRIPS;
   });
 
+  // Sync agencies/clients with what AuthContext uses (same keys)
   const [agencies, setAgencies] = useState<Agency[]>(() => {
-    const s = localStorage.getItem('vs_agencies'); // synced with AuthContext theoretically, but kept separate for data concern
+    const s = localStorage.getItem('vs_agencies');
     return s ? JSON.parse(s) : MOCK_AGENCIES;
   });
 
@@ -67,12 +75,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => localStorage.setItem('vs_trips', JSON.stringify(trips)), [trips]);
   useEffect(() => localStorage.setItem('vs_bookings', JSON.stringify(bookings)), [bookings]);
   useEffect(() => localStorage.setItem('vs_reviews', JSON.stringify(reviews)), [reviews]);
-  // Clients/Agencies also persisted in AuthContext, but here we update them for data consistency in lists
   useEffect(() => localStorage.setItem('vs_clients', JSON.stringify(clients)), [clients]);
   useEffect(() => localStorage.setItem('vs_agencies', JSON.stringify(agencies)), [agencies]);
 
-
-  // Helper: Check if agency has active subscription
   const isAgencyActive = (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
     if (!agency) return false;
@@ -82,9 +87,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const getPublicTrips = () => {
-    return trips.filter(trip => {
-      return trip.active && isAgencyActive(trip.agencyId);
-    });
+    return trips.filter(trip => trip.active && isAgencyActive(trip.agencyId));
   };
 
   const getAgencyPublicTrips = (agencyId: string) => {
@@ -106,21 +109,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addBooking = (booking: Booking) => {
     setBookings(prev => [...prev, booking]);
+    // Increment sales counter on trip
+    setTrips(prev => prev.map(t => t.id === booking.tripId ? { ...t, sales: (t.sales || 0) + 1 } : t));
   };
 
   const addReview = (review: Review) => {
     setReviews(prev => [...prev, review]);
-    
-    // Update trip rating
     const tripReviews = [...reviews.filter(r => r.tripId === review.tripId), review];
     const avg = tripReviews.reduce((acc, curr) => acc + curr.rating, 0) / tripReviews.length;
-    
     setTrips(prev => prev.map(t => t.id === review.tripId ? { ...t, rating: avg, totalReviews: tripReviews.length } : t));
   };
 
   const deleteReview = (reviewId: string) => {
      setReviews(prev => prev.filter(r => r.id !== reviewId));
-     // Note: In a real app, we would need to recalculate the trip rating here too.
   };
 
   const createTrip = (trip: Trip) => {
@@ -137,13 +138,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const toggleTripStatus = (tripId: string) => {
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: !t.active } : t));
-  }
+  };
 
   const updateAgencySubscription = (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
     setAgencies(prev => prev.map(a => {
       if (a.id === agencyId) {
         const newExpiry = new Date();
-        newExpiry.setMonth(newExpiry.getMonth() + 1); 
+        if (status === 'ACTIVE') newExpiry.setMonth(newExpiry.getMonth() + 1); 
         return {
           ...a,
           subscriptionStatus: status,
@@ -156,45 +157,46 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const toggleFavorite = (tripId: string, clientId: string) => {
-    setClients(prev => prev.map(c => {
-      if (c.id === clientId) {
-        const isFav = c.favorites.includes(tripId);
-        return {
-          ...c,
-          favorites: isFav ? c.favorites.filter(id => id !== tripId) : [...c.favorites, tripId]
-        };
-      }
-      return c;
-    }));
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const isFav = client.favorites.includes(tripId);
+    const newFavorites = isFav 
+        ? client.favorites.filter(id => id !== tripId)
+        : [...client.favorites, tripId];
+    
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: newFavorites } : c));
+    
+    // Sync with Auth Context if current user is this client
+    if (user && user.id === clientId) {
+        updateUser({ favorites: newFavorites } as Partial<User>);
+    }
   };
 
   const updateClientProfile = (clientId: string, data: Partial<Client>) => {
       setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...data } : c));
   };
 
+  const getAgencyStats = (agencyId: string): DashboardStats => {
+     const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+     const agencyBookings = bookings.filter(b => agencyTrips.find(t => t.id === b.tripId));
+     
+     const totalRevenue = agencyBookings.reduce((acc, curr) => acc + curr.totalPrice, 0);
+     const totalSales = agencyBookings.length;
+     const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
+     // Fake conversation rate calculation
+     const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+
+     return { totalRevenue, totalSales, totalViews, conversionRate };
+  };
+
   return (
     <DataContext.Provider value={{
-      trips,
-      agencies,
-      bookings,
-      reviews,
-      clients,
-      addBooking,
-      addReview,
-      deleteReview,
-      toggleFavorite,
-      updateClientProfile,
-      updateAgencySubscription,
-      createTrip,
-      updateTrip,
-      deleteTrip,
-      toggleTripStatus,
-      getPublicTrips,
-      getAgencyPublicTrips,
-      getAgencyTrips,
-      getTripById,
-      getReviewsByTripId,
-      hasUserPurchasedTrip
+      trips, agencies, bookings, reviews, clients,
+      addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
+      updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
+      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getReviewsByTripId,
+      hasUserPurchasedTrip, getAgencyStats
     }}>
       {children}
     </DataContext.Provider>

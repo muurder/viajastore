@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import Layout from './components/Layout';
@@ -13,8 +14,10 @@ import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
-import { About, Contact, Terms, Help } from './pages/StaticPages';
+import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
+
+// Scroll to top on route change component could be added here
 
 const App: React.FC = () => {
   return (
@@ -35,7 +38,11 @@ const App: React.FC = () => {
               <Route path="about" element={<About />} />
               <Route path="contact" element={<Contact />} />
               <Route path="terms" element={<Terms />} />
+              <Route path="privacy" element={<Privacy />} />
               <Route path="help" element={<Help />} />
+              <Route path="blog" element={<Blog />} />
+              <Route path="careers" element={<Careers />} />
+              <Route path="press" element={<Press />} />
               
               {/* Utility Routes */}
               <Route path="checkout/success" element={<CheckoutSuccess />} />
@@ -46,7 +53,7 @@ const App: React.FC = () => {
               <Route path="login" element={<Login />} />
               <Route path="signup" element={<Signup />} />
               
-              {/* Protected Routes */}
+              {/* Protected Routes - In a real app these would be wrapped in a <ProtectedRoute> component */}
               <Route path="agency/dashboard" element={<AgencyDashboard />} />
               <Route path="admin/dashboard" element={<AdminDashboard />} />
               <Route path="client/dashboard" element={<ClientDashboard />} />
