@@ -39,7 +39,7 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
-// Updated Category List based on requirements
+// Updated Category List based on requirements (Removed SOZINHO)
 export type TripCategory = 
   | 'PRAIA' 
   | 'AVENTURA' 
@@ -53,6 +53,7 @@ export type TripCategory =
   | 'VIAGEM_BARATA' 
   | 'ARTE';
 
+// New Traveler Type definition
 export type TravelerType = 
   | 'SOZINHO' 
   | 'CASAL' 
@@ -75,7 +76,7 @@ export interface Trip {
   
   // New Fields
   category: TripCategory;
-  tags: string[]; // E.g., 'História', 'Trilhas', 'Pet-friendly'
+  tags: string[]; // E.g., 'História', 'Trilhas', 'Ideal para viajar sozinho'
   travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
 
   active: boolean; // Controlled by agency

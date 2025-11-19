@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { MapPin, ArrowRight, Building, Search } from 'lucide-react';
+import { MapPin, ArrowRight, Building } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
+// CATEGORIES: Removed 'SOZINHO', Fixed VIDA_NOTURNA image
 const CATEGORY_IMAGES: Record<string, string> = {
   PRAIA: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop',
   AVENTURA: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800&auto=format&fit=crop',
@@ -14,12 +15,13 @@ const CATEGORY_IMAGES: Record<string, string> = {
   NATUREZA: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=800&auto=format&fit=crop',
   CULTURA: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?q=80&w=800&auto=format&fit=crop',
   GASTRONOMICO: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop',
-  VIDA_NOTURNA: 'https://images.unsplash.com/photo-1514525253440-b393452e233e?q=80&w=800&auto=format&fit=crop',
+  VIDA_NOTURNA: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?q=80&w=800&auto=format&fit=crop', // New reliable nightlife image
   VIAGEM_BARATA: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=800&auto=format&fit=crop',
   ARTE: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=800&auto=format&fit=crop',
 };
 
-const SEARCH_CHIPS = [
+// Updated Interest Chips
+const INTEREST_CHIPS = [
   'Natureza', 'História', 'Gastronomia', 'Vida Noturna', 'Viagem barata', 
   'Cultura', 'Arte', 'Praia', 'Aventura', 'Romântico'
 ];
@@ -28,7 +30,6 @@ const Home: React.FC = () => {
   const { getPublicTrips, agencies } = useData();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [selectedChips, setSelectedChips] = useState<string[]>([]);
 
   const allTrips = getPublicTrips();
   const featuredTrips = allTrips.sort((a, b) => b.rating - a.rating).slice(0, 6);
@@ -36,18 +37,12 @@ const Home: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (search) params.append('q', search);
-    if (selectedChips.length > 0) params.append('tags', selectedChips.join(','));
-    navigate(`/trips?${params.toString()}`);
+    navigate(`/trips?q=${search}`);
   };
 
-  const toggleChip = (chip: string) => {
-    if (selectedChips.includes(chip)) {
-      setSelectedChips(selectedChips.filter(c => c !== chip));
-    } else {
-      setSelectedChips([...selectedChips, chip]);
-    }
+  const handleChipClick = (chip: string) => {
+    // Navigate to trips with the tag param
+    navigate(`/trips?tags=${chip}`);
   };
 
   return (
@@ -94,20 +89,15 @@ const Home: React.FC = () => {
               </button>
             </form>
 
-            {/* Chips Section */}
-            <div className="mt-6 max-w-2xl overflow-x-auto pb-2 scrollbar-hide">
-               <div className="flex gap-2">
-                  {SEARCH_CHIPS.map((chip) => (
+            {/* Interest Chips */}
+            <div className="mt-6 max-w-2xl">
+               <p className="text-white/70 text-xs font-bold uppercase tracking-widest mb-3 pl-1">Interesses Principais</p>
+               <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide mask-linear-fade">
+                  {INTEREST_CHIPS.map((chip) => (
                      <button
                         key={chip}
-                        onClick={() => toggleChip(chip)}
-                        className={`
-                           whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border
-                           ${selectedChips.includes(chip) 
-                             ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-105' 
-                             : 'bg-white/10 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm'
-                           }
-                        `}
+                        onClick={() => handleChipClick(chip)}
+                        className="whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 border bg-white/10 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm hover:border-white/40"
                      >
                         {chip}
                      </button>

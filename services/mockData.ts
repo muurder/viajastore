@@ -22,6 +22,7 @@ export const MOCK_CLIENTS: Client[] = [
 ];
 
 // --- HELPER FOR IMAGES ---
+// Expanded database of images to ensure high quality and relevance
 const getImg = (key: string) => {
   const db: Record<string, string> = {
     iguacu: 'https://images.unsplash.com/photo-1583589483229-3616196d1199?auto=format&fit=crop&w=800&q=80',
@@ -38,64 +39,26 @@ const getImg = (key: string) => {
     ouropreto: 'https://images.unsplash.com/photo-1565036566849-d94124397d47?auto=format&fit=crop&w=800&q=80',
     jalapao: 'https://images.unsplash.com/photo-1545663079-82ce546e526f?auto=format&fit=crop&w=800&q=80',
     roraima: 'https://images.unsplash.com/photo-1518182177546-076727620017?auto=format&fit=crop&w=800&q=80',
-    
-    // Categories
-    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-    urbano: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?auto=format&fit=crop&w=800&q=80',
-    aventura: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80',
-    familia: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
-    romantico: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=800&q=80',
-    natureza: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80',
-    cultura: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?auto=format&fit=crop&w=800&q=80',
-    gastronomico: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-    vida_noturna: 'https://images.unsplash.com/photo-1514525253440-b393452e233e?auto=format&fit=crop&w=800&q=80',
-    viagem_barata: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80',
-    arte: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=800&q=80',
-
     ilhabela: 'https://images.unsplash.com/photo-1563476560-5bf90902c6c2?auto=format&fit=crop&w=800&q=80',
     ilhagrande: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800&q=80',
     gramado: 'https://images.unsplash.com/photo-1613323593608-abc90fec84ff?auto=format&fit=crop&w=800&q=80',
-    floripa: 'https://images.unsplash.com/photo-1564053489984-317bbd824340?auto=format&fit=crop&w=800&q=80' 
+    floripa: 'https://images.unsplash.com/photo-1564053489984-317bbd824340?auto=format&fit=crop&w=800&q=80',
+    food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
+    urbano: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?auto=format&fit=crop&w=800&q=80',
+    aventura: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80',
+    familia: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
+    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+    vidanoturna: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80', // Fixed nightlife
   };
-  return db[key] || db['praia'];
+  
+  if (!db[key]) {
+      // Return a semi-random fallback if key not found
+      return db['praia'];
+  }
+  return db[key];
 };
 
-// --- BASE AGENCIES ---
-const initialAgencies: Agency[] = [
-  {
-    id: 'a1',
-    name: 'Nordeste Explorer',
-    email: 'agencia@viajastore.com',
-    password: '123',
-    role: UserRole.AGENCY,
-    cnpj: '12.345.678/0001-99',
-    description: 'Especialistas em proporcionar experiências inesquecíveis nas praias mais belas do Nordeste brasileiro.',
-    logo: 'https://images.unsplash.com/photo-1523699289804-638732ae47c5?auto=format&fit=crop&w=200&q=80',
-    subscriptionStatus: 'ACTIVE',
-    subscriptionPlan: 'PREMIUM',
-    subscriptionExpiresAt: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString(),
-    phone: '(81) 3322-4455',
-    website: 'www.nordesteexplorer.com.br',
-    createdAt: '2023-11-15T10:00:00Z'
-  },
-  {
-    id: 'a2',
-    name: 'EcoVentura Brasil',
-    email: 'eco@viajastore.com',
-    password: '123',
-    role: UserRole.AGENCY,
-    cnpj: '98.765.432/0001-11',
-    description: 'Turismo ecológico, trekking e conexão com a natureza. Sustentabilidade em primeiro lugar.',
-    logo: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=200&q=80',
-    subscriptionStatus: 'INACTIVE',
-    subscriptionPlan: 'BASIC',
-    subscriptionExpiresAt: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString(),
-    phone: '(62) 98888-7777',
-    createdAt: '2024-02-20T10:00:00Z'
-  }
-];
-
-// --- GENERATE 10 NEW AGENCIES (Based on Report) ---
+// --- GENERATE 10 SPECIFIC AGENCIES ---
 const reportAgenciesData = [
   { name: 'Paraíso das Cataratas', desc: 'Especializada em roteiros que combinam as Cataratas do Iguaçu e outras atrações naturais.', logoKey: 'iguacu' },
   { name: 'Carioca Urbano Tours', desc: 'Explora os grandes centros brasileiros, com ênfase em cultura, gastronomia e eventos.', logoKey: 'urbano' },
@@ -109,24 +72,22 @@ const reportAgenciesData = [
   { name: 'Explorers do Brasil', desc: 'Para aventureiros que buscam destinos remotos como Monte Roraima e Jalapão.', logoKey: 'roraima' }
 ];
 
-const generatedAgencies: Agency[] = reportAgenciesData.map((ag, index) => ({
-  id: `new_a${index + 1}`,
+export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
+  id: `ag_${index + 1}`,
   name: ag.name,
-  email: `contato@${ag.name.replace(/\s+/g, '').toLowerCase()}.com`,
+  email: `contato@${ag.name.toLowerCase().replace(/\s+/g, '')}.com`,
   password: '123',
   role: UserRole.AGENCY,
-  cnpj: `00.${index}00.000/0001-${index}0`,
+  cnpj: `10.${index}23.${index}56/0001-${index}0`,
   description: ag.desc,
   logo: getImg(ag.logoKey),
   subscriptionStatus: 'ACTIVE',
   subscriptionPlan: 'PREMIUM',
-  subscriptionExpiresAt: new Date(new Date().setMonth(new Date().getMonth() + 12)).toISOString(),
-  phone: `(11) 9${index}000-0000`,
-  website: `www.${ag.name.replace(/\s+/g, '').toLowerCase()}.com.br`,
+  subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+  website: `www.${ag.name.toLowerCase().replace(/\s+/g, '')}.com.br`,
+  phone: `(11) 99999-${index}000`,
   createdAt: new Date().toISOString()
 }));
-
-export const MOCK_AGENCIES: Agency[] = [...initialAgencies, ...generatedAgencies];
 
 export const MOCK_ADMINS: Admin[] = [
   {
@@ -140,134 +101,48 @@ export const MOCK_ADMINS: Admin[] = [
   }
 ];
 
-// --- BASE TRIPS ---
-const initialTrips: Trip[] = [
-  {
-    id: 't1',
-    agencyId: 'a1',
-    title: 'Porto de Galinhas: Paraíso All Inclusive',
-    description: 'Desfrute de 7 dias no paraíso com tudo pago. Resort 5 estrelas à beira-mar, passeios de jangada nas piscinas naturais e jantar temático inclusos. Ideal para quem busca relaxamento total.',
-    destination: 'Porto de Galinhas, PE',
-    price: 3500,
-    startDate: '2024-12-10',
-    endDate: '2024-12-17',
-    durationDays: 7,
-    images: [
-        getImg('praia'),
-        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'
-    ],
-    category: 'PRAIA',
-    tags: ['Praia', 'Luxo', 'Resort', 'All Inclusive'],
-    travelerTypes: ['FAMILIA', 'CASAL'],
-    active: true,
-    rating: 4.8,
-    totalReviews: 45,
-    included: ['Aéreo Ida e Volta', 'Hotel All Inclusive', 'Translado Aeroporto', 'Passeio de Jangada'],
-    notIncluded: ['Gorjetas', 'Passeios Opcionais'],
-    views: 1250,
-    sales: 15
-  },
-  {
-    id: 't2',
-    agencyId: 'a1',
-    title: 'Romance na Serra Gaúcha: Gramado e Canela',
-    description: 'Curta o frio da serra gaúcha com muito charme, vinho e chocolate. Pacote especial para casais com jantar de fondue incluso.',
-    destination: 'Gramado, RS',
-    price: 1890,
-    startDate: '2024-07-15',
-    endDate: '2024-07-19',
-    durationDays: 4,
-    images: [
-        getImg('gramado')
-    ],
-    category: 'ROMANTICO',
-    tags: ['Inverno', 'Gastronomia', 'Vinho', 'Serras'],
-    travelerTypes: ['CASAL'],
-    active: true,
-    rating: 4.9,
-    totalReviews: 28,
-    included: ['Hotel Boutique', 'Café da manhã colonial', 'Tour Uva e Vinho', 'Jantar Fondue'],
-    notIncluded: ['Passagem Aérea', 'Almoço'],
-    views: 890,
-    sales: 8
-  },
-  {
-    id: 't3',
-    agencyId: 'a2',
-    title: 'Expedição Chapada dos Veadeiros',
-    description: 'Aventura radical nas cachoeiras mais lindas do Brasil. Trilhas guiadas, banhos energizantes e conexão total com a natureza.',
-    destination: 'Alto Paraíso, GO',
-    price: 2200,
-    startDate: '2024-09-01',
-    endDate: '2024-09-06',
-    durationDays: 6,
-    images: [
-        getImg('chapada')
-    ],
-    category: 'NATUREZA',
-    tags: ['Trilhas', 'Cachoeiras', 'Ecoturismo', 'Ideal para viajar sozinho'],
-    travelerTypes: ['SOZINHO', 'MOCHILAO', 'AMIGOS'],
-    active: true,
-    rating: 5.0,
-    totalReviews: 12,
-    included: ['Guia Credenciado', 'Transporte 4x4', 'Pousada Rústica', 'Entrada nos Parques'],
-    notIncluded: ['Aéreo até Brasília', 'Jantar'],
-    views: 2100,
-    sales: 32
-  },
-  {
-    id: 't4',
-    agencyId: 'a1',
-    title: 'Disney Magic: Férias em Orlando',
-    description: 'Realize o sonho da família na terra da magia. Ingressos para 4 parques Disney inclusos e hotel próximo aos parques.',
-    destination: 'Orlando, EUA',
-    price: 8500,
-    startDate: '2024-11-10',
-    endDate: '2024-11-18',
-    durationDays: 8,
-    images: [
-        'https://images.unsplash.com/photo-1597466599360-3b9775841aec?auto=format&fit=crop&w=800&q=80'
-    ],
-    category: 'FAMILIA',
-    tags: ['Diversão', 'Parques', 'Internacional'],
-    travelerTypes: ['FAMILIA'],
-    active: true,
-    rating: 4.7,
-    totalReviews: 56,
-    included: ['Hotel', 'Ingressos 4 Dias', 'Carro Alugado'],
-    notIncluded: ['Aéreo Internacional', 'Alimentação'],
-    views: 3400,
-    sales: 12
-  },
-  {
-    id: 't5',
-    agencyId: 'a1',
-    title: 'São Paulo Cultural e Gastronômico',
-    description: 'Descubra o lado urbano e cosmopolita de SP. Jantares em restaurantes premiados e visita a museus.',
-    destination: 'São Paulo, SP',
-    price: 950,
-    startDate: '2024-08-05',
-    endDate: '2024-08-07',
-    durationDays: 2,
-    images: [
-        getImg('sp')
-    ],
-    category: 'GASTRONOMICO',
-    tags: ['Cultura', 'Urbano', 'Gastronomia', 'Museus'],
-    travelerTypes: ['CASAL', 'SOZINHO', 'AMIGOS'],
-    active: true,
-    rating: 4.5,
-    totalReviews: 10,
-    included: ['Hotel na Paulista', 'City Tour', 'Jantar no Terraço'],
-    notIncluded: ['Transporte até SP'],
-    views: 450,
-    sales: 3
-  }
-];
+// --- HELPERS FOR TRIPS ---
 
-// --- GENERATE 100 NEW TRIPS (10 per new Agency) based on Report ---
+// Determines appropriate traveler types based on category
+const getTravelerTypes = (cat: TripCategory): TravelerType[] => {
+    const types: TravelerType[] = ['AMIGOS']; // Default
+    if (['PRAIA', 'FAMILIA', 'VIAGEM_BARATA'].includes(cat)) types.push('FAMILIA');
+    if (['ROMANTICO', 'PRAIA', 'GASTRONOMICO', 'VIDA_NOTURNA'].includes(cat)) types.push('CASAL');
+    if (['AVENTURA', 'NATUREZA', 'ARTE', 'CULTURA'].includes(cat)) types.push('SOZINHO', 'MOCHILAO');
+    if (cat === 'VIDA_NOTURNA') types.push('AMIGOS');
+    if (cat === 'CULTURA' || cat === 'GASTRONOMICO') types.push('MELHOR_IDADE');
+    
+    // Randomly add 'SOZINHO' to ensure it appears as a filter/tag option
+    if (Math.random() > 0.4) types.push('SOZINHO');
+    
+    return Array.from(new Set(types)); // Unique
+};
 
-// Helper to structure trip data
+// Determines tags based on category and location
+const getTags = (cat: TripCategory, dest: string): string[] => {
+    const tags: string[] = [];
+    
+    // Base tags by category
+    if (cat === 'PRAIA') tags.push('Praia', 'Sol e Mar', 'Relax');
+    if (cat === 'AVENTURA') tags.push('Adrenalina', 'Trilhas', 'Natureza');
+    if (cat === 'NATUREZA') tags.push('Ecoturismo', 'Animais', 'Ar Livre');
+    if (cat === 'CULTURA') tags.push('História', 'Museus', 'Arquitetura');
+    if (cat === 'GASTRONOMICO') tags.push('Culinária Típica', 'Vinhos', 'Jantares');
+    if (cat === 'URBANO') tags.push('Cidade Grande', 'Compras', 'Eventos');
+    if (cat === 'ROMANTICO') tags.push('Ideal para casais', 'Lua de Mel', 'Charme');
+    if (cat === 'FAMILIA') tags.push('Crianças', 'Diversão', 'Segurança');
+    if (cat === 'VIDA_NOTURNA') tags.push('Festas', 'Bares', 'Música');
+    if (cat === 'VIAGEM_BARATA') tags.push('Econômico', 'Hostel', 'Promoção');
+    if (cat === 'ARTE') tags.push('Museus', 'Galerias', 'Design');
+
+    // Special Tag for "SOZINHO" request
+    if (Math.random() > 0.5) tags.push('Ideal para viajar sozinho');
+
+    return tags;
+};
+
+// --- GENERATE 100 TRIPS (10 per agency) ---
+
 interface TripSpec {
   title: string;
   dest: string;
@@ -276,37 +151,6 @@ interface TripSpec {
   price: number;
   desc: string;
   imgKey: string;
-}
-
-// Helper to auto-assign tags based on category
-const getTagsForCategory = (cat: TripCategory, dest: string): string[] => {
-    const baseTags: string[] = [];
-    if (cat === 'PRAIA') baseTags.push('Praia', 'Sol e Mar', 'Relax');
-    if (cat === 'AVENTURA') baseTags.push('Adrenalina', 'Trilhas', 'Natureza');
-    if (cat === 'NATUREZA') baseTags.push('Ecoturismo', 'Animais', 'Ar Livre');
-    if (cat === 'CULTURA') baseTags.push('História', 'Museus', 'Arquitetura');
-    if (cat === 'GASTRONOMICO') baseTags.push('Culinária Típica', 'Vinhos', 'Jantares');
-    if (cat === 'URBANO') baseTags.push('Cidade Grande', 'Compras', 'Eventos');
-    if (cat === 'ROMANTICO') baseTags.push('Ideal para casais', 'Lua de Mel', 'Charme');
-    if (cat === 'FAMILIA') baseTags.push('Crianças', 'Diversão', 'Segurança');
-    
-    // Randomly add 'Ideal para viajar sozinho' to 30% of trips
-    if (Math.random() > 0.7) baseTags.push('Ideal para viajar sozinho');
-    
-    return baseTags;
-};
-
-const getTravelerTypesForCategory = (cat: TripCategory): TravelerType[] => {
-    const types: TravelerType[] = [];
-    if (['PRAIA', 'FAMILIA'].includes(cat)) types.push('FAMILIA', 'CASAL');
-    if (['AVENTURA', 'NATUREZA'].includes(cat)) types.push('SOZINHO', 'AMIGOS', 'MOCHILAO');
-    if (['ROMANTICO'].includes(cat)) types.push('CASAL');
-    if (['URBANO', 'CULTURA', 'GASTRONOMICO'].includes(cat)) types.push('CASAL', 'SOZINHO', 'MELHOR_IDADE');
-    
-    // Ensure every trip has at least one
-    if (types.length === 0) types.push('AMIGOS');
-    
-    return types;
 }
 
 const agencyTripsData: Record<string, TripSpec[]> = {
@@ -328,9 +172,9 @@ const agencyTripsData: Record<string, TripSpec[]> = {
     { title: 'Rio e Paraty', dest: 'Rio de Janeiro e Paraty', cat: 'ROMANTICO', days: 6, price: 3800, desc: 'Combine o agito carioca com o charme histórico de Paraty e suas praias.', imgKey: 'paraty' },
     { title: 'São Paulo Cultural', dest: 'São Paulo, SP', cat: 'CULTURA', days: 3, price: 2000, desc: 'Explore museus, galerias, Avenida Paulista e Mercado Municipal.', imgKey: 'sp' },
     { title: 'São Paulo Gastronômico', dest: 'São Paulo, SP', cat: 'GASTRONOMICO', days: 4, price: 2600, desc: 'Tour de restaurantes, rooftops e feira de gastronomia no Ibirapuera.', imgKey: 'food' },
-    { title: 'Rio Noite & Dia', dest: 'Rio de Janeiro, RJ', cat: 'VIDA_NOTURNA', days: 3, price: 2400, desc: 'Pacote focado em vida noturna e dias relaxantes nas praias.', imgKey: 'rio' },
+    { title: 'Rio Noite & Dia', dest: 'Rio de Janeiro, RJ', cat: 'VIDA_NOTURNA', days: 3, price: 2400, desc: 'Pacote focado em vida noturna e dias relaxantes nas praias.', imgKey: 'vidanoturna' },
     { title: 'SP Arte & Design', dest: 'São Paulo, SP', cat: 'ARTE', days: 5, price: 3100, desc: 'Visitas a museus de arte, Design Week e eventos culturais.', imgKey: 'sp' },
-    { title: 'Festival de Música', dest: 'São Paulo, SP', cat: 'VIDA_NOTURNA', days: 4, price: 2800, desc: 'Ingressos para festival de música e visitas a pontos turísticos.', imgKey: 'sp' },
+    { title: 'Festival de Música', dest: 'São Paulo, SP', cat: 'VIDA_NOTURNA', days: 4, price: 2800, desc: 'Ingressos para festival de música e visitas a pontos turísticos.', imgKey: 'vidanoturna' },
     { title: 'Rio Verde', dest: 'Rio de Janeiro, RJ', cat: 'NATUREZA', days: 4, price: 2600, desc: 'Caminhada na Floresta da Tijuca e visita ao centro histórico.', imgKey: 'rio' },
     { title: 'São Paulo Premium', dest: 'São Paulo, SP', cat: 'URBANO', days: 5, price: 3200, desc: 'Hospedagem cinco estrelas com tours personalizados e rooftops.', imgKey: 'sp' },
   ],
@@ -399,7 +243,7 @@ const agencyTripsData: Record<string, TripSpec[]> = {
     { title: 'Salvador Sabores', dest: 'Salvador, BA', cat: 'GASTRONOMICO', days: 4, price: 2500, desc: 'Experimente a culinária baiana e aprenda a fazer acarajé e moqueca.', imgKey: 'salvador' },
     { title: 'Rio Cultural', dest: 'Rio de Janeiro, RJ', cat: 'CULTURA', days: 4, price: 2700, desc: 'Visitas a museus, Lapa, Santa Teresa e show de samba.', imgKey: 'rio' },
     { title: 'Paraty Literária', dest: 'Paraty, RJ', cat: 'CULTURA', days: 3, price: 2000, desc: 'Passeios pelo centro histórico e participação em eventos literários.', imgKey: 'paraty' },
-    { title: 'São Paulo Noturna', dest: 'São Paulo, SP', cat: 'VIDA_NOTURNA', days: 3, price: 2300, desc: 'Visite bares rooftops e experimente drinks autorais.', imgKey: 'sp' },
+    { title: 'São Paulo Noturna', dest: 'São Paulo, SP', cat: 'VIDA_NOTURNA', days: 3, price: 2300, desc: 'Visite bares rooftops e experimente drinks autorais.', imgKey: 'vidanoturna' },
     { title: 'Salvador Histórico e Sabores', dest: 'Salvador, BA', cat: 'CULTURA', days: 5, price: 2900, desc: 'Combina tours históricos com degustação de comidas típicas.', imgKey: 'salvador' },
     { title: 'Rio e Gastronomia', dest: 'Rio de Janeiro, RJ', cat: 'GASTRONOMICO', days: 5, price: 3100, desc: 'Inclui aulas de culinária e visitas a feiras locais.', imgKey: 'food' },
     { title: 'São Paulo & Paraty', dest: 'São Paulo e Paraty', cat: 'CULTURA', days: 6, price: 3600, desc: 'Explore arte urbana em SP e arquitetura colonial em Paraty.', imgKey: 'sp' },
@@ -432,12 +276,13 @@ const agencyTripsData: Record<string, TripSpec[]> = {
   ]
 };
 
-let generatedTrips: Trip[] = [];
+// Build the trips array based on the map above
+const generatedTrips: Trip[] = [];
 
-generatedAgencies.forEach((agency) => {
-  const tripsSpecs = agencyTripsData[agency.name];
-  if (tripsSpecs) {
-    tripsSpecs.forEach((spec, i) => {
+MOCK_AGENCIES.forEach((agency) => {
+  const specs = agencyTripsData[agency.name];
+  if (specs) {
+    specs.forEach((spec, i) => {
       generatedTrips.push({
         id: `t_${agency.id}_${i}`,
         agencyId: agency.id,
@@ -450,8 +295,8 @@ generatedAgencies.forEach((agency) => {
         durationDays: spec.days,
         images: [getImg(spec.imgKey)],
         category: spec.cat,
-        tags: getTagsForCategory(spec.cat, spec.dest),
-        travelerTypes: getTravelerTypesForCategory(spec.cat),
+        tags: getTags(spec.cat, spec.dest),
+        travelerTypes: getTravelerTypes(spec.cat),
         active: true,
         rating: 4 + Math.random(),
         totalReviews: Math.floor(Math.random() * 50),
@@ -464,28 +309,8 @@ generatedAgencies.forEach((agency) => {
   }
 });
 
-export const MOCK_TRIPS: Trip[] = [...initialTrips, ...generatedTrips];
+export const MOCK_TRIPS: Trip[] = generatedTrips;
 
 export const MOCK_BOOKINGS: Booking[] = [];
 
-export const MOCK_REVIEWS: Review[] = [
-  {
-    id: 'r1',
-    tripId: 't1',
-    clientId: 'c1',
-    rating: 5,
-    comment: 'Viagem inesquecível! A agência deu todo suporte do início ao fim. O hotel era maravilhoso.',
-    date: '2024-01-15',
-    clientName: 'João Viajante',
-    response: 'Obrigado João! Ficamos felizes que tenha aproveitado o paraíso!'
-  },
-  {
-    id: 'r2',
-    tripId: 't2',
-    clientId: 'c1',
-    rating: 5,
-    comment: 'Gramado é lindo demais. O hotel indicado pela agência foi perfeito.',
-    date: '2024-02-20',
-    clientName: 'Maria Silva'
-  }
-];
+export const MOCK_REVIEWS: Review[] = [];

@@ -4,6 +4,9 @@ import { Trip, Agency, Booking, Review, Client, UserRole, User } from '../types'
 import { MOCK_TRIPS, MOCK_AGENCIES, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { useAuth } from './AuthContext';
 
+// Increment this version to force a reset of localStorage data on client browsers
+const DATA_VERSION = 'v3-mega-update'; 
+
 interface DashboardStats {
   totalRevenue: number;
   totalViews: number;
@@ -44,32 +47,43 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, updateUser } = useAuth(); // To sync favorite changes to session
 
-  // Initialize State from LocalStorage with fallback to Mock Data
-  const [trips, setTrips] = useState<Trip[]>(() => {
-    const s = localStorage.getItem('vs_trips');
-    return s ? JSON.parse(s) : MOCK_TRIPS;
-  });
+  // Helper to initialize data with version check
+  const initializeData = <T,>(key: string, mockData: T): T => {
+    const storedVersion = localStorage.getItem('vs_data_version');
+    
+    if (storedVersion !== DATA_VERSION) {
+      // Version mismatch: Clear old data and return mock
+      // We only set the version once at the end of initialization, 
+      // but since this runs for each state, we rely on the check.
+      // To be safe, we just return mockData here. The version set happens in useEffect.
+      return mockData;
+    }
 
-  // Sync agencies/clients with what AuthContext uses (same keys)
-  const [agencies, setAgencies] = useState<Agency[]>(() => {
-    const s = localStorage.getItem('vs_agencies');
-    return s ? JSON.parse(s) : MOCK_AGENCIES;
-  });
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : mockData;
+  };
 
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    const s = localStorage.getItem('vs_bookings');
-    return s ? JSON.parse(s) : MOCK_BOOKINGS;
-  });
+  const [trips, setTrips] = useState<Trip[]>(() => initializeData('vs_trips', MOCK_TRIPS));
+  const [agencies, setAgencies] = useState<Agency[]>(() => initializeData('vs_agencies', MOCK_AGENCIES));
+  const [bookings, setBookings] = useState<Booking[]>(() => initializeData('vs_bookings', MOCK_BOOKINGS));
+  const [reviews, setReviews] = useState<Review[]>(() => initializeData('vs_reviews', MOCK_REVIEWS));
+  const [clients, setClients] = useState<Client[]>(() => initializeData('vs_clients', MOCK_CLIENTS));
 
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    const s = localStorage.getItem('vs_reviews');
-    return s ? JSON.parse(s) : MOCK_REVIEWS;
-  });
-
-  const [clients, setClients] = useState<Client[]>(() => {
-    const s = localStorage.getItem('vs_clients');
-    return s ? JSON.parse(s) : MOCK_CLIENTS;
-  });
+  // Effect to handle version update and clearing only once on mount
+  useEffect(() => {
+    const storedVersion = localStorage.getItem('vs_data_version');
+    if (storedVersion !== DATA_VERSION) {
+      localStorage.setItem('vs_data_version', DATA_VERSION);
+      // Force refresh state to mocks if we just detected a version change
+      // (Optional if the initializers worked, but good for safety)
+      setTrips(MOCK_TRIPS);
+      setAgencies(MOCK_AGENCIES);
+      setClients(MOCK_CLIENTS);
+      // We usually keep bookings/reviews empty or mock defaults on reset
+      setBookings(MOCK_BOOKINGS);
+      setReviews(MOCK_REVIEWS);
+    }
+  }, []);
 
   // Persistence Effects
   useEffect(() => localStorage.setItem('vs_trips', JSON.stringify(trips)), [trips]);
