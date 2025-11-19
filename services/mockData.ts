@@ -102,7 +102,7 @@ export const MOCK_TRIPS: Trip[] = [
     endDate: '2024-07-19',
     durationDays: 4,
     images: [
-        'https://images.unsplash.com/photo-1622314676152-d849533e8803?auto=format&fit=crop&w=800&q=80',
+        'https://images.unsplash.com/photo-1613323593608-abc90fec84ff?auto=format&fit=crop&w=800&q=80',
         'https://images.unsplash.com/photo-1518608295129-690523706062?auto=format&fit=crop&w=800&q=80'
     ],
     category: 'ROMANCE',

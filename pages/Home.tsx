@@ -5,6 +5,14 @@ import TripCard from '../components/TripCard';
 import { MapPin, CheckCircle, ShieldCheck, Compass, ArrowRight, Building } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
+const CATEGORY_IMAGES: Record<string, string> = {
+  PRAIA: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop',
+  AVENTURA: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800&auto=format&fit=crop',
+  FAMILIA: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop',
+  ROMANCE: 'https://images.unsplash.com/photo-1510097477421-e5456cd63d64?q=80&w=800&auto=format&fit=crop',
+  URBANO: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?q=80&w=800&auto=format&fit=crop'
+};
+
 const Home: React.FC = () => {
   const { getPublicTrips, agencies } = useData();
   const navigate = useNavigate();
@@ -74,15 +82,19 @@ const Home: React.FC = () => {
           <p className="text-gray-500 mt-2 text-lg">Qual tipo de viajante você é hoje?</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-6 px-4">
-           {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map((cat, idx) => (
+           {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANCE', 'URBANO'].map((cat) => (
              <button 
                key={cat} 
                onClick={() => navigate(`/trips?category=${cat}`)}
-               className="group relative h-40 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all"
+               className="group relative h-48 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
              >
-               <img src={`https://source.unsplash.com/random/400x400/?${cat.toLowerCase()},travel&sig=${idx}`} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={cat}/>
-               <div className="absolute inset-0 bg-black/30 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                  <span className="text-white font-bold text-lg uppercase tracking-widest border-b-2 border-transparent group-hover:border-white transition-all">{cat}</span>
+               <img 
+                  src={CATEGORY_IMAGES[cat]} 
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                  alt={cat}
+               />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-80 group-hover:opacity-90 transition-opacity flex items-center justify-center">
+                  <span className="text-white font-bold text-lg uppercase tracking-widest border-b-2 border-transparent group-hover:border-white transition-all drop-shadow-lg">{cat}</span>
                </div>
              </button>
            ))}

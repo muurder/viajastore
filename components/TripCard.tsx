@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Calendar, Star, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -12,6 +13,7 @@ interface TripCardProps {
 const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
   const { toggleFavorite, clients } = useData();
+  const [imgError, setImgError] = useState(false);
 
   const isFavorite = user?.role === 'CLIENT' && (clients.find(c => c.id === user.id)?.favorites.includes(trip.id));
 
@@ -23,12 +25,26 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     }
   };
 
+  // Fallback images by category if the main image fails
+  const categoryImages: Record<string, string> = {
+    'PRAIA': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+    'AVENTURA': 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80',
+    'FAMILIA': 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
+    'ROMANCE': 'https://images.unsplash.com/photo-1510097477421-e5456cd63d64?auto=format&fit=crop&w=800&q=80',
+    'URBANO': 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?auto=format&fit=crop&w=800&q=80'
+  };
+
+  const displayImage = imgError 
+    ? (categoryImages[trip.category] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80')
+    : trip.images[0];
+
   return (
     <Link to={`/trip/${trip.id}`} className="group block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300">
-      <div className="relative h-48 w-full overflow-hidden">
+      <div className="relative h-48 w-full overflow-hidden bg-gray-200">
         <img 
-          src={trip.images[0]} 
+          src={displayImage} 
           alt={trip.title} 
+          onError={() => setImgError(true)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute top-3 right-3">
