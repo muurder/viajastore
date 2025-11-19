@@ -39,7 +39,7 @@ const Login: React.FC = () => {
       setPassword('123');
       setRole(UserRole.CLIENT);
     } else if (type === 'AGENCY') {
-      // Usando um email real gerado pelo mockData para a agência 'Paraíso das Cataratas'
+      // Adjusted to match the improved slugify logic in mockData: Paraíso das Cataratas -> paraisodascataratas
       setEmail('contato@paraisodascataratas.com');
       setPassword('123');
       setRole(UserRole.AGENCY);

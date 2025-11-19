@@ -55,7 +55,7 @@ const Home: React.FC = () => {
   const allTrips = getPublicTrips();
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
-  // Init Hero Featured Trip on Mount
+  // Init Hero Featured Trip on Mount or when trips load
   useEffect(() => {
     const candidates = allTrips.filter(t => t.featured || t.popularNearSP);
     
@@ -63,11 +63,11 @@ const Home: React.FC = () => {
         // Pick a random one from candidates
         const randomIndex = Math.floor(Math.random() * candidates.length);
         setFeaturedTrip(candidates[randomIndex]);
-    } else {
-        // Fallback to any trip
-        setFeaturedTrip(allTrips[0] || null);
+    } else if (allTrips.length > 0) {
+        // Fallback to any trip if no featured ones
+        setFeaturedTrip(allTrips[Math.floor(Math.random() * allTrips.length)]);
     }
-  }, []); 
+  }, [allTrips]); 
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -138,7 +138,7 @@ const Home: React.FC = () => {
       <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4">
         <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
             <img 
-            src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop" 
+            src={featuredTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
             alt="Hero" 
             className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
             />
@@ -178,13 +178,16 @@ const Home: React.FC = () => {
 
           {/* Right Content: Featured Trip Card */}
           {featuredTrip && (
-            <div className="w-full md:w-auto md:max-w-xs animate-[scaleIn_0.8s] mt-4 md:mt-0">
+            <div key={featuredTrip.id} className="w-full md:w-auto md:max-w-xs animate-[scaleIn_0.8s] mt-4 md:mt-0">
                <Link to={`/trip/${featuredTrip.id}`} className="block bg-white/95 backdrop-blur-sm p-4 rounded-2xl shadow-2xl hover:scale-105 transition-transform duration-300 border border-white/20">
                   <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-gray-100">
                       <img 
                         src={featuredTrip.images[0] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=500&q=60'} 
                         alt={featuredTrip.title} 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=500&q=60';
+                        }}
                       />
                   </div>
                   <div>

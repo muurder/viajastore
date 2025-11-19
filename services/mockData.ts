@@ -25,45 +25,45 @@ export const MOCK_CLIENTS: Client[] = [
 const getImg = (key: string) => {
   const db: Record<string, string> = {
     // Classics
-    iguacu: 'https://images.unsplash.com/photo-1583589483229-3616196d1199?auto=format&fit=crop&w=800&q=80',
-    rio: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=800&q=80',
-    amazon: 'https://images.unsplash.com/photo-1558980664-23c97b2a3e52?auto=format&fit=crop&w=800&q=80',
-    noronha: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=800&q=80',
-    pantanal: 'https://images.unsplash.com/photo-1581260502159-c9204828d5f6?auto=format&fit=crop&w=800&q=80',
-    bonito: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80',
-    lencois: 'https://images.unsplash.com/photo-1564053489984-317bbd824340?auto=format&fit=crop&w=800&q=80',
-    paraty: 'https://images.unsplash.com/photo-1565883252377-5b56439809d1?auto=format&fit=crop&w=800&q=80',
-    chapada: 'https://images.unsplash.com/photo-1504217051514-96afa06398be?auto=format&fit=crop&w=800&q=80',
-    salvador: 'https://images.unsplash.com/photo-1574008526236-4e7807e16305?auto=format&fit=crop&w=800&q=80',
-    sp: 'https://images.unsplash.com/photo-1578305762432-0151b480575e?auto=format&fit=crop&w=800&q=80',
-    ouropreto: 'https://images.unsplash.com/photo-1565036566849-d94124397d47?auto=format&fit=crop&w=800&q=80',
-    jalapao: 'https://images.unsplash.com/photo-1545663079-82ce546e526f?auto=format&fit=crop&w=800&q=80',
-    roraima: 'https://images.unsplash.com/photo-1518182177546-076727620017?auto=format&fit=crop&w=800&q=80',
-    ilhabela: 'https://images.unsplash.com/photo-1563476560-5bf90902c6c2?auto=format&fit=crop&w=800&q=80',
-    gramado: 'https://images.unsplash.com/photo-1613323593608-abc90fec84ff?auto=format&fit=crop&w=800&q=80',
-    floripa: 'https://images.unsplash.com/photo-1590625583337-4b12232213c5?auto=format&fit=crop&w=800&q=80',
+    iguacu: 'https://images.unsplash.com/photo-1583589483229-3616196d1199?auto=format&fit=crop&w=1000&q=80',
+    rio: 'https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=1000&q=80',
+    amazon: 'https://images.unsplash.com/photo-1558980664-23c97b2a3e52?auto=format&fit=crop&w=1000&q=80',
+    noronha: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1000&q=80',
+    pantanal: 'https://images.unsplash.com/photo-1581260502159-c9204828d5f6?auto=format&fit=crop&w=1000&q=80',
+    bonito: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=80',
+    lencois: 'https://images.unsplash.com/photo-1564053489984-317bbd824340?auto=format&fit=crop&w=1000&q=80',
+    paraty: 'https://images.unsplash.com/photo-1565883252377-5b56439809d1?auto=format&fit=crop&w=1000&q=80',
+    chapada: 'https://images.unsplash.com/photo-1504217051514-96afa06398be?auto=format&fit=crop&w=1000&q=80',
+    salvador: 'https://images.unsplash.com/photo-1574008526236-4e7807e16305?auto=format&fit=crop&w=1000&q=80',
+    sp: 'https://images.unsplash.com/photo-1578305762432-0151b480575e?auto=format&fit=crop&w=1000&q=80',
+    ouropreto: 'https://images.unsplash.com/photo-1565036566849-d94124397d47?auto=format&fit=crop&w=1000&q=80',
+    jalapao: 'https://images.unsplash.com/photo-1545663079-82ce546e526f?auto=format&fit=crop&w=1000&q=80',
+    roraima: 'https://images.unsplash.com/photo-1518182177546-076727620017?auto=format&fit=crop&w=1000&q=80',
+    ilhabela: 'https://images.unsplash.com/photo-1563476560-5bf90902c6c2?auto=format&fit=crop&w=1000&q=80',
+    gramado: 'https://images.unsplash.com/photo-1613323593608-abc90fec84ff?auto=format&fit=crop&w=1000&q=80',
+    floripa: 'https://images.unsplash.com/photo-1590625583337-4b12232213c5?auto=format&fit=crop&w=1000&q=80',
     
     // New Destinations (Cheap / Near SP)
-    saothome: 'https://images.unsplash.com/photo-1569435222406-277565b3d671?auto=format&fit=crop&w=800&q=80',
-    trindade: 'https://images.unsplash.com/photo-1564606638689-6761b91b7143?auto=format&fit=crop&w=800&q=80',
-    sana: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80', // Generic waterfall/nature
-    maromba: 'https://images.unsplash.com/photo-1518084823714-20215b58d8ad?auto=format&fit=crop&w=800&q=80', // Waterfall
-    wine: 'https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=800&q=80',
-    aparecida: 'https://images.unsplash.com/photo-1601662233367-c80675172d44?auto=format&fit=crop&w=800&q=80',
-    macela: 'https://images.unsplash.com/photo-1533241242200-325c572668b9?auto=format&fit=crop&w=800&q=80',
-    arraial: 'https://images.unsplash.com/photo-1589824462580-75c1b79218b7?auto=format&fit=crop&w=800&q=80',
-    ilhamel: 'https://images.unsplash.com/photo-1621269656186-670a8d00556e?auto=format&fit=crop&w=800&q=80',
-    ubatuba: 'https://images.unsplash.com/photo-1579547945413-497e1b99dac0?auto=format&fit=crop&w=800&q=80',
-    campos: 'https://images.unsplash.com/photo-1596739203417-c768269c4231?auto=format&fit=crop&w=800&q=80',
-    ilhagrande: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800&q=80',
+    saothome: 'https://images.unsplash.com/photo-1569435222406-277565b3d671?auto=format&fit=crop&w=1000&q=80',
+    trindade: 'https://images.unsplash.com/photo-1564606638689-6761b91b7143?auto=format&fit=crop&w=1000&q=80',
+    sana: 'https://images.unsplash.com/photo-1446488614252-0675d316c645?auto=format&fit=crop&w=1000&q=80', // Nature fallback
+    maromba: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1000&q=80', // Waterfall fallback
+    wine: 'https://images.unsplash.com/photo-1506377247377-2a5b3b417ebb?auto=format&fit=crop&w=1000&q=80',
+    aparecida: 'https://images.unsplash.com/photo-1601662233367-c80675172d44?auto=format&fit=crop&w=1000&q=80',
+    macela: 'https://images.unsplash.com/photo-1533241242200-325c572668b9?auto=format&fit=crop&w=1000&q=80',
+    arraial: 'https://images.unsplash.com/photo-1589824462580-75c1b79218b7?auto=format&fit=crop&w=1000&q=80',
+    ilhamel: 'https://images.unsplash.com/photo-1621269656186-670a8d00556e?auto=format&fit=crop&w=1000&q=80',
+    ubatuba: 'https://images.unsplash.com/photo-1579547945413-497e1b99dac0?auto=format&fit=crop&w=1000&q=80',
+    campos: 'https://images.unsplash.com/photo-1596739203417-c768269c4231?auto=format&fit=crop&w=1000&q=80',
+    ilhagrande: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=1000&q=80',
     
     // Categories
-    food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-    urbano: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?auto=format&fit=crop&w=800&q=80',
-    aventura: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80',
-    familia: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
-    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-    vidanoturna: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=800&q=80',
+    food: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1000&q=80',
+    urbano: 'https://images.unsplash.com/photo-1449824913929-6513b64e301f?auto=format&fit=crop&w=1000&q=80',
+    aventura: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=1000&q=80',
+    familia: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1000&q=80',
+    praia: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80',
+    vidanoturna: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?auto=format&fit=crop&w=1000&q=80',
   };
   
   if (!db[key]) {
@@ -73,6 +73,17 @@ const getImg = (key: string) => {
       return db['praia'];
   }
   return db[key];
+};
+
+// --- HELPER FOR SLUGIFYING EMAIL ---
+const slugify = (text: string) => {
+  return text
+    .toString()
+    .normalize('NFD')                   // Normalize to decompose accents
+    .replace(/[\u0300-\u036f]/g, '')    // Remove accents
+    .toLowerCase()
+    .replace(/\s+/g, '')                // Remove spaces
+    .replace(/[^a-z0-9]/g, '');         // Remove remaining non-alphanumeric chars
 };
 
 // --- 10 AGENCIES DATA ---
@@ -92,7 +103,8 @@ const reportAgenciesData = [
 export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   id: `ag_${index + 1}`,
   name: ag.name,
-  email: `contato@${ag.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+  // FIX: Use slugify to ensure 'Paraíso' becomes 'paraiso' not 'paraso'
+  email: `contato@${slugify(ag.name)}.com`,
   password: '123',
   role: UserRole.AGENCY,
   cnpj: `10.${index}23.${index}56/0001-${index}0`,
@@ -101,7 +113,7 @@ export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   subscriptionStatus: 'ACTIVE',
   subscriptionPlan: 'PREMIUM',
   subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-  website: `www.${ag.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
+  website: `www.${slugify(ag.name)}.com.br`,
   phone: `(11) 99999-${index}000`,
   createdAt: new Date().toISOString()
 }));
@@ -141,7 +153,10 @@ const createVariations = (base: TripSpec, count: number): TripSpec[] => {
       title: i === 0 ? base.title : `${base.title} ${['Express', 'Plus', 'Vip', 'Adventure'][i%4]}`,
       price: base.price + (i * 50),
       days: base.days + (i % 2),
-      tags: base.tags
+      tags: base.tags,
+      // Distribute featured flags randomly for variations
+      featured: Math.random() > 0.7 ? true : false,
+      nearSP: base.nearSP
     });
   }
   return variations;
@@ -171,7 +186,7 @@ const agencyTripsData: Record<string, TripSpec[]> = {
     { title: 'Ilhabela Charme', dest: 'Ilhabela, SP', cat: 'ROMANTICO', days: 3, price: 1500, desc: 'Pousada boutique e praias exclusivas.', imgKey: 'ilhabela', nearSP: true },
   ],
   'Pantanal Safaris': [
-    { title: 'Pantanal Norte', dest: 'Poconé, MT', cat: 'NATUREZA', days: 4, price: 3200, desc: 'Em busca da onça-pintada.', imgKey: 'pantanal' },
+    { title: 'Pantanal Norte', dest: 'Poconé, MT', cat: 'NATUREZA', days: 4, price: 3200, desc: 'Em busca da onça-pintada.', imgKey: 'pantanal', featured: true },
     { title: 'Bonito & Pantanal', dest: 'Bonito, MS', cat: 'AVENTURA', days: 6, price: 4500, desc: 'Flutuação e safári.', imgKey: 'bonito' },
   ],
   'Lendas do Nordeste': [
@@ -180,7 +195,7 @@ const agencyTripsData: Record<string, TripSpec[]> = {
   ],
   'Aventura & Diversão': [
     { title: 'Trilha das 7 Praias', dest: 'Ubatuba, SP', cat: 'AVENTURA', days: 2, price: 380, desc: 'Trekking desafiador com visuais incríveis.', imgKey: 'ubatuba', nearSP: true, featured: true, tags: ['Trilha', 'Viagem barata', 'Jovens'] },
-    { title: 'Jalapão Bruto', dest: 'Jalapão, TO', cat: 'AVENTURA', days: 5, price: 3100, desc: 'Fervedouros e dunas.', imgKey: 'jalapao' },
+    { title: 'Jalapão Bruto', dest: 'Jalapão, TO', cat: 'AVENTURA', days: 5, price: 3100, desc: 'Fervedouros e dunas.', imgKey: 'jalapao', featured: true },
     { title: 'Chapada Diamantina Trek', dest: 'Lençóis, BA', cat: 'AVENTURA', days: 6, price: 3400, desc: 'Vale do Pati.', imgKey: 'chapada' },
   ],
   'Serra & Vinho Experiências': [
@@ -266,7 +281,8 @@ MOCK_AGENCIES.forEach((agency) => {
              price: 500 + (k*100),
              desc: 'Um roteiro exclusivo preparado pela nossa agência.',
              imgKey: baseImg,
-             tags: ['Exclusivo']
+             tags: ['Exclusivo'],
+             featured: Math.random() > 0.8 // Small chance of being featured
          });
       }
       specs = [...existingSpecs, ...genericSpecs];

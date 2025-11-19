@@ -77,6 +77,17 @@ const TripDetails: React.FC = () => {
     alert('Avaliação enviada com sucesso!');
   };
 
+  // Helper for fallback image
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
+  };
+
+  const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
+  // Create a safe gallery array even if images are missing
+  const galleryImages = trip.images && trip.images.length > 0 
+    ? trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4)
+    : [mainImage, mainImage, mainImage, mainImage];
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       {/* Breadcrumb */}
@@ -91,13 +102,23 @@ const TripDetails: React.FC = () => {
       {/* Images Grid - Gallery Style */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[400px] md:h-[500px] shadow-lg">
         <div className="md:col-span-2 h-full relative group">
-           <img src={trip.images[0]} alt="Main" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+           <img 
+            src={mainImage} 
+            alt="Main" 
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+            onError={handleImageError}
+           />
            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
         </div>
         <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
-          {trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4).map((img, idx) => (
+          {galleryImages.map((img, idx) => (
             <div key={idx} className="relative group overflow-hidden">
-                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <img 
+                    src={img} 
+                    alt={`Gallery ${idx}`} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                    onError={handleImageError}
+                />
             </div>
           ))}
         </div>
