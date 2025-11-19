@@ -181,7 +181,7 @@ const TripList: React.FC = () => {
         {/* Sidebar Filters */}
         <aside className={`
           md:w-72 flex-shrink-0 bg-white md:bg-transparent p-6 md:p-0 
-          fixed md:static inset-0 z-40 overflow-y-auto transition-transform duration-300
+          fixed md:static inset-0 z-40 overflow-y-auto transition-transform duration-300 scrollbar-hide
           ${showMobileFilters ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           md:block h-full
         `}>
@@ -296,12 +296,12 @@ const TripList: React.FC = () => {
                     {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
                 {openFilterSections['dest'] && (
-                    <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
+                    <div className="flex flex-wrap gap-2">
                         {popularDestinations.map(dest => (
                             <button 
                               key={dest}
                               onClick={() => updateUrl('q', dest)}
-                              className={`block w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-50 ${q.includes(dest) ? 'text-primary-600 font-bold bg-primary-50' : 'text-gray-600'}`}
+                              className={`text-xs px-3 py-1.5 rounded border transition-all ${q.includes(dest) ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                             >
                                 {dest}
                             </button>

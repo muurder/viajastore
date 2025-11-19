@@ -86,6 +86,10 @@ export interface Trip {
   notIncluded?: string[];
   views?: number; // For stats
   sales?: number; // For stats
+  
+  // Featured Flags
+  featured?: boolean;
+  popularNearSP?: boolean;
 }
 
 export interface Booking {

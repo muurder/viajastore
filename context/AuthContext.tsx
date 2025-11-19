@@ -17,10 +17,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load initial lists logic is now handled purely via DataContext for the source of truth,
-  // But AuthContext needs to verify credentials against stored data.
-  // To avoid circular dependencies or complex rewrites, we will read from localStorage here too for Auth purposes.
-
+  // Helper functions to get data from localStorage if available, or fall back to mocks
   const getStoredClients = () => {
     const stored = localStorage.getItem('vs_clients');
     return stored ? JSON.parse(stored) : MOCK_CLIENTS;
@@ -57,13 +54,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = (email: string, password?: string, role?: UserRole): boolean => {
+    // Always fetch fresh data from storage or mocks to ensure we have the registered users
     const clients = getStoredClients();
     const agencies = getStoredAgencies();
     const admins = getStoredAdmins();
 
     let foundUser: any;
 
-    // If role is provided, search specific list, otherwise search all (less performant but flexible)
+    // Filter by role if provided to avoid ambiguity
     if (role === UserRole.CLIENT) foundUser = clients.find((c: Client) => c.email === email);
     else if (role === UserRole.AGENCY) foundUser = agencies.find((a: Agency) => a.email === email);
     else if (role === UserRole.ADMIN) foundUser = admins.find((a: Admin) => a.email === email);
@@ -88,7 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     setUser(null);
     localStorage.removeItem('viajastore_user');
-    window.location.href = '/'; // Hard redirect to clear any temp states
+    // Note: Navigation logic is handled in Layout/Component to avoid hard reload
   };
 
   const register = (newUser: Client | Agency) => {
@@ -115,7 +113,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('viajastore_user', JSON.stringify(updatedUser));
       
       // Also update in the "Database" via DataContext logic (which syncs with LS)
-      // But since we are in AuthContext, we must update LS directly here to ensure consistency on reload
       if (updatedUser.role === UserRole.CLIENT) {
           const list = getStoredClients().map((c: Client) => c.id === updatedUser.id ? { ...c, ...userData } : c);
           localStorage.setItem('vs_clients', JSON.stringify(list));

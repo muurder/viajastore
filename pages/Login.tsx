@@ -39,7 +39,8 @@ const Login: React.FC = () => {
       setPassword('123');
       setRole(UserRole.CLIENT);
     } else if (type === 'AGENCY') {
-      setEmail('agencia@viajastore.com');
+      // Usando um email real gerado pelo mockData para a agência 'Paraíso das Cataratas'
+      setEmail('contato@paraisodascataratas.com');
       setPassword('123');
       setRole(UserRole.AGENCY);
     } else {
