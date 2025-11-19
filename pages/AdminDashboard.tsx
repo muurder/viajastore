@@ -3,12 +3,17 @@ import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
-import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader } from 'lucide-react';
+import { migrateData } from '../services/dataMigration';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { agencies, bookings, trips, reviews, clients, updateAgencySubscription, toggleTripStatus, deleteReview } = useData();
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS' | 'SYSTEM'>('OVERVIEW');
+  
+  // Migration State
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -27,6 +32,22 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
+  const runMigration = async () => {
+      if(!window.confirm('ATENÇÃO: Isso tentará criar usuários no Supabase e inserir dados. Certifique-se de ter configurado services/supabase.ts.')) return;
+      
+      setIsMigrating(true);
+      setMigrationLogs(['Iniciando...']);
+      try {
+          const logs = await migrateData();
+          setMigrationLogs(logs || []);
+      } catch (error) {
+          console.error(error);
+          setMigrationLogs(prev => [...prev, 'Erro desconhecido ao executar script.']);
+      } finally {
+          setIsMigrating(false);
+      }
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
@@ -37,13 +58,14 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 inline-flex mb-8">
+      <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 inline-flex mb-8 flex-wrap gap-2">
           {[
               {id: 'OVERVIEW', label: 'Visão Geral'}, 
               {id: 'AGENCIES', label: 'Agências'},
               {id: 'USERS', label: 'Usuários'},
               {id: 'TRIPS', label: 'Viagens'},
-              {id: 'REVIEWS', label: 'Avaliações'}
+              {id: 'REVIEWS', label: 'Avaliações'},
+              {id: 'SYSTEM', label: 'Sistema & Dados'}
           ].map(tab => (
             <button 
                 key={tab.id}
@@ -203,6 +225,40 @@ const AdminDashboard: React.FC = () => {
                      {reviews.length === 0 && <tr><td colSpan={4} className="text-center py-8 text-gray-400">Sem avaliações recentes.</td></tr>}
                  </tbody>
              </table>
+          </div>
+      )}
+
+      {activeTab === 'SYSTEM' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+             <div className="flex items-start gap-6 mb-8">
+                <div className="bg-blue-50 p-4 rounded-full">
+                   <Database size={32} className="text-primary-600" />
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900">Migração de Dados (Supabase)</h2>
+                    <p className="text-gray-500 mt-1">
+                        Use esta ferramenta para popular seu banco de dados Supabase recém-criado com os dados de teste (Agências e Viagens).
+                        <br/><strong>Nota:</strong> Certifique-se de ter inserido suas chaves de API em <code>services/supabase.ts</code>.
+                    </p>
+                </div>
+             </div>
+
+             <div className="bg-gray-900 rounded-xl p-6 font-mono text-sm text-green-400 h-64 overflow-y-auto mb-6">
+                 {migrationLogs.length === 0 ? (
+                     <span className="text-gray-500">// Logs de migração aparecerão aqui...</span>
+                 ) : (
+                     migrationLogs.map((log, i) => <div key={i}>{log}</div>)
+                 )}
+             </div>
+
+             <button 
+                onClick={runMigration}
+                disabled={isMigrating}
+                className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+                {isMigrating ? <Loader className="animate-spin mr-2" size={20}/> : <Database className="mr-2" size={20}/>}
+                {isMigrating ? 'Migrando...' : 'Iniciar Migração'}
+             </button>
           </div>
       )}
     </div>
