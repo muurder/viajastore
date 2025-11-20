@@ -53,6 +53,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // --- DATA FETCHING ---
+
   const fetchTrips = async () => {
     try {
       const { data, error } = await supabase
@@ -85,8 +87,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         tags: t.tags || [],
         travelerTypes: t.traveler_types || [],
         active: t.active,
-        rating: 5.0, // Placeholder, should aggregate from reviews
-        totalReviews: 0, // Placeholder
+        rating: 5.0, // Seria ideal calcular média dos reviews
+        totalReviews: 0, 
         included: t.included || [],
         notIncluded: t.not_included || [],
         views: t.views_count || 0,
@@ -127,7 +129,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchReviews = async () => {
-     const { data, error } = await supabase.from('reviews').select('*');
+     const { data, error } = await supabase.from('reviews').select('*, profiles(full_name)');
      if(data) {
         setReviews(data.map((r: any) => ({
             id: r.id,
@@ -136,7 +138,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             rating: r.rating,
             comment: r.comment,
             date: r.created_at,
-            clientName: 'Viajante', // Need to join profiles
+            clientName: r.profiles?.full_name || 'Viajante',
             response: r.response
         })));
      }
@@ -156,9 +158,59 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
+  const fetchBookings = async () => {
+    if (!user) return;
+
+    let query = supabase.from('bookings').select('*');
+
+    // Se for cliente, pega só as dele
+    if (user.role === UserRole.CLIENT) {
+      query = query.eq('client_id', user.id);
+    } 
+    // Se for agência, pega reservas das viagens DESTA agência
+    else if (user.role === UserRole.AGENCY) {
+      // Supabase join filter: booking -> trip -> agency_id
+      const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
+      const myTripIds = myTrips?.map(t => t.id) || [];
+      if(myTripIds.length > 0) {
+          query = query.in('trip_id', myTripIds);
+      } else {
+          setBookings([]);
+          return;
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching bookings', error);
+      return;
+    }
+
+    if (data) {
+      const formattedBookings: Booking[] = data.map((b: any) => ({
+        id: b.id,
+        tripId: b.trip_id,
+        clientId: b.client_id,
+        date: b.created_at, // Data da compra
+        status: b.status,
+        totalPrice: b.total_price,
+        passengers: b.passengers,
+        voucherCode: b.voucher_code,
+        paymentMethod: b.payment_method
+      }));
+      setBookings(formattedBookings);
+    }
+  };
+
   const refreshData = async () => {
       setLoading(true);
-      await Promise.all([fetchTrips(), fetchAgencies(), fetchReviews()]);
+      await Promise.all([
+        fetchTrips(), 
+        fetchAgencies(), 
+        fetchReviews(), 
+        fetchBookings() // Agora busca reservas reais
+      ]);
       if(user) await fetchFavorites();
       setLoading(false);
   };
@@ -167,7 +219,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [user]);
 
-  // --- Logic ---
+  // --- ACTIONS ---
 
   const isAgencyActive = (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
@@ -190,7 +242,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const getTripById = (id: string) => trips.find(t => t.id === id);
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => true; // Mocked logic
+  
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => {
+    return bookings.some(b => b.clientId === userId && b.tripId === tripId);
+  };
 
   const createTrip = async (trip: Trip) => {
      // 1. Insert Trip
@@ -210,10 +265,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          tags: trip.tags
      }).select().single();
 
-     if(error) {
-         console.error(error);
-         throw new Error('Erro ao criar viagem: ' + error.message);
-     }
+     if(error) throw new Error('Erro ao criar viagem: ' + error.message);
 
      // 2. Insert Images
      if(trip.images && trip.images.length > 0) {
@@ -236,7 +288,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          duration_days: trip.durationDays,
          category: trip.category,
          active: trip.active,
-         included: trip.included
+         included: trip.included,
+         not_included: trip.notIncluded
       }).eq('id', trip.id);
 
       if(error) throw error;
@@ -256,24 +309,38 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
-      // Check if exists
       const { data } = await supabase.from('favorites').select('*').eq('user_id', clientId).eq('trip_id', tripId).single();
       
       if(data) {
-          // Remove
           await supabase.from('favorites').delete().eq('id', data.id);
           setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: c.favorites.filter(id => id !== tripId) } : c));
       } else {
-          // Add
           await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
           setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: [...c.favorites, tripId] } : c));
       }
   };
 
   const addBooking = async (booking: Booking) => {
-      // Ideally insert into 'bookings' table
-      // await supabase.from('bookings').insert(...)
-      setBookings(prev => [...prev, booking]);
+      const { error } = await supabase.from('bookings').insert({
+          trip_id: booking.tripId,
+          client_id: booking.clientId,
+          status: booking.status,
+          total_price: booking.totalPrice,
+          passengers: booking.passengers,
+          voucher_code: booking.voucherCode,
+          payment_method: booking.paymentMethod
+      });
+      
+      if (error) {
+        console.error("Erro ao salvar reserva:", error);
+        alert("Erro ao processar reserva. Tente novamente.");
+        return;
+      }
+
+      // Atualizar contador de vendas na viagem
+      await supabase.rpc('increment_sales', { row_id: booking.tripId });
+
+      await fetchBookings();
   };
 
   const addReview = async (review: Review) => {
@@ -300,13 +367,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
-      // Mock update
+      const payload: any = {};
+      if (data.phone) payload.phone = data.phone;
+      // Adicionar outros campos se necessário no futuro
+
+      if (Object.keys(payload).length > 0) {
+          await supabase.from('profiles').update(payload).eq('id', clientId);
+          // Atualiza estado local se necessário
+      }
   };
 
   const getAgencyStats = (agencyId: string): DashboardStats => {
      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+     const agencyBookings = bookings.filter(b => {
+         const trip = trips.find(t => t.id === b.tripId);
+         return trip && trip.agencyId === agencyId;
+     });
+
+     const totalRevenue = agencyBookings.reduce((acc, curr) => acc + (Number(curr.totalPrice) || 0), 0);
+     const totalSales = agencyBookings.length;
      const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
-     return { totalRevenue: 15000, totalSales: 12, totalViews, conversionRate: 2.5 };
+     
+     // Calculo simples de conversão
+     const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+
+     return { totalRevenue, totalSales, totalViews, conversionRate };
   };
 
   return (
