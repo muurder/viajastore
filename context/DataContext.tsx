@@ -82,6 +82,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startDate: t.start_date,
         endDate: t.end_date,
         durationDays: t.duration_days,
+        // Ensure consistent image order if created_at is available in query or sort in JS
         images: t.trip_images ? t.trip_images.map((img: any) => img.image_url) : [],
         category: t.category || 'PRAIA',
         tags: t.tags || [],
@@ -262,7 +263,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          active: trip.active,
          included: trip.included,
          not_included: trip.notIncluded,
-         tags: trip.tags
+         tags: trip.tags,
+         traveler_types: trip.travelerTypes || []
      }).select().single();
 
      if(error) throw new Error('Erro ao criar viagem: ' + error.message);
