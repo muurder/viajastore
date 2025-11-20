@@ -56,7 +56,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (profileData) {
         // Determine role based on profile data or default to Client
-        // Assuming 'role' column exists in profiles or we default to CLIENT
         const role = profileData.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT;
         
         const clientUser: Client | Admin = {
@@ -64,12 +63,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: profileData.full_name || 'Usuário',
           email: email,
           role: role,
-          avatar: profileData.avatar_url, // Safe to read even if undefined
+          // Safe to read even if undefined in DB, but we don't write it on signup
+          avatar: profileData.avatar_url, 
           cpf: profileData.cpf,
           phone: profileData.phone,
-          favorites: [], // Favorites fetched in DataContext usually, or we can fetch here
+          favorites: [], 
           createdAt: profileData.created_at
-        } as Client; // Casting for simplicity
+        } as Client;
 
         setUser(clientUser);
         return;
@@ -153,18 +153,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error: agencyError } = await supabase.from('agencies').insert({
           id: userId,
           name: data.name,
-          email: data.email, // Redundant but good for queries if schema allows
+          email: data.email,
           cnpj: data.cnpj,
           phone: data.phone,
           description: data.description,
           logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
-          subscription_status: 'INACTIVE', // Default
+          subscription_status: 'INACTIVE',
           subscription_plan: 'BASIC'
         });
         if (agencyError) throw agencyError;
       } else {
-        // Client
-        // Removing avatar_url because it might not exist in the schema, causing errors
+        // Client Register
+        // FIX: Removed 'avatar_url' from insert to prevent schema errors if column is missing
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           full_name: data.name,
@@ -172,10 +172,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: data.phone,
           role: 'CLIENT'
         });
-        if (profileError) throw profileError;
+        
+        if (profileError) {
+             // If specific table insert fails, we should ideally rollback auth, 
+             // but for now we throw to catch block.
+             console.error("Profile Insert Error:", profileError);
+             throw profileError;
+        }
       }
     } catch (dbError: any) {
-      // If DB insert fails, we should strictly cleanup the auth user (optional but recommended)
       return { success: false, error: dbError.message || 'Erro ao salvar dados do perfil.' };
     }
 
@@ -192,7 +197,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         await supabase.from('agencies').update({
             name: userData.name,
-            // map other fields if needed
         }).eq('id', user.id);
       } else {
         await supabase.from('profiles').update({
