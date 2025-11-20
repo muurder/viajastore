@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -32,7 +31,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const agencyUser: Agency = {
           id: agencyData.id,
           name: agencyData.name,
-          email: email,
+          email: email, // Auth email is the source of truth
           role: UserRole.AGENCY,
           cnpj: agencyData.cnpj || '',
           description: agencyData.description || '',
@@ -99,11 +98,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Listen for changes
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
+          // Se o evento for TOKEN_REFRESHED, talvez o email tenha mudado, etc.
           await fetchUserData(session.user.id, session.user.email!);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
         }
-        setLoading(false);
       });
 
       return () => subscription.unsubscribe();
@@ -142,7 +141,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (authError) return { success: false, error: authError.message };
-    if (!authData.user) return { success: false, error: 'Erro ao criar usuário.' };
+    if (!authData.user) return { success: false, error: 'Erro ao criar usuário. Verifique seu email.' };
 
     const userId = authData.user.id;
 
@@ -166,6 +165,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           full_name: data.name,
+          email: data.email, // Redundância útil
           cpf: data.cpf,
           phone: data.phone,
           role: 'CLIENT',
@@ -178,6 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
     } catch (dbError: any) {
+      // Se falhar no banco, deveríamos tentar limpar o Auth user, mas para MVP apenas retornamos erro
       return { success: false, error: dbError.message || 'Erro ao salvar dados do perfil.' };
     }
 
@@ -191,17 +192,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser({ ...user, ...userData } as User);
 
     try {
+      // 1. Atualizar Auth se houver mudança de email/senha
+      if (userData.email && userData.email !== user.email) {
+          const { error: authError } = await supabase.auth.updateUser({ email: userData.email });
+          if (authError) console.error("Error updating auth email", authError);
+      }
+
+      // 2. Atualizar Tabela Pública
       if (user.role === UserRole.AGENCY) {
         await supabase.from('agencies').update({
             name: userData.name,
+            email: userData.email // manter sync
         }).eq('id', user.id);
       } else {
         await supabase.from('profiles').update({
             full_name: userData.name,
+            email: userData.email // manter sync
         }).eq('id', user.id);
       }
     } catch (error) {
         console.error("Error updating user", error);
+        // Reverter estado em caso de erro crítico? Para UX simples, mantemos optimista e console log.
     }
   };
 
