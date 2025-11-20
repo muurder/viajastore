@@ -61,7 +61,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('trips')
         .select(`
           *,
-          trip_images (image_url),
+          trip_images (image_url, created_at),
           agencies (name, logo_url)
         `);
 
@@ -82,8 +82,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startDate: t.start_date,
         endDate: t.end_date,
         durationDays: t.duration_days,
-        // Ensure consistent image order if created_at is available in query or sort in JS
-        images: t.trip_images ? t.trip_images.map((img: any) => img.image_url) : [],
+        // Ensure consistent image order by created_at
+        images: t.trip_images 
+            ? t.trip_images
+                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                .map((img: any) => img.image_url) 
+            : [],
         category: t.category || 'PRAIA',
         tags: t.tags || [],
         travelerTypes: t.traveler_types || [],
