@@ -48,51 +48,57 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const [trips, setTrips] = useState<Trip[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]); // Still mocking bookings for now or fetching partially
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [clients, setClients] = useState<Client[]>([]); // Usually admin only
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTrips = async () => {
-    const { data, error } = await supabase
-      .from('trips')
-      .select(`
-        *,
-        trip_images (image_url),
-        agencies (name, logo_url)
-      `);
+    try {
+      const { data, error } = await supabase
+        .from('trips')
+        .select(`
+          *,
+          trip_images (image_url),
+          agencies (name, logo_url)
+        `);
 
-    if (error) {
-      console.error('Error fetching trips:', error);
-      return;
+      if (error) {
+        console.error('Error fetching trips:', error.message);
+        return;
+      }
+
+      if (!data) return;
+
+      const formattedTrips: Trip[] = data.map((t: any) => ({
+        id: t.id,
+        agencyId: t.agency_id,
+        title: t.title,
+        description: t.description,
+        destination: t.destination,
+        price: Number(t.price),
+        startDate: t.start_date,
+        endDate: t.end_date,
+        durationDays: t.duration_days,
+        images: t.trip_images ? t.trip_images.map((img: any) => img.image_url) : [],
+        category: t.category || 'PRAIA',
+        tags: t.tags || [],
+        travelerTypes: t.traveler_types || [],
+        active: t.active,
+        rating: 5.0, // Placeholder, should aggregate from reviews
+        totalReviews: 0, // Placeholder
+        included: t.included || [],
+        notIncluded: t.not_included || [],
+        views: t.views_count || 0,
+        sales: t.sales_count || 0,
+        featured: t.featured || false,
+        popularNearSP: t.popular_near_sp || false
+      }));
+
+      setTrips(formattedTrips);
+    } catch (err) {
+      console.error("Unexpected error fetching trips:", err);
     }
-
-    const formattedTrips: Trip[] = data.map((t: any) => ({
-      id: t.id,
-      agencyId: t.agency_id,
-      title: t.title,
-      description: t.description,
-      destination: t.destination,
-      price: t.price,
-      startDate: t.start_date,
-      endDate: t.end_date,
-      durationDays: t.duration_days,
-      images: t.trip_images ? t.trip_images.map((img: any) => img.image_url) : [],
-      category: t.category,
-      tags: t.tags || [],
-      travelerTypes: t.traveler_types || [],
-      active: t.active,
-      rating: 4.8, // Placeholder or fetch aggregate
-      totalReviews: 0, // Placeholder or fetch aggregate
-      included: t.included || [],
-      notIncluded: t.not_included || [],
-      views: t.views_count || 0,
-      sales: t.sales_count || 0,
-      featured: t.featured,
-      popularNearSP: t.popular_near_sp
-    }));
-
-    setTrips(formattedTrips);
   };
 
   const fetchAgencies = async () => {
@@ -102,7 +108,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     
-    const formattedAgencies: Agency[] = data.map((a: any) => ({
+    const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
       id: a.id,
       name: a.name,
       email: a.email || '',
@@ -130,7 +136,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             rating: r.rating,
             comment: r.comment,
             date: r.created_at,
-            clientName: 'Viajante', // Join with profiles ideally
+            clientName: 'Viajante', // Need to join profiles
             response: r.response
         })));
      }
@@ -141,7 +147,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { data } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
           if(data) {
              const favIds = data.map(f => f.trip_id);
-             // Update client in state
              setClients(prev => {
                  const existing = prev.find(c => c.id === user.id);
                  if(existing) return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
@@ -185,7 +190,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const getTripById = (id: string) => trips.find(t => t.id === id);
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => true; // Mocked logic for now
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => true; // Mocked logic
 
   const createTrip = async (trip: Trip) => {
      // 1. Insert Trip
@@ -207,7 +212,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
      if(error) {
          console.error(error);
-         throw new Error('Erro ao criar viagem');
+         throw new Error('Erro ao criar viagem: ' + error.message);
      }
 
      // 2. Insert Images
@@ -267,6 +272,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addBooking = async (booking: Booking) => {
       // Ideally insert into 'bookings' table
+      // await supabase.from('bookings').insert(...)
       setBookings(prev => [...prev, booking]);
   };
 
@@ -294,11 +300,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
-      // Mock
+      // Mock update
   };
 
   const getAgencyStats = (agencyId: string): DashboardStats => {
-      // Mock stats based on local state (since we fetch all trips)
      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
      const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
      return { totalRevenue: 15000, totalSales: 12, totalViews, conversionRate: 2.5 };
