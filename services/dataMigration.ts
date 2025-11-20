@@ -23,10 +23,9 @@ export const migrateData = async () => {
       log(`Processando agência: ${agency.name}`);
       
       // A. Criar Usuário de Auth
-      // Nota: O Supabase tem rate limit de signups. Se falhar, considere usar a service_role key no backend
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: agency.email,
-        password: 'password123', // Senha padrão para migração
+        password: 'password123', 
         options: {
           data: {
             name: agency.name,
@@ -38,8 +37,7 @@ export const migrateData = async () => {
       let userId = authData.user?.id;
 
       if (authError) {
-        log(`⚠️ Erro no Auth para ${agency.email}: ${authError.message}`);
-        // Se o usuário já existe, tentamos pegar o ID dele fazendo login (truque para migração)
+        log(`⚠️ Info Auth para ${agency.email}: ${authError.message}`);
         if (authError.message.includes('already registered')) {
              const { data: loginData } = await supabase.auth.signInWithPassword({
                  email: agency.email,
@@ -50,15 +48,12 @@ export const migrateData = async () => {
       }
 
       if (userId) {
-        // Salvar mapeamento ID Antigo -> Novo UUID
         agencyIdMap[agency.id] = userId;
 
-        // B. Inserir dados na tabela public.agencies
-        // O profile já deve ter sido criado via Trigger, mas garantimos a agência
         const { error: agencyError } = await supabase
           .from('agencies')
           .upsert({
-            id: userId, // O ID da agência é o mesmo do usuário
+            id: userId,
             name: agency.name,
             description: agency.description,
             logo_url: agency.logo,
@@ -71,54 +66,72 @@ export const migrateData = async () => {
         if (agencyError) log(`❌ Erro tabela agencies: ${agencyError.message}`);
         else log(`✅ Agência salva: ${agency.name}`);
       }
-
-      // Pausa pequena para não estourar limites
-      await delay(1000);
+      await delay(500);
     }
 
-    // 2. Migrar Viagens
+    // 2. Migrar Viagens (Individualmente para salvar as imagens)
     log(`\n📦 Migrando viagens...`);
     
-    const tripsToInsert = MOCK_TRIPS.map(trip => {
-      const newAgencyId = agencyIdMap[trip.agencyId];
+    let successCount = 0;
+
+    for (const trip of MOCK_TRIPS) {
+       const newAgencyId = agencyIdMap[trip.agencyId];
       
-      if (!newAgencyId) {
-        log(`⚠️ Pular viagem "${trip.title}": Agência original ${trip.agencyId} não migrada.`);
-        return null;
-      }
+       if (!newAgencyId) {
+         continue;
+       }
 
-      return {
-        agency_id: newAgencyId,
-        title: trip.title,
-        description: trip.description,
-        destination: trip.destination,
-        price: trip.price,
-        start_date: trip.startDate,
-        end_date: trip.endDate,
-        duration_days: trip.durationDays,
-        images: trip.images,
-        category: trip.category,
-        tags: trip.tags,
-        traveler_types: trip.travelerTypes,
-        active: trip.active,
-        included: trip.included,
-        not_included: trip.notIncluded || [],
-        featured: trip.featured || false,
-        popular_near_sp: trip.popularNearSP || false,
-        sales_count: trip.sales || 0,
-        views_count: trip.views || 0,
-        created_at: new Date().toISOString()
-      };
-    }).filter(Boolean);
-
-    if (tripsToInsert.length > 0) {
-      const { error: tripsError } = await supabase
+       // Inserir Viagem
+       const { data: tripData, error: tripError } = await supabase
         .from('trips')
-        .insert(tripsToInsert);
+        .insert({
+            agency_id: newAgencyId,
+            title: trip.title,
+            description: trip.description,
+            destination: trip.destination,
+            price: trip.price,
+            start_date: trip.startDate,
+            end_date: trip.endDate,
+            duration_days: trip.durationDays,
+            category: trip.category,
+            tags: trip.tags,
+            traveler_types: trip.travelerTypes,
+            active: trip.active,
+            included: trip.included,
+            not_included: trip.notIncluded || [],
+            featured: trip.featured || false,
+            popular_near_sp: trip.popularNearSP || false,
+            sales_count: trip.sales || 0,
+            views_count: trip.views || 0,
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-      if (tripsError) log(`❌ Erro ao inserir viagens: ${tripsError.message}`);
-      else log(`✅ ${tripsToInsert.length} viagens inseridas com sucesso!`);
+        if (tripError) {
+            log(`❌ Erro viagem ${trip.title}: ${tripError.message}`);
+            continue;
+        }
+
+        // Inserir Imagens
+        if (tripData && trip.images && trip.images.length > 0) {
+            const imagesPayload = trip.images.map(url => ({
+                trip_id: tripData.id,
+                image_url: url
+            }));
+
+            const { error: imgError } = await supabase
+                .from('trip_images')
+                .insert(imagesPayload);
+            
+            if (imgError) log(`⚠️ Erro imagens ${trip.title}: ${imgError.message}`);
+        }
+
+        successCount++;
+        await delay(100); // Pequeno delay para evitar gargalo
     }
+
+    log(`✅ ${successCount} viagens processadas com sucesso!`);
 
   } catch (e: any) {
     log(`💀 Erro fatal: ${e.message}`);

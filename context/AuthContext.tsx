@@ -63,7 +63,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: profileData.full_name || 'Usuário',
           email: email,
           role: role,
-          // Safe to read even if undefined in DB, but we don't write it on signup
           avatar: profileData.avatar_url, 
           cpf: profileData.cpf,
           phone: profileData.phone,
@@ -164,18 +163,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (agencyError) throw agencyError;
       } else {
         // Client Register
-        // FIX: Removed 'avatar_url' from insert to prevent schema errors if column is missing
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           full_name: data.name,
           cpf: data.cpf,
           phone: data.phone,
-          role: 'CLIENT'
+          role: 'CLIENT',
+          avatar_url: `https://ui-avatars.com/api/?name=${data.name}`
         });
         
         if (profileError) {
-             // If specific table insert fails, we should ideally rollback auth, 
-             // but for now we throw to catch block.
              console.error("Profile Insert Error:", profileError);
              throw profileError;
         }
