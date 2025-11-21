@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
+import { useToast } from './ToastContext';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -42,7 +43,7 @@ interface DataContextType {
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
-  getAgencyBySlug: (slug: string) => Agency | undefined; // NOVA FUNÇÃO
+  getAgencyBySlug: (slug: string) => Agency | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
   getAgencyStats: (agencyId: string) => DashboardStats;
@@ -53,6 +54,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { showToast } = useToast();
   
   const [trips, setTrips] = useState<Trip[]>([]);
   const [agencies, setAgencies] = useState<Agency[]>([]);
@@ -81,7 +83,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: t.id,
             agencyId: t.agency_id,
             title: t.title,
-            slug: t.slug || slugify(t.title) + '-' + t.id, // Fallback if empty
+            slug: t.slug || slugify(t.title) + '-' + t.id,
             description: t.description,
             destination: t.destination,
             price: Number(t.price),
@@ -150,9 +152,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchClients = async () => {
     try {
-        // Fetches all profiles (Clients and Admins)
         const { data, error } = await supabase.from('profiles').select('*');
-        
         if (error) throw error;
 
         const formattedClients: Client[] = (data || []).map((p: any) => ({
@@ -163,7 +163,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           avatar: p.avatar_url,
           cpf: p.cpf,
           phone: p.phone,
-          favorites: [], // Favorites are fetched separately per user context usually
+          favorites: [], 
           createdAt: p.created_at,
           address: p.address || {}
         } as Client));
@@ -198,22 +198,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
      }
   };
 
+  // FETCH FAVORITES FOR CURRENT USER
   const fetchFavorites = async () => {
       if(user?.role === UserRole.CLIENT) {
           try {
             const { data, error } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
+            
             if (error) throw error;
 
             if(data) {
                const favIds = data.map(f => f.trip_id);
+               
+               // Update clients state to reflect current user favorites
                setClients(prev => {
                    const existing = prev.find(c => c.id === user.id);
-                   if(existing) return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
-                   return [...prev, { id: user.id, favorites: favIds } as Client];
+                   
+                   if(existing) {
+                       return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
+                   }
+                   
+                   // If user not in client list yet (race condition), add them properly
+                   const me: Client = {
+                       id: user.id,
+                       name: user.name,
+                       email: user.email || '',
+                       role: UserRole.CLIENT,
+                       favorites: favIds,
+                       createdAt: new Date().toISOString()
+                   };
+                   return [...prev, me];
                });
             }
           } catch (err) {
-             // Silent fail for favorites
+             console.warn("Error fetching favorites", err);
           }
       }
   };
@@ -237,7 +254,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               return;
           }
         }
-        // Admins fetch all by default
         
         const { data, error } = await query;
 
@@ -279,7 +295,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setAuditLogs(logs);
           }
       } catch (err) {
-          // Fallback mock if table doesn't exist yet or error
           const mockLogs: AuditLog[] = [
              { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado (Modo Offline/Mock)', createdAt: new Date().toISOString() }
           ];
@@ -300,7 +315,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          promises.push(fetchFavorites());
       }
       
-      // Fetch extended data for Admin
       if (user?.role === UserRole.ADMIN) {
           promises.push(fetchAuditLogs());
           promises.push(fetchClients());
@@ -316,10 +330,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- ACTIONS ---
 
-  const isAgencyActive = (agencyId: string) => {
-    const agency = agencies.find(a => a.id === agencyId);
-    if (!agency) return false;
-    return agency.subscriptionStatus === 'ACTIVE';
+  const toggleFavorite = async (tripId: string, clientId: string) => {
+    const currentClient = clients.find(c => c.id === clientId);
+    const isCurrentlyFavorite = currentClient?.favorites.includes(tripId);
+
+    try {
+        if (isCurrentlyFavorite) {
+            // Remove from DB
+            const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
+            if (error) throw error;
+            showToast('Removido dos favoritos', 'info');
+        } else {
+            // Add to DB
+            const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
+            if (error) throw error;
+            showToast('Adicionado aos favoritos', 'success');
+        }
+        
+        // Optimistic Update / Refresh
+        await fetchFavorites(); 
+
+    } catch (error: any) {
+        console.error('Error toggling favorite:', error);
+        showToast('Erro ao atualizar favoritos', 'error');
+    }
   };
 
   const addBooking = async (booking: Booking) => {
@@ -336,7 +370,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
       console.error('Error adding booking:', error);
-      // Em modo offline, poderíamos atualizar o state localmente aqui
     }
     await refreshData();
   };
@@ -345,7 +378,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('reviews').insert({
       id: review.id,
       trip_id: review.tripId,
-      user_id: review.clientId, // changed from clientId to user_id to match table
+      user_id: review.clientId, 
       rating: review.rating,
       comment: review.comment,
       created_at: review.date,
@@ -361,20 +394,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
     if (error) {
       console.error('Error deleting review:', error);
-    }
-    await refreshData();
-  };
-
-  const toggleFavorite = async (tripId: string, clientId: string) => {
-    const currentClient = clients.find(c => c.id === clientId);
-    const isCurrentlyFavorite = currentClient?.favorites.includes(tripId);
-
-    if (isCurrentlyFavorite) {
-      const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
-      if (error) console.error('Error removing favorite:', error);
-    } else {
-      const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
-      if (error) console.error('Error adding favorite:', error);
     }
     await refreshData();
   };
@@ -400,7 +419,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-    // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
     const dbTrip = {
         agency_id: trip.agencyId,
         title: trip.title,
@@ -410,12 +428,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         price: trip.price,
         start_date: trip.startDate,
         end_date: trip.endDate,
-        duration_days: trip.durationDays, // MAPPED HERE
+        duration_days: trip.durationDays,
         category: trip.category,
         tags: trip.tags,
-        traveler_types: trip.travelerTypes, // MAPPED HERE
+        traveler_types: trip.travelerTypes,
         itinerary: trip.itinerary,
-        payment_methods: trip.paymentMethods, // MAPPED HERE
+        payment_methods: trip.paymentMethods,
         active: trip.active ?? true,
         included: trip.included,
         not_included: trip.notIncluded,
@@ -446,7 +464,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateTrip = async (trip: Trip) => {
     const { id, images } = trip;
     
-    // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
     const dbTrip = {
         title: trip.title,
         slug: trip.slug || slugify(trip.title),
@@ -455,12 +472,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         price: trip.price,
         start_date: trip.startDate,
         end_date: trip.endDate,
-        duration_days: trip.durationDays, // MAPPED HERE
+        duration_days: trip.durationDays,
         category: trip.category,
         tags: trip.tags,
-        traveler_types: trip.travelerTypes, // MAPPED HERE
+        traveler_types: trip.travelerTypes,
         itinerary: trip.itinerary,
-        payment_methods: trip.paymentMethods, // MAPPED HERE
+        payment_methods: trip.paymentMethods,
         active: trip.active,
         included: trip.included,
         not_included: trip.notIncluded,
@@ -513,13 +530,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteUser = async (userId: string, role: UserRole) => {
     if (role === UserRole.AGENCY) {
       await supabase.from('agencies').delete().eq('id', userId);
-      // Delete associated trips and their images
       const agencyTrips = trips.filter(t => t.agencyId === userId);
       for (const trip of agencyTrips) {
         await supabase.from('trip_images').delete().eq('trip_id', trip.id);
         await supabase.from('trips').delete().eq('id', trip.id);
       }
-    } else { // CLIENT or ADMIN
+    } else { 
       await supabase.from('profiles').delete().eq('id', userId);
       await supabase.from('favorites').delete().eq('user_id', userId);
       await supabase.from('bookings').delete().eq('client_id', userId);
@@ -534,7 +550,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logAuditAction = async (action: string, details: string) => {
     if (!user || user.role !== UserRole.ADMIN) {
-        console.warn('Non-admin user attempted to log audit action.');
         return;
     }
     const { error } = await supabase.from('audit_logs').insert({
@@ -547,11 +562,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
+  // PUBLIC HELPERS
   const getPublicTrips = () => trips.filter(t => t.active);
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string) => trips.find(t => t.id === id);
-  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug); // Implementation
+  // Case-insensitive slug search
+  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug.toLowerCase() === slug.toLowerCase());
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
 
@@ -560,7 +577,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const agencyBookings = bookings.filter(b => agencyTrips.some(t => t.id === b.tripId));
 
     const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
-    const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); // This should be from bookings ideally
+    const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0);
     const totalRevenue = agencyBookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
 
     const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
@@ -582,7 +599,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
-// Export the useData hook.
 export const useData = () => {
   const context = useContext(DataContext);
   if (!context) throw new Error('useData must be used within a DataProvider');

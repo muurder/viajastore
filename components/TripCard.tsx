@@ -15,13 +15,17 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { toggleFavorite, clients } = useData();
   const [imgError, setImgError] = useState(false);
 
-  const isFavorite = user?.role === 'CLIENT' && (clients.find(c => c.id === user.id)?.favorites.includes(trip.id));
+  // Ensure clients data is loaded and use current user's favorites
+  const currentUserData = clients.find(c => c.id === user?.id);
+  const isFavorite = user?.role === 'CLIENT' && currentUserData?.favorites.includes(trip.id);
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (user?.role === 'CLIENT') {
       toggleFavorite(trip.id, user.id);
+    } else {
+      // Optional: Prompt login
     }
   };
 
@@ -40,7 +44,6 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     'ARTE': 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=800&q=80',
   };
 
-  // Use fallback if imgError is true OR if trip.images is empty/undefined
   const displayImage = (imgError || !trip.images || !trip.images[0])
     ? (categoryImages[trip.category] || categoryImages['PRAIA'])
     : trip.images[0];
@@ -54,14 +57,16 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
           onError={() => setImgError(true)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
-        <div className="absolute top-3 right-3 z-10">
-           <button 
-            onClick={handleFavorite}
-            className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-100' : 'bg-white/80 text-gray-500 hover:bg-white hover:text-red-500'}`}
-          >
-            <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
-          </button>
-        </div>
+        {user?.role === 'CLIENT' && (
+            <div className="absolute top-3 right-3 z-10">
+            <button 
+                onClick={handleFavorite}
+                className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-100' : 'bg-white/80 text-gray-500 hover:bg-white hover:text-red-500'}`}
+            >
+                <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
+            </button>
+            </div>
+        )}
         <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10 shadow-lg">
           {trip.category.replace('_', ' ')}
         </div>

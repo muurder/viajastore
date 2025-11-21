@@ -13,12 +13,11 @@ const Layout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   // Check if current path matches an agency slug
-  // We get the first segment of the path
   const pathSegment = location.pathname.split('/')[1];
   const currentAgency = agencies.find(a => a.slug === pathSegment);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -78,8 +77,8 @@ const Layout: React.FC = () => {
                       <span className="max-w-[100px] truncate">{user.name}</span>
                     </Link>
                     <div className="h-4 w-px bg-gray-300 mx-1"></div>
-                    <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition-colors" title="Sair">
-                      <LogOut size={18} />
+                    <button onClick={handleLogout} className="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors" title="Sair">
+                      <LogOut size={16} className="mr-1" /> Sair
                     </button>
                   </div>
                 </div>
@@ -128,7 +127,7 @@ const Layout: React.FC = () => {
                   <Link to={user.role === 'AGENCY' ? "/agency/dashboard" : user.role === 'ADMIN' ? "/admin/dashboard" : "/client/dashboard"} onClick={() => setIsMenuOpen(false)} className="block w-full text-center py-2 bg-primary-50 text-primary-700 rounded-md font-medium">
                     Meu Painel
                   </Link>
-                  <button onClick={handleLogout} className="block w-full text-center py-2 border border-gray-300 text-gray-600 rounded-md font-medium">Sair</button>
+                  <button onClick={handleLogout} className="block w-full text-center py-2 border border-gray-300 text-gray-600 rounded-md font-medium hover:bg-gray-50">Sair</button>
                 </div>
               ) : (
                 <div className="px-4 flex flex-col gap-2">
