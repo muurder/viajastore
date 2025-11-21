@@ -105,6 +105,8 @@ export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
   website: `www.${slugify(ag.name)}.com.br`,
   phone: `(11) 99999-${index}000`,
+  address: { zipCode: '00000-000', street: 'Rua Exemplo', number: '123', district: 'Centro', city: 'São Paulo', state: 'SP' },
+  bankInfo: { bank: 'Banco Exemplo', agency: '0001', account: '12345-6', pixKey: 'chave@pix.com' },
   createdAt: new Date().toISOString()
 }));
 

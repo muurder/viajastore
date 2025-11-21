@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -191,12 +192,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
-        // CHANGE: Set default status to INACTIVE so they must pay first
+        // CHANGE: Generate Slug from name
+        const slug = slugify(data.name);
+        
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
           email: data.email,
-          slug: slugify(data.name),
+          slug: slug, // Insert generated slug
           cnpj: data.cnpj,
           phone: data.phone,
           description: data.description,
@@ -221,6 +224,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (dbError: any) {
       console.error("DB Upsert Error:", dbError);
+      // Optional: Delete auth user if DB insertion fails to keep consistency
       return { success: true }; 
     }
 
@@ -241,6 +245,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
+        // Allow slug updates if passed, though usually dangerous. 
+        // NOTE: Changing slug breaks existing links.
+        if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
+        
         if ((userData as Agency).description) updates.description = (userData as Agency).description;
         if ((userData as Agency).cnpj) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;

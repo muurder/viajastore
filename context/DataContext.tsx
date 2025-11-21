@@ -501,7 +501,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string) => trips.find(t => t.id === id);
-  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug);
+  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug); // Implementation
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
 
