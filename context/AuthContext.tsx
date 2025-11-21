@@ -10,7 +10,10 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string }>;
-  updateUser: (userData: Partial<User>) => Promise<void>;
+  updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
+  uploadImage: (file: File, bucket: 'avatars' | 'agency-logos') => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,7 +45,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           subscriptionPlan: agencyData.subscription_plan || 'BASIC',
           subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
           website: agencyData.website,
-          phone: agencyData.phone
+          phone: agencyData.phone,
+          address: agencyData.address || {},
+          bankInfo: agencyData.bank_info || {}
         };
         setUser(agencyUser);
         return;
@@ -67,15 +72,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           cpf: profileData.cpf,
           phone: profileData.phone,
           favorites: [], 
-          createdAt: profileData.created_at
+          createdAt: profileData.created_at,
+          address: profileData.address || {}
         } as Client;
 
         setUser(clientUser);
         return;
       }
       
-      // 3. Fallback (Trigger hasn't fired yet or latency)
-      // If trigger handles it, a refresh will fix it. For now, show basic info.
+      // 3. Fallback
       setUser({ id: authId, email, name: email.split('@')[0], role: UserRole.CLIENT });
 
     } catch (error) {
@@ -99,9 +104,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
-          // Wait a bit if it's a new sign in to allow DB triggers to run
           if (event === 'SIGNED_IN') {
              setTimeout(() => fetchUserData(session.user.id, session.user.email!), 1000);
+          } else if (event === 'TOKEN_REFRESHED') {
+             // Optional: refresh user data silently
           } else {
              fetchUserData(session.user.id, session.user.email!);
           }
@@ -125,8 +131,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (error) {
-      console.error("Login error:", error);
-      // Traduz mensagem comum, mas deixa outras passarem para debug
       const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
       return { success: false, error: msg };
     }
@@ -149,7 +153,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
-    // 1. Sign Up in Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -160,25 +163,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
 
-    // Handle "User already registered" scenario gracefully
-    // O erro "Database error finding user" (500) acontece frequentemente quando o usuário foi inserido manualmente via SQL
-    // e o Supabase tenta verificar duplicidade ou criar instâncias conflitantes. Tratamos como "já existe".
     if (authError) {
-        console.error("Signup Error Detailed:", authError);
         if (authError.message.includes('already registered') || authError.message.includes('Database error finding user')) {
-             return { success: false, error: 'Este e-mail já está cadastrado (ou foi inserido manualmente). Por favor, faça login.' };
+             return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
         }
         return { success: false, error: authError.message };
     }
     
     let userId = authData.user?.id;
-    
-    // Check if email confirmation is required by Supabase settings
     if (!userId && !authError) return { success: false, error: 'Verifique seu email para confirmar o cadastro.' };
-
     if (!userId) return { success: false, error: 'Erro ao criar usuário.' };
 
-    // 2. Upsert into specific tables
     try {
       if (role === UserRole.AGENCY) {
         const { error: agencyError } = await supabase.from('agencies').upsert({
@@ -189,12 +184,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: data.phone,
           description: data.description,
           logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
-          // Do not overwrite subscription status if it exists
         }, { onConflict: 'id' });
         
         if (agencyError) throw agencyError;
       } else {
-        // Client Register
         const { error: profileError } = await supabase.from('profiles').upsert({
           id: userId,
           full_name: data.name,
@@ -209,43 +202,106 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (dbError: any) {
       console.error("DB Upsert Error:", dbError);
-      // Se falhar o upsert mas o auth criou, o usuário existe mas sem perfil.
-      // Em produção, talvez devêssemos deletar o usuário do Auth ou tentar recuperar.
       return { success: true }; 
     }
 
     return { success: true };
   };
 
-  const updateUser = async (userData: Partial<User>) => {
-    if (!user) return;
-    setUser({ ...user, ...userData } as User);
-
+  const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Usuário não logado' };
+    
     try {
-      // Only update auth email if changed
+      // 1. Update Auth Email if changed
       if (userData.email && userData.email !== user.email) {
           const { error } = await supabase.auth.updateUser({ email: userData.email });
-          if (error) console.error("Auth update error", error);
+          if (error) throw error;
       }
 
+      // 2. Update Table Data
       if (user.role === UserRole.AGENCY) {
-        await supabase.from('agencies').update({
-            name: userData.name,
-            // email: userData.email // Usually handled by triggers or manual sync
-        }).eq('id', user.id);
+        const updates: any = {};
+        if (userData.name) updates.name = userData.name;
+        if ((userData as Agency).description) updates.description = (userData as Agency).description;
+        if ((userData as Agency).cnpj) updates.cnpj = (userData as Agency).cnpj;
+        if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
+        if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
+        if ((userData as Agency).address) updates.address = (userData as Agency).address;
+        if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
+
+        const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
+        if (error) throw error;
+        
       } else {
-        await supabase.from('profiles').update({
-            full_name: userData.name,
-            // email: userData.email
-        }).eq('id', user.id);
+        const updates: any = {};
+        if (userData.name) updates.full_name = userData.name;
+        if ((userData as Client).phone) updates.phone = (userData as Client).phone;
+        if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
+        if ((userData as Client).address) updates.address = (userData as Client).address;
+        if (userData.avatar) updates.avatar_url = userData.avatar;
+
+        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+        if (error) throw error;
       }
-    } catch (error) {
+
+      // Refresh local state
+      setUser({ ...user, ...userData } as any);
+      return { success: true };
+
+    } catch (error: any) {
         console.error("Error updating user", error);
+        return { success: false, error: error.message };
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+  };
+
+  const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos'): Promise<string | null> => {
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+              .from(bucket)
+              .upload(fileName, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+          return data.publicUrl;
+      } catch (error) {
+          console.error("Upload error:", error);
+          return null;
+      }
+  };
+
+  const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "Usuário não autenticado" };
+
+    try {
+      if (user.role === UserRole.AGENCY) {
+          const { error } = await supabase.from('agencies').delete().eq('id', user.id);
+          if (error) throw error;
+      } else {
+          const { error } = await supabase.from('profiles').delete().eq('id', user.id);
+          if (error) throw error;
+      }
+      await supabase.auth.signOut();
+      setUser(null);
+      return { success: true };
+
+    } catch (error: any) {
+      console.error("Erro ao excluir conta:", error);
+      return { success: false, error: error.message || "Erro ao excluir conta" };
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage }}>
       {!loading && children}
     </AuthContext.Provider>
   );

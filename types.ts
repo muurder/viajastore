@@ -5,6 +5,23 @@ export enum UserRole {
   ADMIN = 'ADMIN',
 }
 
+export interface Address {
+  zipCode: string;
+  street: string;
+  number: string;
+  complement?: string;
+  district: string;
+  city: string;
+  state: string;
+}
+
+export interface BankInfo {
+  bank: string;
+  agency: string;
+  account: string;
+  pixKey: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -21,6 +38,7 @@ export interface Client extends User {
   phone?: string;
   favorites: string[]; // Trip IDs
   notificationsEnabled?: boolean;
+  address?: Address;
 }
 
 export interface Agency extends User {
@@ -33,6 +51,8 @@ export interface Agency extends User {
   subscriptionExpiresAt: string; // ISO Date
   website?: string;
   phone?: string;
+  address?: Address;
+  bankInfo?: BankInfo;
 }
 
 export interface Admin extends User {

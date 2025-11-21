@@ -128,7 +128,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscriptionPlan: a.subscription_plan,
       subscriptionExpiresAt: a.subscription_expires_at,
       website: a.website,
-      phone: a.phone
+      phone: a.phone,
+      address: a.address || {},
+      bankInfo: a.bank_info || {}
     }));
 
     setAgencies(formattedAgencies);
@@ -169,13 +171,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     let query = supabase.from('bookings').select('*');
 
-    // Se for cliente, pega só as dele
     if (user.role === UserRole.CLIENT) {
       query = query.eq('client_id', user.id);
     } 
-    // Se for agência, pega reservas das viagens DESTA agência
     else if (user.role === UserRole.AGENCY) {
-      // Supabase join filter: booking -> trip -> agency_id
       const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
       const myTripIds = myTrips?.map(t => t.id) || [];
       if(myTripIds.length > 0) {
@@ -198,7 +197,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         id: b.id,
         tripId: b.trip_id,
         clientId: b.client_id,
-        date: b.created_at, // Data da compra
+        date: b.created_at,
         status: b.status,
         totalPrice: b.total_price,
         passengers: b.passengers,
@@ -215,7 +214,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchTrips(), 
         fetchAgencies(), 
         fetchReviews(), 
-        fetchBookings() // Agora busca reservas reais
+        fetchBookings()
       ]);
       if(user) await fetchFavorites();
       setLoading(false);
@@ -270,7 +269,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          not_included: trip.notIncluded,
          tags: trip.tags,
          traveler_types: trip.travelerTypes || [],
-         itinerary: trip.itinerary || [] // Pass itinerary to Supabase
+         itinerary: trip.itinerary || [] 
      }).select().single();
 
      if(error) throw new Error('Erro ao criar viagem: ' + error.message);
@@ -303,8 +302,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if(error) throw error;
 
-      // Handle images update is complex (delete/re-insert strategy for simplicity in prototype)
       if (trip.images) {
+          // For simplicity in this iteration: clear and re-insert
           await supabase.from('trip_images').delete().eq('trip_id', trip.id);
           const imagesPayload = trip.images.map(url => ({
                trip_id: trip.id,
@@ -357,9 +356,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // Atualizar contador de vendas na viagem
       await supabase.rpc('increment_sales', { row_id: booking.tripId });
-
       await fetchBookings();
   };
 
@@ -389,11 +386,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
       const payload: any = {};
       if (data.phone) payload.phone = data.phone;
-      // Adicionar outros campos se necessário no futuro
-
+      if (data.address) payload.address = data.address;
+      
       if (Object.keys(payload).length > 0) {
           await supabase.from('profiles').update(payload).eq('id', clientId);
-          // Atualiza estado local se necessário
       }
   };
 
@@ -408,7 +404,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
      const totalSales = agencyBookings.length;
      const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
      
-     // Calculo simples de conversão
      const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
 
      return { totalRevenue, totalSales, totalViews, conversionRate };
