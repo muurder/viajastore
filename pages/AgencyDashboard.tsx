@@ -34,25 +34,43 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
       if(url) execCmd('createLink', url);
   };
 
+  const Button = ({ cmd, icon: Icon, title }: { cmd?: string, icon: any, title: string }) => (
+    <button 
+        type="button" 
+        onClick={() => cmd && execCmd(cmd)} 
+        className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-all" 
+        title={title}
+    >
+        <Icon size={18}/>
+    </button>
+  );
+
   return (
-    <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm">
+    <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm">
       <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
-        <button type="button" onClick={() => execCmd('bold')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Negrito"><Bold size={16}/></button>
-        <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Itálico"><Italic size={16}/></button>
-        <div className="w-px h-4 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Título 1"><Heading1 size={16}/></button>
-        <button type="button" onClick={() => execCmd('formatBlock', 'H4')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Título 2"><Heading2 size={16}/></button>
-        <div className="w-px h-4 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista com marcadores"><List size={16}/></button>
-        <button type="button" onClick={() => execCmd('insertOrderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista numerada"><ListOrdered size={16}/></button>
-        <div className="w-px h-4 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={addLink} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Inserir Link"><LinkIcon size={16}/></button>
+        <div className="flex items-center gap-1 mr-2">
+            <Button cmd="bold" icon={Bold} title="Negrito" />
+            <Button cmd="italic" icon={Italic} title="Itálico" />
+        </div>
+        <div className="w-px h-5 bg-gray-300 mx-1"></div>
+        <div className="flex items-center gap-1 mx-2">
+            <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Título 1"><Heading1 size={18}/></button>
+            <button type="button" onClick={() => execCmd('formatBlock', 'H4')} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Título 2"><Heading2 size={18}/></button>
+        </div>
+        <div className="w-px h-5 bg-gray-300 mx-1"></div>
+        <div className="flex items-center gap-1 mx-2">
+            <Button cmd="insertUnorderedList" icon={List} title="Lista com marcadores" />
+            <Button cmd="insertOrderedList" icon={ListOrdered} title="Lista numerada" />
+        </div>
+        <div className="w-px h-5 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={addLink} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg ml-2" title="Inserir Link"><LinkIcon size={18}/></button>
       </div>
       <div 
         ref={contentRef}
         contentEditable
         onInput={handleInput}
-        className="w-full p-4 min-h-[250px] outline-none text-sm leading-relaxed text-gray-700 prose prose-sm max-w-none"
+        className="w-full p-5 min-h-[300px] outline-none text-sm leading-relaxed text-gray-700 prose prose-sm max-w-none"
+        style={{ minHeight: '300px' }}
       />
     </div>
   );
@@ -162,19 +180,23 @@ const AgencyDashboard: React.FC = () => {
   const handleDuplicateTrip = async (trip: Trip) => {
       if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
       
+      // Clean trip object for duplication
+      const { id, slug, ...rest } = trip;
+
       const duplicatedTrip = {
-          ...trip,
+          ...rest,
           title: `${trip.title} (Cópia)`,
-          slug: '', 
+          slug: '', // Force empty slug to let backend generate a new unique one
           active: false, 
           views: 0,
           sales: 0
       };
       
       try {
-          await createTrip(duplicatedTrip);
-          showToast('Pacote duplicado com sucesso!', 'success');
+          await createTrip(duplicatedTrip as Trip);
+          showToast('Pacote duplicado com sucesso! Ele está como Rascunho.', 'success');
       } catch (err) {
+          console.error(err);
           showToast('Erro ao duplicar pacote.', 'error');
       }
   };

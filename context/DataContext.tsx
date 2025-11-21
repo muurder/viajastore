@@ -427,7 +427,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const createTrip = async (trip: Trip) => {
     // Ensure slug is unique by appending timestamp or random string if not provided
-    const tripSlug = trip.slug || slugify(trip.title) + '-' + Math.floor(Math.random() * 10000);
+    // Use simple randomness to avoid collisions, allowing user to edit later for SEO
+    const tripSlug = trip.slug && trip.slug.trim() !== '' 
+        ? trip.slug 
+        : slugify(trip.title) + '-' + Math.floor(Math.random() * 100000);
 
     const dbTrip = {
         agency_id: trip.agencyId,
@@ -503,6 +506,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Handle images: delete old ones and insert new ones
+    // Note: Efficient approach would be diffing, but simplistic replace works for small sets
     await supabase.from('trip_images').delete().eq('trip_id', id);
     if (images && images.length > 0) {
       const imageInserts = images.map(url => ({

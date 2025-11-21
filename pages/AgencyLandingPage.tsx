@@ -99,6 +99,11 @@ const AgencyLandingPage: React.FC = () => {
     }
  };
 
+  const clearFilters = () => {
+      setSearchTerm('');
+      setSelectedInterests([]);
+  };
+
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s]">
       {/* Agency Hero Banner */}
@@ -196,7 +201,7 @@ const AgencyLandingPage: React.FC = () => {
              <p className="text-gray-900 font-bold text-lg mb-1">Nenhum pacote encontrado nesta agência.</p>
              <p className="text-gray-500 mb-4">A agência ainda não cadastrou viagens ou os filtros não retornaram resultados.</p>
              {(searchTerm || selectedInterests.length > 0) && (
-                 <button onClick={() => { setSearchTerm(''); setSelectedInterests([]); }} className="text-primary-600 font-bold hover:underline">
+                 <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline">
                     Limpar filtros
                  </button>
              )}

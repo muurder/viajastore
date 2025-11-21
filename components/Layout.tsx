@@ -7,7 +7,7 @@ import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { getAgencyBySlug } = useData();
+  const { getAgencyBySlug, loading: dataLoading } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -21,8 +21,16 @@ const Layout: React.FC = () => {
   const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'terms', 'privacy', 'help', 'blog', 'careers', 'press', 'checkout', 'unauthorized', 'forgot-password', 'login', 'signup', 'admin', 'client'];
   
   const isReserved = reservedRoutes.includes(potentialSlug);
+  
+  // Only try to find agency if not reserved. 
+  // Note: We depend on data being loaded to confirm if it's an agency.
   const currentAgency = !isReserved && potentialSlug ? getAgencyBySlug(potentialSlug) : undefined;
-  const isAgencyMode = !!currentAgency;
+  
+  // Assuming it IS an agency mode if we are not in a reserved route and we have a potential slug,
+  // even if data is loading, to prevent layout flickering. 
+  // However, for the actual data (name, logo), we need currentAgency.
+  const isPotentialAgencyRoute = !isReserved && !!potentialSlug;
+  const isAgencyMode = !!currentAgency || (isPotentialAgencyRoute && dataLoading);
 
   const handleLogout = async () => {
     await logout();
@@ -37,7 +45,7 @@ const Layout: React.FC = () => {
   };
 
   // Home Link Logic
-  const homeLink = isAgencyMode ? `/${currentAgency.slug}` : '/';
+  const homeLink = (isAgencyMode && currentAgency) ? `/${currentAgency.slug}` : '/';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
@@ -54,15 +62,25 @@ const Layout: React.FC = () => {
                    </>
                 ) : (
                    <div className="flex items-center animate-[fadeIn_0.3s]">
-                      {currentAgency.logo && (
-                          <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover mr-3 border border-gray-200"/>
+                      {currentAgency ? (
+                        <>
+                          {currentAgency.logo && (
+                              <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover mr-3 border border-gray-200"/>
+                          )}
+                          <div className="flex flex-col">
+                              <span className="font-bold text-gray-900 text-lg leading-tight">{currentAgency.name}</span>
+                              <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
+                                 Parceiro ViajaStore <ShieldCheck size={10} className="ml-1 text-green-500"/>
+                              </span>
+                          </div>
+                        </>
+                      ) : (
+                        // Loading skeleton for agency brand
+                        <div className="flex items-center">
+                           <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
+                           <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
                       )}
-                      <div className="flex flex-col">
-                          <span className="font-bold text-gray-900 text-lg leading-tight">{currentAgency.name}</span>
-                          <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
-                             Parceiro ViajaStore <ShieldCheck size={10} className="ml-1 text-green-500"/>
-                          </span>
-                      </div>
                    </div>
                 )}
               </Link>
@@ -76,7 +94,13 @@ const Layout: React.FC = () => {
                         <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                     </>
                 ) : (
-                    <Link to={`/${currentAgency.slug}`} className={getLinkClasses(`/${currentAgency.slug}`)}>Início</Link>
+                    currentAgency && (
+                      <>
+                         {/* In Agency Mode, we hide global navigation and show Agency specific links if needed, or just Home */}
+                         <Link to={`/${currentAgency.slug}`} className={getLinkClasses(`/${currentAgency.slug}`)}>Início</Link>
+                         {/* Future: Add 'About', 'Contact' for agency sub-routes */}
+                      </>
+                    )
                 )}
               </div>
             </div>
@@ -129,7 +153,7 @@ const Layout: React.FC = () => {
                     <Link to="/about" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Sobre Nós</Link>
                   </>
               ) : (
-                    <Link to={`/${currentAgency.slug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial {currentAgency.name}</Link>
+                    currentAgency && <Link to={`/${currentAgency.slug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial {currentAgency.name}</Link>
               )}
             </div>
             <div className="pt-4 pb-4 border-t border-gray-200">
@@ -171,21 +195,26 @@ const Layout: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="col-span-1 md:col-span-1">
               <div className="flex items-center mb-4">
-                {isAgencyMode && currentAgency.logo ? (
-                    <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2" alt="Logo" />
+                {isAgencyMode && currentAgency ? (
+                   <>
+                    {currentAgency.logo && <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2" alt="Logo" />}
+                    <span className="font-bold text-xl text-gray-800">{currentAgency.name}</span>
+                   </>
                 ) : (
+                   <>
                     <Plane className="h-6 w-6 text-primary-600 mr-2" />
+                    <span className="font-bold text-xl text-gray-800">ViajaStore</span>
+                   </>
                 )}
-                <span className="font-bold text-xl text-gray-800">{isAgencyMode ? currentAgency.name : 'ViajaStore'}</span>
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                {isAgencyMode 
-                 ? `${currentAgency.description}. Uma agência parceira ViajaStore.` 
+                {isAgencyMode && currentAgency
+                 ? `${currentAgency.description || 'Conheça nossos pacotes e viaje com segurança.'} Uma agência parceira ViajaStore.` 
                  : 'O maior marketplace de turismo do Brasil. Segurança, variedade e os melhores preços para sua próxima aventura.'}
               </p>
             </div>
             
-            {/* Footer Links - Simplified in Agency Mode */}
+            {/* Footer Links - Only show global links if NOT in agency mode */}
             {!isAgencyMode && (
                 <>
                 <div>
@@ -210,7 +239,7 @@ const Layout: React.FC = () => {
                 </>
             )}
 
-            {/* Social Section - Always Visible */}
+            {/* Social Section */}
             <div>
               <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Social</h3>
               <div className="flex space-x-4">
@@ -223,8 +252,8 @@ const Layout: React.FC = () => {
 
           <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-sm text-gray-400 mb-4 md:mb-0">
-              © {new Date().getFullYear()} {isAgencyMode ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
-              {isAgencyMode && <span className="block text-xs mt-1">Powered by ViajaStore</span>}
+              © {new Date().getFullYear()} {isAgencyMode && currentAgency ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
+              {isAgencyMode && <span className="block text-xs mt-1">Powered by ViajaStore Platform</span>}
             </p>
             <div className="flex space-x-6 text-sm text-gray-400">
               <Link to="/privacy" className="hover:text-gray-600">Privacidade</Link>
