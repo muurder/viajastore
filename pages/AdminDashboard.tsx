@@ -3,14 +3,16 @@ import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import { UserRole } from '../types';
-import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, RefreshCw, Activity } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, RefreshCw, Activity, X, AlertTriangle, Check } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { agencies, bookings, trips, reviews, clients, auditLogs, updateAgencySubscription, toggleTripStatus, deleteReview, deleteUser, logAuditAction } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview } = useTheme();
+  const { showToast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS' | 'THEMES' | 'AUDIT' | 'SYSTEM'>('OVERVIEW');
   
@@ -20,6 +22,11 @@ const AdminDashboard: React.FC = () => {
   // Migration State
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
+
+  // Delete Modal State
+  const [userToDelete, setUserToDelete] = useState<{ id: string, role: UserRole, name: string } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Theme Editor State
   const [newTheme, setNewTheme] = useState({
@@ -35,24 +42,45 @@ const AdminDashboard: React.FC = () => {
       const action = currentStatus === 'ACTIVE' ? 'suspender' : 'ativar';
       if(window.confirm(`Tem certeza que deseja ${action} esta agência?`)) {
           updateAgencySubscription(agencyId, currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE', plan);
+          showToast(`Agência ${action === 'ativar' ? 'ativada' : 'suspensa'} com sucesso!`, 'success');
       }
   };
 
   const handleToggleTrip = (tripId: string) => {
-      if(window.confirm('Tem certeza que deseja alterar o status desta viagem?')) {
-          toggleTripStatus(tripId);
-      }
+      // Quick toggle, toast feedback
+      toggleTripStatus(tripId);
+      showToast('Status da viagem alterado.', 'info');
   };
 
-  const handleDeleteUser = async (id: string, role: UserRole, name: string) => {
-      const confirm = prompt(`Para excluir permanentemente ${name}, digite DELETAR abaixo:`);
-      if (confirm === 'DELETAR') {
-          await deleteUser(id, role);
-          alert('Usuário excluído.');
+  // Open Delete Modal
+  const openDeleteModal = (id: string, role: UserRole, name: string) => {
+      setUserToDelete({ id, role, name });
+      setDeleteConfirmation('');
+  };
+
+  // Execute Delete
+  const handleConfirmDelete = async () => {
+      if (!userToDelete) return;
+      if (deleteConfirmation !== 'DELETAR') return;
+
+      setIsDeleting(true);
+      try {
+          await deleteUser(userToDelete.id, userToDelete.role);
+          showToast(`Usuário ${userToDelete.name} excluído com sucesso.`, 'success');
+          logAuditAction('DELETE_USER', `Deleted ${userToDelete.role} - ${userToDelete.name}`);
+          setUserToDelete(null);
+      } catch (error: any) {
+          showToast(`Erro ao excluir: ${error.message}`, 'error');
+      } finally {
+          setIsDeleting(false);
       }
   };
 
   const handleSaveTheme = () => {
+      if (!newTheme.name) {
+          showToast('Nome do tema é obrigatório', 'error');
+          return;
+      }
       const id = `theme-${Date.now()}`;
       addTheme({
           id,
@@ -61,13 +89,15 @@ const AdminDashboard: React.FC = () => {
           isActive: false,
           isDefault: false
       });
-      alert('Tema salvo! Agora você pode ativá-lo.');
+      showToast('Tema salvo com sucesso!', 'success');
       logAuditAction('CREATE_THEME', `Created theme ${newTheme.name}`);
   };
 
   const handleApplyTheme = (id: string) => {
+      // Simple confirm browser alert is okay here for global action, or could be a modal too.
       if(window.confirm('Atenção: Isso alterará as cores do site para TODOS os usuários. Confirmar?')) {
           setTheme(id);
+          showToast('Tema aplicado globalmente.', 'success');
           logAuditAction('CHANGE_THEME', `Applied theme ${id} globally`);
       }
   };
@@ -79,9 +109,11 @@ const AdminDashboard: React.FC = () => {
       try {
           const logs = await migrateData();
           setMigrationLogs(logs || []);
+          showToast('Migração finalizada.', 'success');
       } catch (error) {
           console.error(error);
           setMigrationLogs(prev => [...prev, 'Erro desconhecido ao executar script.']);
+          showToast('Erro na migração.', 'error');
       } finally {
           setIsMigrating(false);
       }
@@ -90,7 +122,6 @@ const AdminDashboard: React.FC = () => {
   // Helper for updating color state and preview
   const updateColor = (type: 'primary' | 'secondary', value: string) => {
     let hex = value;
-    // If user types manually without hash, add it if it looks like a hex
     if (!hex.startsWith('#')) {
         hex = '#' + hex;
     }
@@ -111,7 +142,9 @@ const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pb-12">
+    <div className="max-w-7xl mx-auto pb-12 min-h-screen relative">
+      
+      {/* Header */}
       <div className="flex justify-between items-center mb-8">
          <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
@@ -150,6 +183,7 @@ const AdminDashboard: React.FC = () => {
           })}
       </div>
 
+      {/* CONTENT: OVERVIEW */}
       {activeTab === 'OVERVIEW' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-[fadeIn_0.3s]">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -171,148 +205,159 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: THEMES */}
       {activeTab === 'THEMES' && isMaster && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-[fadeIn_0.3s]">
-              {/* Theme List */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 col-span-1">
-                  <h2 className="text-xl font-bold mb-4">Temas Disponíveis</h2>
-                  <div className="space-y-4">
-                      {themes.map(theme => (
-                          <div key={theme.id} className={`border rounded-xl p-4 ${activeTheme.id === theme.id ? 'border-primary-500 bg-primary-50' : 'border-gray-200'}`}>
-                              <div className="flex justify-between items-center mb-3">
-                                  <span className="font-bold text-gray-900">{theme.name}</span>
-                                  {activeTheme.id === theme.id && <span className="text-xs bg-primary-600 text-white px-2 py-1 rounded-full">Ativo</span>}
-                              </div>
-                              <div className="flex gap-2 mb-4">
-                                  <div className="w-6 h-6 rounded-full shadow-sm" style={{backgroundColor: theme.colors.primary}}></div>
-                                  <div className="w-6 h-6 rounded-full shadow-sm" style={{backgroundColor: theme.colors.secondary}}></div>
-                                  <div className="w-6 h-6 rounded-full shadow-sm border" style={{backgroundColor: theme.colors.background}}></div>
-                              </div>
-                              <div className="flex gap-2">
-                                  {activeTheme.id !== theme.id && (
-                                    <button onClick={() => handleApplyTheme(theme.id)} className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-black">Aplicar</button>
-                                  )}
-                                  <button onClick={() => previewTheme(theme)} className="flex-1 border border-gray-300 text-gray-700 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50"><Eye size={12} className="inline mr-1"/> Preview</button>
-                                  {!theme.isDefault && (
-                                      <button onClick={() => deleteTheme(theme.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button>
-                                  )}
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-
-              {/* Theme Creator */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 col-span-2">
-                  <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-xl font-bold">Criar Novo Tema</h2>
-                      <button onClick={resetPreview} className="text-sm text-gray-500 hover:text-gray-900 flex items-center"><RefreshCw size={14} className="mr-1"/> Resetar Preview</button>
-                  </div>
+          <div className="animate-[fadeIn_0.3s]">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Tema</label>
-                              <input 
-                                value={newTheme.name} 
-                                onChange={e => setNewTheme({...newTheme, name: e.target.value})} 
-                                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
-                                placeholder="Ex: Verão 2024"
-                              />
-                          </div>
-                          
-                          {/* Modern Color Picker - Primary */}
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
-                              <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
-                                  <div className="relative w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg shadow-sm ring-1 ring-black/5 cursor-pointer group">
-                                      <input
-                                        type="color"
-                                        value={newTheme.colors.primary}
-                                        onChange={e => updateColor('primary', e.target.value)}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                      />
-                                      <div 
-                                        className="w-full h-full group-hover:scale-110 transition-transform duration-300" 
-                                        style={{ backgroundColor: newTheme.colors.primary }} 
-                                      />
-                                  </div>
-                                  <div className="relative flex-1">
-                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold select-none">#</span>
-                                      <input 
-                                        type="text"
-                                        value={newTheme.colors.primary.replace('#', '')}
-                                        onChange={e => updateColor('primary', e.target.value)}
-                                        className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-7 pr-3 text-sm font-mono text-gray-700 uppercase focus:ring-2 focus:ring-primary-500 outline-none"
-                                        maxLength={6}
-                                      />
-                                  </div>
-                              </div>
-                          </div>
-
-                          {/* Modern Color Picker - Secondary */}
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
-                              <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
-                                  <div className="relative w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg shadow-sm ring-1 ring-black/5 cursor-pointer group">
-                                      <input
-                                        type="color"
-                                        value={newTheme.colors.secondary}
-                                        onChange={e => updateColor('secondary', e.target.value)}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                      />
-                                      <div 
-                                        className="w-full h-full group-hover:scale-110 transition-transform duration-300" 
-                                        style={{ backgroundColor: newTheme.colors.secondary }} 
-                                      />
-                                  </div>
-                                  <div className="relative flex-1">
-                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold select-none">#</span>
-                                      <input 
-                                        type="text"
-                                        value={newTheme.colors.secondary.replace('#', '')}
-                                        onChange={e => updateColor('secondary', e.target.value)}
-                                        className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-7 pr-3 text-sm font-mono text-gray-700 uppercase focus:ring-2 focus:ring-primary-500 outline-none"
-                                        maxLength={6}
-                                      />
-                                  </div>
-                              </div>
-                          </div>
-
-                          <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-green-500/20 transition-all active:scale-95">
-                              <Save size={18}/> Salvar Tema
-                          </button>
+                  {/* Sidebar: List of Themes */}
+                  <div className="lg:col-span-4 space-y-6">
+                      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Palette size={20}/> Biblioteca de Temas</h2>
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
+                            {themes.map(theme => (
+                                <div key={theme.id} className={`group border rounded-xl p-4 transition-all ${activeTheme.id === theme.id ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="font-bold text-gray-900">{theme.name}</span>
+                                        {activeTheme.id === theme.id && <span className="text-[10px] uppercase tracking-wider font-bold bg-primary-600 text-white px-2 py-0.5 rounded-full">Ativo</span>}
+                                    </div>
+                                    
+                                    {/* Color Dots */}
+                                    <div className="flex gap-2 mb-4">
+                                        <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5" title="Primária" style={{backgroundColor: theme.colors.primary}}></div>
+                                        <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5" title="Secundária" style={{backgroundColor: theme.colors.secondary}}></div>
+                                        <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5 border border-gray-100" title="Fundo" style={{backgroundColor: theme.colors.background}}></div>
+                                    </div>
+                                    
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-2 opacity-100 sm:opacity-60 group-hover:opacity-100 transition-opacity">
+                                        {activeTheme.id !== theme.id && (
+                                            <button onClick={() => handleApplyTheme(theme.id)} className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-1">
+                                                <Check size={12}/> Aplicar
+                                            </button>
+                                        )}
+                                        <button onClick={() => previewTheme(theme)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
+                                            <Eye size={12}/> Preview
+                                        </button>
+                                        {!theme.isDefault && (
+                                            <button onClick={() => deleteTheme(theme.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-colors" title="Excluir Tema">
+                                                <Trash2 size={14}/>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                       </div>
+                  </div>
 
-                      {/* Live Preview Area */}
-                      <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 flex flex-col">
-                          <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
-                              <Activity size={14}/> Preview em Tempo Real
-                          </h3>
+                  {/* Main: Editor & Preview */}
+                  <div className="lg:col-span-8 space-y-6">
+                      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                          <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Criar / Editar Tema</h2>
+                                <p className="text-sm text-gray-500">Personalize as cores da plataforma em tempo real.</p>
+                            </div>
+                            <button onClick={resetPreview} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center bg-gray-100 px-3 py-1.5 rounded-lg transition-colors"><RefreshCw size={14} className="mr-2"/> Resetar</button>
+                          </div>
                           
-                          <div className="space-y-6 flex-1">
-                              <div className="flex flex-wrap gap-3">
-                                  <button className="bg-primary-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-md shadow-primary-500/30 transition-transform hover:-translate-y-0.5">
-                                    Botão Primário
-                                  </button>
-                                  <button className="bg-secondary-500 text-white px-5 py-2.5 rounded-lg font-bold shadow-md shadow-secondary-500/30 transition-transform hover:-translate-y-0.5">
-                                    Botão Secundário
-                                  </button>
-                              </div>
-                              
-                              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                                  <div className="w-10 h-10 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center mb-3">
-                                      <Briefcase size={20} />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              {/* Inputs */}
+                              <div className="space-y-5">
+                                  <div>
+                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nome do Tema</label>
+                                      <input 
+                                          value={newTheme.name} 
+                                          onChange={e => setNewTheme({...newTheme, name: e.target.value})} 
+                                          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none font-medium text-gray-800"
+                                          placeholder="Ex: Verão 2024"
+                                      />
                                   </div>
-                                  <h4 className="text-primary-700 font-bold text-lg mb-2">Título do Card</h4>
-                                  <p className="text-gray-600 text-sm leading-relaxed">
-                                      Este é um exemplo de como o texto e os elementos se comportarão com as novas cores definidas. A tipografia e os ícones se adaptam automaticamente.
-                                  </p>
+                                  
+                                  {/* Color Picker: Primary */}
+                                  <div>
+                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Primária (Marca)</label>
+                                      <div className="flex items-center gap-3">
+                                          <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
+                                              <input 
+                                                type="color" 
+                                                value={newTheme.colors.primary} 
+                                                onChange={e => updateColor('primary', e.target.value)}
+                                                className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"
+                                              />
+                                          </div>
+                                          <div className="flex-1 relative">
+                                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">#</span>
+                                               <input 
+                                                 value={newTheme.colors.primary.replace('#', '')}
+                                                 onChange={e => updateColor('primary', e.target.value)}
+                                                 maxLength={6}
+                                                 className="w-full border border-gray-300 rounded-xl py-3 pl-7 pr-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"
+                                               />
+                                          </div>
+                                      </div>
+                                  </div>
+
+                                  {/* Color Picker: Secondary */}
+                                  <div>
+                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Secundária (Destaque)</label>
+                                      <div className="flex items-center gap-3">
+                                          <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
+                                              <input 
+                                                type="color" 
+                                                value={newTheme.colors.secondary} 
+                                                onChange={e => updateColor('secondary', e.target.value)}
+                                                className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"
+                                              />
+                                          </div>
+                                          <div className="flex-1 relative">
+                                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-sm">#</span>
+                                               <input 
+                                                 value={newTheme.colors.secondary.replace('#', '')}
+                                                 onChange={e => updateColor('secondary', e.target.value)}
+                                                 maxLength={6}
+                                                 className="w-full border border-gray-300 rounded-xl py-3 pl-7 pr-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"
+                                               />
+                                          </div>
+                                      </div>
+                                  </div>
+
+                                  <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-green-500/20 transition-all active:scale-95">
+                                      <Save size={18}/> Salvar Novo Tema
+                                  </button>
                               </div>
 
-                              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 text-primary-800 text-sm font-medium flex items-start gap-3">
-                                  <AlertOctagon className="shrink-0 mt-0.5" size={16}/>
-                                  <span>Alertas e fundos suaves usarão a variação de baixa opacidade da cor primária.</span>
+                              {/* Live Preview Area */}
+                              <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 flex flex-col">
+                                  <div className="flex items-center gap-2 mb-4">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Live Preview</span>
+                                  </div>
+
+                                  <div className="space-y-4 flex-1 flex flex-col justify-center">
+                                      {/* Buttons */}
+                                      <div className="flex gap-2 flex-wrap">
+                                          <button className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-primary-500/20 text-sm">Botão Primário</button>
+                                          <button className="bg-secondary-500 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-secondary-500/20 text-sm">Destaque</button>
+                                          <button className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg font-bold text-sm">Neutro</button>
+                                      </div>
+
+                                      {/* Card */}
+                                      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                          <h4 className="text-primary-700 font-bold text-base mb-1">Título do Exemplo</h4>
+                                          <p className="text-gray-500 text-xs leading-relaxed">
+                                              Assim ficarão os elementos com as novas cores. O sistema gera automaticamente as variações de tom (claro/escuro).
+                                          </p>
+                                          <div className="mt-3 h-1 w-12 bg-secondary-500 rounded-full"></div>
+                                      </div>
+
+                                      {/* Alert */}
+                                      <div className="bg-primary-50 border border-primary-100 text-primary-700 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2">
+                                          <AlertOctagon size={16}/>
+                                          <span>Mensagem de alerta ou info.</span>
+                                      </div>
+                                  </div>
                               </div>
                           </div>
                       </div>
@@ -321,6 +366,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: AUDIT */}
       {activeTab === 'AUDIT' && isMaster && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
               <table className="min-w-full divide-y divide-gray-100">
@@ -351,6 +397,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: AGENCIES */}
       {activeTab === 'AGENCIES' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
              <table className="min-w-full divide-y divide-gray-100">
@@ -385,7 +432,7 @@ const AdminDashboard: React.FC = () => {
                                      {agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Ativar'}
                                  </button>
                                  {isMaster && (
-                                     <button onClick={() => handleDeleteUser(agency.id, UserRole.AGENCY, agency.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                     <button onClick={() => openDeleteModal(agency.id, UserRole.AGENCY, agency.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                  )}
                              </td>
                          </tr>
@@ -395,6 +442,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
       
+      {/* CONTENT: USERS */}
       {activeTab === 'USERS' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
               <table className="min-w-full divide-y divide-gray-100">
@@ -414,7 +462,7 @@ const AdminDashboard: React.FC = () => {
                              <td className="px-6 py-4 text-gray-600 text-sm">{c.cpf || '---'}</td>
                              <td className="px-6 py-4 text-right">
                                 {isMaster && (
-                                     <button onClick={() => handleDeleteUser(c.id, UserRole.CLIENT, c.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                     <button onClick={() => openDeleteModal(c.id, UserRole.CLIENT, c.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                  )}
                              </td>
                          </tr>
@@ -424,6 +472,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: TRIPS */}
       {activeTab === 'TRIPS' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
               <table className="min-w-full divide-y divide-gray-100">
@@ -457,6 +506,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: REVIEWS */}
       {activeTab === 'REVIEWS' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
              <div className="p-4 bg-yellow-50 text-yellow-800 text-sm border-b border-yellow-100 flex items-center">
@@ -488,6 +538,7 @@ const AdminDashboard: React.FC = () => {
           </div>
       )}
 
+      {/* CONTENT: SYSTEM */}
       {activeTab === 'SYSTEM' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
              <div className="flex items-start gap-6 mb-8">
@@ -521,6 +572,57 @@ const AdminDashboard: React.FC = () => {
              </button>
           </div>
       )}
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]">
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="bg-red-100 p-3 rounded-full text-red-600">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-900">Confirmar Exclusão</h3>
+                        <p className="text-sm text-gray-500">Esta ação é irreversível.</p>
+                    </div>
+                </div>
+                
+                <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+                    Você está prestes a excluir permanentemente a conta de <strong>{userToDelete.name}</strong> e todos os dados associados.
+                </p>
+
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                        Digite <span className="text-gray-900">DELETAR</span> para confirmar:
+                    </label>
+                    <input 
+                        type="text" 
+                        value={deleteConfirmation}
+                        onChange={(e) => setDeleteConfirmation(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-red-500 font-mono text-center uppercase placeholder-gray-300"
+                        placeholder="DELETAR"
+                    />
+                </div>
+
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setUserToDelete(null)} 
+                        className="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleConfirmDelete}
+                        disabled={deleteConfirmation !== 'DELETAR' || isDeleting}
+                        className="flex-1 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+                    >
+                        {isDeleting ? <Loader className="animate-spin" size={18}/> : 'Confirmar Exclusão'}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 };
