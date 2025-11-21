@@ -56,8 +56,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           slug: agencyData.slug || slugify(agencyData.name),
           cnpj: agencyData.cnpj || '',
           description: agencyData.description || '',
-          logo: agencyData.logo_url || '',
-          whatsapp: agencyData.whatsapp, // New field
+          logo: agencyData.logo_url || '', // Ensure logo maps to logo_url
+          whatsapp: agencyData.whatsapp, // New field mapped
           subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
           subscriptionPlan: agencyData.subscription_plan || 'BASIC',
           subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
@@ -193,12 +193,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
-        // REMOVED: slug manual generation. The database Trigger handles it now.
+        // Let DB trigger handle slug generation
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
           email: data.email,
-          // slug: slug, // REMOVED - DB Trigger handles this
           cnpj: data.cnpj,
           phone: data.phone,
           description: data.description,
@@ -223,7 +222,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (dbError: any) {
       console.error("DB Upsert Error:", dbError);
-      // Optional: Delete auth user if DB insertion fails to keep consistency
       return { success: true }; 
     }
 
@@ -254,7 +252,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
-        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
+        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp; // Map new field
 
         const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
         if (error) throw error;

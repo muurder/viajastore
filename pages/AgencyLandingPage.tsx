@@ -53,7 +53,7 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // Explicitly fetch only this agency's trips
+  // Explicitly fetch only this agency's trips using ID to avoid leakage
   const trips = getAgencyPublicTrips(agency.id);
 
   // Select a featured trip for the hero
@@ -66,7 +66,7 @@ const AgencyLandingPage: React.FC = () => {
   
   // Filtering Logic specific to this agency's trips
   const filteredTrips = trips.filter(t => {
-    // STRICT CHECK: Must belong to agency
+    // STRICT CHECK: Must belong to agency (already guaranteed by getAgencyPublicTrips(id), but safe to keep)
     if (t.agencyId !== agency.id) return false;
 
     const matchesSearch = 
@@ -103,6 +103,7 @@ const AgencyLandingPage: React.FC = () => {
       setSelectedInterests([]);
   };
 
+  // Contact Logic: WhatsApp Preference
   const handleContact = () => {
       if (agency.whatsapp) {
           const num = agency.whatsapp.replace(/\D/g, '');

@@ -127,9 +127,12 @@ const TripDetails: React.FC = () => {
 
     setIsBookingModalOpen(false);
     
-    // Use state to pass context to Success Page, or just navigate to global success
-    // Ideally, we would have a route /:agencySlug/checkout/success, but standard is fine if navigation history works.
-    navigate('/checkout/success');
+    // Navigate to Scoped Success Page if in microsite, else global
+    if (agencySlug) {
+        navigate(`/${agencySlug}/checkout/success`);
+    } else {
+        navigate('/checkout/success');
+    }
   };
 
   const handleSubmitReview = (e: React.FormEvent) => {
@@ -297,7 +300,7 @@ const TripDetails: React.FC = () => {
             {renderDescription(trip.description)}
           </div>
 
-          {/* Agency Card (Show only if NOT in agency mode, to avoid redundancy, OR keep it for contact) */}
+          {/* Agency Card (Show only if NOT in agency mode, to avoid redundancy) */}
           {agency && !agencySlug && (
              <div className="bg-gray-50 border border-gray-200 p-6 rounded-2xl flex items-center gap-6 hover:shadow-md transition-shadow">
                 <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm" />

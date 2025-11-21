@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { Link, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map } from 'lucide-react';
+import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -72,9 +72,9 @@ const Layout: React.FC = () => {
                               <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover mr-3 border border-gray-200"/>
                           )}
                           <div className="flex flex-col">
-                              <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all">{currentAgency.name}</span>
+                              <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all max-w-[200px]">{currentAgency.name}</span>
                               <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
-                                 Parceiro ViajaStore <ShieldCheck size={10} className="ml-1 text-green-500"/>
+                                 Parceiro Verificado <ShieldCheck size={10} className="ml-1 text-green-500"/>
                               </span>
                           </div>
                         </>
@@ -95,7 +95,7 @@ const Layout: React.FC = () => {
                 )}
               </Link>
 
-              {/* Desktop Menu */}
+              {/* Desktop Menu - ISOLATED */}
               <div className="hidden md:ml-8 md:flex md:space-x-8">
                 {!isAgencyMode ? (
                     <>
@@ -117,10 +117,21 @@ const Layout: React.FC = () => {
             </div>
 
             <div className="hidden md:flex items-center">
+              {isAgencyMode && currentAgency && currentAgency.whatsapp && (
+                 <a 
+                   href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
+                 >
+                   <Smartphone size={16} className="mr-2"/> WhatsApp
+                 </a>
+              )}
+
               {user ? (
                 <div className="ml-4 flex items-center md:ml-6">
                   {user.role === 'AGENCY' && (
-                    <Link to="/agency/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Painel da Agência</Link>
+                    <Link to="/agency/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Painel</Link>
                   )}
                   {user.role === 'ADMIN' && (
                     <Link to="/admin/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Admin</Link>
@@ -223,7 +234,7 @@ const Layout: React.FC = () => {
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
                 {isAgencyMode && currentAgency
-                 ? `${currentAgency.description || 'Conheça nossos pacotes e viaje com segurança.'} Uma agência parceira ViajaStore.` 
+                 ? `${currentAgency.description || 'Conheça nossos pacotes e viaje com segurança.'}` 
                  : 'O maior marketplace de turismo do Brasil. Segurança, variedade e os melhores preços para sua próxima aventura.'}
               </p>
             </div>
@@ -255,13 +266,17 @@ const Layout: React.FC = () => {
             
             {isAgencyMode && (
                <div className="md:col-span-2">
-                   <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato Rápido</h3>
+                   <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato</h3>
                    {currentAgency && (
                       <ul className="space-y-2 text-sm text-gray-600">
-                          {currentAgency.whatsapp && <li>WhatsApp: {currentAgency.whatsapp}</li>}
+                          {currentAgency.whatsapp && (
+                            <li className="flex items-center gap-2">
+                                <Smartphone size={14} /> <a href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="hover:underline hover:text-green-600">WhatsApp: {currentAgency.whatsapp}</a>
+                            </li>
+                          )}
                           {currentAgency.phone && !currentAgency.whatsapp && <li>Telefone: {currentAgency.phone}</li>}
-                          {currentAgency.email && <li>Email: {currentAgency.email}</li>}
-                          {currentAgency.address && <li>{currentAgency.address.city}, {currentAgency.address.state}</li>}
+                          {currentAgency.email && <li className="flex items-center gap-2"><Mail size={14}/> {currentAgency.email}</li>}
+                          {currentAgency.address && <li className="flex items-center gap-2"><Map size={14} /> {currentAgency.address.city}, {currentAgency.address.state}</li>}
                       </ul>
                    )}
                </div>
@@ -281,11 +296,11 @@ const Layout: React.FC = () => {
           <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center">
             <p className="text-sm text-gray-400 mb-4 md:mb-0">
               © {new Date().getFullYear()} {isAgencyMode && currentAgency ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
-              {isAgencyMode && <span className="block text-xs mt-1">Powered by ViajaStore Platform</span>}
+              {isAgencyMode && <span className="block text-xs mt-1 opacity-60">Powered by ViajaStore Platform</span>}
             </p>
             <div className="flex space-x-6 text-sm text-gray-400">
-              <Link to="/privacy" className="hover:text-gray-600">Privacidade</Link>
-              <Link to="/terms" className="hover:text-gray-600">Termos</Link>
+              <Link to={isAgencyMode ? `/${potentialSlug}/privacy` : "/privacy"} className="hover:text-gray-600">Privacidade</Link>
+              <Link to={isAgencyMode ? `/${potentialSlug}/terms` : "/terms"} className="hover:text-gray-600">Termos</Link>
             </div>
           </div>
         </div>

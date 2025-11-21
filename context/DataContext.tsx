@@ -135,7 +135,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         cnpj: a.cnpj,
         description: a.description,
         logo: a.logo_url,
-        whatsapp: a.whatsapp, // Added field
+        whatsapp: a.whatsapp, // Added field mapping
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
         subscriptionExpiresAt: a.subscription_expires_at,
@@ -427,8 +427,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-    // Allow DB trigger to handle slug if empty, or pass provided slug
-    // If slug provided, sanitize it just in case
     const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
 
     const dbTrip: any = {
@@ -481,7 +479,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const dbTrip = {
         title: trip.title,
-        slug: trip.slug, // DB Trigger might interfere if changed, but usually updates respect value
+        slug: trip.slug, 
         description: trip.description,
         destination: trip.destination,
         price: trip.price,
@@ -508,7 +506,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Handle images: delete old ones and insert new ones
-    // Note: Efficient approach would be diffing, but simplistic replace works for small sets
     await supabase.from('trip_images').delete().eq('trip_id', id);
     if (images && images.length > 0) {
       const imageInserts = images.map(url => ({

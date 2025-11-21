@@ -67,6 +67,7 @@ const App: React.FC = () => {
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
                   <Route path=":agencySlug/trips" element={<TripList />} />
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
+                  <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
 
                   {/* Catch all */}
                   <Route path="*" element={<NotFound />} />

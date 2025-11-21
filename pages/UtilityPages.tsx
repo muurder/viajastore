@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Lock, Search } from 'lucide-react';
 
 export const NotFound: React.FC = () => (
@@ -28,25 +29,32 @@ export const Unauthorized: React.FC = () => (
   </div>
 );
 
-export const CheckoutSuccess: React.FC = () => (
-  <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 animate-[fadeIn_0.5s]">
-    <div className="bg-green-100 p-6 rounded-full mb-6">
-      <CheckCircle size={64} className="text-green-600" />
+export const CheckoutSuccess: React.FC = () => {
+  const { agencySlug } = useParams<{ agencySlug?: string }>();
+
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 animate-[fadeIn_0.5s]">
+      <div className="bg-green-100 p-6 rounded-full mb-6">
+        <CheckCircle size={64} className="text-green-600" />
+      </div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">Compra Realizada com Sucesso!</h1>
+      <p className="text-gray-500 mb-8 max-w-lg">
+        Sua viagem está confirmada. Enviamos os detalhes para seu e-mail e o voucher já está disponível no seu painel.
+      </p>
+      <div className="flex gap-4">
+        <Link to="/client/dashboard" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+          Ver Minhas Viagens
+        </Link>
+        <Link 
+          to={agencySlug ? `/${agencySlug}/trips` : "/trips"} 
+          className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+        >
+          Continuar Explorando
+        </Link>
+      </div>
     </div>
-    <h1 className="text-3xl font-bold text-gray-900 mb-2">Compra Realizada com Sucesso!</h1>
-    <p className="text-gray-500 mb-8 max-w-lg">
-      Sua viagem está confirmada. Enviamos os detalhes para seu e-mail e o voucher já está disponível no seu painel.
-    </p>
-    <div className="flex gap-4">
-      <Link to="/client/dashboard" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
-        Ver Minhas Viagens
-      </Link>
-      <Link to="/" className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors">
-        Continuar Explorando
-      </Link>
-    </div>
-  </div>
-);
+  );
+};
 
 export const ForgotPassword: React.FC = () => {
   const [sent, setSent] = useState(false);
