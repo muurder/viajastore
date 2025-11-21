@@ -124,7 +124,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       password,
     });
 
-    if (error) return { success: false, error: 'Email ou senha incorretos.' };
+    if (error) {
+      console.error("Login error:", error);
+      // Traduz mensagem comum, mas deixa outras passarem para debug
+      const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
+      return { success: false, error: msg };
+    }
     return { success: true };
   };
 
@@ -155,20 +160,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     });
 
-    let userId = authData.user?.id;
-
     // Handle "User already registered" scenario gracefully
+    // O erro "Database error finding user" (500) acontece frequentemente quando o usuário foi inserido manualmente via SQL
+    // e o Supabase tenta verificar duplicidade ou criar instâncias conflitantes. Tratamos como "já existe".
     if (authError) {
-        if (authError.message.includes('already registered')) {
-             // Attempt to sign in to get the ID (requires password logic, but for safety we abort 
-             // or we assume the user needs to login. 
-             // However, to fix the "Duplicate Key" issue reported by the user,
-             // we assume the Auth user exists but the Profile data might need updating/creating.
-             // Returning error telling them to login is safer.
-             return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
+        console.error("Signup Error Detailed:", authError);
+        if (authError.message.includes('already registered') || authError.message.includes('Database error finding user')) {
+             return { success: false, error: 'Este e-mail já está cadastrado (ou foi inserido manualmente). Por favor, faça login.' };
         }
         return { success: false, error: authError.message };
     }
+    
+    let userId = authData.user?.id;
     
     // Check if email confirmation is required by Supabase settings
     if (!userId && !authError) return { success: false, error: 'Verifique seu email para confirmar o cadastro.' };
@@ -176,7 +179,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!userId) return { success: false, error: 'Erro ao criar usuário.' };
 
     // 2. Upsert into specific tables
-    // FIX: Using UPSERT prevents "Duplicate key" errors if the trigger ran or if retrying
     try {
       if (role === UserRole.AGENCY) {
         const { error: agencyError } = await supabase.from('agencies').upsert({
@@ -206,8 +208,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (profileError) throw profileError;
       }
     } catch (dbError: any) {
-      console.error(dbError);
-      // Even if DB fails, Auth succeeded. 
+      console.error("DB Upsert Error:", dbError);
+      // Se falhar o upsert mas o auth criou, o usuário existe mas sem perfil.
+      // Em produção, talvez devêssemos deletar o usuário do Auth ou tentar recuperar.
       return { success: true }; 
     }
 
