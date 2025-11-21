@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail } from 'lucide-react';
@@ -10,6 +10,7 @@ const Layout: React.FC = () => {
   const { getAgencyBySlug, loading: dataLoading } = useData();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
   // Detect Agency Mode via URL segments
@@ -24,16 +25,33 @@ const Layout: React.FC = () => {
   ];
   
   const isReserved = reservedRoutes.includes(potentialSlug);
-  const isAgencyMode = !isReserved && !!potentialSlug;
+  let isAgencyMode = !isReserved && !!potentialSlug;
 
-  // Try to find agency data if in agency mode
-  const currentAgency = isAgencyMode ? getAgencyBySlug(potentialSlug) : undefined;
+  // Special Case: If we are on Login/Signup, check if we came from an agency context
+  const fromParam = searchParams.get('from');
+  const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(location.pathname);
+  
+  // If we are on an auth page, we might want to mimic agency mode if 'from' indicates it
+  let preservedAgencySlug = null;
+  if (isAuthPage && fromParam) {
+      const fromSegments = fromParam.split('/').filter(Boolean);
+      const fromSlug = fromSegments[0];
+      if (fromSlug && !reservedRoutes.includes(fromSlug)) {
+          isAgencyMode = true; // Visually treat as agency mode
+          preservedAgencySlug = fromSlug;
+      }
+  }
+
+  const activeSlug = preservedAgencySlug || (isAgencyMode ? potentialSlug : null);
+
+  // Try to find agency data if in agency mode (or preserved context)
+  const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
 
   // Logout Logic: Stay on microsite if in agency mode
   const handleLogout = async () => {
     await logout();
-    if (isAgencyMode) {
-        navigate(`/${potentialSlug}`);
+    if (isAgencyMode && activeSlug) {
+        navigate(`/${activeSlug}`);
     } else {
         navigate('/');
     }
@@ -47,9 +65,15 @@ const Layout: React.FC = () => {
   };
 
   // Home Link Logic - Redirect to agency root if in agency mode
-  const homeLink = isAgencyMode 
-    ? `/${potentialSlug}` 
+  const homeLink = isAgencyMode && activeSlug
+    ? `/${activeSlug}` 
     : '/';
+
+  // Construct Auth Links with "from" parameter to preserve context
+  const getAuthLink = (path: string) => {
+      const currentPath = location.pathname + location.search;
+      return `${path}?from=${encodeURIComponent(currentPath)}`;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
@@ -82,7 +106,7 @@ const Layout: React.FC = () => {
                         // Loading/Fallback or valid slug but data not ready
                         <div className="flex items-center">
                              {!dataLoading ? (
-                               <span className="font-bold text-xl tracking-tight text-gray-800 capitalize">{potentialSlug}</span>
+                               <span className="font-bold text-xl tracking-tight text-gray-800 capitalize">{activeSlug}</span>
                              ) : (
                                <>
                                 <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
@@ -103,12 +127,12 @@ const Layout: React.FC = () => {
                         <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
                         <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                     </>
-                ) : (
+                ) : activeSlug && (
                       <>
-                         <Link to={`/${potentialSlug}`} className={getLinkClasses(`/${potentialSlug}`)}>
+                         <Link to={`/${activeSlug}`} className={getLinkClasses(`/${activeSlug}`)}>
                             <HomeIcon size={16} className="mr-1"/> Início
                          </Link>
-                         <Link to={`/${potentialSlug}/trips`} className={getLinkClasses(`/${potentialSlug}/trips`)}>
+                         <Link to={`/${activeSlug}/trips`} className={getLinkClasses(`/${activeSlug}/trips`)}>
                             <Map size={16} className="mr-1"/> Pacotes
                          </Link>
                       </>
@@ -150,8 +174,8 @@ const Layout: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-4">
-                  <Link to="/login" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
-                  <Link to="/signup" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
+                  <Link to={getAuthLink('/login')} className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
+                  <Link to={getAuthLink('/signup')} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
                 </div>
               )}
             </div>
@@ -174,10 +198,10 @@ const Layout: React.FC = () => {
                     <Link to="/agencies" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Agências</Link>
                     <Link to="/about" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Sobre Nós</Link>
                   </>
-              ) : (
+              ) : activeSlug && (
                   <>
-                    <Link to={`/${potentialSlug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial</Link>
-                    <Link to={`/${potentialSlug}/trips`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Pacotes</Link>
+                    <Link to={`/${activeSlug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial</Link>
+                    <Link to={`/${activeSlug}/trips`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Pacotes</Link>
                   </>
               )}
             </div>
@@ -200,8 +224,8 @@ const Layout: React.FC = () => {
                 </div>
               ) : (
                 <div className="px-4 flex flex-col gap-2">
-                  <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700">Entrar</Link>
-                  <Link to="/signup" onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 bg-primary-600 text-white rounded-lg font-medium">Cadastrar</Link>
+                  <Link to={getAuthLink('/login')} onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700">Entrar</Link>
+                  <Link to={getAuthLink('/signup')} onClick={() => setIsMenuOpen(false)} className="block w-full text-center px-4 py-2 bg-primary-600 text-white rounded-lg font-medium">Cadastrar</Link>
                 </div>
               )}
             </div>
@@ -299,8 +323,8 @@ const Layout: React.FC = () => {
               {isAgencyMode && <span className="block text-xs mt-1 opacity-60">Powered by ViajaStore Platform</span>}
             </p>
             <div className="flex space-x-6 text-sm text-gray-400">
-              <Link to={isAgencyMode ? `/${potentialSlug}/privacy` : "/privacy"} className="hover:text-gray-600">Privacidade</Link>
-              <Link to={isAgencyMode ? `/${potentialSlug}/terms` : "/terms"} className="hover:text-gray-600">Termos</Link>
+              <Link to={activeSlug ? `/${activeSlug}/privacy` : "/privacy"} className="hover:text-gray-600">Privacidade</Link>
+              <Link to={activeSlug ? `/${activeSlug}/terms` : "/terms"} className="hover:text-gray-600">Termos</Link>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | Client | Agency | Admin | null;
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (redirectPath?: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
@@ -161,11 +161,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { success: true };
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (redirectPath?: string) => {
+    const redirectTo = redirectPath 
+        ? `${window.location.origin}/#${redirectPath}` 
+        : `${window.location.origin}/`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`
+        redirectTo: redirectTo
       }
     });
     if (error) console.error("Google login error:", error);

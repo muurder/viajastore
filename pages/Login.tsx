@@ -1,18 +1,44 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { UserRole } from '../types';
-import { Lock, Mail, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 const Login: React.FC = () => {
   const { login, loginWithGoogle } = useAuth();
+  const { getAgencyBySlug } = useData();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
   const [email, setEmail] = useState('juannicolas1@gmail.com');
   const [password, setPassword] = useState('123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Logic to preserve Agency Microsite Context
+  const fromParam = searchParams.get('from');
+  const redirectTo = fromParam || '/';
+  
+  // Detect if we are inside an agency context to update the UI Text
+  let agencyContextName = null;
+  let agencySlug = null;
+  if (fromParam) {
+      const segments = fromParam.split('/').filter(Boolean);
+      if (segments.length > 0) {
+          const potentialSlug = segments[0];
+          // Simple check to exclude global routes
+          const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
+          if (!reservedRoutes.includes(potentialSlug)) {
+              const agency = getAgencyBySlug(potentialSlug);
+              if (agency) {
+                  agencyContextName = agency.name;
+                  agencySlug = potentialSlug;
+              }
+          }
+      }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,24 +48,39 @@ const Login: React.FC = () => {
     const result = await login(email, password);
     
     if (result.success) {
-        navigate('/'); // AuthContext will handle redirect or we let the Layout handle it
+        navigate(redirectTo);
     } else {
         setError(result.error || 'Falha ao fazer login. Verifique suas credenciais.');
         setIsLoading(false);
     }
+  };
+  
+  const handleGoogleLogin = async () => {
+      // Attempt to pass the return URL. 
+      // Note: Supabase OAuth redirects usually go to site root unless configured otherwise.
+      await loginWithGoogle(redirectTo);
   };
 
   return (
     <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900">Bem-vindo de volta</h2>
-          <p className="mt-2 text-sm text-gray-600">Faça login para acessar sua conta</p>
+          {agencySlug && (
+              <Link to={`/${agencySlug}`} className="inline-flex items-center text-sm text-gray-500 hover:text-primary-600 mb-4 transition-colors">
+                  <ArrowLeft size={14} className="mr-1"/> Voltar para {agencyContextName}
+              </Link>
+          )}
+          <h2 className="text-3xl font-extrabold text-gray-900">
+              {agencyContextName ? `Entrar em ${agencyContextName}` : 'Bem-vindo de volta'}
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+              Faça login para continuar {agencyContextName ? 'sua reserva' : 'acessando sua conta'}
+          </p>
         </div>
 
         <button
             type="button"
-            onClick={() => loginWithGoogle()}
+            onClick={handleGoogleLogin}
             className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
@@ -112,7 +153,7 @@ const Login: React.FC = () => {
           )}
 
           <div className="flex items-center justify-between">
-             <Link to="/forgot-password" className="text-sm font-medium text-primary-600 hover:text-primary-500 hover:underline">Esqueci minha senha</Link>
+             <Link to={`/forgot-password${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-medium text-primary-600 hover:text-primary-500 hover:underline">Esqueci minha senha</Link>
           </div>
 
           <button
@@ -125,7 +166,7 @@ const Login: React.FC = () => {
 
           <div className="text-center mt-4">
             <span className="text-sm text-gray-600">Não tem conta? </span>
-            <Link to="/signup" className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">
+            <Link to={`/signup${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">
               Cadastre-se gratuitamente
             </Link>
           </div>

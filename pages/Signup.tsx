@@ -1,13 +1,17 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { UserRole } from '../types';
-import { User, Building, AlertCircle, ArrowRight } from 'lucide-react';
+import { User, Building, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 const Signup: React.FC = () => {
   const { register, loginWithGoogle } = useAuth();
+  const { getAgencyBySlug } = useData();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,6 +20,28 @@ const Signup: React.FC = () => {
     name: '', email: '', password: '', confirmPassword: '',
     phone: '', cpf: '', cnpj: '', description: ''
   });
+
+  // Logic to preserve Agency Microsite Context
+  const fromParam = searchParams.get('from');
+  const redirectTo = fromParam || '/';
+
+  // Detect context to customize UI
+  let agencyContextName = null;
+  let agencySlug = null;
+  if (fromParam) {
+      const segments = fromParam.split('/').filter(Boolean);
+      if (segments.length > 0) {
+          const potentialSlug = segments[0];
+          const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
+          if (!reservedRoutes.includes(potentialSlug)) {
+               const agency = getAgencyBySlug(potentialSlug);
+               if (agency) {
+                   agencyContextName = agency.name;
+                   agencySlug = potentialSlug;
+               }
+          }
+      }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -62,25 +88,36 @@ const Signup: React.FC = () => {
     const result = await register(formData, activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
 
     if (result.success) {
-        navigate('/');
+        navigate(redirectTo);
     } else {
         setError(result.error || 'Erro ao criar conta. Tente novamente.');
     }
     setLoading(false);
+  };
+  
+  const handleGoogleLogin = async () => {
+      await loginWithGoogle(redirectTo);
   };
 
   return (
     <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
+          {agencySlug && (
+              <Link to={`/${agencySlug}`} className="inline-flex items-center text-sm text-gray-500 hover:text-primary-600 mb-4 transition-colors">
+                  <ArrowLeft size={14} className="mr-1"/> Voltar para {agencyContextName}
+              </Link>
+          )}
           <h2 className="text-3xl font-extrabold text-gray-900">Crie sua conta</h2>
-          <p className="mt-2 text-sm text-gray-600">Junte-se ao maior marketplace de viagens do Brasil</p>
+          <p className="mt-2 text-sm text-gray-600">
+              {agencyContextName ? `Cadastre-se para viajar com ${agencyContextName}` : 'Junte-se ao maior marketplace de viagens do Brasil'}
+          </p>
         </div>
 
         {/* Social Login */}
         <button
             type="button"
-            onClick={() => loginWithGoogle()}
+            onClick={handleGoogleLogin}
             className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
             <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
@@ -172,7 +209,7 @@ const Signup: React.FC = () => {
 
         <div className="text-center">
             <span className="text-sm text-gray-600">Já tem conta? </span>
-            <Link to="/login" className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">Fazer Login</Link>
+            <Link to={`/login${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">Fazer Login</Link>
         </div>
       </div>
     </div>
