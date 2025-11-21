@@ -82,6 +82,24 @@ const TripDetails: React.FC = () => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   };
 
+  // Dynamic Headline Generator based on Trip Data
+  const getDynamicHeadline = () => {
+    const city = trip.destination.split(',')[0].trim();
+    const duration = `${trip.durationDays} Dias`;
+    
+    switch (trip.category) {
+        case 'PRAIA': return `🌞 Sol e Mar: ${duration} relaxando em ${city}`;
+        case 'AVENTURA': return `⚡ Aventura Pura: ${duration} explorando ${city}`;
+        case 'ROMANTICO': return `❤️ Escapada Romântica: ${duration} inesquecíveis em ${city}`;
+        case 'FAMILIA': return `👨‍👩‍👧‍👦 Diversão em Família: ${duration} em ${city}`;
+        case 'NATUREZA': return `🍃 Imersão na Natureza: ${duration} em ${city}`;
+        case 'GASTRONOMICO': return `🍷 Sabores de ${city}: Roteiro de ${duration}`;
+        case 'URBANO': return `🏙️ City Tour: ${duration} descobrindo ${city}`;
+        case 'VIDA_NOTURNA': return `🎉 Agito e Diversão: ${duration} em ${city}`;
+        default: return `✨ Experiência Exclusiva: ${duration} em ${city}`;
+    }
+  };
+
   // Function to render description safely (detecting HTML vs Plain Text)
   const renderDescription = (desc: string) => {
       // Simple heuristic: starts with HTML tag or contains common tags
@@ -152,7 +170,10 @@ const TripDetails: React.FC = () => {
                   <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>
               )}
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4 leading-tight">{trip.title}</h1>
+            
+            {/* Dynamic Title Section */}
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 leading-tight">{trip.title}</h1>
+            <p className="text-lg md:text-xl font-medium text-primary-600 mb-5">{getDynamicHeadline()}</p>
             
             <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination}</div>

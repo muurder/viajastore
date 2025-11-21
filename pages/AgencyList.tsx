@@ -1,14 +1,17 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
-import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles } from 'lucide-react';
+import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TripCategory } from '../types';
+
+const ITEMS_PER_PAGE = 9;
 
 const AgencyList: React.FC = () => {
   const { agencies, getAgencyPublicTrips } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Only show agencies that have an active subscription
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE');
@@ -53,6 +56,21 @@ const AgencyList: React.FC = () => {
 
     return matchesSearch && matchesSpecialty;
   });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedSpecialty]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredAgencies.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedAgencies = filteredAgencies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8">
@@ -143,7 +161,7 @@ const AgencyList: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               {filteredAgencies.map(agency => (
+               {paginatedAgencies.map(agency => (
                   <div key={agency.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col">
                      <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-4">
@@ -216,6 +234,37 @@ const AgencyList: React.FC = () => {
                      </button>
                   )}
                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {filteredAgencies.length > ITEMS_PER_PAGE && (
+              <div className="mt-12 flex items-center justify-center gap-2">
+                <button 
+                   onClick={() => handlePageChange(currentPage - 1)}
+                   disabled={currentPage === 1}
+                   className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                   <ChevronLeft size={20} />
+                </button>
+                
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                   <button 
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors ${currentPage === page ? 'bg-primary-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                   >
+                      {page}
+                   </button>
+                ))}
+
+                <button 
+                   onClick={() => handlePageChange(currentPage + 1)}
+                   disabled={currentPage === totalPages}
+                   className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                   <ChevronRight size={20} />
+                </button>
+              </div>
             )}
          </div>
       </div>
