@@ -192,14 +192,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
-        // CHANGE: Generate Slug from name
-        const slug = slugify(data.name);
-        
+        // REMOVED: slug manual generation. The database Trigger handles it now.
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
           email: data.email,
-          slug: slug, // Insert generated slug
+          // slug: slug, // REMOVED - DB Trigger handles this
           cnpj: data.cnpj,
           phone: data.phone,
           description: data.description,
@@ -245,8 +243,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
-        // Allow slug updates if passed, though usually dangerous. 
-        // NOTE: Changing slug breaks existing links.
+        
+        // Slug is auto-updated by DB trigger on name change, but we allow manual override if sent explicitly
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
         
         if ((userData as Agency).description) updates.description = (userData as Agency).description;
