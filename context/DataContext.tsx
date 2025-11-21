@@ -4,6 +4,7 @@ import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../ty
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+import { slugify } from '../utils/slugify';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -80,6 +81,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: t.id,
             agencyId: t.agency_id,
             title: t.title,
+            slug: t.slug || slugify(t.title) + '-' + t.id, // Fallback if empty
             description: t.description,
             destination: t.destination,
             price: Number(t.price),
@@ -402,6 +404,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const dbTrip = {
         agency_id: trip.agencyId,
         title: trip.title,
+        slug: trip.slug || slugify(trip.title) + '-' + Date.now(),
         description: trip.description,
         destination: trip.destination,
         price: trip.price,
@@ -446,6 +449,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
     const dbTrip = {
         title: trip.title,
+        slug: trip.slug || slugify(trip.title),
         description: trip.description,
         destination: trip.destination,
         price: trip.price,

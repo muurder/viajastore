@@ -45,7 +45,7 @@ const normalizeText = (text: string) => {
 };
 
 const Home: React.FC = () => {
-  const { getPublicTrips, agencies } = useData();
+  const { getPublicTrips, agencies, loading } = useData();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   
@@ -64,13 +64,13 @@ const Home: React.FC = () => {
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // Init Hero Featured Trip on Mount or when trips load
-  // UPDATED: Randomly select ANY trip on mount/refresh, ignoring 'featured' flag for the hero slot to ensure variety.
+  // UPDATED: Only set if we have trips and NOT loading, to prevent flickering
   useEffect(() => {
-    if (allTrips.length > 0) {
+    if (!loading && allTrips.length > 0 && !featuredTrip) {
         const randomIndex = Math.floor(Math.random() * allTrips.length);
         setFeaturedTrip(allTrips[randomIndex]);
     }
-  }, [allTrips]); 
+  }, [allTrips, loading, featuredTrip]); 
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -150,18 +150,22 @@ const Home: React.FC = () => {
   return (
     <div className="space-y-12 pb-12">
       {/* 1. Compact Hero Section with Featured Card */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4">
-        <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
-            <img 
-            // Added key to force re-render of image on random change
-            key={featuredTrip?.id}
-            src={featuredTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
-            alt="Hero" 
-            className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
-            />
-            {/* Gradient overlay optimized for text legibility */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent/80 md:to-transparent"></div>
-        </div>
+      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4 bg-gray-900">
+        
+        {/* Hero Background Image or Skeleton */}
+        {(loading || !featuredTrip) ? (
+           <div className="absolute inset-0 bg-gray-800 animate-pulse"></div>
+        ) : (
+           <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
+                <img 
+                key={featuredTrip.id} // Force re-render only when trip changes
+                src={featuredTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
+                alt="Hero" 
+                className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent/80 md:to-transparent"></div>
+           </div>
+        )}
         
         <div className="relative z-10 px-6 md:px-12 w-full max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
           
@@ -193,8 +197,15 @@ const Home: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Content: Featured Trip Card */}
-          {featuredTrip && (
+          {/* Right Content: Featured Trip Card OR Skeleton */}
+          {(loading || !featuredTrip) ? (
+            <div className="w-full md:w-80 h-80 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/10 p-4 animate-pulse mt-4 md:mt-0">
+               <div className="w-full h-32 bg-white/10 rounded-xl mb-3"></div>
+               <div className="h-6 w-3/4 bg-white/10 rounded mb-2"></div>
+               <div className="h-4 w-1/2 bg-white/10 rounded mb-4"></div>
+               <div className="h-10 w-full bg-white/10 rounded"></div>
+            </div>
+          ) : (
             <div key={featuredTrip.id} className="w-full md:w-auto md:max-w-xs animate-[scaleIn_0.8s] mt-4 md:mt-0">
                <Link to={`/trip/${featuredTrip.id}`} className="block bg-white/95 backdrop-blur-sm p-4 rounded-2xl shadow-2xl hover:scale-105 transition-transform duration-300 border border-white/20">
                   <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-gray-100">
@@ -318,7 +329,24 @@ const Home: React.FC = () => {
               </Link>
             </div>
             
-            {displayedTrips.length > 0 ? (
+            {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                        <div key={n} className="bg-white rounded-2xl border border-gray-100 overflow-hidden h-full flex flex-col shadow-sm">
+                            <div className="h-48 bg-gray-200 animate-pulse"></div>
+                            <div className="p-5 flex-1 space-y-3">
+                                <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                                <div className="h-6 bg-gray-200 rounded w-full animate-pulse"></div>
+                                <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+                                <div className="mt-auto pt-4 flex justify-between items-center">
+                                    <div className="h-6 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : displayedTrips.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">
                 {displayedTrips.map(trip => (
                 <TripCard key={trip.id} trip={trip} />
@@ -384,21 +412,34 @@ const Home: React.FC = () => {
          </div>
          
          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {activeAgencies.map(agency => (
-                <Link key={agency.id} to={`/agency/${agency.id}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary-100 transition-all text-center group flex flex-col items-center relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-primary-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
-                    <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100 group-hover:border-primary-500 transition-colors shadow-sm"/>
-                    <h3 className="font-bold text-gray-900 text-sm mb-1 group-hover:text-primary-600 transition-colors line-clamp-1">{agency.name}</h3>
-                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center mt-2"><ArrowRight size={10} className="mr-1"/> Verificado</span>
+            {loading ? (
+                // Agency Skeletons
+                [1,2,3,4,5].map(n => (
+                    <div key={n} className="bg-white border border-gray-100 p-6 rounded-2xl flex flex-col items-center">
+                        <div className="w-14 h-14 rounded-full bg-gray-200 mb-4 animate-pulse"></div>
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2"></div>
+                        <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                ))
+            ) : (
+                <>
+                {activeAgencies.map(agency => (
+                    <Link key={agency.id} to={`/agency/${agency.id}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary-100 transition-all text-center group flex flex-col items-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-primary-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                        <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100 group-hover:border-primary-500 transition-colors shadow-sm"/>
+                        <h3 className="font-bold text-gray-900 text-sm mb-1 group-hover:text-primary-600 transition-colors line-clamp-1">{agency.name}</h3>
+                        <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center mt-2"><ArrowRight size={10} className="mr-1"/> Verificado</span>
+                    </Link>
+                ))}
+                <Link to="/signup" className="bg-gray-50 border-2 border-dashed border-gray-200 p-4 rounded-2xl hover:bg-gray-100 hover:border-gray-300 transition-all text-center flex flex-col items-center justify-center text-gray-400 group h-full min-h-[180px]">
+                    <div className="bg-white p-3 rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                    <Building size={24} className="text-gray-400 group-hover:text-primary-500 transition-colors" />
+                    </div>
+                    <h3 className="font-bold text-sm text-gray-500 group-hover:text-gray-800">Sua Agência Aqui</h3>
+                    <p className="text-[10px] mt-1 max-w-[100px]">Cadastre-se e venda seus pacotes</p>
                 </Link>
-            ))}
-            <Link to="/signup" className="bg-gray-50 border-2 border-dashed border-gray-200 p-4 rounded-2xl hover:bg-gray-100 hover:border-gray-300 transition-all text-center flex flex-col items-center justify-center text-gray-400 group h-full min-h-[180px]">
-                <div className="bg-white p-3 rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform">
-                   <Building size={24} className="text-gray-400 group-hover:text-primary-500 transition-colors" />
-                </div>
-                <h3 className="font-bold text-sm text-gray-500 group-hover:text-gray-800">Sua Agência Aqui</h3>
-                <p className="text-[10px] mt-1 max-w-[100px]">Cadastre-se e venda seus pacotes</p>
-            </Link>
+                </>
+            )}
          </div>
       </div>
     </div>

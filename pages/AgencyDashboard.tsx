@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
+import { slugify } from '../utils/slugify';
 import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag, AlignLeft, Heading, RotateCcw, Underline, ListOrdered } from 'lucide-react';
 
 // --- CONSTANTS ---
@@ -277,6 +278,7 @@ const AgencyDashboard: React.FC = () => {
   // Trip Form State
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', 
+    slug: '',
     destination: '', 
     price: 0, 
     category: 'PRAIA', 
@@ -287,6 +289,7 @@ const AgencyDashboard: React.FC = () => {
     images: [], 
     itinerary: []
   });
+  const [slugTouched, setSlugTouched] = useState(false);
 
   // Init form with current data
   useEffect(() => {
@@ -318,14 +321,31 @@ const AgencyDashboard: React.FC = () => {
   // Handlers
   const handleOpenCreate = () => {
     setEditingTripId(null);
-    setTripForm({ title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: [] });
+    setTripForm({ title: '', slug: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: [] });
+    setSlugTouched(false);
     setViewMode('FORM');
   };
 
   const handleOpenEdit = (trip: Trip) => {
     setEditingTripId(trip.id);
     setTripForm({ ...trip, itinerary: trip.itinerary || [], tags: trip.tags || [], paymentMethods: trip.paymentMethods || [] });
+    setSlugTouched(true); // Assume existing slugs are final or manually controlled
     setViewMode('FORM');
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newTitle = e.target.value;
+      const updates: any = { title: newTitle };
+      
+      if (!slugTouched) {
+          updates.slug = slugify(newTitle);
+      }
+      setTripForm({ ...tripForm, ...updates });
+  };
+
+  const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSlugTouched(true);
+      setTripForm({ ...tripForm, slug: slugify(e.target.value) });
   };
 
   const handleTripSubmit = async (e: React.FormEvent) => {
@@ -655,8 +675,20 @@ const AgencyDashboard: React.FC = () => {
                      <div className="space-y-4">
                         <div>
                             <label className="font-bold block mb-1 text-sm text-gray-700">Título da Viagem</label>
-                            <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow" placeholder="Ex: Expedição Jalapão 4x4" />
+                            <input value={tripForm.title} onChange={handleTitleChange} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow" placeholder="Ex: Expedição Jalapão 4x4" />
                         </div>
+                        
+                        <div>
+                            <label className="font-bold block mb-1 text-sm text-gray-700">Slug da URL (Gerado automaticamente)</label>
+                            <input 
+                                value={tripForm.slug} 
+                                onChange={handleSlugChange}
+                                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none font-mono text-sm text-gray-600 bg-gray-50" 
+                                placeholder="ex: expedicao-jalapao-4x4" 
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Este será o endereço da página da viagem.</p>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label className="font-bold block mb-1 text-sm text-gray-700">Preço (R$)</label>

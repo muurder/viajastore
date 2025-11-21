@@ -282,11 +282,13 @@ MOCK_AGENCIES.forEach((agency) => {
 
   specs.forEach((spec, i) => {
     const uniqueTags = getTags(spec.cat, spec.dest, spec.tags);
+    const id = `t_${agency.id}_${i}`;
 
     generatedTrips.push({
-      id: `t_${agency.id}_${i}`,
+      id: id,
       agencyId: agency.id,
       title: spec.title,
+      slug: slugify(spec.title) + `-${id}`, // Generate simple slug
       description: spec.desc,
       destination: spec.dest,
       price: spec.price,

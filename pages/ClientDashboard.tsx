@@ -16,7 +16,10 @@ const ClientDashboard: React.FC = () => {
   const [loadingCep, setLoadingCep] = useState(false);
   const navigate = useNavigate();
 
-  const currentClient = user as any;
+  // FIX: Prioritize data from DataContext (clients) which contains the live updated favorites list.
+  // Fallback to AuthContext (user) only if DataContext hasn't loaded yet.
+  const dataContextClient = clients.find(c => c.id === user?.id);
+  const currentClient = dataContextClient || (user as any);
 
   // Forms State
   const [editForm, setEditForm] = useState({
@@ -44,7 +47,10 @@ const ClientDashboard: React.FC = () => {
   if (!user || user.role !== UserRole.CLIENT) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
   const myBookings = bookings.filter(b => b.clientId === user.id);
-  const favoriteTrips = currentClient.favorites ? currentClient.favorites.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined) : [];
+  
+  // FIX: Calculate favorites based on the updated client data from DataContext
+  const favoriteIds = dataContextClient?.favorites || [];
+  const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined);
 
   // Handlers
   const handleLogout = async () => {
@@ -263,6 +269,7 @@ const ClientDashboard: React.FC = () => {
                   <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
                    <Heart size={32} className="text-gray-300 mx-auto mb-4" />
                    <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3>
+                   <p className="text-gray-500 mt-2">Você ainda não favoritou nenhuma viagem.</p>
                  </div>
                )}
              </div>

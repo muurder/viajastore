@@ -93,6 +93,7 @@ export interface Trip {
   id: string;
   agencyId: string;
   title: string;
+  slug: string; // SEO friendly URL
   description: string;
   destination: string;
   price: number;
