@@ -87,6 +87,7 @@ export const migrateData = async () => {
         .insert({
             agency_id: newAgencyId,
             title: trip.title,
+            slug: trip.slug, // Included slug field
             description: trip.description,
             destination: trip.destination,
             price: trip.price,
