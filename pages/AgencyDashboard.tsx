@@ -453,6 +453,18 @@ const AgencyDashboard: React.FC = () => {
                      <h3 className="font-bold border-b pb-2 mb-4">Galeria de Imagens</h3>
                      <ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} />
                  </section>
+
+                 {/* Duplicate Buttons Section */}
+                 <div className="flex justify-end gap-3 border-t pt-6 mt-8">
+                    <Link 
+                        to={myAgency.slug ? `/${myAgency.slug}/viagem/${tripForm.slug}` : `/viagem/${tripForm.slug}`} 
+                        target="_blank" 
+                        className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"
+                    >
+                        <Eye size={18} className="mr-2"/> Preview
+                    </Link>
+                    <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
+                 </div>
              </div>
          </div>
       )}
