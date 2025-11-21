@@ -43,6 +43,7 @@ interface DataContextType {
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
+  getTripBySlug: (slug: string) => Trip | undefined; // NEW
   getAgencyBySlug: (slug: string) => Agency | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
@@ -331,8 +332,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- ACTIONS ---
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
-    const currentClient = clients.find(c => c.id === clientId);
-    const isCurrentlyFavorite = currentClient?.favorites.includes(tripId);
+    const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
+    const isCurrentlyFavorite = currentClient.favorites.includes(tripId);
+    
+    // Optimistic Update
+    const updatedFavorites = isCurrentlyFavorite 
+      ? currentClient.favorites.filter(id => id !== tripId)
+      : [...currentClient.favorites, tripId];
+
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: updatedFavorites } : c));
 
     try {
         if (isCurrentlyFavorite) {
@@ -346,13 +354,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (error) throw error;
             showToast('Adicionado aos favoritos', 'success');
         }
-        
-        // Optimistic Update / Refresh
-        await fetchFavorites(); 
-
+        // We don't strictly need to fetch again if optimistic update worked, but it's safer for consistency
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
         showToast('Erro ao atualizar favoritos', 'error');
+        // Revert Optimistic Update on Error
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
     }
   };
 
@@ -419,10 +426,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
+    // Ensure slug is unique by appending timestamp or random string if not provided
+    const tripSlug = trip.slug || slugify(trip.title) + '-' + Math.floor(Math.random() * 10000);
+
     const dbTrip = {
         agency_id: trip.agencyId,
         title: trip.title,
-        slug: trip.slug || slugify(trip.title) + '-' + Date.now(),
+        slug: tripSlug,
         description: trip.description,
         destination: trip.destination,
         price: trip.price,
@@ -567,6 +577,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string) => trips.find(t => t.id === id);
+  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); // Case sensitive match preferred for slugs
   // Case-insensitive slug search
   const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug.toLowerCase() === slug.toLowerCase());
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
@@ -591,7 +602,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       deleteUser, logAuditAction,
-      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getAgencyBySlug, getReviewsByTripId,
+      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
       {!loading && children}

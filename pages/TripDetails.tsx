@@ -1,13 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const { getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients } = useData();
+  const { slug } = useParams<{ slug: string }>();
+  const { getTripBySlug, getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -19,9 +19,31 @@ const TripDetails: React.FC = () => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
-  const trip = getTripById(id || '');
+  // Try to get by slug first, fallback to ID logic if needed (though component structure assumes slug now)
+  const trip = slug ? getTripBySlug(slug) : undefined;
+
+  // SEO / Metadata Update
+  useEffect(() => {
+      if (trip) {
+          document.title = `${trip.title} | ViajaStore`;
+          // In a real SSR app, you'd update meta tags here too
+      }
+  }, [trip]);
   
-  if (!trip) return <div className="min-h-screen flex items-center justify-center"><div className="text-xl font-bold text-gray-500">Viagem não encontrada.</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
+
+  if (!trip) return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="bg-gray-100 p-6 rounded-full mb-6">
+          <Search size={48} className="text-gray-400" />
+        </div>
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">Viagem não encontrada</h1>
+        <p className="text-gray-500 mb-8 max-w-md">O pacote que você procura não existe ou foi removido.</p>
+        <Link to="/trips" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+          Explorar outras viagens
+        </Link>
+      </div>
+  );
 
   const agency = agencies.find(a => a.id === trip.agencyId);
   const totalPrice = trip.price * passengers;
@@ -46,7 +68,6 @@ const TripDetails: React.FC = () => {
 
   const handleBooking = () => {
     if (!user) {
-      // Save intention to redirect back? For now simple redirect
       navigate('/login');
       return;
     }
@@ -95,7 +116,6 @@ const TripDetails: React.FC = () => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   };
 
-  // Dynamic Headline Generator based on Trip Data
   const getDynamicHeadline = () => {
     const city = trip.destination.split(',')[0].trim();
     const duration = `${trip.durationDays} Dias`;
@@ -113,25 +133,23 @@ const TripDetails: React.FC = () => {
     }
   };
 
-  // Function to render description safely (detecting HTML vs Plain Text)
   const renderDescription = (desc: string) => {
-      // Simple heuristic: starts with HTML tag or contains common tags
+      // Basic sanitization by only allowing specific tags or structure if using dangerous HTML
+      // Since we are building an MVP, we assume the Agency Dashboard editor outputs relatively safe HTML
       const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
       
       if (isHTML) {
           return (
               <div 
-                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4"
+                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
                 dangerouslySetInnerHTML={{ __html: desc }} 
               />
           );
       }
-      // Fallback for old plain text descriptions
       return <p className="leading-relaxed whitespace-pre-line">{desc}</p>;
   };
 
   const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
-  // Create a safe gallery array even if images are missing
   const galleryImages = trip.images && trip.images.length > 0 
     ? trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4)
     : [mainImage, mainImage, mainImage, mainImage];
@@ -147,16 +165,15 @@ const TripDetails: React.FC = () => {
           <span className="text-gray-900 font-medium truncate max-w-[200px]">{trip.title}</span>
       </div>
 
-      {/* Images Grid - Gallery Style */}
+      {/* Images Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[400px] md:h-[500px] shadow-lg">
         <div className="md:col-span-2 h-full relative group">
            <img 
             src={mainImage} 
-            alt="Main" 
+            alt={trip.title} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
             onError={handleImageError}
            />
-           <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
         </div>
         <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
           {galleryImages.map((img, idx) => (
@@ -184,7 +201,6 @@ const TripDetails: React.FC = () => {
               )}
             </div>
             
-            {/* Dynamic Title Section with Favorite Button */}
             <div className="flex items-start justify-between gap-4 mb-2">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title}</h1>
                 <button
@@ -208,7 +224,6 @@ const TripDetails: React.FC = () => {
                <div className="flex items-center font-medium"><Star className="text-amber-400 fill-current mr-2" size={18}/> {trip.rating.toFixed(1)} <span className="text-gray-400 font-normal ml-1">({trip.totalReviews} avaliações)</span></div>
             </div>
 
-            {/* Tags & Travelers Display */}
             <div className="flex flex-wrap gap-4 mt-6">
                 {trip.tags && trip.tags.length > 0 && (
                     <div className="flex items-start">
@@ -216,16 +231,6 @@ const TripDetails: React.FC = () => {
                          <div className="flex flex-wrap gap-2">
                              {trip.tags.map((tag, i) => (
                                  <span key={i} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-medium">{tag}</span>
-                             ))}
-                         </div>
-                    </div>
-                )}
-                {trip.travelerTypes && trip.travelerTypes.length > 0 && (
-                    <div className="flex items-start">
-                         <Users size={16} className="text-gray-400 mr-2 mt-1" />
-                         <div className="flex flex-wrap gap-2">
-                             {trip.travelerTypes.map((type, i) => (
-                                 <span key={i} className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-xs font-medium uppercase">{type.replace('_', ' ')}</span>
                              ))}
                          </div>
                     </div>
@@ -249,7 +254,7 @@ const TripDetails: React.FC = () => {
                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">Organizado por</p>
                    <h4 className="text-xl font-bold text-gray-900 mb-1">{agency.name}</h4>
                    <p className="text-sm text-gray-600 line-clamp-1 mb-3">{agency.description}</p>
-                   <Link to={`/agency/${agency.id}`} className="text-primary-600 text-sm font-bold hover:underline">
+                   <Link to={`/${agency.slug}`} className="text-primary-600 text-sm font-bold hover:underline">
                      Ver perfil da agência &rarr;
                    </Link>
                 </div>
@@ -287,25 +292,6 @@ const TripDetails: React.FC = () => {
                     )}
                 </div>
              )}
-
-             <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <button onClick={() => toggleAccordion('faq')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
-                    <span>Perguntas Frequentes</span>
-                    {openAccordion === 'faq' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                </button>
-                {openAccordion === 'faq' && (
-                    <div className="p-4 bg-white space-y-4 animate-[fadeIn_0.2s]">
-                       <div>
-                          <p className="font-bold text-sm text-gray-900">Posso cancelar?</p>
-                          <p className="text-sm text-gray-600">Cancelamentos gratuitos até 7 dias antes da viagem.</p>
-                       </div>
-                       <div>
-                          <p className="font-bold text-sm text-gray-900">É seguro?</p>
-                          <p className="text-sm text-gray-600">Sim, todas as agências são verificadas pela ViajaStore.</p>
-                       </div>
-                    </div>
-                )}
-             </div>
           </div>
 
           {/* Reviews Section */}
@@ -323,7 +309,6 @@ const TripDetails: React.FC = () => {
                 )}
              </div>
              
-             {/* Review Form */}
              {canReview && (
                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 mb-10">
                  <h4 className="font-bold text-gray-900 mb-3">Como foi sua experiência?</h4>
@@ -371,12 +356,6 @@ const TripDetails: React.FC = () => {
                        <span className="text-xs text-gray-400">{new Date(review.date).toLocaleDateString()}</span>
                     </div>
                     <p className="text-gray-600 text-sm pl-14 leading-relaxed">{review.comment}</p>
-                    {review.response && (
-                        <div className="ml-14 mt-3 bg-gray-50 p-3 rounded-lg border-l-4 border-primary-300">
-                            <p className="text-xs font-bold text-primary-700 mb-1">Resposta da Agência:</p>
-                            <p className="text-xs text-gray-600">{review.response}</p>
-                        </div>
-                    )}
                  </div>
                )) : (
                  <div className="text-center py-10">
@@ -477,31 +456,12 @@ const TripDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="mb-8">
-              <p className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Método de Pagamento (Simulado)</p>
-              <div className="grid grid-cols-1 gap-3">
-                 <label className="flex items-center p-4 border border-primary-500 bg-primary-50 rounded-xl cursor-pointer transition-all">
-                    <input type="radio" name="payment" defaultChecked className="w-5 h-5 text-primary-600 focus:ring-primary-500" />
-                    <span className="ml-3 font-bold text-primary-900">Cartão de Crédito</span>
-                    <span className="ml-auto text-xs bg-white text-primary-600 px-2 py-1 rounded font-bold">Recomendado</span>
-                 </label>
-                 <label className="flex items-center p-4 border border-gray-200 hover:bg-gray-50 rounded-xl cursor-pointer transition-all opacity-60">
-                    <input type="radio" name="payment" disabled className="w-5 h-5 text-gray-300" />
-                    <span className="ml-3 font-medium text-gray-500">PIX (Indisponível no protótipo)</span>
-                 </label>
-              </div>
-            </div>
-
             <button 
               onClick={handleBooking}
               className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg"
             >
               Pagar e Confirmar Reserva
             </button>
-            
-            <p className="text-center text-xs text-gray-400 mt-4 flex items-center justify-center">
-               <Lock size={12} className="mr-1"/> Ambiente 100% Seguro
-            </p>
           </div>
         </div>
       )}

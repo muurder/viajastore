@@ -260,7 +260,7 @@ const ClientDashboard: React.FC = () => {
 
            {activeTab === 'FAVORITES' && (
              <div className="animate-[fadeIn_0.3s]">
-               <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos</h2>
+               <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
                {favoriteTrips.length > 0 ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))}

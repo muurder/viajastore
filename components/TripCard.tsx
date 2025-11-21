@@ -5,6 +5,7 @@ import { MapPin, Star, Heart, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useToast } from '../context/ToastContext';
 
 interface TripCardProps {
   trip: Trip;
@@ -13,6 +14,7 @@ interface TripCardProps {
 const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
   const { toggleFavorite, clients } = useData();
+  const { showToast } = useToast();
   const [imgError, setImgError] = useState(false);
 
   // Ensure clients data is loaded and use current user's favorites
@@ -20,12 +22,18 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const isFavorite = user?.role === 'CLIENT' && currentUserData?.favorites.includes(trip.id);
 
   const handleFavorite = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (user?.role === 'CLIENT') {
+    e.preventDefault(); // Prevent Link navigation
+    e.stopPropagation(); // Stop bubbling
+    
+    if (!user) {
+      showToast('Faça login para favoritar.', 'info');
+      return;
+    }
+
+    if (user.role === 'CLIENT') {
       toggleFavorite(trip.id, user.id);
     } else {
-      // Optional: Prompt login
+      showToast('Apenas viajantes podem favoritar.', 'warning');
     }
   };
 
@@ -49,7 +57,7 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     : trip.images[0];
 
   return (
-    <Link to={`/trip/${trip.id}`} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
+    <Link to={`/viagem/${trip.slug || trip.id}`} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
       <div className="relative h-48 w-full overflow-hidden bg-gray-100">
         <img 
           src={displayImage} 
@@ -57,16 +65,16 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
           onError={() => setImgError(true)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
-        {user?.role === 'CLIENT' && (
-            <div className="absolute top-3 right-3 z-10">
-            <button 
-                onClick={handleFavorite}
-                className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-100' : 'bg-white/80 text-gray-500 hover:bg-white hover:text-red-500'}`}
-            >
-                <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
-            </button>
-            </div>
-        )}
+        
+        <div className="absolute top-3 right-3 z-10">
+        <button 
+            onClick={handleFavorite}
+            className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-100' : 'bg-white/80 text-gray-500 hover:bg-white hover:text-red-500'}`}
+        >
+            <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
+        </button>
+        </div>
+
         <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10 shadow-lg">
           {trip.category.replace('_', ' ')}
         </div>

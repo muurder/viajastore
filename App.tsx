@@ -33,7 +33,8 @@ const App: React.FC = () => {
                   
                   {/* Main Content Routes */}
                   <Route path="trips" element={<TripList />} />
-                  <Route path="trip/:id" element={<TripDetails />} />
+                  {/* Rota atualizada para usar slug e prefixo 'viagem' */}
+                  <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} />
                   
@@ -65,9 +66,7 @@ const App: React.FC = () => {
                   {/* MUST be placed after specific paths to avoid collisions */}
                   <Route path=":slug" element={<AgencyLandingPage />} />
 
-                  {/* Catch all (handled by 404 inside AgencyLandingPage if slug not found, or strictly here if needed) */}
-                  {/* Note: With :slug being a catch-all for 1-level deep paths, real 404s will effectively go to AgencyLandingPage 
-                      and render its internal "Not Found" state. We keep * for deep nested 404s. */}
+                  {/* Catch all */}
                   <Route path="*" element={<NotFound />} />
                 </Route>
               </Routes>

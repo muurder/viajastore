@@ -7,47 +7,53 @@ import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag, AlignLeft, Heading, RotateCcw, Underline, ListOrdered, Star } from 'lucide-react';
-
-// --- CONSTANTS ---
-const COMMON_TAGS = ['Natureza', 'Aventura', 'História', 'Relax', 'Romântico', 'Família', 'Gastronomia', 'Luxo', 'Ecoturismo', 'Mochilão', 'Praia', 'Montanha', 'Urbano', 'Cultural'];
-const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da Manhã', 'Passagem Aérea', 'Translado', 'Seguro Viagem', 'Guia Turístico', 'Passeios', 'Ingressos', 'Jantar', 'Almoço', 'Wi-Fi', 'Kit Boas-vindas'];
-const PAYMENT_OPTIONS = [
-    { id: 'CREDIT_CARD', label: 'Cartão de Crédito' },
-    { id: 'PIX', label: 'PIX' },
-    { id: 'BOLETO', label: 'Boleto Bancário' },
-    { id: 'TRANSFER', label: 'Transferência Bancária' },
-    { id: 'CASH', label: 'Dinheiro' }
-];
-
-// --- COMPONENTS AUXILIARES ---
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const { showToast } = useToast();
+
   const execCmd = (command: string, arg?: string) => {
     document.execCommand(command, false, arg);
     if (contentRef.current) onChange(contentRef.current.innerHTML);
   };
+
   useEffect(() => {
     if (contentRef.current && contentRef.current.innerHTML !== value) {
+       // Only update if drastically different to avoid cursor jumps, simple check
        if (value === '' || contentRef.current.innerHTML === '') contentRef.current.innerHTML = value;
     }
-  }, []);
+  }, [value]);
+
   const handleInput = () => {
       if (contentRef.current) onChange(contentRef.current.innerHTML);
   };
+
+  const addLink = () => {
+      const url = prompt('Digite a URL:');
+      if(url) execCmd('createLink', url);
+  };
+
   return (
     <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm">
       <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
-        <button type="button" onClick={() => execCmd('bold')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors"><Bold size={18}/></button>
-        <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors"><Italic size={18}/></button>
-        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors"><List size={18}/></button>
+        <button type="button" onClick={() => execCmd('bold')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Negrito"><Bold size={16}/></button>
+        <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Itálico"><Italic size={16}/></button>
+        <div className="w-px h-4 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Título 1"><Heading1 size={16}/></button>
+        <button type="button" onClick={() => execCmd('formatBlock', 'H4')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Título 2"><Heading2 size={16}/></button>
+        <div className="w-px h-4 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista com marcadores"><List size={16}/></button>
+        <button type="button" onClick={() => execCmd('insertOrderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista numerada"><ListOrdered size={16}/></button>
+        <div className="w-px h-4 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={addLink} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Inserir Link"><LinkIcon size={16}/></button>
       </div>
       <div 
         ref={contentRef}
         contentEditable
         onInput={handleInput}
-        className="w-full p-4 min-h-[200px] outline-none text-sm leading-relaxed text-gray-700 prose prose-sm max-w-none"
+        className="w-full p-4 min-h-[250px] outline-none text-sm leading-relaxed text-gray-700 prose prose-sm max-w-none"
       />
     </div>
   );
@@ -77,7 +83,7 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
       if (newImages.length > 0) onChange([...images, ...newImages]);
       showToast('Imagens enviadas com sucesso!', 'success');
     } catch (error: any) {
-      showToast('Erro no upload. Verifique se está logado.', 'error');
+      showToast('Erro no upload. Verifique se está logado e tem permissão.', 'error');
     } finally {
       setUploading(false);
     }
@@ -88,7 +94,7 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
       <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors ${uploading ? 'opacity-50' : ''}`}>
             <input type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
             {uploading ? <Loader className="animate-spin text-primary-600" /> : <Upload className="text-gray-400" />}
-            <span className="text-sm font-medium text-gray-500 mt-2">{uploading ? 'Enviando...' : 'Clique para Upload de Imagens'}</span>
+            <span className="text-sm font-medium text-gray-500 mt-2">{uploading ? 'Enviando...' : 'Clique ou arraste para enviar fotos'}</span>
       </label>
       {images.length > 0 && (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
@@ -106,7 +112,7 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, updateUser, uploadImage } = useAuth();
+  const { user, updateUser } = useAuth();
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
   const { showToast } = useToast();
   
@@ -149,8 +155,28 @@ const AgencyDashboard: React.FC = () => {
   const handleOpenEdit = (trip: Trip) => {
     setEditingTripId(trip.id);
     setTripForm({ ...trip, itinerary: trip.itinerary || [], tags: trip.tags || [], paymentMethods: trip.paymentMethods || [] });
-    setSlugTouched(true);
+    setSlugTouched(true); // Assuming if editing, slug is already set
     setViewMode('FORM');
+  };
+
+  const handleDuplicateTrip = async (trip: Trip) => {
+      if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
+      
+      const duplicatedTrip = {
+          ...trip,
+          title: `${trip.title} (Cópia)`,
+          slug: '', // Let backend or create logic generate new slug
+          active: false, // Start as draft
+          views: 0,
+          sales: 0
+      };
+      
+      try {
+          await createTrip(duplicatedTrip);
+          showToast('Pacote duplicado com sucesso!', 'success');
+      } catch (err) {
+          showToast('Erro ao duplicar pacote.', 'error');
+      }
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -215,6 +241,7 @@ const AgencyDashboard: React.FC = () => {
              <h1 className="text-2xl font-bold text-gray-900">{myAgency.name}</h1>
              <div className="flex items-center gap-3 mt-1">
                 {isActive ? <p className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={12}/> Ativo</p> : <p className="text-red-600 text-xs font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><X size={12}/> Pendente</p>}
+                <Link to={`/${myAgency.slug || myAgency.id}`} target="_blank" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100"><Eye size={12}/> Ver Página Pública</Link>
              </div>
            </div>
         </div>
@@ -241,15 +268,26 @@ const AgencyDashboard: React.FC = () => {
                        <div key={trip.id} className="flex flex-col md:flex-row items-center gap-4 p-4 border border-gray-100 rounded-xl hover:bg-gray-50">
                            <img src={trip.images[0]} className="w-16 h-16 rounded-lg object-cover" alt="" />
                            <div className="flex-1">
-                               <h3 className="font-bold text-gray-900">{trip.title}</h3>
-                               <p className="text-xs text-gray-500">Slug: {trip.slug}</p>
+                               <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                   {trip.title}
+                                   {!trip.active && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Rascunho</span>}
+                               </h3>
+                               <div className="flex gap-3 text-xs text-gray-500 mt-1">
+                                   <span>R$ {trip.price}</span>
+                                   <span>•</span>
+                                   <span>{trip.views || 0} views</span>
+                                   <span>•</span>
+                                   <Link to={`/viagem/${trip.slug || trip.id}`} target="_blank" className="text-primary-600 hover:underline flex items-center gap-1"><Eye size={10}/> Preview</Link>
+                               </div>
                            </div>
                            <div className="flex gap-2">
-                               <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-500 hover:bg-white hover:shadow rounded"><Edit size={18}/></button>
-                               <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-500 hover:bg-white hover:shadow rounded"><Trash2 size={18}/></button>
+                               <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-blue-500 hover:bg-white hover:shadow rounded" title="Duplicar"><Copy size={18}/></button>
+                               <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-500 hover:bg-white hover:shadow rounded" title="Editar"><Edit size={18}/></button>
+                               <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-500 hover:bg-white hover:shadow rounded" title="Excluir"><Trash2 size={18}/></button>
                            </div>
                        </div>
                    ))}
+                   {myTrips.length === 0 && <p className="text-gray-500 text-center py-8">Você ainda não criou nenhum pacote.</p>}
                </div>
             </div>
           )}
@@ -258,6 +296,7 @@ const AgencyDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Faturamento</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
                  <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Vendas</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">{stats.totalSales}</h3></div>
+                 <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Visualizações</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">{stats.totalViews}</h3></div>
             </div>
           )}
 
@@ -292,24 +331,25 @@ const AgencyDashboard: React.FC = () => {
          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
                  <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
-                 <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
+                 <div className="flex gap-3">
+                    {editingTripId && <Link to={`/viagem/${tripForm.slug}`} target="_blank" className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"><Eye size={18} className="mr-2"/> Preview</Link>}
+                    <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
+                 </div>
              </div>
 
              <div className="p-8 space-y-8 max-w-4xl mx-auto">
                  <section className="space-y-4">
                     <h3 className="font-bold border-b pb-2">Informações Básicas</h3>
-                    <div><label className="font-bold text-sm">Título</label><input value={tripForm.title} onChange={handleTitleChange} className="w-full border p-3 rounded-lg" /></div>
-                    <div><label className="font-bold text-sm">Slug (URL)</label><input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono" /></div>
-                    
-                    {/* Featured Toggle (Admin Simulation) */}
-                    <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                        <input type="checkbox" checked={tripForm.featured || false} onChange={e => setTripForm({...tripForm, featured: e.target.checked})} className="w-5 h-5 text-amber-600" />
-                        <span className="font-bold text-amber-900 text-sm flex items-center gap-1"><Star size={14} className="fill-amber-900"/> Destacar na Home (Featured)</span>
+                    <div><label className="font-bold text-sm">Título do Pacote</label><input value={tripForm.title} onChange={handleTitleChange} className="w-full border p-3 rounded-lg" placeholder="Ex: Fim de semana em Paraty"/></div>
+                    <div>
+                        <label className="font-bold text-sm">Slug (URL Amigável)</label>
+                        <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono" />
+                        <p className="text-xs text-gray-400 mt-1">Link final: viajastore.com/viagem/{tripForm.slug}</p>
                     </div>
-
+                    
                     <div className="grid grid-cols-3 gap-4">
-                        <div><label className="font-bold text-sm">Preço</label><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
-                        <div><label className="font-bold text-sm">Dias</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
+                        <div><label className="font-bold text-sm">Preço (R$)</label><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
+                        <div><label className="font-bold text-sm">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
                         <div>
                             <label className="font-bold text-sm">Categoria</label>
                             <select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg">
@@ -319,14 +359,17 @@ const AgencyDashboard: React.FC = () => {
                                 <option value="ROMANTICO">Romântico</option>
                                 <option value="URBANO">Urbano</option>
                                 <option value="NATUREZA">Natureza</option>
+                                <option value="CULTURA">Cultura</option>
+                                <option value="GASTRONOMICO">Gastronômico</option>
                             </select>
                         </div>
                     </div>
-                    <div><label className="font-bold text-sm">Destino</label><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg" /></div>
+                    <div><label className="font-bold text-sm">Destino (Cidade/Estado)</label><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg" /></div>
                  </section>
 
                  <section>
-                     <h3 className="font-bold border-b pb-2 mb-4">Descrição (Rich Text)</h3>
+                     <h3 className="font-bold border-b pb-2 mb-4">Descrição Detalhada</h3>
+                     <p className="text-sm text-gray-500 mb-2">Use o editor abaixo para adicionar detalhes do roteiro, o que levar, e informações importantes.</p>
                      <RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} />
                  </section>
 
