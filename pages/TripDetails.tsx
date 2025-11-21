@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip } = useData();
+  const { getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -28,6 +28,19 @@ const TripDetails: React.FC = () => {
   const reviews = getReviewsByTripId(trip.id);
   
   const canReview = user?.role === 'CLIENT' && hasUserPurchasedTrip(user.id, trip.id);
+
+  // Favorite Logic
+  const isFavorite = user?.role === 'CLIENT' && (clients.find(c => c.id === user.id)?.favorites.includes(trip.id));
+
+  const handleFavorite = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (user.role !== 'CLIENT') return;
+    
+    toggleFavorite(trip.id, user.id);
+  };
 
   const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
 
@@ -171,8 +184,22 @@ const TripDetails: React.FC = () => {
               )}
             </div>
             
-            {/* Dynamic Title Section */}
-            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 leading-tight">{trip.title}</h1>
+            {/* Dynamic Title Section with Favorite Button */}
+            <div className="flex items-start justify-between gap-4 mb-2">
+                <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title}</h1>
+                <button
+                    onClick={handleFavorite}
+                    title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                    className={`p-3 rounded-full border transition-all shadow-sm flex-shrink-0 ${
+                        isFavorite
+                            ? 'bg-red-50 border-red-100 text-red-500'
+                            : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'
+                    }`}
+                >
+                    <Heart size={24} className={isFavorite ? "fill-current animate-[pulse_0.3s]" : ""} />
+                </button>
+            </div>
+
             <p className="text-lg md:text-xl font-medium text-primary-600 mb-5">{getDynamicHeadline()}</p>
             
             <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
