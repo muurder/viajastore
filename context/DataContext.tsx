@@ -91,7 +91,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         category: t.category || 'PRAIA',
         tags: t.tags || [],
         travelerTypes: t.traveler_types || [],
-        itinerary: t.itinerary || [], // New field
+        itinerary: t.itinerary || [],
+        paymentMethods: t.payment_methods || [],
         active: t.active,
         rating: 5.0, // Seria ideal calcular média dos reviews
         totalReviews: 0, 
@@ -269,7 +270,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          not_included: trip.notIncluded,
          tags: trip.tags,
          traveler_types: trip.travelerTypes || [],
-         itinerary: trip.itinerary || [] 
+         itinerary: trip.itinerary || [],
+         payment_methods: trip.paymentMethods || []
      }).select().single();
 
      if(error) throw new Error('Erro ao criar viagem: ' + error.message);
@@ -297,7 +299,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          active: trip.active,
          included: trip.included,
          not_included: trip.notIncluded,
-         itinerary: trip.itinerary || []
+         tags: trip.tags,
+         itinerary: trip.itinerary || [],
+         payment_methods: trip.paymentMethods || []
       }).eq('id', trip.id);
 
       if(error) throw error;

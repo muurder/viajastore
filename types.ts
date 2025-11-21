@@ -107,6 +107,7 @@ export interface Trip {
   
   // Richer content
   itinerary?: ItineraryDay[];
+  paymentMethods?: string[]; // New field for accepted payment methods
 
   active: boolean; // Controlled by agency
   rating: number;
