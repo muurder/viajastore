@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { Agency } from '../types';
 
 const Login: React.FC = () => {
   const { login, loginWithGoogle } = useAuth();
@@ -17,29 +18,25 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Logic to preserve Agency Microsite Context
   const fromParam = searchParams.get('from');
   const redirectTo = fromParam || '/';
   
-  // Detect if we are inside an agency context to update the UI Text
-  let agencyContextName = null;
-  let agencySlug = null;
+  let agency: Agency | undefined;
+  let agencySlug: string | null = null;
   if (fromParam) {
       const segments = fromParam.split('/').filter(Boolean);
       if (segments.length > 0) {
           const potentialSlug = segments[0];
-          // Simple check to exclude global routes
           const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
           if (!reservedRoutes.includes(potentialSlug)) {
-              const agency = getAgencyBySlug(potentialSlug);
+              agency = getAgencyBySlug(potentialSlug);
               if (agency) {
-                  agencyContextName = agency.name;
                   agencySlug = potentialSlug;
               }
           }
       }
   }
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -56,25 +53,29 @@ const Login: React.FC = () => {
   };
   
   const handleGoogleLogin = async () => {
-      // Attempt to pass the return URL. 
-      // Note: Supabase OAuth redirects usually go to site root unless configured otherwise.
       await loginWithGoogle(redirectTo);
   };
 
   return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      
+      {agency && agencySlug && (
+        <div className="mb-6 text-center">
+            <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group">
+                <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover mb-2 border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
+                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Continuar em</span>
+                <span className="font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency.name}</span>
+            </Link>
+        </div>
+      )}
+
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          {agencySlug && (
-              <Link to={`/${agencySlug}`} className="inline-flex items-center text-sm text-gray-500 hover:text-primary-600 mb-4 transition-colors">
-                  <ArrowLeft size={14} className="mr-1"/> Voltar para {agencyContextName}
-              </Link>
-          )}
           <h2 className="text-3xl font-extrabold text-gray-900">
-              {agencyContextName ? `Entrar em ${agencyContextName}` : 'Bem-vindo de volta'}
+              {agency ? `Bem-vindo de volta` : 'Acesse sua conta'}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-              Faça login para continuar {agencyContextName ? 'sua reserva' : 'acessando sua conta'}
+              Faça login para continuar
           </p>
         </div>
 
@@ -172,6 +173,15 @@ const Login: React.FC = () => {
           </div>
         </form>
       </div>
+      
+      {agencySlug && (
+         <div className="mt-8">
+            <Link to={`/${agencySlug}`} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-2">
+                <ArrowLeft size={14} /> Voltar para a página da agência
+            </Link>
+         </div>
+      )}
+
     </div>
   );
 };

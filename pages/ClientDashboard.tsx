@@ -5,23 +5,24 @@ import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
   const { bookings, getTripById, clients } = useData();
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKINGS' | 'FAVORITES' | 'SETTINGS' | 'SECURITY'>('PROFILE');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const navigate = useNavigate();
 
-  // FIX: Prioritize data from DataContext (clients) which contains the live updated favorites list.
-  // Fallback to AuthContext (user) only if DataContext hasn't loaded yet.
+  const { agencySlug, tab } = useParams<{ agencySlug?: string; tab?: string }>();
+  const activeTab = tab ? tab.toUpperCase() : 'PROFILE';
+  
+  const isMicrositeMode = !!agencySlug;
+
   const dataContextClient = clients.find(c => c.id === user?.id);
   const currentClient = dataContextClient || (user as any);
 
-  // Forms State
   const [editForm, setEditForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -44,18 +45,19 @@ const ClientDashboard: React.FC = () => {
      confirmPassword: ''
   });
 
-  if (!user || user.role !== UserRole.CLIENT) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
+  if (!user || user.role !== UserRole.CLIENT) {
+    navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized');
+    return null;
+  }
 
   const myBookings = bookings.filter(b => b.clientId === user.id);
   
-  // FIX: Calculate favorites based on the updated client data from DataContext
   const favoriteIds = dataContextClient?.favorites || [];
   const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined);
 
-  // Handlers
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate(isMicrositeMode ? `/${agencySlug}` : '/');
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,14 +135,16 @@ const ClientDashboard: React.FC = () => {
           else alert("Erro ao excluir conta: " + result.error);
       }
   };
+  
+  const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard`; // Global dashboard is monolithic for now.
+  const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
 
   return (
     <div className="max-w-6xl mx-auto py-6">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>
+      {!isMicrositeMode && <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
-        {/* Sidebar Navigation */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center mb-6 relative group">
              <div className="relative w-24 h-24 mx-auto mb-4">
@@ -163,13 +167,13 @@ const ClientDashboard: React.FC = () => {
                 { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço' },
                 { id: 'SECURITY', icon: Shield, label: 'Segurança' }
             ].map((item) => (
-                <button 
+                <Link 
                 key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === item.id ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}
+                to={getNavLink(item.id)}
+                className={getTabClass(item.id)}
                 >
                 <item.icon size={18} className="mr-3" /> {item.label}
-                </button>
+                </Link>
             ))}
             <div className="h-px bg-gray-100 my-1"></div>
             <button onClick={handleLogout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors">
@@ -185,7 +189,7 @@ const ClientDashboard: React.FC = () => {
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
                <div className="flex justify-between items-center mb-6">
                    <h2 className="text-2xl font-bold text-gray-900">Resumo do Perfil</h2>
-                   <button onClick={() => setActiveTab('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</button>
+                   <Link to={getNavLink('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</Link>
                </div>
                
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -343,16 +347,6 @@ const ClientDashboard: React.FC = () => {
                       <Save size={18} /> Salvar Alterações
                   </button>
                </form>
-
-               <div className="mt-12 pt-8 border-t border-gray-100">
-                 <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
-                 <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                    <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p>
-                    <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors">
-                        <Trash2 size={16} className="mr-2" /> Excluir minha conta
-                    </button>
-                 </div>
-               </div>
              </div>
            )}
 
@@ -376,6 +370,16 @@ const ClientDashboard: React.FC = () => {
                       </div>
                       <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
                   </form>
+
+                  <div className="mt-12 pt-8 border-t border-gray-100">
+                    <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                        <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p>
+                        <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors">
+                            <Trash2 size={16} className="mr-2" /> Excluir minha conta
+                        </button>
+                    </div>
+                  </div>
               </div>
            )}
         </div>

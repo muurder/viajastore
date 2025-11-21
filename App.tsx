@@ -63,11 +63,14 @@ const App: React.FC = () => {
 
                   {/* --- AGENCY MODE ROUTES --- */}
                   {/* Captura /:agencySlug e suas sub-rotas */}
-                  {/* IMPORTANT: Ensure these are strictly handled to avoid collision with reserved words */}
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
                   <Route path=":agencySlug/trips" element={<TripList />} />
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
                   <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
+                  
+                  {/* Microsite Client Dashboard */}
+                  <Route path=":agencySlug/client/:tab?" element={<ClientDashboard />} />
+
 
                   {/* Catch all */}
                   <Route path="*" element={<NotFound />} />

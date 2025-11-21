@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { UserRole } from '../types';
+import { UserRole, Agency } from '../types';
 import { User, Building, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
@@ -21,22 +21,19 @@ const Signup: React.FC = () => {
     phone: '', cpf: '', cnpj: '', description: ''
   });
 
-  // Logic to preserve Agency Microsite Context
   const fromParam = searchParams.get('from');
   const redirectTo = fromParam || '/';
 
-  // Detect context to customize UI
-  let agencyContextName = null;
-  let agencySlug = null;
+  let agency: Agency | undefined;
+  let agencySlug: string | null = null;
   if (fromParam) {
       const segments = fromParam.split('/').filter(Boolean);
       if (segments.length > 0) {
           const potentialSlug = segments[0];
           const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
           if (!reservedRoutes.includes(potentialSlug)) {
-               const agency = getAgencyBySlug(potentialSlug);
+               agency = getAgencyBySlug(potentialSlug);
                if (agency) {
-                   agencyContextName = agency.name;
                    agencySlug = potentialSlug;
                }
           }
@@ -49,7 +46,6 @@ const Signup: React.FC = () => {
   };
 
   const validateCPF = (cpf: string) => {
-      // Validação simples de formato para UX
       const cleanCPF = cpf.replace(/[^\d]/g, '');
       return cleanCPF.length === 11;
   };
@@ -100,21 +96,25 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {agency && agencySlug && (
+        <div className="mb-6 text-center">
+            <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group">
+                <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover mb-2 border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
+                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Cadastro em</span>
+                <span className="font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency.name}</span>
+            </Link>
+        </div>
+      )}
+
       <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          {agencySlug && (
-              <Link to={`/${agencySlug}`} className="inline-flex items-center text-sm text-gray-500 hover:text-primary-600 mb-4 transition-colors">
-                  <ArrowLeft size={14} className="mr-1"/> Voltar para {agencyContextName}
-              </Link>
-          )}
           <h2 className="text-3xl font-extrabold text-gray-900">Crie sua conta</h2>
           <p className="mt-2 text-sm text-gray-600">
-              {agencyContextName ? `Cadastre-se para viajar com ${agencyContextName}` : 'Junte-se ao maior marketplace de viagens do Brasil'}
+              {agency ? `Cadastre-se para viajar com ${agency.name}` : 'Junte-se ao maior marketplace de viagens do Brasil'}
           </p>
         </div>
 
-        {/* Social Login */}
         <button
             type="button"
             onClick={handleGoogleLogin}
@@ -128,7 +128,7 @@ const Signup: React.FC = () => {
                 <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z" />
                 </g>
             </svg>
-            Entrar com Google
+            Cadastrar com Google
         </button>
 
         <div className="relative">
@@ -136,7 +136,7 @@ const Signup: React.FC = () => {
                 <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">ou continue com email</span>
+                <span className="px-2 bg-white text-gray-500">ou com seu email</span>
             </div>
         </div>
 
@@ -212,6 +212,15 @@ const Signup: React.FC = () => {
             <Link to={`/login${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">Fazer Login</Link>
         </div>
       </div>
+      
+      {agencySlug && (
+         <div className="mt-8">
+            <Link to={`/${agencySlug}`} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-2">
+                <ArrowLeft size={14} /> Voltar para a página da agência
+            </Link>
+         </div>
+      )}
+
     </div>
   );
 };
