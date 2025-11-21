@@ -87,6 +87,29 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
+  // Helper for updating color state and preview
+  const updateColor = (type: 'primary' | 'secondary', value: string) => {
+    let hex = value;
+    // If user types manually without hash, add it if it looks like a hex
+    if (!hex.startsWith('#')) {
+        hex = '#' + hex;
+    }
+
+    const updatedColors = { ...newTheme.colors, [type]: hex };
+    setNewTheme({ ...newTheme, colors: updatedColors });
+    
+    // Only update preview if it's a valid hex length
+    if (hex.length === 4 || hex.length === 7) {
+        previewTheme({
+            ...newTheme,
+            id: 'temp',
+            isActive: false,
+            isDefault: false,
+            colors: updatedColors
+        } as any);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
@@ -187,45 +210,109 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-4">
+                      <div className="space-y-6">
                           <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">Nome do Tema</label>
-                              <input value={newTheme.name} onChange={e => setNewTheme({...newTheme, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2"/>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Tema</label>
+                              <input 
+                                value={newTheme.name} 
+                                onChange={e => setNewTheme({...newTheme, name: e.target.value})} 
+                                className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none transition-shadow"
+                                placeholder="Ex: Verão 2024"
+                              />
                           </div>
+                          
+                          {/* Modern Color Picker - Primary */}
                           <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">Cor Primária</label>
-                              <div className="flex items-center gap-3">
-                                  <input type="color" value={newTheme.colors.primary} onChange={e => { const c = e.target.value; setNewTheme({...newTheme, colors: {...newTheme.colors, primary: c}}); previewTheme({...newTheme, id: 'temp', isActive: false, isDefault: false, colors: {...newTheme.colors, primary: c}} as any) }} className="h-10 w-10 rounded cursor-pointer border-none"/>
-                                  <span className="text-sm font-mono text-gray-500">{newTheme.colors.primary}</span>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
+                              <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+                                  <div className="relative w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg shadow-sm ring-1 ring-black/5 cursor-pointer group">
+                                      <input
+                                        type="color"
+                                        value={newTheme.colors.primary}
+                                        onChange={e => updateColor('primary', e.target.value)}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                      />
+                                      <div 
+                                        className="w-full h-full group-hover:scale-110 transition-transform duration-300" 
+                                        style={{ backgroundColor: newTheme.colors.primary }} 
+                                      />
+                                  </div>
+                                  <div className="relative flex-1">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold select-none">#</span>
+                                      <input 
+                                        type="text"
+                                        value={newTheme.colors.primary.replace('#', '')}
+                                        onChange={e => updateColor('primary', e.target.value)}
+                                        className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-7 pr-3 text-sm font-mono text-gray-700 uppercase focus:ring-2 focus:ring-primary-500 outline-none"
+                                        maxLength={6}
+                                      />
+                                  </div>
                               </div>
                           </div>
+
+                          {/* Modern Color Picker - Secondary */}
                           <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">Cor Secundária</label>
-                              <div className="flex items-center gap-3">
-                                  <input type="color" value={newTheme.colors.secondary} onChange={e => { const c = e.target.value; setNewTheme({...newTheme, colors: {...newTheme.colors, secondary: c}}); previewTheme({...newTheme, id: 'temp', isActive: false, isDefault: false, colors: {...newTheme.colors, secondary: c}} as any) }} className="h-10 w-10 rounded cursor-pointer border-none"/>
-                                  <span className="text-sm font-mono text-gray-500">{newTheme.colors.secondary}</span>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
+                              <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200 hover:border-gray-300 transition-colors">
+                                  <div className="relative w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg shadow-sm ring-1 ring-black/5 cursor-pointer group">
+                                      <input
+                                        type="color"
+                                        value={newTheme.colors.secondary}
+                                        onChange={e => updateColor('secondary', e.target.value)}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                      />
+                                      <div 
+                                        className="w-full h-full group-hover:scale-110 transition-transform duration-300" 
+                                        style={{ backgroundColor: newTheme.colors.secondary }} 
+                                      />
+                                  </div>
+                                  <div className="relative flex-1">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold select-none">#</span>
+                                      <input 
+                                        type="text"
+                                        value={newTheme.colors.secondary.replace('#', '')}
+                                        onChange={e => updateColor('secondary', e.target.value)}
+                                        className="w-full bg-white border border-gray-200 rounded-lg py-2 pl-7 pr-3 text-sm font-mono text-gray-700 uppercase focus:ring-2 focus:ring-primary-500 outline-none"
+                                        maxLength={6}
+                                      />
+                                  </div>
                               </div>
                           </div>
-                          <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-4">
+
+                          <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-4 shadow-lg shadow-green-500/20 transition-all active:scale-95">
                               <Save size={18}/> Salvar Tema
                           </button>
                       </div>
 
                       {/* Live Preview Area */}
-                      <div className="border border-gray-200 rounded-xl p-6 bg-gray-50">
-                          <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Preview em Tempo Real</h3>
+                      <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 flex flex-col">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
+                              <Activity size={14}/> Preview em Tempo Real
+                          </h3>
                           
-                          <div className="space-y-4">
-                              <button className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm">Botão Primário</button>
-                              <button className="bg-secondary-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm ml-2">Botão Secundário</button>
+                          <div className="space-y-6 flex-1">
+                              <div className="flex flex-wrap gap-3">
+                                  <button className="bg-primary-600 text-white px-5 py-2.5 rounded-lg font-bold shadow-md shadow-primary-500/30 transition-transform hover:-translate-y-0.5">
+                                    Botão Primário
+                                  </button>
+                                  <button className="bg-secondary-500 text-white px-5 py-2.5 rounded-lg font-bold shadow-md shadow-secondary-500/30 transition-transform hover:-translate-y-0.5">
+                                    Botão Secundário
+                                  </button>
+                              </div>
                               
-                              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                  <h4 className="text-primary-700 font-bold mb-1">Título do Card</h4>
-                                  <p className="text-gray-600 text-sm">Este é um exemplo de como o texto e os elementos se comportarão com as novas cores.</p>
+                              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                  <div className="w-10 h-10 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center mb-3">
+                                      <Briefcase size={20} />
+                                  </div>
+                                  <h4 className="text-primary-700 font-bold text-lg mb-2">Título do Card</h4>
+                                  <p className="text-gray-600 text-sm leading-relaxed">
+                                      Este é um exemplo de como o texto e os elementos se comportarão com as novas cores definidas. A tipografia e os ícones se adaptam automaticamente.
+                                  </p>
                               </div>
 
-                              <div className="bg-primary-50 p-4 rounded-lg border border-primary-100 text-primary-800 text-sm font-medium">
-                                  Alertas e fundos suaves usarão a cor primária em baixa opacidade.
+                              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 text-primary-800 text-sm font-medium flex items-start gap-3">
+                                  <AlertOctagon className="shrink-0 mt-0.5" size={16}/>
+                                  <span>Alertas e fundos suaves usarão a variação de baixa opacidade da cor primária.</span>
                               </div>
                           </div>
                       </div>
