@@ -313,7 +313,8 @@ MOCK_AGENCIES.forEach((agency) => {
       views: Math.floor(Math.random() * 5000),
       sales: Math.floor(Math.random() * 100),
       featured: spec.featured || false,
-      popularNearSP: spec.nearSP || false
+      popularNearSP: spec.nearSP || false,
+      itinerary: [] // Default empty
     });
   });
 });

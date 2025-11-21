@@ -91,6 +91,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         category: t.category || 'PRAIA',
         tags: t.tags || [],
         travelerTypes: t.traveler_types || [],
+        itinerary: t.itinerary || [], // New field
         active: t.active,
         rating: 5.0, // Seria ideal calcular média dos reviews
         totalReviews: 0, 
@@ -268,7 +269,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          included: trip.included,
          not_included: trip.notIncluded,
          tags: trip.tags,
-         traveler_types: trip.travelerTypes || []
+         traveler_types: trip.travelerTypes || [],
+         itinerary: trip.itinerary || [] // Pass itinerary to Supabase
      }).select().single();
 
      if(error) throw new Error('Erro ao criar viagem: ' + error.message);
@@ -295,10 +297,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          category: trip.category,
          active: trip.active,
          included: trip.included,
-         not_included: trip.notIncluded
+         not_included: trip.notIncluded,
+         itinerary: trip.itinerary || []
       }).eq('id', trip.id);
 
       if(error) throw error;
+
+      // Handle images update is complex (delete/re-insert strategy for simplicity in prototype)
+      if (trip.images) {
+          await supabase.from('trip_images').delete().eq('trip_id', trip.id);
+          const imagesPayload = trip.images.map(url => ({
+               trip_id: trip.id,
+               image_url: url
+          }));
+          await supabase.from('trip_images').insert(imagesPayload);
+      }
+
       await fetchTrips();
   };
 

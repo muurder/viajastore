@@ -62,6 +62,12 @@ export type TravelerType =
   | 'MOCHILAO' 
   | 'MELHOR_IDADE';
 
+export interface ItineraryDay {
+  day: number;
+  title: string;
+  description: string;
+}
+
 export interface Trip {
   id: string;
   agencyId: string;
@@ -78,6 +84,9 @@ export interface Trip {
   category: TripCategory;
   tags: string[]; // E.g., 'História', 'Trilhas', 'Ideal para viajar sozinho'
   travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
+  
+  // Richer content
+  itinerary?: ItineraryDay[];
 
   active: boolean; // Controlled by agency
   rating: number;
