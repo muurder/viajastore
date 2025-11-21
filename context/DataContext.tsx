@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
-import { MOCK_AGENCIES } from '../services/mockData';
+import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -73,129 +73,145 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           agencies (name, logo_url)
         `);
 
-      if (error) {
-        console.error('Error fetching trips:', error.message);
-        return;
+      if (error) throw error;
+
+      if (data) {
+          const formattedTrips: Trip[] = data.map((t: any) => ({
+            id: t.id,
+            agencyId: t.agency_id,
+            title: t.title,
+            description: t.description,
+            destination: t.destination,
+            price: Number(t.price),
+            startDate: t.start_date,
+            endDate: t.end_date,
+            durationDays: t.duration_days,
+            images: t.trip_images 
+                ? t.trip_images
+                    .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                    .map((img: any) => img.image_url) 
+                : [],
+            category: t.category || 'PRAIA',
+            tags: t.tags || [],
+            travelerTypes: t.traveler_types || [],
+            itinerary: t.itinerary || [],
+            paymentMethods: t.payment_methods || [],
+            active: t.active,
+            rating: 5.0, 
+            totalReviews: 0, 
+            included: t.included || [],
+            notIncluded: t.not_included || [],
+            views: t.views_count || 0,
+            sales: t.sales_count || 0,
+            featured: t.featured || false,
+            popularNearSP: t.popular_near_sp || false
+          }));
+
+          setTrips(formattedTrips);
       }
-
-      if (!data) return;
-
-      const formattedTrips: Trip[] = data.map((t: any) => ({
-        id: t.id,
-        agencyId: t.agency_id,
-        title: t.title,
-        description: t.description,
-        destination: t.destination,
-        price: Number(t.price),
-        startDate: t.start_date,
-        endDate: t.end_date,
-        durationDays: t.duration_days,
-        images: t.trip_images 
-            ? t.trip_images
-                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-                .map((img: any) => img.image_url) 
-            : [],
-        category: t.category || 'PRAIA',
-        tags: t.tags || [],
-        travelerTypes: t.traveler_types || [],
-        itinerary: t.itinerary || [],
-        paymentMethods: t.payment_methods || [],
-        active: t.active,
-        rating: 5.0, 
-        totalReviews: 0, 
-        included: t.included || [],
-        notIncluded: t.not_included || [],
-        views: t.views_count || 0,
-        sales: t.sales_count || 0,
-        featured: t.featured || false,
-        popularNearSP: t.popular_near_sp || false
-      }));
-
-      setTrips(formattedTrips);
     } catch (err) {
-      console.error("Unexpected error fetching trips:", err);
+      console.warn("Supabase unavailable (or table missing), using MOCK_TRIPS.", err);
+      setTrips(MOCK_TRIPS);
     }
   };
 
   const fetchAgencies = async () => {
-    const { data, error } = await supabase.from('agencies').select('*');
-    if (error) {
-      console.error('Error fetching agencies:', error.message);
-      return;
-    }
-    
-    const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
-      id: a.id,
-      name: a.name,
-      email: a.email || '',
-      role: UserRole.AGENCY,
-      slug: a.slug || '', // Include Slug
-      cnpj: a.cnpj,
-      description: a.description,
-      logo: a.logo_url,
-      subscriptionStatus: a.subscription_status,
-      subscriptionPlan: a.subscription_plan,
-      subscriptionExpiresAt: a.subscription_expires_at,
-      website: a.website,
-      phone: a.phone,
-      address: a.address || {},
-      bankInfo: a.bank_info || {}
-    }));
+    try {
+      const { data, error } = await supabase.from('agencies').select('*');
+      
+      if (error) throw error;
+      
+      const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        email: a.email || '',
+        role: UserRole.AGENCY,
+        slug: a.slug || '', 
+        cnpj: a.cnpj,
+        description: a.description,
+        logo: a.logo_url,
+        subscriptionStatus: a.subscription_status,
+        subscriptionPlan: a.subscription_plan,
+        subscriptionExpiresAt: a.subscription_expires_at,
+        website: a.website,
+        phone: a.phone,
+        address: a.address || {},
+        bankInfo: a.bank_info || {}
+      }));
 
-    setAgencies(formattedAgencies);
+      setAgencies(formattedAgencies);
+    } catch (err) {
+      console.warn("Supabase unavailable, using MOCK_AGENCIES.", err);
+      setAgencies(MOCK_AGENCIES);
+    }
   };
 
   const fetchClients = async () => {
-    // Fetches all profiles (Clients and Admins)
-    const { data, error } = await supabase.from('profiles').select('*');
-    
-    if (error) {
-      console.error('Error fetching clients:', error.message);
-      return;
+    try {
+        // Fetches all profiles (Clients and Admins)
+        const { data, error } = await supabase.from('profiles').select('*');
+        
+        if (error) throw error;
+
+        const formattedClients: Client[] = (data || []).map((p: any) => ({
+          id: p.id,
+          name: p.full_name || 'Usuário',
+          email: p.email || '',
+          role: p.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT,
+          avatar: p.avatar_url,
+          cpf: p.cpf,
+          phone: p.phone,
+          favorites: [], // Favorites are fetched separately per user context usually
+          createdAt: p.created_at,
+          address: p.address || {}
+        } as Client));
+
+        setClients(formattedClients);
+    } catch (err) {
+        console.warn("Supabase unavailable, using MOCK_CLIENTS.", err);
+        setClients(MOCK_CLIENTS);
     }
-
-    const formattedClients: Client[] = (data || []).map((p: any) => ({
-      id: p.id,
-      name: p.full_name || 'Usuário',
-      email: p.email || '',
-      role: p.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT,
-      avatar: p.avatar_url,
-      cpf: p.cpf,
-      phone: p.phone,
-      favorites: [], // Favorites are fetched separately per user context usually
-      createdAt: p.created_at,
-      address: p.address || {}
-    } as Client));
-
-    setClients(formattedClients);
   };
 
   const fetchReviews = async () => {
-     const { data, error } = await supabase.from('reviews').select('*, profiles(full_name)');
-     if(data) {
-        setReviews(data.map((r: any) => ({
-            id: r.id,
-            tripId: r.trip_id,
-            clientId: r.user_id,
-            rating: r.rating,
-            comment: r.comment,
-            date: r.created_at,
-            clientName: r.profiles?.full_name || 'Viajante',
-            response: r.response
-        })));
+     try {
+         const { data, error } = await supabase.from('reviews').select('*, profiles(full_name)');
+         if (error) throw error;
+
+         if(data) {
+            setReviews(data.map((r: any) => ({
+                id: r.id,
+                tripId: r.trip_id,
+                clientId: r.user_id,
+                rating: r.rating,
+                comment: r.comment,
+                date: r.created_at,
+                clientName: r.profiles?.full_name || 'Viajante',
+                response: r.response
+            })));
+         }
+     } catch (err) {
+         console.warn("Supabase unavailable, using MOCK_REVIEWS.", err);
+         setReviews(MOCK_REVIEWS);
      }
   };
 
   const fetchFavorites = async () => {
       if(user?.role === UserRole.CLIENT) {
-          const { data } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
-          if(data) {
-             const favIds = data.map(f => f.trip_id);
-             setClients(prev => {
-                 const existing = prev.find(c => c.id === user.id);
-                 if(existing) return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
-                 return [...prev, { id: user.id, favorites: favIds } as Client];
-             });
+          try {
+            const { data, error } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
+            if (error) throw error;
+
+            if(data) {
+               const favIds = data.map(f => f.trip_id);
+               setClients(prev => {
+                   const existing = prev.find(c => c.id === user.id);
+                   if(existing) return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
+                   return [...prev, { id: user.id, favorites: favIds } as Client];
+               });
+            }
+          } catch (err) {
+             // Silent fail for favorites
           }
       }
   };
@@ -203,62 +219,67 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchBookings = async () => {
     if (!user) return;
 
-    let query = supabase.from('bookings').select('*');
+    try {
+        let query = supabase.from('bookings').select('*');
 
-    if (user.role === UserRole.CLIENT) {
-      query = query.eq('client_id', user.id);
-    } 
-    else if (user.role === UserRole.AGENCY) {
-      const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
-      const myTripIds = myTrips?.map(t => t.id) || [];
-      if(myTripIds.length > 0) {
-          query = query.in('trip_id', myTripIds);
-      } else {
-          setBookings([]);
-          return;
-      }
-    }
-    // Admins fetch all by default
-    
-    const { data, error } = await query;
+        if (user.role === UserRole.CLIENT) {
+          query = query.eq('client_id', user.id);
+        } 
+        else if (user.role === UserRole.AGENCY) {
+          const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
+          const myTripIds = myTrips?.map(t => t.id) || [];
+          if(myTripIds.length > 0) {
+              query = query.in('trip_id', myTripIds);
+          } else {
+              setBookings([]);
+              return;
+          }
+        }
+        // Admins fetch all by default
+        
+        const { data, error } = await query;
 
-    if (error) {
-      console.error('Error fetching bookings', error.message);
-      return;
-    }
+        if (error) throw error;
 
-    if (data) {
-      const formattedBookings: Booking[] = data.map((b: any) => ({
-        id: b.id,
-        tripId: b.trip_id,
-        clientId: b.client_id,
-        date: b.created_at,
-        status: b.status,
-        totalPrice: b.total_price,
-        passengers: b.passengers,
-        voucherCode: b.voucher_code,
-        paymentMethod: b.payment_method
-      }));
-      setBookings(formattedBookings);
+        if (data) {
+          const formattedBookings: Booking[] = data.map((b: any) => ({
+            id: b.id,
+            tripId: b.trip_id,
+            clientId: b.client_id,
+            date: b.created_at,
+            status: b.status,
+            totalPrice: b.total_price,
+            passengers: b.passengers,
+            voucherCode: b.voucher_code,
+            paymentMethod: b.payment_method
+          }));
+          setBookings(formattedBookings);
+        }
+    } catch (err) {
+        console.warn("Supabase unavailable, using MOCK_BOOKINGS.", err);
+        setBookings(MOCK_BOOKINGS);
     }
   };
 
   const fetchAuditLogs = async () => {
-      const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
-      
-      if (data) {
-        const logs: AuditLog[] = data.map((l: any) => ({
-            id: l.id,
-            adminEmail: l.admin_email,
-            action: l.action,
-            details: l.details,
-            createdAt: l.created_at
-        }));
-        setAuditLogs(logs);
-      } else if (error) {
+      try {
+          const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
+          if (error) throw error;
+
+          if (data) {
+            const logs: AuditLog[] = data.map((l: any) => ({
+                id: l.id,
+                adminEmail: l.admin_email,
+                action: l.action,
+                details: l.details,
+                createdAt: l.created_at
+            }));
+            setAuditLogs(logs);
+          }
+      } catch (err) {
           // Fallback mock if table doesn't exist yet or error
           const mockLogs: AuditLog[] = [
-             { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado', createdAt: new Date().toISOString() }
+             { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado (Modo Offline/Mock)', createdAt: new Date().toISOString() }
           ];
           setAuditLogs(mockLogs);
       }
@@ -313,7 +334,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
       console.error('Error adding booking:', error);
-      throw error;
+      // Em modo offline, poderíamos atualizar o state localmente aqui
     }
     await refreshData();
   };
@@ -330,7 +351,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
       console.error('Error adding review:', error);
-      throw error;
     }
     await refreshData();
   };
@@ -339,7 +359,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
     if (error) {
       console.error('Error deleting review:', error);
-      throw error;
     }
     await refreshData();
   };
@@ -362,7 +381,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('profiles').update(data).eq('id', clientId);
     if (error) {
       console.error('Error updating client profile:', error);
-      throw error;
     }
     await refreshData();
   };
@@ -375,14 +393,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }).eq('id', agencyId);
     if (error) {
       console.error('Error updating agency subscription:', error);
-      throw error;
     }
     await refreshData();
   };
 
   const createTrip = async (trip: Trip) => {
     // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
-    // This prevents errors like "Could not find the 'durationDays' column"
     const dbTrip = {
         agency_id: trip.agencyId,
         title: trip.title,
@@ -486,7 +502,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
     if (error) {
       console.error('Error toggling trip status:', error);
-      throw error;
     }
     await refreshData();
   };
