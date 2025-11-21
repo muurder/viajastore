@@ -164,7 +164,16 @@ const AgencyDashboard: React.FC = () => {
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files?.[0]) return;
       const url = await uploadImage(e.target.files[0], 'agency-logos');
-      if (url) setAgencyForm({ ...agencyForm, logo: url });
+      if (url) {
+          // Atualiza estado local para feedback visual imediato
+          setAgencyForm(prev => ({ ...prev, logo: url }));
+          
+          // Salva imediatamente no banco de dados
+          const res = await updateUser({ logo: url });
+          if (!res.success) {
+              alert('Erro ao salvar a nova logo: ' + res.error);
+          }
+      }
   };
 
   const handleConfirmPayment = async () => {
