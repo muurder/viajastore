@@ -11,14 +11,13 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 import AgencyDashboard from './pages/AgencyDashboard';
+import AgencyLandingPage from './pages/AgencyLandingPage'; // Import New Component
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
-
-// Scroll to top on route change component could be added here
 
 const App: React.FC = () => {
   return (
@@ -60,7 +59,13 @@ const App: React.FC = () => {
                 <Route path="admin/dashboard" element={<AdminDashboard />} />
                 <Route path="client/dashboard" element={<ClientDashboard />} />
 
-                {/* Catch all */}
+                {/* Agency Landing Page by Slug (Dynamic) */}
+                {/* MUST be placed after specific paths to avoid collisions */}
+                <Route path=":slug" element={<AgencyLandingPage />} />
+
+                {/* Catch all (handled by 404 inside AgencyLandingPage if slug not found, or strictly here if needed) */}
+                {/* Note: With :slug being a catch-all for 1-level deep paths, real 404s will effectively go to AgencyLandingPage 
+                    and render its internal "Not Found" state. We keep * for deep nested 404s. */}
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

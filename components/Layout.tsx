@@ -1,14 +1,21 @@
 
 import React from 'react';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
+  const { agencies } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+
+  // Check if current path matches an agency slug
+  // We get the first segment of the path
+  const pathSegment = location.pathname.split('/')[1];
+  const currentAgency = agencies.find(a => a.slug === pathSegment);
 
   const handleLogout = () => {
     logout();
@@ -35,10 +42,19 @@ const Layout: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Link to="/" className="flex-shrink-0 flex items-center text-primary-600 hover:text-primary-700">
-                <Plane className="h-8 w-8 mr-2" />
+              <Link to="/" className="flex-shrink-0 flex items-center text-primary-600 hover:text-primary-700 group">
+                <Plane className="h-8 w-8 mr-2 group-hover:rotate-12 transition-transform" />
                 <span className="font-bold text-xl tracking-tight">ViajaStore</span>
               </Link>
+
+              {/* Agency Co-Branding Logic */}
+              {currentAgency && (
+                <div className="hidden sm:flex items-center ml-4 pl-4 border-l-2 border-gray-200 animate-[fadeIn_0.5s]">
+                    <img src={currentAgency.logo} alt={currentAgency.name} className="w-8 h-8 rounded-full object-cover mr-2"/>
+                    <span className="font-bold text-gray-800 text-sm">{currentAgency.name}</span>
+                </div>
+              )}
+
               <div className="hidden md:ml-8 md:flex md:space-x-8">
                 <Link to="/trips" className={getLinkClasses('/trips')}>Explorar Viagens</Link>
                 <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
@@ -76,6 +92,12 @@ const Layout: React.FC = () => {
             </div>
 
             <div className="flex items-center md:hidden">
+               {/* Mobile Agency Branding */}
+               {currentAgency && (
+                <div className="flex items-center mr-4">
+                    <img src={currentAgency.logo} alt={currentAgency.name} className="w-6 h-6 rounded-full object-cover"/>
+                </div>
+               )}
               <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100">
                 {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>

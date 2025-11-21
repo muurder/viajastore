@@ -1,7 +1,9 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
+import { MOCK_AGENCIES } from '../services/mockData';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -39,6 +41,7 @@ interface DataContextType {
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
+  getAgencyBySlug: (slug: string) => Agency | undefined; // NOVA FUNÇÃO
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
   getAgencyStats: (agencyId: string) => DashboardStats;
@@ -126,6 +129,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       name: a.name,
       email: a.email || '',
       role: UserRole.AGENCY,
+      slug: a.slug || '', // Include Slug
       cnpj: a.cnpj,
       description: a.description,
       logo: a.logo_url,
@@ -497,6 +501,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string) => trips.find(t => t.id === id);
+  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug);
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
 
@@ -519,7 +524,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       deleteUser, logAuditAction,
-      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getReviewsByTripId,
+      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getAgencyBySlug, getReviewsByTripId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
       {!loading && children}

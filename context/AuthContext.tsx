@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
+import { slugify } from '../utils/slugify';
 
 interface AuthContextType {
   user: User | Client | Agency | Admin | null;
@@ -52,6 +52,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: agencyData.name,
           email: email,
           role: UserRole.AGENCY,
+          slug: agencyData.slug || slugify(agencyData.name),
           cnpj: agencyData.cnpj || '',
           description: agencyData.description || '',
           logo: agencyData.logo_url || '',
@@ -195,6 +196,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userId,
           name: data.name,
           email: data.email,
+          slug: slugify(data.name),
           cnpj: data.cnpj,
           phone: data.phone,
           description: data.description,

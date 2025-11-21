@@ -1,5 +1,6 @@
 
 import { Agency, Client, Admin, Trip, Booking, Review, UserRole, Plan, TripCategory, TravelerType } from '../types';
+import { slugify } from '../utils/slugify';
 
 export const PLANS: Plan[] = [
   { id: 'BASIC', name: 'Plano Básico', price: 99.90, features: ['Até 5 anúncios ativos', 'Painel de métricas básico', 'Suporte por e-mail', 'Taxa de 10% por venda'] },
@@ -75,17 +76,6 @@ const getImg = (key: string) => {
   return db[key];
 };
 
-// --- HELPER FOR SLUGIFYING EMAIL ---
-const slugify = (text: string) => {
-  return text
-    .toString()
-    .normalize('NFD')                   // Normalize to decompose accents
-    .replace(/[\u0300-\u036f]/g, '')    // Remove accents
-    .toLowerCase()
-    .replace(/\s+/g, '')                // Remove spaces
-    .replace(/[^a-z0-9]/g, '');         // Remove remaining non-alphanumeric chars
-};
-
 // --- 10 AGENCIES DATA ---
 const reportAgenciesData = [
   { name: 'Paraíso das Cataratas', desc: 'Especialistas em Foz do Iguaçu e região.', logoKey: 'iguacu' },
@@ -103,7 +93,7 @@ const reportAgenciesData = [
 export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   id: `ag_${index + 1}`,
   name: ag.name,
-  // FIX: Use slugify to ensure 'Paraíso' becomes 'paraiso' not 'paraso'
+  slug: slugify(ag.name),
   email: `contato@${slugify(ag.name)}.com`,
   password: '123',
   role: UserRole.AGENCY,
