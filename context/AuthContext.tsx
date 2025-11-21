@@ -14,7 +14,7 @@ interface AuthContextType {
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
-  uploadImage: (file: File, bucket: 'avatars' | 'agency-logos') => Promise<string | null>;
+  uploadImage: (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images') => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,6 +58,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           description: agencyData.description || '',
           logo: agencyData.logo_url || '', // Ensure logo maps to logo_url
           whatsapp: agencyData.whatsapp, // New field mapped
+          
+          // Hero Configuration
+          heroMode: agencyData.hero_mode || 'TRIPS',
+          heroBannerUrl: agencyData.hero_banner_url,
+          heroTitle: agencyData.hero_title,
+          heroSubtitle: agencyData.hero_subtitle,
+
           subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
           subscriptionPlan: agencyData.subscription_plan || 'BASIC',
           subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
@@ -252,7 +259,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
-        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp; // Map new field
+        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
+        
+        // Hero Fields
+        if ((userData as Agency).heroMode) updates.hero_mode = (userData as Agency).heroMode;
+        if ((userData as Agency).heroBannerUrl) updates.hero_banner_url = (userData as Agency).heroBannerUrl;
+        if ((userData as Agency).heroTitle) updates.hero_title = (userData as Agency).heroTitle;
+        if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
         const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
         if (error) throw error;
@@ -285,7 +298,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { success: true };
   };
 
-  const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos'): Promise<string | null> => {
+  const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user?.id}-${Date.now()}.${fileExt}`;

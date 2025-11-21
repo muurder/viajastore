@@ -48,6 +48,13 @@ export interface Agency extends User {
   cnpj: string;
   description: string;
   logo: string;
+  
+  // Hero / Microsite Config
+  heroMode: 'TRIPS' | 'STATIC';
+  heroBannerUrl?: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
+
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
   subscriptionExpiresAt: string; // ISO Date
@@ -121,7 +128,8 @@ export interface Trip {
   sales?: number; // For stats
   
   // Featured Flags
-  featured?: boolean;
+  featured?: boolean; // Global feature
+  featuredInHero?: boolean; // Agency Microsite Hero feature
   popularNearSP?: boolean;
 }
 

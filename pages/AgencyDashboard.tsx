@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star } from 'lucide-react';
 
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -135,7 +135,6 @@ const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => vo
         if (!e.target.files || e.target.files.length === 0) return;
         setUploading(true);
         try {
-            // Use agency-logos bucket if available, or default to avatars fallback
             const url = await uploadImage(e.target.files[0], 'agency-logos'); 
             if (url) {
                 onUpload(url);
@@ -152,45 +151,51 @@ const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => vo
 
     return (
         <div className="flex items-center gap-4">
-            <div className="w-24 h-24 rounded-full border-2 border-gray-200 bg-gray-50 overflow-hidden relative group">
+            <div className="w-24 h-24 rounded-full border-2 border-gray-200 bg-gray-50 overflow-hidden relative group shrink-0">
                 <img src={currentLogo || `https://ui-avatars.com/api/?name=Logo&background=random`} alt="Logo" className="w-full h-full object-cover" />
                 {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/60"><Loader className="animate-spin text-primary-600"/></div>}
             </div>
             <div>
-                <label className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-gray-50 inline-flex items-center gap-2 transition-colors">
+                <label className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-gray-50 inline-flex items-center gap-2 transition-colors text-sm">
                     <Upload size={16}/> Alterar Logomarca
                     <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
                 </label>
                 <p className="text-xs text-gray-500 mt-2">JPG, PNG ou WEBP. Max 2MB.</p>
+                <button onClick={() => onUpload('')} className="text-xs text-red-500 hover:underline mt-1">Remover logo</button>
             </div>
         </div>
     );
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, uploadImage } = useAuth();
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
   const { showToast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION' | 'SETTINGS'>('STATS');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS'>('OVERVIEW');
+  const [settingsSection, setSettingsSection] = useState<'PROFILE' | 'PAGE'>('PROFILE');
   const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [selectedPlan, setSelectedPlan] = useState<'BASIC' | 'PREMIUM' | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   
   const myAgency = agencies.find(a => a.id === user?.id) as Agency;
   const [agencyForm, setAgencyForm] = useState<Partial<Agency>>({});
 
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
-    title: '', slug: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: []
+    title: '', slug: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: [], featuredInHero: false
   });
   const [slugTouched, setSlugTouched] = useState(false);
 
   useEffect(() => {
       if(myAgency) {
-          setAgencyForm({ ...myAgency });
+          setAgencyForm({ 
+              ...myAgency, 
+              heroMode: myAgency.heroMode || 'TRIPS' // Default to TRIPS if undefined
+          });
           if (myAgency.subscriptionStatus !== 'ACTIVE') setActiveTab('SUBSCRIPTION');
       }
   }, [myAgency]);
@@ -201,21 +206,20 @@ const AgencyDashboard: React.FC = () => {
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
   
-  // Clean slug for display/linking - ensuring no double slashes or wrong paths
   const rawSlug = agencyForm.slug || myAgency.slug || '';
-  const cleanSlug = rawSlug.replace(/[^a-z0-9-]/gi, ''); // Extra safety
+  const cleanSlug = rawSlug.replace(/[^a-z0-9-]/gi, '');
   const fullAgencyLink = cleanSlug ? `${window.location.origin}/#/${cleanSlug}` : '';
 
   const handleOpenCreate = () => {
     setEditingTripId(null);
-    setTripForm({ title: '', slug: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: [] });
+    setTripForm({ title: '', slug: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], tags: [], paymentMethods: [], images: [], itinerary: [], featuredInHero: false });
     setSlugTouched(false);
     setViewMode('FORM');
   };
 
   const handleOpenEdit = (trip: Trip) => {
     setEditingTripId(trip.id);
-    setTripForm({ ...trip, itinerary: trip.itinerary || [], tags: trip.tags || [], paymentMethods: trip.paymentMethods || [] });
+    setTripForm({ ...trip, itinerary: trip.itinerary || [], tags: trip.tags || [], paymentMethods: trip.paymentMethods || [], featuredInHero: trip.featuredInHero || false });
     setSlugTouched(true); 
     setViewMode('FORM');
   };
@@ -224,7 +228,6 @@ const AgencyDashboard: React.FC = () => {
       if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
       
       const { id, ...rest } = trip;
-      
       const timestamp = Math.floor(Date.now() / 1000);
       const duplicatedTrip = {
           ...rest,
@@ -232,7 +235,8 @@ const AgencyDashboard: React.FC = () => {
           slug: `${slugify(trip.title)}-copy-${timestamp}`, 
           active: false, 
           views: 0,
-          sales: 0
+          sales: 0,
+          featuredInHero: false
       };
       
       try {
@@ -284,8 +288,24 @@ const AgencyDashboard: React.FC = () => {
   const handleAgencyUpdate = async (e: React.FormEvent) => {
       e.preventDefault();
       const res = await updateUser(agencyForm);
-      if(res.success) showToast('Perfil atualizado!', 'success');
+      if(res.success) showToast('Configurações salvas!', 'success');
       else showToast('Erro: ' + res.error, 'error');
+  };
+  
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (!e.target.files || e.target.files.length === 0) return;
+     setUploadingBanner(true);
+     try {
+        const url = await uploadImage(e.target.files[0], 'trip-images'); // Reusing bucket for convenience
+        if (url) {
+            setAgencyForm({ ...agencyForm, heroBannerUrl: url });
+            showToast('Banner enviado!', 'success');
+        }
+     } catch(e) {
+         showToast('Erro no upload do banner', 'error');
+     } finally {
+         setUploadingBanner(false);
+     }
   };
 
   const handleConfirmPayment = async () => {
@@ -293,7 +313,7 @@ const AgencyDashboard: React.FC = () => {
           await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan);
           showToast('Assinatura ativada!', 'success');
           setShowPayment(false);
-          setActiveTab('STATS');
+          setActiveTab('OVERVIEW');
       }
   };
 
@@ -304,6 +324,7 @@ const AgencyDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+      {/* Header Section */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
         <div className="flex items-center gap-4 w-full">
            <img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover bg-white" alt="Logo" />
@@ -319,176 +340,300 @@ const AgencyDashboard: React.FC = () => {
              </div>
            </div>
         </div>
-        <button onClick={() => setActiveTab('SETTINGS')} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50 whitespace-nowrap"><Settings size={18} className="mr-2"/> Editar Perfil</button>
+        <button onClick={() => { setActiveTab('SETTINGS'); setSettingsSection('PROFILE'); }} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50 whitespace-nowrap"><Settings size={18} className="mr-2"/> Configurações</button>
       </div>
 
       {viewMode === 'LIST' ? (
         <>
           <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide">
-            <button onClick={() => setActiveTab('STATS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'STATS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Visão Geral</button>
+            <button onClick={() => setActiveTab('OVERVIEW')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Visão Geral</button>
             <button onClick={() => setActiveTab('TRIPS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Pacotes</button>
             <button onClick={() => setActiveTab('SUBSCRIPTION')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Assinatura</button>
             <button onClick={() => setActiveTab('SETTINGS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Configurações</button>
           </div>
+          
+          {/* OVERVIEW TAB */}
+          {activeTab === 'OVERVIEW' && isActive && (
+            <div className="animate-[fadeIn_0.3s]">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Pacotes Ativos</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-2">{myTrips.filter(t => t.active).length}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Total Vendas</p>
+                        <h3 className="text-3xl font-extrabold text-primary-600 mt-2">{stats.totalSales}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Visualizações</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-2">{stats.totalViews}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Receita Total</p>
+                        <h3 className="text-3xl font-extrabold text-green-600 mt-2">R$ {stats.totalRevenue.toLocaleString()}</h3>
+                    </div>
+                </div>
+                
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                   <h3 className="font-bold text-lg mb-4">Atalhos Rápidos</h3>
+                   <div className="flex gap-4">
+                      <button onClick={() => setActiveTab('TRIPS')} className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors flex items-center"><List className="mr-2" size={16}/> Gerenciar Pacotes</button>
+                      <button onClick={() => { setActiveTab('SETTINGS'); setSettingsSection('PAGE'); }} className="bg-purple-50 text-purple-700 px-4 py-3 rounded-xl font-bold text-sm hover:bg-purple-100 transition-colors flex items-center"><Layout className="mr-2" size={16}/> Personalizar Hero</button>
+                   </div>
+                </div>
+            </div>
+          )}
 
+          {/* TRIPS TAB */}
           {activeTab === 'TRIPS' && isActive && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-               <div className="flex justify-between mb-6">
-                   <h2 className="text-xl font-bold">Gerenciar Pacotes</h2>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
+               <div className="flex justify-between items-center mb-6">
+                   <h2 className="text-xl font-bold">Meus Pacotes</h2>
                    <button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700"><Plus size={18} className="mr-2"/> Novo Pacote</button>
                </div>
                <div className="space-y-4">
                    {myTrips.map(trip => (
-                       <div key={trip.id} className="flex flex-col md:flex-row items-center gap-4 p-4 border border-gray-100 rounded-xl hover:bg-gray-50">
-                           <img src={trip.images[0]} className="w-16 h-16 rounded-lg object-cover" alt="" />
-                           <div className="flex-1">
-                               <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                   {trip.title}
-                                   {!trip.active && <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Rascunho</span>}
-                               </h3>
-                               <div className="flex gap-3 text-xs text-gray-500 mt-1">
+                       <div key={trip.id} className="flex flex-col md:flex-row items-center gap-4 p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
+                           <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden relative">
+                               <img src={trip.images[0]} className="w-full h-full object-cover" alt="" />
+                               {trip.featuredInHero && <div className="absolute top-1 left-1 bg-amber-400 p-1 rounded-full" title="Destaque no Hero"><Star size={10} className="text-amber-900 fill-current"/></div>}
+                           </div>
+                           <div className="flex-1 w-full">
+                               <div className="flex items-center gap-2 mb-1">
+                                   <h3 className="font-bold text-gray-900 line-clamp-1">{trip.title}</h3>
+                                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${trip.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>{trip.active ? 'ATIVO' : 'RASCUNHO'}</span>
+                               </div>
+                               <div className="flex gap-3 text-xs text-gray-500">
                                    <span>R$ {trip.price}</span>
                                    <span>•</span>
                                    <span>{trip.views || 0} views</span>
-                                   <span>•</span>
-                                   <a 
-                                      href={cleanSlug ? `${window.location.origin}/#/${cleanSlug}/viagem/${trip.slug || trip.id}` : '#'} 
-                                      target="_blank" 
-                                      className="text-primary-600 hover:underline flex items-center gap-1"
-                                   >
-                                      <Eye size={10}/> Preview
-                                   </a>
                                </div>
                            </div>
-                           <div className="flex gap-2">
-                               <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-blue-500 hover:bg-white hover:shadow rounded" title="Duplicar"><Copy size={18}/></button>
-                               <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-500 hover:bg-white hover:shadow rounded" title="Editar"><Edit size={18}/></button>
-                               <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-500 hover:bg-white hover:shadow rounded" title="Excluir"><Trash2 size={18}/></button>
+                           <div className="flex gap-2 self-end md:self-center">
+                               <a 
+                                  href={cleanSlug ? `${window.location.origin}/#/${cleanSlug}/viagem/${trip.slug || trip.id}` : '#'} 
+                                  target="_blank" 
+                                  className="p-2 text-gray-400 hover:text-primary-600 rounded hover:bg-gray-100" title="Visualizar"
+                               >
+                                  <Eye size={18}/>
+                               </a>
+                               <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-gray-400 hover:text-blue-500 rounded hover:bg-gray-100" title="Duplicar"><Copy size={18}/></button>
+                               <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100" title="Editar"><Edit size={18}/></button>
+                               <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-400 hover:text-red-500 rounded hover:bg-gray-100" title="Excluir"><Trash2 size={18}/></button>
                            </div>
                        </div>
                    ))}
-                   {myTrips.length === 0 && <p className="text-gray-500 text-center py-8">Você ainda não criou nenhum pacote.</p>}
+                   {myTrips.length === 0 && <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200"><p className="text-gray-500">Você ainda não tem pacotes.</p></div>}
                </div>
             </div>
           )}
 
-          {activeTab === 'STATS' && isActive && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                 <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Faturamento</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
-                 <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Vendas</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">{stats.totalSales}</h3></div>
-                 <div className="bg-white p-6 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-500 uppercase">Visualizações</p><h3 className="text-2xl font-extrabold text-gray-900 mt-2">{stats.totalViews}</h3></div>
-            </div>
-          )}
-
+          {/* SUBSCRIPTION TAB */}
           {activeTab === 'SUBSCRIPTION' && (
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto animate-[fadeIn_0.3s]">
                 {PLANS.map(plan => (
                     <div key={plan.id} className="bg-white p-8 rounded-2xl border hover:border-primary-600 transition-all shadow-sm hover:shadow-md">
                         <h3 className="text-xl font-bold">{plan.name}</h3>
                         <p className="text-3xl font-bold text-primary-600 mt-2">R$ {plan.price.toFixed(2)}</p>
-                        <button onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }} className="w-full mt-6 bg-primary-600 text-white py-3 rounded-xl font-bold">Selecionar</button>
+                        <ul className="mt-6 space-y-3 text-gray-600 text-sm mb-8">
+                             {plan.features.map((f, i) => <li key={i} className="flex gap-2"><CheckCircle size={16} className="text-green-500"/> {f}</li>)}
+                        </ul>
+                        <button onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors">Selecionar Plano</button>
                     </div>
                 ))}
             </div>
           )}
 
+          {/* SETTINGS TAB */}
           {activeTab === 'SETTINGS' && (
-             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                <form onSubmit={handleAgencyUpdate} className="space-y-8">
-                    
-                    <section>
-                         <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Identidade Visual</h3>
-                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label>
-                                <LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold mb-1">Nome da Agência</label>
-                                <input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold mb-1">Descrição</label>
-                                <textarea rows={3} value={agencyForm.description} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" placeholder="Conte um pouco sobre a agência..." />
-                            </div>
-                         </div>
-                    </section>
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row min-h-[600px] animate-[fadeIn_0.3s]">
+                {/* Settings Sidebar */}
+                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu</h3>
+                    <nav className="space-y-2">
+                        <button 
+                          onClick={() => setSettingsSection('PROFILE')}
+                          className={`w-full text-left px-4 py-2 rounded-lg text-sm font-bold transition-colors ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            Perfil & Contato
+                        </button>
+                        <button 
+                          onClick={() => setSettingsSection('PAGE')}
+                          className={`w-full text-left px-4 py-2 rounded-lg text-sm font-bold transition-colors ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            Página Pública (Hero)
+                        </button>
+                    </nav>
+                </div>
 
-                    <section>
-                         <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Microsite & Contato</h3>
-                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold mb-1">WhatsApp (Somente números)</label>
-                                <div className="relative">
-                                    <Smartphone className="absolute left-3 top-3 text-gray-400" size={18} />
-                                    <input 
-                                      value={agencyForm.whatsapp || ''} 
-                                      onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} 
-                                      className="w-full border rounded-lg p-3 pl-10 outline-none focus:border-primary-500" 
-                                      placeholder="5511999999999"
-                                    />
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1">Este número será usado no botão de "Contato" do seu microsite.</p>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold mb-1">Endereço do Microsite (Slug)</label>
-                                <div className="relative">
-                                    <input 
-                                      value={agencyForm.slug || ''} 
-                                      onChange={e => handleSlugChange(e.target.value)} 
-                                      className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48" 
-                                    />
-                                    <span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{window.location.host}/#/</span>
+                {/* Settings Content */}
+                <div className="flex-1 p-8">
+                    <form onSubmit={handleAgencyUpdate} className="space-y-8 max-w-2xl">
+                        {settingsSection === 'PROFILE' && (
+                            <section className="space-y-6 animate-[fadeIn_0.2s]">
+                                <h2 className="text-xl font-bold text-gray-900 pb-2 border-b border-gray-100">Identidade & Contato</h2>
+                                
+                                <div>
+                                    <label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label>
+                                    <LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} />
                                 </div>
                                 
-                                {cleanSlug && (
-                                    <div className="mt-2">
-                                        <a 
-                                            href={fullAgencyLink}
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium bg-primary-50 px-2 py-1 rounded-md"
-                                        >
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold mb-1">Nome da Agência</label>
+                                        <input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold mb-1">WhatsApp (Apenas números)</label>
+                                        <div className="relative">
+                                            <Smartphone className="absolute left-3 top-3 text-gray-400" size={18} />
+                                            <input 
+                                            value={agencyForm.whatsapp || ''} 
+                                            onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} 
+                                            className="w-full border rounded-lg p-3 pl-10 outline-none focus:border-primary-500" 
+                                            placeholder="5511999999999"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold mb-1">Descrição</label>
+                                    <textarea rows={3} value={agencyForm.description} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" placeholder="Sobre a agência..." />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold mb-1">Slug (Endereço Personalizado)</label>
+                                    <div className="relative">
+                                        <input 
+                                          value={agencyForm.slug || ''} 
+                                          onChange={e => handleSlugChange(e.target.value)} 
+                                          className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48" 
+                                        />
+                                        <span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{window.location.host}/#/</span>
+                                    </div>
+                                    {cleanSlug && (
+                                        <a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-2 font-medium">
                                             <ExternalLink size={10} /> {fullAgencyLink} 
                                         </a>
+                                    )}
+                                </div>
+                            </section>
+                        )}
+
+                        {settingsSection === 'PAGE' && (
+                            <section className="space-y-6 animate-[fadeIn_0.2s]">
+                                <h2 className="text-xl font-bold text-gray-900 pb-2 border-b border-gray-100">Configuração do Hero (Banner)</h2>
+                                <p className="text-sm text-gray-500">Escolha como o topo do seu site será exibido para os visitantes.</p>
+
+                                <div>
+                                    <label className="block text-xs font-bold mb-3 uppercase text-gray-500">Modo de Exibição</label>
+                                    <div className="flex gap-4">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'TRIPS' })}
+                                            className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'TRIPS' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300'}`}
+                                        >
+                                            <div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Layout size={16}/> Carrossel de Viagens</div>
+                                            <p className="text-xs text-gray-500">Exibe suas viagens ativas e destacadas rotativamente.</p>
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'STATIC' })}
+                                            className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'STATIC' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300'}`}
+                                        >
+                                            <div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><ImageIcon size={16}/> Banner Estático</div>
+                                            <p className="text-xs text-gray-500">Exibe uma imagem fixa com título e subtítulo.</p>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {agencyForm.heroMode === 'STATIC' && (
+                                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100 space-y-4 animate-[fadeIn_0.3s]">
+                                        <div>
+                                            <label className="block text-xs font-bold mb-1">Imagem do Banner</label>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-32 h-16 bg-gray-200 rounded-lg overflow-hidden relative border border-gray-300">
+                                                    {agencyForm.heroBannerUrl ? (
+                                                        <img src={agencyForm.heroBannerUrl} className="w-full h-full object-cover" alt="Banner" />
+                                                    ) : (
+                                                        <div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem imagem</div>
+                                                    )}
+                                                    {uploadingBanner && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}
+                                                </div>
+                                                <label className="cursor-pointer bg-white border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
+                                                    Enviar Imagem
+                                                    <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner}/>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold mb-1">Título do Hero</label>
+                                            <input 
+                                                value={agencyForm.heroTitle || ''} 
+                                                onChange={e => setAgencyForm({...agencyForm, heroTitle: e.target.value})} 
+                                                className="w-full border rounded-lg p-2 outline-none focus:border-primary-500" 
+                                                placeholder="Ex: Explore o Mundo Conosco"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold mb-1">Subtítulo do Hero</label>
+                                            <input 
+                                                value={agencyForm.heroSubtitle || ''} 
+                                                onChange={e => setAgencyForm({...agencyForm, heroSubtitle: e.target.value})} 
+                                                className="w-full border rounded-lg p-2 outline-none focus:border-primary-500" 
+                                                placeholder="Ex: As melhores experiências personalizadas para você."
+                                            />
+                                        </div>
                                     </div>
                                 )}
-                            </div>
-                         </div>
-                    </section>
-
-                    <button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20">Salvar Alterações</button>
-                </form>
+                            </section>
+                        )}
+                        
+                        <div className="pt-4 border-t border-gray-100">
+                            <button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all">Salvar Alterações</button>
+                        </div>
+                    </form>
+                </div>
              </div>
           )}
         </>
       ) : (
-         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
                  <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
                  <div className="flex gap-3">
-                    {/* Preview Button */}
                     <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
                  </div>
              </div>
 
              <div className="p-8 space-y-8 max-w-4xl mx-auto">
-                 {/* ... Trip Edit Form Content (kept mostly same, focusing on structure) ... */}
                  <section className="space-y-4">
-                    <h3 className="font-bold border-b pb-2">Informações Básicas</h3>
-                    <div><label className="font-bold text-sm">Título do Pacote</label><input value={tripForm.title} onChange={handleTitleChange} className="w-full border p-3 rounded-lg" placeholder="Ex: Fim de semana em Paraty"/></div>
+                    <div className="flex justify-between items-center border-b pb-2 mb-4">
+                        <h3 className="font-bold">Informações Básicas</h3>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={tripForm.featuredInHero} 
+                                onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})}
+                                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                            />
+                            <span className="text-sm font-bold text-amber-600 flex items-center"><Star size={14} className="mr-1 fill-amber-600"/> Destacar no Hero</span>
+                        </label>
+                    </div>
+                    
+                    <div><label className="font-bold text-sm">Título do Pacote</label><input value={tripForm.title} onChange={handleTitleChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" placeholder="Ex: Fim de semana em Paraty"/></div>
                     <div>
                         <label className="font-bold text-sm">Slug (URL Amigável)</label>
-                        <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700" />
+                        <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:border-primary-500" />
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4">
-                        <div><label className="font-bold text-sm">Preço (R$)</label><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
-                        <div><label className="font-bold text-sm">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg" /></div>
+                        <div><label className="font-bold text-sm">Preço (R$)</label><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" /></div>
+                        <div><label className="font-bold text-sm">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" /></div>
                         <div>
                             <label className="font-bold text-sm">Categoria</label>
-                            <select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg">
+                            <select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500">
                                 <option value="PRAIA">Praia</option>
                                 <option value="AVENTURA">Aventura</option>
                                 <option value="FAMILIA">Família</option>
@@ -500,12 +645,11 @@ const AgencyDashboard: React.FC = () => {
                             </select>
                         </div>
                     </div>
-                    <div><label className="font-bold text-sm">Destino (Cidade/Estado)</label><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg" /></div>
+                    <div><label className="font-bold text-sm">Destino (Cidade/Estado)</label><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" /></div>
                  </section>
 
                  <section>
                      <h3 className="font-bold border-b pb-2 mb-4">Descrição Detalhada</h3>
-                     <p className="text-sm text-gray-500 mb-2">Use o editor abaixo para adicionar detalhes do roteiro, o que levar, e informações importantes.</p>
                      <RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} />
                  </section>
 
@@ -514,9 +658,8 @@ const AgencyDashboard: React.FC = () => {
                      <ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} />
                  </section>
                  
-                 {/* Duplicate buttons bottom */}
                  <div className="flex justify-end gap-3 border-t pt-6 mt-8">
-                    <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
+                    <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-all">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
                  </div>
              </div>
          </div>

@@ -100,6 +100,7 @@ export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   cnpj: `10.${index}23.${index}56/0001-${index}0`,
   description: ag.desc,
   logo: getImg(ag.logoKey),
+  heroMode: 'TRIPS', // Default
   subscriptionStatus: 'ACTIVE',
   subscriptionPlan: 'PREMIUM',
   subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
@@ -283,6 +284,9 @@ MOCK_AGENCIES.forEach((agency) => {
   specs.forEach((spec, i) => {
     const uniqueTags = getTags(spec.cat, spec.dest, spec.tags);
     const id = `t_${agency.id}_${i}`;
+    
+    // Randomly enable Hero Featured for demonstration
+    const isFeaturedInHero = Math.random() > 0.7;
 
     generatedTrips.push({
       id: id,
@@ -307,6 +311,7 @@ MOCK_AGENCIES.forEach((agency) => {
       views: Math.floor(Math.random() * 5000),
       sales: Math.floor(Math.random() * 100),
       featured: spec.featured || false,
+      featuredInHero: isFeaturedInHero, // New Field
       popularNearSP: spec.nearSP || false,
       itinerary: [] // Default empty
     });

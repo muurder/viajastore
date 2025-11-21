@@ -109,6 +109,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             views: t.views_count || 0,
             sales: t.sales_count || 0,
             featured: t.featured || false,
+            featuredInHero: t.featured_in_hero || false, // New Field
             popularNearSP: t.popular_near_sp || false
           }));
 
@@ -135,7 +136,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         cnpj: a.cnpj,
         description: a.description,
         logo: a.logo_url,
-        whatsapp: a.whatsapp, // Added field mapping
+        whatsapp: a.whatsapp,
+        
+        // Hero Config
+        heroMode: a.hero_mode || 'TRIPS',
+        heroBannerUrl: a.hero_banner_url,
+        heroTitle: a.hero_title,
+        heroSubtitle: a.hero_subtitle,
+
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
         subscriptionExpiresAt: a.subscription_expires_at,
@@ -447,6 +455,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured ?? false,
+        featured_in_hero: trip.featuredInHero ?? false, // New Field
         popular_near_sp: trip.popularNearSP ?? false,
     };
 
@@ -495,6 +504,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured,
+        featured_in_hero: trip.featuredInHero, // New Field
         popular_near_sp: trip.popularNearSP,
     };
 
