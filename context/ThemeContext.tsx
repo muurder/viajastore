@@ -2,13 +2,31 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette } from '../types';
 
-// Helper to convert Hex to RGB for Tailwind Variables
-const hexToRgb = (hex: string) => {
+// Helper to convert Hex to RGB Array [r, g, b]
+const hexToRgbArray = (hex: string): [number, number, number] => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result 
-    ? `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}` 
-    : '59 130 246'; // fallback blue
+    ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] 
+    : [59, 130, 246]; // fallback blue
 };
+
+// Mix color with white (tint) or black (shade)
+// weight: 0 to 1. 
+const mix = (color: number, mixColor: number, weight: number) => {
+  return Math.round(color + (mixColor - color) * weight);
+}
+
+// Generate lighter shade (mix with white)
+const tint = (rgb: [number, number, number], weight: number) => {
+    return `${mix(rgb[0], 255, weight)} ${mix(rgb[1], 255, weight)} ${mix(rgb[2], 255, weight)}`;
+}
+
+// Generate darker shade (mix with black)
+const shade = (rgb: [number, number, number], weight: number) => {
+    return `${mix(rgb[0], 0, weight)} ${mix(rgb[1], 0, weight)} ${mix(rgb[2], 0, weight)}`;
+}
+
+const rgbString = (rgb: [number, number, number]) => `${rgb[0]} ${rgb[1]} ${rgb[2]}`;
 
 // Default Themes
 const DEFAULT_THEMES: ThemePalette[] = [
@@ -59,7 +77,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [activeTheme, setActiveTheme] = useState<ThemePalette>(DEFAULT_THEMES[0]);
   const [previewMode, setPreviewMode] = useState<ThemePalette | null>(null);
 
-  // Load from localStorage or Supabase in real app
+  // Load from localStorage
   useEffect(() => {
       const savedThemeId = localStorage.getItem('viajastore_theme_id');
       if (savedThemeId) {
@@ -68,29 +86,28 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
   }, []);
 
-  // Apply CSS Variables
+  // Apply CSS Variables with proper shading
   useEffect(() => {
     const theme = previewMode || activeTheme;
     const root = document.documentElement;
 
-    // Primary Palette Generation (Simple lightening/darkening logic simulation)
-    // In a real app, we would calculate shades properly. Here we use the main color for 500/600
-    const primaryRgb = hexToRgb(theme.colors.primary);
-    const secondaryRgb = hexToRgb(theme.colors.secondary);
+    const primary = hexToRgbArray(theme.colors.primary);
+    const secondary = hexToRgbArray(theme.colors.secondary);
 
-    root.style.setProperty('--color-primary-50', primaryRgb); // Would be lighter
-    root.style.setProperty('--color-primary-100', primaryRgb); // Would be lighter
-    root.style.setProperty('--color-primary-500', primaryRgb);
-    root.style.setProperty('--color-primary-600', primaryRgb); // Would be darker
-    root.style.setProperty('--color-primary-700', primaryRgb); // Would be darker
-    root.style.setProperty('--color-primary-900', primaryRgb); // Would be darker
-    
-    root.style.setProperty('--color-secondary-500', secondaryRgb);
-    root.style.setProperty('--color-secondary-600', secondaryRgb);
+    // Primary Palette Generation
+    root.style.setProperty('--color-primary-50', tint(primary, 0.95)); // Very Light
+    root.style.setProperty('--color-primary-100', tint(primary, 0.8)); // Light
+    root.style.setProperty('--color-primary-500', rgbString(primary)); // Base
+    root.style.setProperty('--color-primary-600', shade(primary, 0.1)); // Slightly Darker (hover)
+    root.style.setProperty('--color-primary-700', shade(primary, 0.2)); // Darker (text)
+    root.style.setProperty('--color-primary-900', shade(primary, 0.4)); // Very Dark
 
-    // Apply background if needed (requires Tailwind config change to use var, or just body style)
+    // Secondary Palette Generation
+    root.style.setProperty('--color-secondary-500', rgbString(secondary));
+    root.style.setProperty('--color-secondary-600', shade(secondary, 0.1));
+
+    // Optional: Apply background if needed
     // document.body.style.backgroundColor = theme.colors.background;
-    // document.body.style.color = theme.colors.text;
 
   }, [activeTheme, previewMode]);
 
