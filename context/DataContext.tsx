@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, Client, UserRole } from '../types';
+import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 
@@ -17,6 +17,7 @@ interface DataContextType {
   bookings: Booking[];
   reviews: Review[];
   clients: Client[];
+  auditLogs: AuditLog[]; // New
   loading: boolean;
   
   addBooking: (booking: Booking) => Promise<void>;
@@ -31,6 +32,10 @@ interface DataContextType {
   deleteTrip: (tripId: string) => Promise<void>;
   toggleTripStatus: (tripId: string) => Promise<void>; 
   
+  // Master Admin Functions
+  deleteUser: (userId: string, role: UserRole) => Promise<void>;
+  logAuditAction: (action: string, details: string) => Promise<void>;
+
   getPublicTrips: () => Trip[]; 
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
@@ -51,6 +56,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]); // New
   const [loading, setLoading] = useState(true);
 
   // --- DATA FETCHING ---
@@ -82,7 +88,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startDate: t.start_date,
         endDate: t.end_date,
         durationDays: t.duration_days,
-        // Ensure consistent image order by created_at
         images: t.trip_images 
             ? t.trip_images
                 .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -94,7 +99,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         itinerary: t.itinerary || [],
         paymentMethods: t.payment_methods || [],
         active: t.active,
-        rating: 5.0, // Seria ideal calcular média dos reviews
+        rating: 5.0, 
         totalReviews: 0, 
         included: t.included || [],
         notIncluded: t.not_included || [],
@@ -185,6 +190,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
     }
+    // Admins see all bookings (logic for master admin)
+    else if (user.role === UserRole.ADMIN) {
+        // Fetch all
+    }
 
     const { data, error } = await query;
 
@@ -209,6 +218,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Mock Audit Logs for now
+  const fetchAuditLogs = async () => {
+      // In a real scenario, SELECT * FROM audit_logs
+      const mockLogs: AuditLog[] = [
+          { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado', createdAt: new Date().toISOString() }
+      ];
+      setAuditLogs(mockLogs);
+  };
+
   const refreshData = async () => {
       setLoading(true);
       await Promise.all([
@@ -218,6 +236,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchBookings()
       ]);
       if(user) await fetchFavorites();
+      if(user?.role === UserRole.ADMIN) await fetchAuditLogs();
       setLoading(false);
   };
 
@@ -254,7 +273,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-     // 1. Insert Trip
      const { data, error } = await supabase.from('trips').insert({
          agency_id: trip.agencyId,
          title: trip.title,
@@ -276,7 +294,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
      if(error) throw new Error('Erro ao criar viagem: ' + error.message);
 
-     // 2. Insert Images
      if(trip.images && trip.images.length > 0) {
          const imagesPayload = trip.images.map(url => ({
              trip_id: data.id,
@@ -284,7 +301,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          }));
          await supabase.from('trip_images').insert(imagesPayload);
      }
-
      await fetchTrips();
   };
 
@@ -307,7 +323,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if(error) throw error;
 
       if (trip.images) {
-          // For simplicity in this iteration: clear and re-insert
           await supabase.from('trip_images').delete().eq('trip_id', trip.id);
           const imagesPayload = trip.images.map(url => ({
                trip_id: trip.id,
@@ -315,7 +330,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }));
           await supabase.from('trip_images').insert(imagesPayload);
       }
-
       await fetchTrips();
   };
 
@@ -333,7 +347,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
       const { data } = await supabase.from('favorites').select('*').eq('user_id', clientId).eq('trip_id', tripId).single();
-      
       if(data) {
           await supabase.from('favorites').delete().eq('id', data.id);
           setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: c.favorites.filter(id => id !== tripId) } : c));
@@ -353,13 +366,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           voucher_code: booking.voucherCode,
           payment_method: booking.paymentMethod
       });
-      
-      if (error) {
-        console.error("Erro ao salvar reserva:", error);
-        alert("Erro ao processar reserva. Tente novamente.");
-        return;
-      }
-
+      if (error) { console.error("Erro ao salvar reserva:", error); return; }
       await supabase.rpc('increment_sales', { row_id: booking.tripId });
       await fetchBookings();
   };
@@ -385,16 +392,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           subscription_plan: plan
       }).eq('id', agencyId);
       await fetchAgencies();
+      await logAuditAction('UPDATE_SUBSCRIPTION', `Updated agency ${agencyId} to ${status} - ${plan}`);
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
       const payload: any = {};
       if (data.phone) payload.phone = data.phone;
       if (data.address) payload.address = data.address;
-      
       if (Object.keys(payload).length > 0) {
           await supabase.from('profiles').update(payload).eq('id', clientId);
       }
+  };
+
+  const deleteUser = async (userId: string, role: UserRole) => {
+     if (role === UserRole.AGENCY) {
+         await supabase.from('agencies').delete().eq('id', userId);
+         setAgencies(prev => prev.filter(a => a.id !== userId));
+     } else {
+         await supabase.from('profiles').delete().eq('id', userId);
+         setClients(prev => prev.filter(c => c.id !== userId));
+     }
+     await logAuditAction('DELETE_USER', `Deleted user ${userId} with role ${role}`);
+  };
+
+  const logAuditAction = async (action: string, details: string) => {
+      if (!user) return;
+      // Mock implementation or Supabase Insert
+      const newLog: AuditLog = {
+          id: Date.now().toString(),
+          adminEmail: user.email,
+          action,
+          details,
+          createdAt: new Date().toISOString()
+      };
+      setAuditLogs(prev => [newLog, ...prev]);
+      // await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
   };
 
   const getAgencyStats = (agencyId: string): DashboardStats => {
@@ -403,21 +435,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          const trip = trips.find(t => t.id === b.tripId);
          return trip && trip.agencyId === agencyId;
      });
-
      const totalRevenue = agencyBookings.reduce((acc, curr) => acc + (Number(curr.totalPrice) || 0), 0);
      const totalSales = agencyBookings.length;
      const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
-     
      const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
-
      return { totalRevenue, totalSales, totalViews, conversionRate };
   };
 
   return (
     <DataContext.Provider value={{
-      trips, agencies, bookings, reviews, clients, loading,
+      trips, agencies, bookings, reviews, clients, auditLogs, loading,
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
+      deleteUser, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getReviewsByTripId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>

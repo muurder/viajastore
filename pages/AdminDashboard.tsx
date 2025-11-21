@@ -2,18 +2,30 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { UserRole } from '../types';
-import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, RefreshCw, Activity } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { agencies, bookings, trips, reviews, clients, updateAgencySubscription, toggleTripStatus, deleteReview } = useData();
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS' | 'SYSTEM'>('OVERVIEW');
+  const { agencies, bookings, trips, reviews, clients, auditLogs, updateAgencySubscription, toggleTripStatus, deleteReview, deleteUser, logAuditAction } = useData();
+  const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview } = useTheme();
   
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS' | 'THEMES' | 'AUDIT' | 'SYSTEM'>('OVERVIEW');
+  
+  // Master Check
+  const isMaster = user?.email === 'juannicolas1@gmail.com';
+
   // Migration State
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationLogs, setMigrationLogs] = useState<string[]>([]);
+
+  // Theme Editor State
+  const [newTheme, setNewTheme] = useState({
+      name: 'Novo Tema',
+      colors: { primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' }
+  });
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -32,9 +44,36 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
+  const handleDeleteUser = async (id: string, role: UserRole, name: string) => {
+      const confirm = prompt(`Para excluir permanentemente ${name}, digite DELETAR abaixo:`);
+      if (confirm === 'DELETAR') {
+          await deleteUser(id, role);
+          alert('Usuário excluído.');
+      }
+  };
+
+  const handleSaveTheme = () => {
+      const id = `theme-${Date.now()}`;
+      addTheme({
+          id,
+          name: newTheme.name,
+          colors: newTheme.colors,
+          isActive: false,
+          isDefault: false
+      });
+      alert('Tema salvo! Agora você pode ativá-lo.');
+      logAuditAction('CREATE_THEME', `Created theme ${newTheme.name}`);
+  };
+
+  const handleApplyTheme = (id: string) => {
+      if(window.confirm('Atenção: Isso alterará as cores do site para TODOS os usuários. Confirmar?')) {
+          setTheme(id);
+          logAuditAction('CHANGE_THEME', `Applied theme ${id} globally`);
+      }
+  };
+
   const runMigration = async () => {
-      if(!window.confirm('ATENÇÃO: Isso tentará criar usuários no Supabase e inserir dados. Certifique-se de ter configurado services/supabase.ts.')) return;
-      
+      if(!window.confirm('ATENÇÃO: Isso tentará criar usuários no Supabase e inserir dados.')) return;
       setIsMigrating(true);
       setMigrationLogs(['Iniciando...']);
       try {
@@ -52,29 +91,40 @@ const AdminDashboard: React.FC = () => {
     <div className="max-w-7xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                Painel Administrativo {isMaster && <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full border border-purple-200">MASTER</span>}
+            </h1>
             <p className="text-gray-500">Visão geral do marketplace</p>
+         </div>
+         <div className="text-right">
+             <p className="text-sm text-gray-500">Logado como</p>
+             <p className="font-bold text-gray-900">{user.email}</p>
          </div>
       </div>
 
       {/* Tabs */}
       <div className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 inline-flex mb-8 flex-wrap gap-2">
           {[
-              {id: 'OVERVIEW', label: 'Visão Geral'}, 
-              {id: 'AGENCIES', label: 'Agências'},
-              {id: 'USERS', label: 'Usuários'},
-              {id: 'TRIPS', label: 'Viagens'},
-              {id: 'REVIEWS', label: 'Avaliações'},
-              {id: 'SYSTEM', label: 'Sistema & Dados'}
-          ].map(tab => (
-            <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-            >
-                {tab.label}
-            </button>
-          ))}
+              {id: 'OVERVIEW', label: 'Visão Geral', icon: Activity}, 
+              {id: 'AGENCIES', label: 'Agências', icon: Briefcase},
+              {id: 'USERS', label: 'Usuários', icon: Users},
+              {id: 'TRIPS', label: 'Viagens', icon: BarChart},
+              {id: 'REVIEWS', label: 'Avaliações', icon: MessageCircle},
+              {id: 'THEMES', label: 'Temas & Cores', icon: Palette, masterOnly: true},
+              {id: 'AUDIT', label: 'Auditoria', icon: Lock, masterOnly: true},
+              {id: 'SYSTEM', label: 'Sistema', icon: Database}
+          ].map(tab => {
+             if (tab.masterOnly && !isMaster) return null;
+             return (
+                <button 
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                >
+                    <tab.icon size={16} /> {tab.label}
+                </button>
+             );
+          })}
       </div>
 
       {activeTab === 'OVERVIEW' && (
@@ -95,6 +145,122 @@ const AdminDashboard: React.FC = () => {
                 <p className="text-sm font-bold text-gray-400 uppercase">Total de Clientes</p>
                 <p className="text-3xl font-extrabold text-purple-600 mt-2">{clients.length}</p>
             </div>
+          </div>
+      )}
+
+      {activeTab === 'THEMES' && isMaster && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-[fadeIn_0.3s]">
+              {/* Theme List */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 col-span-1">
+                  <h2 className="text-xl font-bold mb-4">Temas Disponíveis</h2>
+                  <div className="space-y-4">
+                      {themes.map(theme => (
+                          <div key={theme.id} className={`border rounded-xl p-4 ${activeTheme.id === theme.id ? 'border-primary-500 bg-primary-50' : 'border-gray-200'}`}>
+                              <div className="flex justify-between items-center mb-3">
+                                  <span className="font-bold text-gray-900">{theme.name}</span>
+                                  {activeTheme.id === theme.id && <span className="text-xs bg-primary-600 text-white px-2 py-1 rounded-full">Ativo</span>}
+                              </div>
+                              <div className="flex gap-2 mb-4">
+                                  <div className="w-6 h-6 rounded-full shadow-sm" style={{backgroundColor: theme.colors.primary}}></div>
+                                  <div className="w-6 h-6 rounded-full shadow-sm" style={{backgroundColor: theme.colors.secondary}}></div>
+                                  <div className="w-6 h-6 rounded-full shadow-sm border" style={{backgroundColor: theme.colors.background}}></div>
+                              </div>
+                              <div className="flex gap-2">
+                                  {activeTheme.id !== theme.id && (
+                                    <button onClick={() => handleApplyTheme(theme.id)} className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-black">Aplicar</button>
+                                  )}
+                                  <button onClick={() => previewTheme(theme)} className="flex-1 border border-gray-300 text-gray-700 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50"><Eye size={12} className="inline mr-1"/> Preview</button>
+                                  {!theme.isDefault && (
+                                      <button onClick={() => deleteTheme(theme.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14}/></button>
+                                  )}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+
+              {/* Theme Creator */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 col-span-2">
+                  <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-bold">Criar Novo Tema</h2>
+                      <button onClick={resetPreview} className="text-sm text-gray-500 hover:text-gray-900 flex items-center"><RefreshCw size={14} className="mr-1"/> Resetar Preview</button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">Nome do Tema</label>
+                              <input value={newTheme.name} onChange={e => setNewTheme({...newTheme, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2"/>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">Cor Primária</label>
+                              <div className="flex items-center gap-3">
+                                  <input type="color" value={newTheme.colors.primary} onChange={e => { const c = e.target.value; setNewTheme({...newTheme, colors: {...newTheme.colors, primary: c}}); previewTheme({...newTheme, id: 'temp', isActive: false, isDefault: false, colors: {...newTheme.colors, primary: c}} as any) }} className="h-10 w-10 rounded cursor-pointer border-none"/>
+                                  <span className="text-sm font-mono text-gray-500">{newTheme.colors.primary}</span>
+                              </div>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">Cor Secundária</label>
+                              <div className="flex items-center gap-3">
+                                  <input type="color" value={newTheme.colors.secondary} onChange={e => { const c = e.target.value; setNewTheme({...newTheme, colors: {...newTheme.colors, secondary: c}}); previewTheme({...newTheme, id: 'temp', isActive: false, isDefault: false, colors: {...newTheme.colors, secondary: c}} as any) }} className="h-10 w-10 rounded cursor-pointer border-none"/>
+                                  <span className="text-sm font-mono text-gray-500">{newTheme.colors.secondary}</span>
+                              </div>
+                          </div>
+                          <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-4">
+                              <Save size={18}/> Salvar Tema
+                          </button>
+                      </div>
+
+                      {/* Live Preview Area */}
+                      <div className="border border-gray-200 rounded-xl p-6 bg-gray-50">
+                          <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Preview em Tempo Real</h3>
+                          
+                          <div className="space-y-4">
+                              <button className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold shadow-sm">Botão Primário</button>
+                              <button className="bg-secondary-500 text-white px-4 py-2 rounded-lg font-bold shadow-sm ml-2">Botão Secundário</button>
+                              
+                              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                                  <h4 className="text-primary-700 font-bold mb-1">Título do Card</h4>
+                                  <p className="text-gray-600 text-sm">Este é um exemplo de como o texto e os elementos se comportarão com as novas cores.</p>
+                              </div>
+
+                              <div className="bg-primary-50 p-4 rounded-lg border border-primary-100 text-primary-800 text-sm font-medium">
+                                  Alertas e fundos suaves usarão a cor primária em baixa opacidade.
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {activeTab === 'AUDIT' && isMaster && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
+              <table className="min-w-full divide-y divide-gray-100">
+                 <thead className="bg-gray-50">
+                     <tr>
+                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
+                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Admin</th>
+                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Ação</th>
+                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Detalhes</th>
+                     </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-100">
+                     {auditLogs.map(log => (
+                         <tr key={log.id} className="hover:bg-gray-50">
+                             <td className="px-6 py-4 text-gray-500 text-xs font-mono">{new Date(log.createdAt).toLocaleString()}</td>
+                             <td className="px-6 py-4 font-bold text-gray-900 text-sm">{log.adminEmail}</td>
+                             <td className="px-6 py-4">
+                                 <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold">{log.action}</span>
+                             </td>
+                             <td className="px-6 py-4 text-gray-600 text-sm">{log.details}</td>
+                         </tr>
+                     ))}
+                     {auditLogs.length === 0 && (
+                         <tr><td colSpan={4} className="text-center py-8 text-gray-400">Nenhuma ação registrada.</td></tr>
+                     )}
+                 </tbody>
+              </table>
           </div>
       )}
 
@@ -124,13 +290,16 @@ const AdminDashboard: React.FC = () => {
                                      {agency.subscriptionStatus}
                                  </span>
                              </td>
-                             <td className="px-6 py-4 text-right">
+                             <td className="px-6 py-4 text-right flex justify-end gap-2">
                                  <button 
                                      onClick={() => handleToggleAgency(agency.id, agency.subscriptionStatus, agency.subscriptionPlan)}
                                      className={`text-xs font-bold px-3 py-1 rounded border ${agency.subscriptionStatus === 'ACTIVE' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
                                  >
                                      {agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Ativar'}
                                  </button>
+                                 {isMaster && (
+                                     <button onClick={() => handleDeleteUser(agency.id, UserRole.AGENCY, agency.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                 )}
                              </td>
                          </tr>
                      ))}
@@ -147,7 +316,7 @@ const AdminDashboard: React.FC = () => {
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Nome</th>
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Email</th>
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">CPF</th>
-                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Cadastro</th>
+                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ação</th>
                      </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-100">
@@ -156,7 +325,11 @@ const AdminDashboard: React.FC = () => {
                              <td className="px-6 py-4 font-bold text-gray-900">{c.name}</td>
                              <td className="px-6 py-4 text-gray-600 text-sm">{c.email}</td>
                              <td className="px-6 py-4 text-gray-600 text-sm">{c.cpf || '---'}</td>
-                             <td className="px-6 py-4 text-right text-gray-400 text-sm">{new Date(c.createdAt || Date.now()).toLocaleDateString()}</td>
+                             <td className="px-6 py-4 text-right">
+                                {isMaster && (
+                                     <button onClick={() => handleDeleteUser(c.id, UserRole.CLIENT, c.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                 )}
+                             </td>
                          </tr>
                      ))}
                  </tbody>

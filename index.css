@@ -1,6 +1,20 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  /* Default Blue Theme - Will be overridden by JS */
+  --color-primary-50: 239 246 255;
+  --color-primary-100: 219 234 254;
+  --color-primary-500: 59 130 246;
+  --color-primary-600: 37 99 235;
+  --color-primary-700: 29 78 216;
+  --color-primary-900: 30 58 138;
+
+  --color-secondary-500: 249 115 22;
+  --color-secondary-600: 234 88 12;
+}
 
 body {
   background-color: #f9fafb; /* bg-gray-50 */

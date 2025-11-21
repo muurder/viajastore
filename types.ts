@@ -151,3 +151,26 @@ export interface Plan {
   price: number;
   features: string[];
 }
+
+// --- NEW MASTER ADMIN TYPES ---
+
+export interface ThemePalette {
+  id: string;
+  name: string;
+  colors: {
+    primary: string; // Hex Code
+    secondary: string; // Hex Code
+    background: string;
+    text: string;
+  };
+  isActive: boolean;
+  isDefault: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  adminEmail: string;
+  action: string; // 'DELETE_USER', 'CHANGE_THEME', etc.
+  details: string;
+  createdAt: string;
+}

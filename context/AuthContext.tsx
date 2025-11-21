@@ -25,6 +25,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
     try {
+      // 0. Check if Master Admin via Hardcoded Email (Security fallback)
+      if (email === 'juannicolas1@gmail.com') {
+          const masterUser: Admin = {
+             id: authId,
+             name: 'Master Admin',
+             email: email,
+             role: UserRole.ADMIN,
+             avatar: `https://ui-avatars.com/api/?name=MA&background=000&color=fff`,
+             createdAt: new Date().toISOString()
+          };
+          setUser(masterUser);
+          return;
+      }
+
       // 1. Check if Agency
       const { data: agencyData } = await supabase
         .from('agencies')

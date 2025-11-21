@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import TripList from './pages/TripList';
@@ -22,48 +23,50 @@ import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <DataProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
-              
-              {/* Main Content Routes */}
-              <Route path="trips" element={<TripList />} />
-              <Route path="trip/:id" element={<TripDetails />} />
-              <Route path="agencies" element={<AgencyList />} />
-              <Route path="agency/:id" element={<AgencyProfile />} />
-              
-              {/* Static Pages */}
-              <Route path="about" element={<About />} />
-              <Route path="contact" element={<Contact />} />
-              <Route path="terms" element={<Terms />} />
-              <Route path="privacy" element={<Privacy />} />
-              <Route path="help" element={<Help />} />
-              <Route path="blog" element={<Blog />} />
-              <Route path="careers" element={<Careers />} />
-              <Route path="press" element={<Press />} />
-              
-              {/* Utility Routes */}
-              <Route path="checkout/success" element={<CheckoutSuccess />} />
-              <Route path="unauthorized" element={<Unauthorized />} />
-              <Route path="forgot-password" element={<ForgotPassword />} />
-              
-              {/* Auth Routes */}
-              <Route path="login" element={<Login />} />
-              <Route path="signup" element={<Signup />} />
-              
-              {/* Protected Routes - In a real app these would be wrapped in a <ProtectedRoute> component */}
-              <Route path="agency/dashboard" element={<AgencyDashboard />} />
-              <Route path="admin/dashboard" element={<AdminDashboard />} />
-              <Route path="client/dashboard" element={<ClientDashboard />} />
+      <ThemeProvider>
+        <DataProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Home />} />
+                
+                {/* Main Content Routes */}
+                <Route path="trips" element={<TripList />} />
+                <Route path="trip/:id" element={<TripDetails />} />
+                <Route path="agencies" element={<AgencyList />} />
+                <Route path="agency/:id" element={<AgencyProfile />} />
+                
+                {/* Static Pages */}
+                <Route path="about" element={<About />} />
+                <Route path="contact" element={<Contact />} />
+                <Route path="terms" element={<Terms />} />
+                <Route path="privacy" element={<Privacy />} />
+                <Route path="help" element={<Help />} />
+                <Route path="blog" element={<Blog />} />
+                <Route path="careers" element={<Careers />} />
+                <Route path="press" element={<Press />} />
+                
+                {/* Utility Routes */}
+                <Route path="checkout/success" element={<CheckoutSuccess />} />
+                <Route path="unauthorized" element={<Unauthorized />} />
+                <Route path="forgot-password" element={<ForgotPassword />} />
+                
+                {/* Auth Routes */}
+                <Route path="login" element={<Login />} />
+                <Route path="signup" element={<Signup />} />
+                
+                {/* Protected Routes */}
+                <Route path="agency/dashboard" element={<AgencyDashboard />} />
+                <Route path="admin/dashboard" element={<AdminDashboard />} />
+                <Route path="client/dashboard" element={<ClientDashboard />} />
 
-              {/* Catch all */}
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </Router>
-      </DataProvider>
+                {/* Catch all */}
+                <Route path="*" element={<NotFound />} />
+              </Route>
+            </Routes>
+          </Router>
+        </DataProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 };
