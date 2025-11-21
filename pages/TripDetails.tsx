@@ -82,6 +82,22 @@ const TripDetails: React.FC = () => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   };
 
+  // Function to render description safely (detecting HTML vs Plain Text)
+  const renderDescription = (desc: string) => {
+      const isHTML = /<[a-z][\s\S]*>/i.test(desc);
+      
+      if (isHTML) {
+          return (
+              <div 
+                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3"
+                dangerouslySetInnerHTML={{ __html: desc }} 
+              />
+          );
+      }
+      // Fallback for old plain text descriptions
+      return <p className="leading-relaxed whitespace-pre-line">{desc}</p>;
+  };
+
   const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   // Create a safe gallery array even if images are missing
   const galleryImages = trip.images && trip.images.length > 0 
@@ -171,9 +187,9 @@ const TripDetails: React.FC = () => {
           <div className="h-px bg-gray-200"></div>
 
           {/* Description */}
-          <div className="prose prose-lg max-w-none text-gray-600">
+          <div className="text-gray-600">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
-            <p className="leading-relaxed">{trip.description}</p>
+            {renderDescription(trip.description)}
           </div>
 
           {/* Agency Card */}

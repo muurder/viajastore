@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
-import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag, AlignLeft, Heading, RotateCcw } from 'lucide-react';
 
 // --- CONSTANTS ---
 const COMMON_TAGS = ['Natureza', 'Aventura', 'História', 'Relax', 'Romântico', 'Família', 'Gastronomia', 'Luxo', 'Ecoturismo', 'Mochilão', 'Praia', 'Montanha', 'Urbano', 'Cultural'];
@@ -23,31 +23,68 @@ const PAYMENT_OPTIONS = [
 // --- COMPONENTS AUXILIARES ---
 
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
-  const insertFormat = (start: string, end: string) => {
-    const textarea = document.getElementById('rich-desc') as HTMLTextAreaElement;
-    if (!textarea) return;
-    const s = textarea.selectionStart;
-    const e = textarea.selectionEnd;
-    const text = textarea.value;
-    const newText = text.substring(0, s) + start + text.substring(s, e) + end + text.substring(e);
-    onChange(newText);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Execute command for WYSIWYG
+  const execCmd = (command: string, arg?: string) => {
+    document.execCommand(command, false, arg);
+    if (contentRef.current) {
+        onChange(contentRef.current.innerHTML);
+    }
+  };
+
+  // Sync initial value (careful with cursor jumps in controlled components)
+  useEffect(() => {
+    if (contentRef.current && contentRef.current.innerHTML !== value) {
+       // Only set if empty to avoid cursor jumping issues, 
+       // or strictly control it if you want perfect sync (harder without libraries)
+       if (value === '' || contentRef.current.innerHTML === '') {
+           contentRef.current.innerHTML = value;
+       }
+    }
+  }, []);
+
+  const handleInput = () => {
+      if (contentRef.current) {
+          onChange(contentRef.current.innerHTML);
+      }
   };
 
   return (
-    <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white">
-      <div className="bg-gray-50 border-b border-gray-200 p-2 flex gap-2">
-        <button type="button" onClick={() => insertFormat('**', '**')} className="p-2 hover:bg-gray-200 rounded text-gray-600 text-sm font-bold" title="Negrito"><Bold size={16}/></button>
-        <button type="button" onClick={() => insertFormat('*', '*')} className="p-2 hover:bg-gray-200 rounded text-gray-600 text-sm italic" title="Itálico"><Italic size={16}/></button>
-        <button type="button" onClick={() => insertFormat('\n- ', '')} className="p-2 hover:bg-gray-200 rounded text-gray-600 text-sm" title="Lista"><List size={16}/></button>
+    <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm">
+      <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
+        <button type="button" onClick={() => execCmd('bold')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Negrito">
+            <Bold size={18}/>
+        </button>
+        <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Itálico">
+            <Italic size={18}/>
+        </button>
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 hover:bg-gray-200 rounded text-gray-700 font-bold text-sm transition-colors" title="Título">
+            <Heading size={18}/>
+        </button>
+        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista">
+            <List size={18}/>
+        </button>
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+        <button type="button" onClick={() => execCmd('justifyLeft')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Alinhar Esquerda">
+            <AlignLeft size={18}/>
+        </button>
+        <button type="button" onClick={() => execCmd('removeFormat')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors ml-auto" title="Limpar Formatação">
+            <RotateCcw size={18}/>
+        </button>
       </div>
-      <textarea 
-        id="rich-desc" 
-        rows={10} 
-        className="w-full p-4 outline-none resize-y text-sm leading-relaxed text-gray-700" 
-        value={value} 
-        onChange={(e) => onChange(e.target.value)} 
-        placeholder="Descreva os detalhes da viagem, roteiro dia a dia e informações importantes..." 
+      
+      <div 
+        ref={contentRef}
+        contentEditable
+        onInput={handleInput}
+        className="w-full p-4 min-h-[300px] outline-none text-sm leading-relaxed text-gray-700 prose prose-sm max-w-none [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mt-4 [&>h3]:mb-2"
+        style={{ minHeight: '300px' }}
       />
+      <div className="bg-gray-50 px-4 py-2 text-xs text-gray-400 border-t border-gray-100">
+          Escreva livremente. Selecione o texto para aplicar formatação.
+      </div>
     </div>
   );
 };
