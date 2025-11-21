@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
@@ -202,6 +203,7 @@ const TagsManager: React.FC<{ selected: string[]; onChange: (tags: string[]) => 
 
 const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => void }> = ({ images, onChange }) => {
   const [uploading, setUploading] = useState(false);
+  const { showToast } = useToast();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -221,8 +223,9 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
         newImages.push(data.publicUrl);
       }
       if (newImages.length > 0) onChange([...images, ...newImages]);
+      showToast('Imagens enviadas com sucesso!', 'success');
     } catch (error: any) {
-      alert('Erro no upload: ' + (error.message || 'Tente novamente'));
+      showToast('Erro no upload: ' + (error.message || 'Tente novamente'), 'error');
     } finally {
       setUploading(false);
     }
@@ -255,6 +258,7 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
+  const { showToast } = useToast();
   
   // States
   const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION' | 'SETTINGS'>('STATS');
@@ -329,21 +333,36 @@ const AgencyDashboard: React.FC = () => {
     setIsSubmitting(true);
     const tripData = { ...tripForm, agencyId: user.id } as Trip;
     try {
-        if (editingTripId) await updateTrip(tripData);
-        else await createTrip({ ...tripData, active: true, startDate: new Date().toISOString(), endDate: new Date().toISOString() } as Trip);
-        alert('Salvo com sucesso!');
+        if (editingTripId) {
+            await updateTrip(tripData);
+            showToast('Viagem atualizada com sucesso!', 'success');
+        } else {
+            await createTrip({ ...tripData, active: true, startDate: new Date().toISOString(), endDate: new Date().toISOString() } as Trip);
+            showToast('Viagem criada com sucesso!', 'success');
+        }
         setViewMode('LIST');
     } catch (err: any) { 
-        alert('Erro ao salvar: ' + (err.message || err)); 
+        showToast('Erro ao salvar: ' + (err.message || err), 'error');
     }
     setIsSubmitting(false);
+  };
+
+  const handleDeleteTrip = async (tripId: string) => {
+      if (window.confirm('Tem certeza que deseja excluir este pacote?')) {
+          try {
+              await deleteTrip(tripId);
+              showToast('Pacote excluído com sucesso.', 'success');
+          } catch (err: any) {
+              showToast('Erro ao excluir: ' + err.message, 'error');
+          }
+      }
   };
 
   const handleAgencyUpdate = async (e: React.FormEvent) => {
       e.preventDefault();
       const res = await updateUser(agencyForm);
-      if(res.success) alert('Dados atualizados!');
-      else alert('Erro: ' + res.error);
+      if(res.success) showToast('Dados atualizados com sucesso!', 'success');
+      else showToast('Erro: ' + res.error, 'error');
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,7 +372,9 @@ const AgencyDashboard: React.FC = () => {
           setAgencyForm(prev => ({ ...prev, logo: url }));
           const res = await updateUser({ logo: url });
           if (!res.success) {
-              alert('Erro ao salvar a nova logo: ' + res.error);
+              showToast('Erro ao salvar a nova logo: ' + res.error, 'error');
+          } else {
+              showToast('Logo atualizada!', 'success');
           }
       }
   };
@@ -361,7 +382,7 @@ const AgencyDashboard: React.FC = () => {
   const handleConfirmPayment = async () => {
       if (selectedPlan) {
           await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan);
-          alert('Pagamento confirmado! Sua assinatura está ativa.');
+          showToast('Pagamento confirmado! Sua assinatura está ativa.', 'success');
           setShowPayment(false);
           setActiveTab('STATS');
       }
@@ -489,7 +510,7 @@ const AgencyDashboard: React.FC = () => {
                            </div>
                            <div className="flex gap-2">
                                <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-500 hover:bg-white hover:shadow rounded"><Edit size={18}/></button>
-                               <button onClick={() => deleteTrip(trip.id)} className="p-2 text-red-500 hover:bg-white hover:shadow rounded"><Trash2 size={18}/></button>
+                               <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-500 hover:bg-white hover:shadow rounded"><Trash2 size={18}/></button>
                            </div>
                        </div>
                    ))}
