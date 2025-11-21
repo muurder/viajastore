@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette } from '../types';
+import { supabase } from '../services/supabase';
 
 // Helper to convert Hex to RGB Array [r, g, b]
 const hexToRgbArray = (hex: string): [number, number, number] => {
@@ -11,7 +12,6 @@ const hexToRgbArray = (hex: string): [number, number, number] => {
 };
 
 // Mix color with white (tint) or black (shade)
-// weight: 0 to 1. 
 const mix = (color: number, mixColor: number, weight: number) => {
   return Math.round(color + (mixColor - color) * weight);
 }
@@ -28,44 +28,22 @@ const shade = (rgb: [number, number, number], weight: number) => {
 
 const rgbString = (rgb: [number, number, number]) => `${rgb[0]} ${rgb[1]} ${rgb[2]}`;
 
-// Default Themes
-const DEFAULT_THEMES: ThemePalette[] = [
-  {
+// Fallback Themes in case DB is empty or loading
+const FALLBACK_THEME: ThemePalette = {
     id: 'default',
     name: 'Azul Oceano (Padrão)',
     colors: { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' },
     isActive: true,
     isDefault: true
-  },
-  {
-    id: 'dark-mode',
-    name: 'Modo Noturno',
-    colors: { primary: '#6366f1', secondary: '#a855f7', background: '#1f2937', text: '#f9fafb' },
-    isActive: false,
-    isDefault: false
-  },
-  {
-    id: 'nature',
-    name: 'Verde Natureza',
-    colors: { primary: '#059669', secondary: '#d97706', background: '#ecfdf5', text: '#064e3b' },
-    isActive: false,
-    isDefault: false
-  },
-  {
-    id: 'royal',
-    name: 'Roxo Real',
-    colors: { primary: '#7c3aed', secondary: '#db2777', background: '#f5f3ff', text: '#4c1d95' },
-    isActive: false,
-    isDefault: false
-  }
-];
+};
 
 interface ThemeContextType {
   themes: ThemePalette[];
   activeTheme: ThemePalette;
-  setTheme: (themeId: string) => void;
-  addTheme: (theme: ThemePalette) => void;
-  deleteTheme: (themeId: string) => void;
+  loading: boolean;
+  setTheme: (themeId: string) => Promise<void>;
+  addTheme: (theme: Partial<ThemePalette>) => Promise<void>;
+  deleteTheme: (themeId: string) => Promise<void>;
   previewTheme: (theme: ThemePalette) => void; // Temporarily apply without saving
   resetPreview: () => void;
 }
@@ -73,58 +51,130 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [themes, setThemes] = useState<ThemePalette[]>(DEFAULT_THEMES);
-  const [activeTheme, setActiveTheme] = useState<ThemePalette>(DEFAULT_THEMES[0]);
+  const [themes, setThemes] = useState<ThemePalette[]>([FALLBACK_THEME]);
+  const [activeTheme, setActiveTheme] = useState<ThemePalette>(FALLBACK_THEME);
   const [previewMode, setPreviewMode] = useState<ThemePalette | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Load from localStorage
-  useEffect(() => {
-      const savedThemeId = localStorage.getItem('viajastore_theme_id');
-      if (savedThemeId) {
-          const saved = themes.find(t => t.id === savedThemeId);
-          if (saved) setActiveTheme(saved);
+  // Fetch Themes from Supabase
+  const fetchThemes = async () => {
+      try {
+          const { data, error } = await supabase
+            .from('themes')
+            .select('*')
+            .order('created_at', { ascending: true });
+          
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              const formattedThemes: ThemePalette[] = data.map((t: any) => ({
+                  id: t.id,
+                  name: t.name,
+                  colors: t.colors,
+                  isActive: t.is_active,
+                  isDefault: t.is_default
+              }));
+              setThemes(formattedThemes);
+              
+              const currentActive = formattedThemes.find(t => t.isActive);
+              if (currentActive) setActiveTheme(currentActive);
+          }
+      } catch (error) {
+          console.error("Error fetching themes:", error);
+          // Keep fallback
+      } finally {
+          setLoading(false);
       }
+  };
+
+  useEffect(() => {
+      fetchThemes();
+
+      // Real-time subscription for theme changes
+      const channel = supabase
+        .channel('public:themes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
+            // Simple refresh on any change to ensure consistency across clients
+            fetchThemes();
+        })
+        .subscribe();
+
+      return () => {
+          supabase.removeChannel(channel);
+      };
   }, []);
 
-  // Apply CSS Variables with proper shading
+  // Apply CSS Variables
   useEffect(() => {
     const theme = previewMode || activeTheme;
     const root = document.documentElement;
+
+    if (!theme?.colors?.primary) return; // Safety check
 
     const primary = hexToRgbArray(theme.colors.primary);
     const secondary = hexToRgbArray(theme.colors.secondary);
 
     // Primary Palette Generation
-    root.style.setProperty('--color-primary-50', tint(primary, 0.95)); // Very Light
-    root.style.setProperty('--color-primary-100', tint(primary, 0.8)); // Light
-    root.style.setProperty('--color-primary-500', rgbString(primary)); // Base
-    root.style.setProperty('--color-primary-600', shade(primary, 0.1)); // Slightly Darker (hover)
-    root.style.setProperty('--color-primary-700', shade(primary, 0.2)); // Darker (text)
-    root.style.setProperty('--color-primary-900', shade(primary, 0.4)); // Very Dark
+    root.style.setProperty('--color-primary-50', tint(primary, 0.95)); 
+    root.style.setProperty('--color-primary-100', tint(primary, 0.8)); 
+    root.style.setProperty('--color-primary-500', rgbString(primary)); 
+    root.style.setProperty('--color-primary-600', shade(primary, 0.1)); 
+    root.style.setProperty('--color-primary-700', shade(primary, 0.2)); 
+    root.style.setProperty('--color-primary-900', shade(primary, 0.4)); 
 
     // Secondary Palette Generation
     root.style.setProperty('--color-secondary-500', rgbString(secondary));
     root.style.setProperty('--color-secondary-600', shade(secondary, 0.1));
 
-    // Optional: Apply background if needed
-    // document.body.style.backgroundColor = theme.colors.background;
-
   }, [activeTheme, previewMode]);
 
-  const setTheme = (themeId: string) => {
-      const newTheme = themes.find(t => t.id === themeId);
-      if (newTheme) {
-          setActiveTheme(newTheme);
-          localStorage.setItem('viajastore_theme_id', themeId);
+  const setTheme = async (themeId: string) => {
+      // Optimistic UI update
+      const targetTheme = themes.find(t => t.id === themeId);
+      if (targetTheme) setActiveTheme(targetTheme);
+
+      try {
+          // 1. Set all to inactive
+          await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); // Update all matches
+          
+          // 2. Set target to active
+          const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
+          
+          if (error) throw error;
+          
+          // Refresh to confirm state
+          await fetchThemes();
+      } catch (error) {
+          console.error("Error setting theme:", error);
+          alert("Erro ao aplicar tema globalmente.");
       }
   };
 
-  const addTheme = (theme: ThemePalette) => {
-      setThemes(prev => [...prev, theme]);
+  const addTheme = async (theme: Partial<ThemePalette>) => {
+      try {
+          const { error } = await supabase.from('themes').insert({
+              name: theme.name,
+              colors: theme.colors,
+              is_active: false,
+              is_default: false
+          });
+
+          if (error) throw error;
+          await fetchThemes();
+      } catch (error) {
+          console.error("Error adding theme:", error);
+          alert("Erro ao salvar novo tema.");
+      }
   };
 
-  const deleteTheme = (themeId: string) => {
-      setThemes(prev => prev.filter(t => t.id !== themeId));
+  const deleteTheme = async (themeId: string) => {
+      try {
+          const { error } = await supabase.from('themes').delete().eq('id', themeId);
+          if (error) throw error;
+          await fetchThemes();
+      } catch (error) {
+          console.error("Error deleting theme:", error);
+      }
   };
 
   const previewTheme = (theme: ThemePalette) => {
@@ -136,7 +186,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ThemeContext.Provider value={{ themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview }}>
+    <ThemeContext.Provider value={{ themes, activeTheme, loading, setTheme, addTheme, deleteTheme, previewTheme, resetPreview }}>
       {children}
     </ThemeContext.Provider>
   );
