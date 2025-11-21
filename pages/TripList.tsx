@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { useSearchParams } from 'react-router-dom';
-import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { useSearchParams, useParams, Link } from 'react-router-dom';
+import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader } from 'lucide-react';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
 const normalizeText = (text: string) => {
@@ -14,15 +14,38 @@ const normalizeText = (text: string) => {
 };
 
 const TripList: React.FC = () => {
-  const { getPublicTrips } = useData();
+  // Detect if we are in an agency microsite
+  const { agencySlug } = useParams<{ agencySlug?: string }>();
+  const { getPublicTrips, getAgencyPublicTrips, getAgencyBySlug, loading } = useData();
   const [searchParams, setSearchParams] = useSearchParams();
-  const allTrips = getPublicTrips();
   
-  const [filteredTrips, setFilteredTrips] = useState(allTrips);
+  // Try to get agency if in microsite mode
+  const currentAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+
+  // Determine if we should wait for data
+  // If we have a slug but no agency yet, check if we are still loading data
+  const isResolvingAgency = !!agencySlug && !currentAgency && loading;
+  const isAgencyNotFound = !!agencySlug && !currentAgency && !loading;
+  
+  // Filter trips based on context
+  // If resolving, return empty to prevent global flash
+  const initialTrips = isResolvingAgency 
+    ? [] 
+    : (currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips());
+  
+  const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
      traveler: true, style: true, duration: true, price: true, dest: true
   });
+
+  // Update initial trips when data loads or route changes
+  useEffect(() => {
+     if (isResolvingAgency) return; // Wait until loaded
+
+     const trips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips();
+     setFilteredTrips(trips);
+  }, [currentAgency, agencySlug, loading]);
 
   // Extract URL Params
   const q = searchParams.get('q') || '';
@@ -95,7 +118,10 @@ const TripList: React.FC = () => {
 
   // Filter Logic
   useEffect(() => {
-    let result = [...allTrips];
+    if (isResolvingAgency) return;
+
+    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips();
+    let result = [...sourceTrips];
 
     // 1. Search Term (Generalized Search)
     if (q) {
@@ -157,19 +183,42 @@ const TripList: React.FC = () => {
     }
 
     setFilteredTrips(result);
-  }, [allTrips, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam]);
+  }, [currentAgency, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam, isResolvingAgency]);
 
   const clearFilters = () => {
       setSearchParams({});
   };
+
+  if (isResolvingAgency) {
+      return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin w-10 h-10 text-primary-600" /></div>;
+  }
+
+  if (isAgencyNotFound) {
+      return (
+          <div className="text-center py-20">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Agência não encontrada</h2>
+              <p className="text-gray-500 mb-6">O endereço que você tentou acessar não existe.</p>
+              <Link to="/agencies" className="text-primary-600 font-bold hover:underline">Voltar para lista de agências</Link>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-8 pb-12">
       {/* Compact Hero */}
       <div className="bg-gray-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
          <div className="relative z-10">
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Encontre sua próxima viagem</h1>
-            <p className="text-gray-400 text-sm">Explore centenas de pacotes com as melhores tarifas.</p>
+            {currentAgency && (
+                <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-400 hover:text-white text-sm mb-2 transition-colors">
+                    <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
+                </Link>
+            )}
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">
+                {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
+            </h1>
+            <p className="text-gray-400 text-sm">
+                {currentAgency ? "Explore nossas opções de roteiros exclusivos." : "Explore centenas de pacotes com as melhores tarifas."}
+            </p>
          </div>
          <div className="relative z-10 w-full md:w-auto">
             <div className="relative">
@@ -178,7 +227,7 @@ const TripList: React.FC = () => {
                  type="text" 
                  value={q}
                  onChange={(e) => updateUrl('q', e.target.value || null)}
-                 placeholder="Destino, agência ou estilo..."
+                 placeholder="Destino ou estilo..."
                  className="w-full md:w-80 pl-10 pr-4 py-2.5 rounded-lg text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none"
                />
             </div>
@@ -298,29 +347,31 @@ const TripList: React.FC = () => {
                 )}
              </div>
 
-             {/* E - Popular Destinations */}
-             <div>
-                <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
-                    <span>Destinos Populares</span>
-                    {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                </button>
-                {openFilterSections['dest'] && (
-                    <div className="flex flex-wrap gap-2">
-                        {popularDestinations.map(dest => {
-                            const isSelected = q === dest;
-                            return (
-                                <button 
-                                  key={dest}
-                                  onClick={() => updateUrl('q', isSelected ? null : dest)}
-                                  className={`text-xs px-3 py-1.5 rounded border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    {dest}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-             </div>
+             {/* E - Popular Destinations (Global only) */}
+             {!currentAgency && (
+                 <div>
+                    <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                        <span>Destinos Populares</span>
+                        {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                    </button>
+                    {openFilterSections['dest'] && (
+                        <div className="flex flex-wrap gap-2">
+                            {popularDestinations.map(dest => {
+                                const isSelected = q === dest;
+                                return (
+                                    <button 
+                                      key={dest}
+                                      onClick={() => updateUrl('q', isSelected ? null : dest)}
+                                      className={`text-xs px-3 py-1.5 rounded border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                    >
+                                        {dest}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                 </div>
+             )}
 
              <button onClick={clearFilters} className="w-full py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition-colors">
                Limpar Todos os Filtros

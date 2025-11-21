@@ -130,7 +130,7 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, refreshData } = useData();
   const { showToast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION' | 'SETTINGS'>('STATS');
@@ -180,13 +180,15 @@ const AgencyDashboard: React.FC = () => {
   const handleDuplicateTrip = async (trip: Trip) => {
       if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
       
-      // Clean trip object for duplication
-      const { id, slug, ...rest } = trip;
-
+      // Remove ID to ensure Supabase sees it as a new insert
+      // Append random string to slug to avoid client-side logic errors before DB trigger fixes it
+      const { id, ...rest } = trip;
+      
+      const timestamp = Math.floor(Date.now() / 1000);
       const duplicatedTrip = {
           ...rest,
           title: `${trip.title} (Cópia)`,
-          slug: '', // Force empty slug to let backend generate a new unique one
+          slug: `${slugify(trip.title)}-copy-${timestamp}`, // Explicit unique slug
           active: false, 
           views: 0,
           sales: 0
@@ -358,12 +360,12 @@ const AgencyDashboard: React.FC = () => {
                         />
                         {agencyForm.slug && (
                             <a 
-                                href={`${window.location.origin}/${agencyForm.slug}`} 
+                                href={`${window.location.origin}/#/${agencyForm.slug}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
                             >
-                                {window.location.host}/{agencyForm.slug} <ExternalLink size={10} />
+                                {window.location.host}/#/{agencyForm.slug} <ExternalLink size={10} />
                             </a>
                         )}
                     </div>
@@ -398,12 +400,12 @@ const AgencyDashboard: React.FC = () => {
                         <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700" />
                         {tripForm.slug && myAgency.slug && (
                             <a 
-                                href={`${window.location.origin}/${myAgency.slug}/viagem/${tripForm.slug}`}
+                                href={`${window.location.origin}/#/${myAgency.slug}/viagem/${tripForm.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
                             >
-                                {window.location.host}/{myAgency.slug}/viagem/{tripForm.slug} <ExternalLink size={10} />
+                                {window.location.host}/#/{myAgency.slug}/viagem/{tripForm.slug} <ExternalLink size={10} />
                             </a>
                         )}
                     </div>

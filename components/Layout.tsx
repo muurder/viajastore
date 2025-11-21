@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck } from 'lucide-react';
+import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -12,25 +12,23 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
-  // Detect Agency Mode
-  // We extract the first segment of the path to check if it matches an agency slug
+  // Detect Agency Mode via URL segments
+  // Pattern: /:agencySlug/...
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const potentialSlug = pathSegments[0];
   
   // List of reserved routes to avoid false positives
-  const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'terms', 'privacy', 'help', 'blog', 'careers', 'press', 'checkout', 'unauthorized', 'forgot-password', 'login', 'signup', 'admin', 'client'];
+  const reservedRoutes = [
+    'trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'terms', 
+    'privacy', 'help', 'blog', 'careers', 'press', 'checkout', 'unauthorized', 
+    'forgot-password', 'login', 'signup', 'admin', 'client'
+  ];
   
   const isReserved = reservedRoutes.includes(potentialSlug);
-  
-  // Only try to find agency if not reserved. 
-  // Note: We depend on data being loaded to confirm if it's an agency.
-  const currentAgency = !isReserved && potentialSlug ? getAgencyBySlug(potentialSlug) : undefined;
-  
-  // Assuming it IS an agency mode if we are not in a reserved route and we have a potential slug,
-  // even if data is loading, to prevent layout flickering. 
-  // However, for the actual data (name, logo), we need currentAgency.
-  const isPotentialAgencyRoute = !isReserved && !!potentialSlug;
-  const isAgencyMode = !!currentAgency || (isPotentialAgencyRoute && dataLoading);
+  const isAgencyMode = !isReserved && !!potentialSlug;
+
+  // Try to find agency data if in agency mode
+  const currentAgency = isAgencyMode ? getAgencyBySlug(potentialSlug) : undefined;
 
   const handleLogout = async () => {
     await logout();
@@ -44,8 +42,10 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  // Home Link Logic
-  const homeLink = (isAgencyMode && currentAgency) ? `/${currentAgency.slug}` : '/';
+  // Home Link Logic - Be robust even if currentAgency hasn't loaded yet
+  const homeLink = isAgencyMode 
+    ? `/${potentialSlug}` 
+    : '/';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
@@ -75,10 +75,16 @@ const Layout: React.FC = () => {
                           </div>
                         </>
                       ) : (
-                        // Loading skeleton for agency brand
+                        // Loading/Fallback or valid slug but data not ready
                         <div className="flex items-center">
-                           <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
-                           <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                             {!dataLoading ? (
+                               <span className="font-bold text-xl tracking-tight text-gray-800 capitalize">{potentialSlug}</span>
+                             ) : (
+                               <>
+                                <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
+                                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                               </>
+                             )}
                         </div>
                       )}
                    </div>
@@ -94,13 +100,14 @@ const Layout: React.FC = () => {
                         <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                     </>
                 ) : (
-                    currentAgency && (
                       <>
-                         {/* In Agency Mode, we hide global navigation and show Agency specific links if needed, or just Home */}
-                         <Link to={`/${currentAgency.slug}`} className={getLinkClasses(`/${currentAgency.slug}`)}>Início</Link>
-                         {/* Future: Add 'About', 'Contact' for agency sub-routes */}
+                         <Link to={`/${potentialSlug}`} className={getLinkClasses(`/${potentialSlug}`)}>
+                            <HomeIcon size={16} className="mr-1"/> Início
+                         </Link>
+                         <Link to={`/${potentialSlug}/trips`} className={getLinkClasses(`/${potentialSlug}/trips`)}>
+                            <Map size={16} className="mr-1"/> Pacotes
+                         </Link>
                       </>
-                    )
                 )}
               </div>
             </div>
@@ -153,7 +160,10 @@ const Layout: React.FC = () => {
                     <Link to="/about" onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Sobre Nós</Link>
                   </>
               ) : (
-                    currentAgency && <Link to={`/${currentAgency.slug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial {currentAgency.name}</Link>
+                  <>
+                    <Link to={`/${potentialSlug}`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Página Inicial</Link>
+                    <Link to={`/${potentialSlug}/trips`} onClick={() => setIsMenuOpen(false)} className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 font-medium">Pacotes</Link>
+                  </>
               )}
             </div>
             <div className="pt-4 pb-4 border-t border-gray-200">
@@ -237,6 +247,19 @@ const Layout: React.FC = () => {
                 </ul>
                 </div>
                 </>
+            )}
+            
+            {isAgencyMode && (
+               <div className="md:col-span-2">
+                   <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato Rápido</h3>
+                   {currentAgency && (
+                      <ul className="space-y-2 text-sm text-gray-600">
+                          {currentAgency.phone && <li>WhatsApp: {currentAgency.phone}</li>}
+                          {currentAgency.email && <li>Email: {currentAgency.email}</li>}
+                          {currentAgency.address && <li>{currentAgency.address.city}, {currentAgency.address.state}</li>}
+                      </ul>
+                   )}
+               </div>
             )}
 
             {/* Social Section */}

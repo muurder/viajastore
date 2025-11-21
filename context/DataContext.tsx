@@ -43,7 +43,7 @@ interface DataContextType {
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
   getTripById: (id: string) => Trip | undefined;
-  getTripBySlug: (slug: string) => Trip | undefined; // NEW
+  getTripBySlug: (slug: string) => Trip | undefined; 
   getAgencyBySlug: (slug: string) => Agency | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
@@ -84,7 +84,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: t.id,
             agencyId: t.agency_id,
             title: t.title,
-            slug: t.slug || slugify(t.title) + '-' + t.id,
+            slug: t.slug, 
             description: t.description,
             destination: t.destination,
             price: Number(t.price),
@@ -269,7 +269,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             status: b.status,
             totalPrice: b.total_price,
             passengers: b.passengers,
-            voucherCode: b.voucher_code,
+            voucher_code: b.voucher_code,
             paymentMethod: b.payment_method
           }));
           setBookings(formattedBookings);
@@ -426,16 +426,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-    // Ensure slug is unique by appending timestamp or random string if not provided
-    // Use simple randomness to avoid collisions, allowing user to edit later for SEO
-    const tripSlug = trip.slug && trip.slug.trim() !== '' 
-        ? trip.slug 
-        : slugify(trip.title) + '-' + Math.floor(Math.random() * 100000);
+    // Allow DB trigger to handle slug if empty, or pass provided slug
+    // If slug provided, sanitize it just in case
+    const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
 
-    const dbTrip = {
+    const dbTrip: any = {
         agency_id: trip.agencyId,
         title: trip.title,
-        slug: tripSlug,
         description: trip.description,
         destination: trip.destination,
         price: trip.price,
@@ -453,6 +450,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         featured: trip.featured ?? false,
         popular_near_sp: trip.popularNearSP ?? false,
     };
+
+    if (tripSlug) {
+        dbTrip.slug = tripSlug;
+    }
 
     const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
 
@@ -479,7 +480,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const dbTrip = {
         title: trip.title,
-        slug: trip.slug || slugify(trip.title),
+        slug: trip.slug, // DB Trigger might interfere if changed, but usually updates respect value
         description: trip.description,
         destination: trip.destination,
         price: trip.price,
@@ -581,9 +582,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string) => trips.find(t => t.id === id);
-  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); // Case sensitive match preferred for slugs
-  // Case-insensitive slug search
-  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug.toLowerCase() === slug.toLowerCase());
+  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); 
+  
+  // Case-insensitive slug search for agencies
+  const getAgencyBySlug = (slug: string) => {
+      if (!slug) return undefined;
+      return agencies.find(a => a.slug && a.slug.toLowerCase() === slug.toLowerCase());
+  };
+  
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
 
