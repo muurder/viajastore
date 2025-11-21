@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
@@ -21,7 +21,6 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
 
   useEffect(() => {
     if (contentRef.current && contentRef.current.innerHTML !== value) {
-       // Only update if drastically different to avoid cursor jumps, simple check
        if (value === '' || contentRef.current.innerHTML === '') contentRef.current.innerHTML = value;
     }
   }, [value]);
@@ -144,6 +143,7 @@ const AgencyDashboard: React.FC = () => {
   const isActive = myAgency.subscriptionStatus === 'ACTIVE';
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
+  const agencyHomeLink = myAgency.slug ? `/${myAgency.slug}` : '#';
 
   const handleOpenCreate = () => {
     setEditingTripId(null);
@@ -155,7 +155,7 @@ const AgencyDashboard: React.FC = () => {
   const handleOpenEdit = (trip: Trip) => {
     setEditingTripId(trip.id);
     setTripForm({ ...trip, itinerary: trip.itinerary || [], tags: trip.tags || [], paymentMethods: trip.paymentMethods || [] });
-    setSlugTouched(true); // Assuming if editing, slug is already set
+    setSlugTouched(true); 
     setViewMode('FORM');
   };
 
@@ -165,8 +165,8 @@ const AgencyDashboard: React.FC = () => {
       const duplicatedTrip = {
           ...trip,
           title: `${trip.title} (Cópia)`,
-          slug: '', // Let backend or create logic generate new slug
-          active: false, // Start as draft
+          slug: '', 
+          active: false, 
           views: 0,
           sales: 0
       };
@@ -241,7 +241,11 @@ const AgencyDashboard: React.FC = () => {
              <h1 className="text-2xl font-bold text-gray-900">{myAgency.name}</h1>
              <div className="flex items-center gap-3 mt-1">
                 {isActive ? <p className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={12}/> Ativo</p> : <p className="text-red-600 text-xs font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><X size={12}/> Pendente</p>}
-                <Link to={`/${myAgency.slug || myAgency.id}`} target="_blank" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100"><Eye size={12}/> Ver Página Pública</Link>
+                {myAgency.slug && (
+                    <Link to={agencyHomeLink} target="_blank" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100 hover:underline">
+                        <Eye size={12}/> Ver Página Pública
+                    </Link>
+                )}
              </div>
            </div>
         </div>
@@ -277,7 +281,14 @@ const AgencyDashboard: React.FC = () => {
                                    <span>•</span>
                                    <span>{trip.views || 0} views</span>
                                    <span>•</span>
-                                   <Link to={`/viagem/${trip.slug || trip.id}`} target="_blank" className="text-primary-600 hover:underline flex items-center gap-1"><Eye size={10}/> Preview</Link>
+                                   {/* Preview with Agency Context */}
+                                   <Link 
+                                      to={myAgency.slug ? `/${myAgency.slug}/viagem/${trip.slug || trip.id}` : `/viagem/${trip.slug || trip.id}`} 
+                                      target="_blank" 
+                                      className="text-primary-600 hover:underline flex items-center gap-1"
+                                   >
+                                      <Eye size={10}/> Preview
+                                   </Link>
                                </div>
                            </div>
                            <div className="flex gap-2">
@@ -317,9 +328,22 @@ const AgencyDashboard: React.FC = () => {
                 <form onSubmit={handleAgencyUpdate} className="space-y-6">
                     <div><label className="block text-xs font-bold mb-1">Nome da Agência</label><input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>
                     <div>
-                        <label className="block text-xs font-bold mb-1">Slug URL</label>
-                        <input value={agencyForm.slug || ''} onChange={e => setAgencyForm({...agencyForm, slug: slugify(e.target.value)})} className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm" />
-                        <p className="text-xs text-gray-400 mt-1">viajastore.com/{agencyForm.slug}</p>
+                        <label className="block text-xs font-bold mb-1">Slug URL (Seu endereço exclusivo)</label>
+                        <input 
+                          value={agencyForm.slug || ''} 
+                          onChange={e => setAgencyForm({...agencyForm, slug: slugify(e.target.value)})} 
+                          className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium" 
+                        />
+                        {agencyForm.slug && (
+                            <a 
+                                href={`${window.location.origin}/${agencyForm.slug}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
+                            >
+                                {window.location.host}/{agencyForm.slug} <ExternalLink size={10} />
+                            </a>
+                        )}
                     </div>
                     <div><label className="block text-xs font-bold mb-1">Descrição</label><textarea rows={3} value={agencyForm.description} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>
                     <button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700">Salvar Alterações</button>
@@ -332,7 +356,13 @@ const AgencyDashboard: React.FC = () => {
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
                  <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
                  <div className="flex gap-3">
-                    {editingTripId && <Link to={`/viagem/${tripForm.slug}`} target="_blank" className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"><Eye size={18} className="mr-2"/> Preview</Link>}
+                    <Link 
+                        to={myAgency.slug ? `/${myAgency.slug}/viagem/${tripForm.slug}` : `/viagem/${tripForm.slug}`} 
+                        target="_blank" 
+                        className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"
+                    >
+                        <Eye size={18} className="mr-2"/> Preview
+                    </Link>
                     <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
                  </div>
              </div>
@@ -343,8 +373,17 @@ const AgencyDashboard: React.FC = () => {
                     <div><label className="font-bold text-sm">Título do Pacote</label><input value={tripForm.title} onChange={handleTitleChange} className="w-full border p-3 rounded-lg" placeholder="Ex: Fim de semana em Paraty"/></div>
                     <div>
                         <label className="font-bold text-sm">Slug (URL Amigável)</label>
-                        <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono" />
-                        <p className="text-xs text-gray-400 mt-1">Link final: viajastore.com/viagem/{tripForm.slug}</p>
+                        <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700" />
+                        {tripForm.slug && myAgency.slug && (
+                            <a 
+                                href={`${window.location.origin}/${myAgency.slug}/viagem/${tripForm.slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
+                            >
+                                {window.location.host}/{myAgency.slug}/viagem/{tripForm.slug} <ExternalLink size={10} />
+                            </a>
+                        )}
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4">

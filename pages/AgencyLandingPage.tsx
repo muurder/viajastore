@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -53,6 +54,7 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
+  // Explicitly fetch only this agency's trips
   const trips = getAgencyPublicTrips(agency.id);
 
   // Select a featured trip for the hero
@@ -63,8 +65,11 @@ const AgencyLandingPage: React.FC = () => {
      }
   }, [trips, featuredTrip]);
   
-  // Filtering Logic
+  // Filtering Logic specific to this agency's trips
   const filteredTrips = trips.filter(t => {
+    // First check: Must belong to agency (redundant but safe)
+    if (t.agencyId !== agency.id) return false;
+
     const matchesSearch = 
         t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.destination.toLowerCase().includes(searchTerm.toLowerCase());
@@ -188,8 +193,8 @@ const AgencyLandingPage: React.FC = () => {
              <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="text-gray-300" size={32} />
              </div>
-             <p className="text-gray-900 font-bold text-lg mb-1">Nenhum pacote encontrado.</p>
-             <p className="text-gray-500 mb-4">Tente ajustar seus filtros de busca.</p>
+             <p className="text-gray-900 font-bold text-lg mb-1">Nenhum pacote encontrado nesta agência.</p>
+             <p className="text-gray-500 mb-4">A agência ainda não cadastrou viagens ou os filtros não retornaram resultados.</p>
              {(searchTerm || selectedInterests.length > 0) && (
                  <button onClick={() => { setSearchTerm(''); setSelectedInterests([]); }} className="text-primary-600 font-bold hover:underline">
                     Limpar filtros
