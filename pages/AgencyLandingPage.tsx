@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -142,8 +141,10 @@ const AgencyLandingPage: React.FC = () => {
       if (agency.whatsapp) {
           const num = agency.whatsapp.replace(/\D/g, '');
           window.open(`https://wa.me/${num}?text=Olá, vi seu site na ViajaStore e gostaria de saber mais sobre os pacotes.`, '_blank');
-      } else {
+      } else if (agency.email) {
           window.location.href = `mailto:${agency.email}`;
+      } else {
+          alert('As informações de contato desta agência não estão disponíveis.');
       }
   };
 
@@ -224,12 +225,14 @@ const AgencyLandingPage: React.FC = () => {
                       <p className="text-xl text-gray-200 max-w-2xl font-medium drop-shadow-md">
                           {agency.heroSubtitle || agency.description}
                       </p>
-                      <div className="mt-8 flex gap-4">
-                          <button onClick={handleContact} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all">
-                              {agency.whatsapp ? <Smartphone size={20}/> : <Mail size={20}/>}
-                              Fale Conosco
-                          </button>
-                      </div>
+                      {(agency.whatsapp || agency.email) && (
+                        <div className="mt-8 flex gap-4">
+                            <button onClick={handleContact} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-green-900/20 flex items-center gap-2 transition-all">
+                                {agency.whatsapp ? <Smartphone size={20}/> : <Mail size={20}/>}
+                                {agency.whatsapp ? 'WhatsApp' : 'Fale Conosco'}
+                            </button>
+                        </div>
+                      )}
                   </div>
               </div>
           )}
