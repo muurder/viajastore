@@ -84,12 +84,13 @@ const TripDetails: React.FC = () => {
 
   // Function to render description safely (detecting HTML vs Plain Text)
   const renderDescription = (desc: string) => {
-      const isHTML = /<[a-z][\s\S]*>/i.test(desc);
+      // Simple heuristic: starts with HTML tag or contains common tags
+      const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
       
       if (isHTML) {
           return (
               <div 
-                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3"
+                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4"
                 dangerouslySetInnerHTML={{ __html: desc }} 
               />
           );

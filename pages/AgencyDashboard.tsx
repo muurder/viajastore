@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
-import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag, AlignLeft, Heading, RotateCcw } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy, Check, Tag, AlignLeft, Heading, RotateCcw, Underline, ListOrdered } from 'lucide-react';
 
 // --- CONSTANTS ---
 const COMMON_TAGS = ['Natureza', 'Aventura', 'História', 'Relax', 'Romântico', 'Família', 'Gastronomia', 'Luxo', 'Ecoturismo', 'Mochilão', 'Praia', 'Montanha', 'Urbano', 'Cultural'];
@@ -59,19 +59,29 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <button type="button" onClick={() => execCmd('italic')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Itálico">
             <Italic size={18}/>
         </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 hover:bg-gray-200 rounded text-gray-700 font-bold text-sm transition-colors" title="Título">
-            <Heading size={18}/>
+        <button type="button" onClick={() => execCmd('underline')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Sublinhado">
+            <Underline size={18}/>
         </button>
-        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista">
+        
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+        
+        <button type="button" onClick={() => execCmd('formatBlock', 'H3')} className="p-2 hover:bg-gray-200 rounded text-gray-700 font-bold text-sm transition-colors flex items-center gap-1" title="Título de Seção">
+            <Heading size={18}/> <span className="text-xs font-medium">Título</span>
+        </button>
+        
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+        <button type="button" onClick={() => execCmd('insertUnorderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista com Marcadores">
             <List size={18}/>
         </button>
-        <div className="w-px h-6 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={() => execCmd('justifyLeft')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Alinhar Esquerda">
-            <AlignLeft size={18}/>
+        <button type="button" onClick={() => execCmd('insertOrderedList')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors" title="Lista Numerada">
+            <ListOrdered size={18}/>
         </button>
-        <button type="button" onClick={() => execCmd('removeFormat')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors ml-auto" title="Limpar Formatação">
-            <RotateCcw size={18}/>
+        
+        <div className="w-px h-6 bg-gray-300 mx-1"></div>
+        
+        <button type="button" onClick={() => execCmd('removeFormat')} className="p-2 hover:bg-gray-200 rounded text-gray-700 transition-colors ml-auto flex items-center gap-1" title="Limpar Formatação">
+            <RotateCcw size={14}/> <span className="text-xs">Limpar</span>
         </button>
       </div>
       

@@ -64,16 +64,11 @@ const Home: React.FC = () => {
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // Init Hero Featured Trip on Mount or when trips load
+  // UPDATED: Randomly select ANY trip on mount/refresh, ignoring 'featured' flag for the hero slot to ensure variety.
   useEffect(() => {
-    const candidates = allTrips.filter(t => t.featured || t.popularNearSP);
-    
-    if (candidates.length > 0) {
-        // Pick a random one from candidates
-        const randomIndex = Math.floor(Math.random() * candidates.length);
-        setFeaturedTrip(candidates[randomIndex]);
-    } else if (allTrips.length > 0) {
-        // Fallback to any trip if no featured ones
-        setFeaturedTrip(allTrips[Math.floor(Math.random() * allTrips.length)]);
+    if (allTrips.length > 0) {
+        const randomIndex = Math.floor(Math.random() * allTrips.length);
+        setFeaturedTrip(allTrips[randomIndex]);
     }
   }, [allTrips]); 
 
@@ -158,6 +153,8 @@ const Home: React.FC = () => {
       <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4">
         <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
             <img 
+            // Added key to force re-render of image on random change
+            key={featuredTrip?.id}
             src={featuredTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
             alt="Hero" 
             className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"

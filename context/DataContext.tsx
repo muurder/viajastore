@@ -381,7 +381,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-    // Explicitly map camelCase props to snake_case for DB insert
+    // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
+    // This prevents errors like "Could not find the 'durationDays' column"
     const dbTrip = {
         agency_id: trip.agencyId,
         title: trip.title,
@@ -390,12 +391,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         price: trip.price,
         start_date: trip.startDate,
         end_date: trip.endDate,
-        duration_days: trip.durationDays,
+        duration_days: trip.durationDays, // MAPPED HERE
         category: trip.category,
         tags: trip.tags,
-        traveler_types: trip.travelerTypes,
+        traveler_types: trip.travelerTypes, // MAPPED HERE
         itinerary: trip.itinerary,
-        payment_methods: trip.paymentMethods,
+        payment_methods: trip.paymentMethods, // MAPPED HERE
         active: trip.active ?? true,
         included: trip.included,
         not_included: trip.notIncluded,
@@ -426,7 +427,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateTrip = async (trip: Trip) => {
     const { id, images } = trip;
     
-    // Explicitly map camelCase props to snake_case for DB update
+    // CRITICAL FIX: Explicitly map camelCase properties to snake_case database columns
     const dbTrip = {
         title: trip.title,
         description: trip.description,
@@ -434,12 +435,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         price: trip.price,
         start_date: trip.startDate,
         end_date: trip.endDate,
-        duration_days: trip.durationDays,
+        duration_days: trip.durationDays, // MAPPED HERE
         category: trip.category,
         tags: trip.tags,
-        traveler_types: trip.travelerTypes,
+        traveler_types: trip.travelerTypes, // MAPPED HERE
         itinerary: trip.itinerary,
-        payment_methods: trip.paymentMethods,
+        payment_methods: trip.paymentMethods, // MAPPED HERE
         active: trip.active,
         included: trip.included,
         not_included: trip.notIncluded,
