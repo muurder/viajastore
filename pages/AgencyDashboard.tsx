@@ -168,14 +168,14 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
         const { error } = await supabase.storage.from('trip-images').upload(fileName, file);
-        if (!error) {
-          const { data } = supabase.storage.from('trip-images').getPublicUrl(fileName);
-          newImages.push(data.publicUrl);
-        }
+        if (error) throw error;
+        
+        const { data } = supabase.storage.from('trip-images').getPublicUrl(fileName);
+        newImages.push(data.publicUrl);
       }
       if (newImages.length > 0) onChange([...images, ...newImages]);
-    } catch (error) {
-      alert('Erro no upload.');
+    } catch (error: any) {
+      alert('Erro no upload: ' + (error.message || 'Tente novamente'));
     } finally {
       setUploading(false);
     }
@@ -285,7 +285,9 @@ const AgencyDashboard: React.FC = () => {
         else await createTrip({ ...tripData, active: true, startDate: new Date().toISOString(), endDate: new Date().toISOString() } as Trip);
         alert('Salvo com sucesso!');
         setViewMode('LIST');
-    } catch (err) { alert('Erro ao salvar.'); }
+    } catch (err: any) { 
+        alert('Erro ao salvar: ' + (err.message || err)); 
+    }
     setIsSubmitting(false);
   };
 

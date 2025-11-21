@@ -5,6 +5,14 @@ import TripCard from '../components/TripCard';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
+// Helper to normalize strings for comparison (remove accents, lowercase)
+const normalizeText = (text: string) => {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+
 const TripList: React.FC = () => {
   const { getPublicTrips } = useData();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,14 +97,14 @@ const TripList: React.FC = () => {
   useEffect(() => {
     let result = [...allTrips];
 
-    // 1. Search Term
+    // 1. Search Term (Generalized Search)
     if (q) {
-       const lower = q.toLowerCase();
+       const cleanQ = normalizeText(q);
        result = result.filter(t => 
-         t.title.toLowerCase().includes(lower) || 
-         t.destination.toLowerCase().includes(lower) ||
-         t.description.toLowerCase().includes(lower) || 
-         t.tags.some(tag => tag.toLowerCase().includes(lower))
+         normalizeText(t.title).includes(cleanQ) || 
+         normalizeText(t.destination).includes(cleanQ) ||
+         normalizeText(t.description).includes(cleanQ) || 
+         t.tags.some(tag => normalizeText(tag).includes(cleanQ))
        );
     }
 
@@ -298,15 +306,18 @@ const TripList: React.FC = () => {
                 </button>
                 {openFilterSections['dest'] && (
                     <div className="flex flex-wrap gap-2">
-                        {popularDestinations.map(dest => (
-                            <button 
-                              key={dest}
-                              onClick={() => updateUrl('q', dest)}
-                              className={`text-xs px-3 py-1.5 rounded border transition-all ${q.includes(dest) ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                            >
-                                {dest}
-                            </button>
-                        ))}
+                        {popularDestinations.map(dest => {
+                            const isSelected = q === dest;
+                            return (
+                                <button 
+                                  key={dest}
+                                  onClick={() => updateUrl('q', isSelected ? null : dest)}
+                                  className={`text-xs px-3 py-1.5 rounded border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                >
+                                    {dest}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
              </div>
