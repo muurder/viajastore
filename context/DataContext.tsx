@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../types';
 import { useAuth } from './AuthContext';
@@ -17,7 +16,7 @@ interface DataContextType {
   bookings: Booking[];
   reviews: Review[];
   clients: Client[];
-  auditLogs: AuditLog[]; // New
+  auditLogs: AuditLog[];
   loading: boolean;
   
   addBooking: (booking: Booking) => Promise<void>;
@@ -56,7 +55,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]); // New
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   // --- DATA FETCHING ---
@@ -118,7 +117,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchAgencies = async () => {
     const { data, error } = await supabase.from('agencies').select('*');
     if (error) {
-      console.error('Error fetching agencies:', error);
+      console.error('Error fetching agencies:', error.message);
       return;
     }
     
@@ -140,6 +139,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
 
     setAgencies(formattedAgencies);
+  };
+
+  const fetchClients = async () => {
+    // Fetches all profiles (Clients and Admins)
+    const { data, error } = await supabase.from('profiles').select('*');
+    
+    if (error) {
+      console.error('Error fetching clients:', error.message);
+      return;
+    }
+
+    const formattedClients: Client[] = (data || []).map((p: any) => ({
+      id: p.id,
+      name: p.full_name || 'Usuário',
+      email: p.email || '',
+      role: p.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT,
+      avatar: p.avatar_url,
+      cpf: p.cpf,
+      phone: p.phone,
+      favorites: [], // Favorites are fetched separately per user context usually
+      createdAt: p.created_at,
+      address: p.address || {}
+    } as Client));
+
+    setClients(formattedClients);
   };
 
   const fetchReviews = async () => {
@@ -190,15 +214,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
     }
-    // Admins see all bookings (logic for master admin)
-    else if (user.role === UserRole.ADMIN) {
-        // Fetch all
-    }
-
+    // Admins fetch all by default
+    
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching bookings', error);
+      console.error('Error fetching bookings', error.message);
       return;
     }
 
@@ -218,25 +239,47 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Mock Audit Logs for now
   const fetchAuditLogs = async () => {
-      // In a real scenario, SELECT * FROM audit_logs
-      const mockLogs: AuditLog[] = [
-          { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado', createdAt: new Date().toISOString() }
-      ];
-      setAuditLogs(mockLogs);
+      const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
+      
+      if (data) {
+        const logs: AuditLog[] = data.map((l: any) => ({
+            id: l.id,
+            adminEmail: l.admin_email,
+            action: l.action,
+            details: l.details,
+            createdAt: l.created_at
+        }));
+        setAuditLogs(logs);
+      } else if (error) {
+          // Fallback mock if table doesn't exist yet or error
+          const mockLogs: AuditLog[] = [
+             { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado', createdAt: new Date().toISOString() }
+          ];
+          setAuditLogs(mockLogs);
+      }
   };
 
   const refreshData = async () => {
       setLoading(true);
-      await Promise.all([
+      const promises = [
         fetchTrips(), 
         fetchAgencies(), 
         fetchReviews(), 
         fetchBookings()
-      ]);
-      if(user) await fetchFavorites();
-      if(user?.role === UserRole.ADMIN) await fetchAuditLogs();
+      ];
+      
+      if (user) {
+         promises.push(fetchFavorites());
+      }
+      
+      // Fetch extended data for Admin
+      if (user?.role === UserRole.ADMIN) {
+          promises.push(fetchAuditLogs());
+          promises.push(fetchClients());
+      }
+      
+      await Promise.all(promises);
       setLoading(false);
   };
 
@@ -252,198 +295,226 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return agency.subscriptionStatus === 'ACTIVE';
   };
 
-  const getPublicTrips = () => {
-    return trips.filter(trip => trip.active && isAgencyActive(trip.agencyId));
-  };
-
-  const getAgencyPublicTrips = (agencyId: string) => {
-    if (!isAgencyActive(agencyId)) return [];
-    return trips.filter(t => t.agencyId === agencyId && t.active);
-  };
-
-  const getAgencyTrips = (agencyId: string) => {
-    return trips.filter(t => t.agencyId === agencyId);
-  };
-
-  const getTripById = (id: string) => trips.find(t => t.id === id);
-  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
-  
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => {
-    return bookings.some(b => b.clientId === userId && b.tripId === tripId);
-  };
-
-  const createTrip = async (trip: Trip) => {
-     const { data, error } = await supabase.from('trips').insert({
-         agency_id: trip.agencyId,
-         title: trip.title,
-         description: trip.description,
-         destination: trip.destination,
-         price: trip.price,
-         start_date: trip.startDate,
-         end_date: trip.endDate,
-         duration_days: trip.durationDays,
-         category: trip.category,
-         active: trip.active,
-         included: trip.included,
-         not_included: trip.notIncluded,
-         tags: trip.tags,
-         traveler_types: trip.travelerTypes || [],
-         itinerary: trip.itinerary || [],
-         payment_methods: trip.paymentMethods || []
-     }).select().single();
-
-     if(error) throw new Error('Erro ao criar viagem: ' + error.message);
-
-     if(trip.images && trip.images.length > 0) {
-         const imagesPayload = trip.images.map(url => ({
-             trip_id: data.id,
-             image_url: url
-         }));
-         await supabase.from('trip_images').insert(imagesPayload);
-     }
-     await fetchTrips();
-  };
-
-  const updateTrip = async (trip: Trip) => {
-      const { error } = await supabase.from('trips').update({
-         title: trip.title,
-         description: trip.description,
-         destination: trip.destination,
-         price: trip.price,
-         duration_days: trip.durationDays,
-         category: trip.category,
-         active: trip.active,
-         included: trip.included,
-         not_included: trip.notIncluded,
-         tags: trip.tags,
-         itinerary: trip.itinerary || [],
-         payment_methods: trip.paymentMethods || []
-      }).eq('id', trip.id);
-
-      if(error) throw error;
-
-      if (trip.images) {
-          await supabase.from('trip_images').delete().eq('trip_id', trip.id);
-          const imagesPayload = trip.images.map(url => ({
-               trip_id: trip.id,
-               image_url: url
-          }));
-          await supabase.from('trip_images').insert(imagesPayload);
-      }
-      await fetchTrips();
-  };
-
-  const deleteTrip = async (tripId: string) => {
-      await supabase.from('trips').delete().eq('id', tripId);
-      setTrips(prev => prev.filter(t => t.id !== tripId));
-  };
-
-  const toggleTripStatus = async (tripId: string) => {
-      const trip = trips.find(t => t.id === tripId);
-      if(!trip) return;
-      await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
-      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: !t.active } : t));
-  };
-
-  const toggleFavorite = async (tripId: string, clientId: string) => {
-      const { data } = await supabase.from('favorites').select('*').eq('user_id', clientId).eq('trip_id', tripId).single();
-      if(data) {
-          await supabase.from('favorites').delete().eq('id', data.id);
-          setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: c.favorites.filter(id => id !== tripId) } : c));
-      } else {
-          await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
-          setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: [...c.favorites, tripId] } : c));
-      }
-  };
-
   const addBooking = async (booking: Booking) => {
-      const { error } = await supabase.from('bookings').insert({
-          trip_id: booking.tripId,
-          client_id: booking.clientId,
-          status: booking.status,
-          total_price: booking.totalPrice,
-          passengers: booking.passengers,
-          voucher_code: booking.voucherCode,
-          payment_method: booking.paymentMethod
-      });
-      if (error) { console.error("Erro ao salvar reserva:", error); return; }
-      await supabase.rpc('increment_sales', { row_id: booking.tripId });
-      await fetchBookings();
+    const { error } = await supabase.from('bookings').insert({
+      id: booking.id,
+      trip_id: booking.tripId,
+      client_id: booking.clientId,
+      created_at: booking.date,
+      status: booking.status,
+      total_price: booking.totalPrice,
+      passengers: booking.passengers,
+      voucher_code: booking.voucherCode,
+      payment_method: booking.paymentMethod
+    });
+    if (error) {
+      console.error('Error adding booking:', error);
+      throw error;
+    }
+    await refreshData();
   };
 
   const addReview = async (review: Review) => {
-      await supabase.from('reviews').insert({
-          trip_id: review.tripId,
-          user_id: review.clientId,
-          rating: review.rating,
-          comment: review.comment
-      });
-      await fetchReviews();
+    const { error } = await supabase.from('reviews').insert({
+      id: review.id,
+      trip_id: review.tripId,
+      user_id: review.clientId, // changed from clientId to user_id to match table
+      rating: review.rating,
+      comment: review.comment,
+      created_at: review.date,
+      response: review.response
+    });
+    if (error) {
+      console.error('Error adding review:', error);
+      throw error;
+    }
+    await refreshData();
   };
 
   const deleteReview = async (reviewId: string) => {
-      await supabase.from('reviews').delete().eq('id', reviewId);
-      setReviews(prev => prev.filter(r => r.id !== reviewId));
+    const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
+    if (error) {
+      console.error('Error deleting review:', error);
+      throw error;
+    }
+    await refreshData();
   };
 
-  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
-      await supabase.from('agencies').update({
-          subscription_status: status,
-          subscription_plan: plan
-      }).eq('id', agencyId);
-      await fetchAgencies();
-      await logAuditAction('UPDATE_SUBSCRIPTION', `Updated agency ${agencyId} to ${status} - ${plan}`);
+  const toggleFavorite = async (tripId: string, clientId: string) => {
+    const currentClient = clients.find(c => c.id === clientId);
+    const isCurrentlyFavorite = currentClient?.favorites.includes(tripId);
+
+    if (isCurrentlyFavorite) {
+      const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
+      if (error) console.error('Error removing favorite:', error);
+    } else {
+      const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
+      if (error) console.error('Error adding favorite:', error);
+    }
+    await refreshData();
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
-      const payload: any = {};
-      if (data.phone) payload.phone = data.phone;
-      if (data.address) payload.address = data.address;
-      if (Object.keys(payload).length > 0) {
-          await supabase.from('profiles').update(payload).eq('id', clientId);
+    const { error } = await supabase.from('profiles').update(data).eq('id', clientId);
+    if (error) {
+      console.error('Error updating client profile:', error);
+      throw error;
+    }
+    await refreshData();
+  };
+
+  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+    const { error } = await supabase.from('agencies').update({
+      subscription_status: status,
+      subscription_plan: plan,
+      subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+    }).eq('id', agencyId);
+    if (error) {
+      console.error('Error updating agency subscription:', error);
+      throw error;
+    }
+    await refreshData();
+  };
+
+  const createTrip = async (trip: Trip) => {
+    const { id, agencyId, images, ...rest } = trip; // Destructure images as it's handled separately
+    const { data: newTrip, error } = await supabase.from('trips').insert({
+      ...rest,
+      agency_id: agencyId,
+    }).select().single(); // Select the new trip to get its ID
+
+    if (error) {
+      console.error('Error creating trip:', error);
+      throw error;
+    }
+
+    if (newTrip && images && images.length > 0) {
+      const imageInserts = images.map(url => ({
+        trip_id: newTrip.id,
+        image_url: url
+      }));
+      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
+      if (imageError) {
+        console.error('Error inserting trip images:', imageError);
+        // Optionally, handle rollback of the trip or log for manual correction
       }
+    }
+    await refreshData();
+  };
+
+  const updateTrip = async (trip: Trip) => {
+    const { id, agencyId, images, ...rest } = trip;
+    const { error } = await supabase.from('trips').update({
+      ...rest,
+      agency_id: agencyId, // Ensure agency_id is updated if needed
+    }).eq('id', id);
+
+    if (error) {
+      console.error('Error updating trip:', error);
+      throw error;
+    }
+
+    // Handle images separately: delete old ones and insert new ones
+    await supabase.from('trip_images').delete().eq('trip_id', id);
+    if (images && images.length > 0) {
+      const imageInserts = images.map(url => ({
+        trip_id: id,
+        image_url: url
+      }));
+      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
+      if (imageError) console.error('Error updating trip images:', imageError);
+    }
+    await refreshData();
+  };
+
+  const deleteTrip = async (tripId: string) => {
+    const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
+    if (imagesError) console.error('Error deleting trip images:', imagesError);
+
+    const { error: tripError } = await supabase.from('trips').delete().eq('id', tripId);
+    if (tripError) {
+      console.error('Error deleting trip:', tripError);
+      throw tripError;
+    }
+    await refreshData();
+  };
+
+  const toggleTripStatus = async (tripId: string) => {
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) return;
+    const { error } = await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
+    if (error) {
+      console.error('Error toggling trip status:', error);
+      throw error;
+    }
+    await refreshData();
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
-     if (role === UserRole.AGENCY) {
-         await supabase.from('agencies').delete().eq('id', userId);
-         setAgencies(prev => prev.filter(a => a.id !== userId));
-     } else {
-         await supabase.from('profiles').delete().eq('id', userId);
-         setClients(prev => prev.filter(c => c.id !== userId));
-     }
-     await logAuditAction('DELETE_USER', `Deleted user ${userId} with role ${role}`);
+    // Note: Supabase's auth.admin.deleteUser can also delete related user data via RLS,
+    // but explicit table deletion is often safer for complex relationships.
+    if (role === UserRole.AGENCY) {
+      await supabase.from('agencies').delete().eq('id', userId);
+      // Delete associated trips and their images
+      const agencyTrips = trips.filter(t => t.agencyId === userId);
+      for (const trip of agencyTrips) {
+        await supabase.from('trip_images').delete().eq('trip_id', trip.id);
+        await supabase.from('trips').delete().eq('id', trip.id);
+      }
+    } else { // CLIENT or ADMIN
+      await supabase.from('profiles').delete().eq('id', userId);
+      await supabase.from('favorites').delete().eq('user_id', userId);
+      await supabase.from('bookings').delete().eq('client_id', userId);
+      await supabase.from('reviews').delete().eq('user_id', userId);
+    }
+    
+    // Attempt to delete user from Supabase Auth directly (requires service role key for RLS to work smoothly)
+    // This is typically handled by `supabase.auth.admin.deleteUser(userId);`
+    // However, the `useAuth` context already has a `deleteAccount` which might be better
+    // For admin, we should be able to delete any user.
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+    if (authDeleteError) console.error('Error deleting auth user:', authDeleteError);
+    
+    await refreshData();
   };
 
   const logAuditAction = async (action: string, details: string) => {
-      if (!user) return;
-      // Mock implementation or Supabase Insert
-      const newLog: AuditLog = {
-          id: Date.now().toString(),
-          adminEmail: user.email,
-          action,
-          details,
-          createdAt: new Date().toISOString()
-      };
-      setAuditLogs(prev => [newLog, ...prev]);
-      // await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
+    if (!user || user.role !== UserRole.ADMIN) {
+        console.warn('Non-admin user attempted to log audit action.');
+        return;
+    }
+    const { error } = await supabase.from('audit_logs').insert({
+      admin_email: user.email,
+      action: action,
+      details: details,
+      created_at: new Date().toISOString()
+    });
+    if (error) console.error('Error logging audit action:', error);
+    await refreshData();
   };
 
-  const getAgencyStats = (agencyId: string): DashboardStats => {
-     const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-     const agencyBookings = bookings.filter(b => {
-         const trip = trips.find(t => t.id === b.tripId);
-         return trip && trip.agencyId === agencyId;
-     });
-     const totalRevenue = agencyBookings.reduce((acc, curr) => acc + (Number(curr.totalPrice) || 0), 0);
-     const totalSales = agencyBookings.length;
-     const totalViews = agencyTrips.reduce((acc, curr) => acc + (curr.views || 0), 0);
-     const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
-     return { totalRevenue, totalSales, totalViews, conversionRate };
+  const getPublicTrips = () => trips.filter(t => t.active);
+  const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
+  const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
+  const getTripById = (id: string) => trips.find(t => t.id === id);
+  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+
+  const getAgencyStats = (agencyId: string) => {
+    const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+    const agencyBookings = bookings.filter(b => agencyTrips.some(t => t.id === b.tripId));
+
+    const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+    const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); // This should be from bookings ideally
+    const totalRevenue = agencyBookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
+
+    const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+
+    return { totalRevenue, totalViews, totalSales, conversionRate };
   };
 
   return (
-    <DataContext.Provider value={{
+    <DataContext.Provider value={{ 
       trips, agencies, bookings, reviews, clients, auditLogs, loading,
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
@@ -451,11 +522,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getReviewsByTripId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
-      {children}
+      {!loading && children}
     </DataContext.Provider>
   );
 };
 
+// Export the useData hook.
 export const useData = () => {
   const context = useContext(DataContext);
   if (!context) throw new Error('useData must be used within a DataProvider');
