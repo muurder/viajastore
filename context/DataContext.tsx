@@ -381,44 +381,80 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const createTrip = async (trip: Trip) => {
-    const { id, agencyId, images, ...rest } = trip; // Destructure images as it's handled separately
-    const { data: newTrip, error } = await supabase.from('trips').insert({
-      ...rest,
-      agency_id: agencyId,
-    }).select().single(); // Select the new trip to get its ID
+    // Explicitly map camelCase props to snake_case for DB insert
+    const dbTrip = {
+        agency_id: trip.agencyId,
+        title: trip.title,
+        description: trip.description,
+        destination: trip.destination,
+        price: trip.price,
+        start_date: trip.startDate,
+        end_date: trip.endDate,
+        duration_days: trip.durationDays,
+        category: trip.category,
+        tags: trip.tags,
+        traveler_types: trip.travelerTypes,
+        itinerary: trip.itinerary,
+        payment_methods: trip.paymentMethods,
+        active: trip.active ?? true,
+        included: trip.included,
+        not_included: trip.notIncluded,
+        featured: trip.featured ?? false,
+        popular_near_sp: trip.popularNearSP ?? false,
+    };
+
+    const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
 
     if (error) {
       console.error('Error creating trip:', error);
       throw error;
     }
 
-    if (newTrip && images && images.length > 0) {
-      const imageInserts = images.map(url => ({
+    if (newTrip && trip.images && trip.images.length > 0) {
+      const imageInserts = trip.images.map(url => ({
         trip_id: newTrip.id,
         image_url: url
       }));
       const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
       if (imageError) {
         console.error('Error inserting trip images:', imageError);
-        // Optionally, handle rollback of the trip or log for manual correction
       }
     }
     await refreshData();
   };
 
   const updateTrip = async (trip: Trip) => {
-    const { id, agencyId, images, ...rest } = trip;
-    const { error } = await supabase.from('trips').update({
-      ...rest,
-      agency_id: agencyId, // Ensure agency_id is updated if needed
-    }).eq('id', id);
+    const { id, images } = trip;
+    
+    // Explicitly map camelCase props to snake_case for DB update
+    const dbTrip = {
+        title: trip.title,
+        description: trip.description,
+        destination: trip.destination,
+        price: trip.price,
+        start_date: trip.startDate,
+        end_date: trip.endDate,
+        duration_days: trip.durationDays,
+        category: trip.category,
+        tags: trip.tags,
+        traveler_types: trip.travelerTypes,
+        itinerary: trip.itinerary,
+        payment_methods: trip.paymentMethods,
+        active: trip.active,
+        included: trip.included,
+        not_included: trip.notIncluded,
+        featured: trip.featured,
+        popular_near_sp: trip.popularNearSP,
+    };
+
+    const { error } = await supabase.from('trips').update(dbTrip).eq('id', id);
 
     if (error) {
       console.error('Error updating trip:', error);
       throw error;
     }
 
-    // Handle images separately: delete old ones and insert new ones
+    // Handle images: delete old ones and insert new ones
     await supabase.from('trip_images').delete().eq('trip_id', id);
     if (images && images.length > 0) {
       const imageInserts = images.map(url => ({
@@ -455,8 +491,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
-    // Note: Supabase's auth.admin.deleteUser can also delete related user data via RLS,
-    // but explicit table deletion is often safer for complex relationships.
     if (role === UserRole.AGENCY) {
       await supabase.from('agencies').delete().eq('id', userId);
       // Delete associated trips and their images
@@ -472,10 +506,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await supabase.from('reviews').delete().eq('user_id', userId);
     }
     
-    // Attempt to delete user from Supabase Auth directly (requires service role key for RLS to work smoothly)
-    // This is typically handled by `supabase.auth.admin.deleteUser(userId);`
-    // However, the `useAuth` context already has a `deleteAccount` which might be better
-    // For admin, we should be able to delete any user.
     const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
     if (authDeleteError) console.error('Error deleting auth user:', authDeleteError);
     
