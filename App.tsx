@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -12,7 +11,7 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 import AgencyDashboard from './pages/AgencyDashboard';
-import AgencyLandingPage from './pages/AgencyLandingPage'; // Import New Component
+import AgencyLandingPage from './pages/AgencyLandingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import Login from './pages/Login';
@@ -31,12 +30,11 @@ const App: React.FC = () => {
                 <Route path="/" element={<Layout />}>
                   <Route index element={<Home />} />
                   
-                  {/* Main Content Routes */}
+                  {/* Global Routes (ViajaStore Context) */}
                   <Route path="trips" element={<TripList />} />
-                  {/* Rota atualizada para usar slug e prefixo 'viagem' */}
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
-                  <Route path="agency/:id" element={<AgencyProfile />} />
+                  <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
@@ -62,9 +60,10 @@ const App: React.FC = () => {
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard" element={<ClientDashboard />} />
 
-                  {/* Agency Landing Page by Slug (Dynamic) */}
-                  {/* MUST be placed after specific paths to avoid collisions */}
-                  <Route path=":slug" element={<AgencyLandingPage />} />
+                  {/* --- AGENCY MODE ROUTES --- */}
+                  {/* Captura /:agencySlug e suas sub-rotas */}
+                  <Route path=":agencySlug" element={<AgencyLandingPage />} />
+                  <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
 
                   {/* Catch all */}
                   <Route path="*" element={<NotFound />} />

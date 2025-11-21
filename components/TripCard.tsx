@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
@@ -13,9 +12,18 @@ interface TripCardProps {
 
 const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
-  const { toggleFavorite, clients } = useData();
+  const { toggleFavorite, clients, getAgencyBySlug } = useData();
   const { showToast } = useToast();
   const [imgError, setImgError] = useState(false);
+  
+  // Context awareness for link generation
+  const { agencySlug } = useParams<{ agencySlug?: string }>();
+
+  // Determine the link target based on context
+  // If we are inside an agency route, keep the context. If global, keep global.
+  const linkTarget = agencySlug 
+    ? `/${agencySlug}/viagem/${trip.slug || trip.id}` 
+    : `/viagem/${trip.slug || trip.id}`;
 
   // Ensure clients data is loaded and use current user's favorites
   const currentUserData = clients.find(c => c.id === user?.id);
@@ -57,7 +65,7 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     : trip.images[0];
 
   return (
-    <Link to={`/viagem/${trip.slug || trip.id}`} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
+    <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
       <div className="relative h-48 w-full overflow-hidden bg-gray-100">
         <img 
           src={displayImage} 

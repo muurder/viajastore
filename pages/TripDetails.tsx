@@ -1,13 +1,17 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
-  const { slug } = useParams<{ slug: string }>();
-  const { getTripBySlug, getTripById, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading } = useData();
+  // Capture params. If agencySlug exists, we are in agency mode.
+  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
+  
+  // Handle both global (/viagem/:slug) and nested (/:agencySlug/viagem/:tripSlug) routes
+  const activeTripSlug = tripSlug || slug;
+
+  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -19,28 +23,30 @@ const TripDetails: React.FC = () => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
-  // Try to get by slug first, fallback to ID logic if needed (though component structure assumes slug now)
-  const trip = slug ? getTripBySlug(slug) : undefined;
+  const trip = activeTripSlug ? getTripBySlug(activeTripSlug) : undefined;
+  
+  // Verify consistency: If in agency mode, the trip MUST belong to that agency
+  const contextAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+  const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.id);
 
   // SEO / Metadata Update
   useEffect(() => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
-          // In a real SSR app, you'd update meta tags here too
       }
   }, [trip]);
   
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
-  if (!trip) return (
+  if (!trip || !isConsistent) return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
         <div className="bg-gray-100 p-6 rounded-full mb-6">
           <Search size={48} className="text-gray-400" />
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Viagem não encontrada</h1>
-        <p className="text-gray-500 mb-8 max-w-md">O pacote que você procura não existe ou foi removido.</p>
-        <Link to="/trips" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
-          Explorar outras viagens
+        <p className="text-gray-500 mb-8 max-w-md">O pacote que você procura não existe ou não pertence a esta agência.</p>
+        <Link to={agencySlug ? `/${agencySlug}` : "/trips"} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+          Voltar
         </Link>
       </div>
   );
@@ -111,7 +117,6 @@ const TripDetails: React.FC = () => {
     alert('Avaliação enviada com sucesso!');
   };
 
-  // Helper for fallback image
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   };
@@ -134,10 +139,7 @@ const TripDetails: React.FC = () => {
   };
 
   const renderDescription = (desc: string) => {
-      // Basic sanitization by only allowing specific tags or structure if using dangerous HTML
-      // Since we are building an MVP, we assume the Agency Dashboard editor outputs relatively safe HTML
       const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
-      
       if (isHTML) {
           return (
               <div 
@@ -154,13 +156,19 @@ const TripDetails: React.FC = () => {
     ? trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4)
     : [mainImage, mainImage, mainImage, mainImage];
 
+  // Breadcrumb Links
+  const homeLink = agencySlug ? `/${agencySlug}` : '/';
+  const homeLabel = agencySlug ? (agency?.name || 'Agência') : 'Home';
+  const tripsLink = agencySlug ? `/${agencySlug}` : '/trips';
+  const tripsLabel = agencySlug ? 'Pacotes' : 'Viagens';
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       {/* Breadcrumb */}
       <div className="flex items-center text-sm text-gray-500 mb-6">
-          <Link to="/" className="hover:text-primary-600">Home</Link> 
+          <Link to={homeLink} className="hover:text-primary-600 flex items-center"><ArrowLeft size={12} className="mr-1"/> {homeLabel}</Link> 
           <span className="mx-2">/</span>
-          <Link to="/trips" className="hover:text-primary-600">Viagens</Link>
+          <Link to={tripsLink} className="hover:text-primary-600">{tripsLabel}</Link>
           <span className="mx-2">/</span>
           <span className="text-gray-900 font-medium truncate max-w-[200px]">{trip.title}</span>
       </div>
@@ -246,15 +254,15 @@ const TripDetails: React.FC = () => {
             {renderDescription(trip.description)}
           </div>
 
-          {/* Agency Card */}
-          {agency && (
+          {/* Agency Card (Show only if NOT in agency mode, to avoid redundancy, OR keep it for contact) */}
+          {agency && !agencySlug && (
              <div className="bg-gray-50 border border-gray-200 p-6 rounded-2xl flex items-center gap-6 hover:shadow-md transition-shadow">
                 <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm" />
                 <div className="flex-1">
                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">Organizado por</p>
                    <h4 className="text-xl font-bold text-gray-900 mb-1">{agency.name}</h4>
                    <p className="text-sm text-gray-600 line-clamp-1 mb-3">{agency.description}</p>
-                   <Link to={`/${agency.slug}`} className="text-primary-600 text-sm font-bold hover:underline">
+                   <Link to={`/${agency.slug || agency.id}`} className="text-primary-600 text-sm font-bold hover:underline">
                      Ver perfil da agência &rarr;
                    </Link>
                 </div>
