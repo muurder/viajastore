@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft, Share2 } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
   // Capture params. If agencySlug exists, we are in agency mode.
@@ -13,6 +15,7 @@ const TripDetails: React.FC = () => {
 
   const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -65,9 +68,35 @@ const TripDetails: React.FC = () => {
       navigate('/login');
       return;
     }
-    if (user.role !== 'CLIENT') return;
+    if (user.role !== 'CLIENT') {
+      showToast('Apenas viajantes podem favoritar.', 'warning');
+      return;
+    }
     
     toggleFavorite(trip.id, user.id);
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: trip.title,
+      text: `Confira esta viagem incrível: ${trip.title}`,
+      url: window.location.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        showToast('Link copiado para a área de transferência!', 'success');
+      } catch (err) {
+        showToast('Erro ao copiar link.', 'error');
+      }
+    }
   };
 
   const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
@@ -114,7 +143,7 @@ const TripDetails: React.FC = () => {
       date: new Date().toISOString()
     });
     setComment('');
-    alert('Avaliação enviada com sucesso!');
+    showToast('Avaliação enviada com sucesso!', 'success');
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -211,17 +240,28 @@ const TripDetails: React.FC = () => {
             
             <div className="flex items-start justify-between gap-4 mb-2">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title}</h1>
-                <button
-                    onClick={handleFavorite}
-                    title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                    className={`p-3 rounded-full border transition-all shadow-sm flex-shrink-0 ${
-                        isFavorite
-                            ? 'bg-red-50 border-red-100 text-red-500'
-                            : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'
-                    }`}
-                >
-                    <Heart size={24} className={isFavorite ? "fill-current animate-[pulse_0.3s]" : ""} />
-                </button>
+                
+                {/* Action Buttons: Share & Favorite */}
+                <div className="flex items-center gap-3">
+                  <button
+                      onClick={handleShare}
+                      title="Compartilhar"
+                      className="p-3 rounded-full border bg-white border-gray-200 text-gray-400 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm flex-shrink-0"
+                  >
+                      <Share2 size={24} />
+                  </button>
+                  <button
+                      onClick={handleFavorite}
+                      title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                      className={`p-3 rounded-full border transition-all shadow-sm flex-shrink-0 ${
+                          isFavorite
+                              ? 'bg-red-50 border-red-100 text-red-500'
+                              : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'
+                      }`}
+                  >
+                      <Heart size={24} className={isFavorite ? "fill-current animate-[pulse_0.3s]" : ""} />
+                  </button>
+                </div>
             </div>
 
             <p className="text-lg md:text-xl font-medium text-primary-600 mb-5">{getDynamicHeadline()}</p>
