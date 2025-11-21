@@ -242,6 +242,7 @@ const AgencyDashboard: React.FC = () => {
       if(myAgency) {
           setAgencyForm({
               name: myAgency.name,
+              slug: myAgency.slug,
               description: myAgency.description,
               cnpj: myAgency.cnpj,
               phone: myAgency.phone,
@@ -512,6 +513,23 @@ const AgencyDashboard: React.FC = () => {
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome da Agência</label>
                             <input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" />
                         </div>
+
+                         <div className="md:col-span-2">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">URL Personalizada (Slug)</label>
+                            <div className="flex">
+                                <div className="flex items-center px-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50 text-gray-500 text-sm select-none">
+                                    viajastore.com/
+                                </div>
+                                <input 
+                                    value={agencyForm.slug || ''} 
+                                    onChange={e => setAgencyForm({...agencyForm, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})} 
+                                    className="w-full border border-gray-300 rounded-r-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" 
+                                    placeholder="minha-agencia"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Este é o endereço público da sua agência. Use apenas letras minúsculas, números e hífens.</p>
+                        </div>
+
                         <div className="md:col-span-2">
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição</label>
                             <textarea rows={3} value={agencyForm.description} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" />
