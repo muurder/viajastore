@@ -4,7 +4,8 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Trip, UserRole, ItineraryDay } from '../types';
 import { PLANS } from '../services/mockData';
-import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, AlertTriangle, Lock, CheckCircle, X, BarChart3, Eye, MapPin, Loader, Image as ImageIcon, Search, Save, ArrowLeft, Bold, Italic, List, Smile } from 'lucide-react';
+import { supabase } from '../services/supabase'; // Import Supabase Client
+import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, AlertTriangle, Lock, CheckCircle, X, BarChart3, Eye, MapPin, Loader, Image as ImageIcon, Search, Save, ArrowLeft, Bold, Italic, List, Smile, Upload, Link as LinkIcon } from 'lucide-react';
 
 // --- COMPONENTS AUXILIARES ---
 
@@ -52,14 +53,69 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   );
 };
 
-// 2. Gerenciador de Imagens (URL Based)
+// 2. Gerenciador de Imagens (URL + Upload)
 const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => void }> = ({ images, onChange }) => {
   const [urlInput, setUrlInput] = useState('');
+  const [uploading, setUploading] = useState(false);
 
-  const addImage = () => {
+  // Add via URL
+  const addImageFromUrl = () => {
     if (urlInput && !images.includes(urlInput)) {
       onChange([...images, urlInput]);
       setUrlInput('');
+    }
+  };
+
+  // Add via Upload (Supabase Storage)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const newImages: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // Create unique filename: timestamp_random.ext
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        // Upload
+        const { error: uploadError } = await supabase.storage
+          .from('trip-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          if (uploadError.message.includes('Bucket not found')) {
+            alert('Erro: Bucket "trip-images" não encontrado. Crie-o no Supabase.');
+          }
+          continue;
+        }
+
+        // Get Public URL
+        const { data } = supabase.storage
+          .from('trip-images')
+          .getPublicUrl(filePath);
+
+        if (data.publicUrl) {
+          newImages.push(data.publicUrl);
+        }
+      }
+
+      if (newImages.length > 0) {
+        onChange([...images, ...newImages]);
+      }
+
+    } catch (error) {
+      console.error('Unexpected error uploading:', error);
+      alert('Erro ao fazer upload da imagem.');
+    } finally {
+      setUploading(false);
+      // Reset input
+      e.target.value = '';
     }
   };
 
@@ -68,32 +124,71 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        <input 
-          type="url" 
-          className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-          placeholder="Cole a URL da imagem (ex: https://...)"
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-        />
-        <button type="button" onClick={addImage} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm transition-colors">
-          Adicionar
-        </button>
+    <div className="space-y-4">
+      
+      {/* Upload Button Area */}
+      <div className="flex flex-col md:flex-row gap-4 items-start">
+        <label className={`
+            flex-1 h-32 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 hover:border-primary-400 transition-all cursor-pointer flex flex-col items-center justify-center text-gray-500 gap-2 group
+            ${uploading ? 'opacity-50 pointer-events-none' : ''}
+        `}>
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleFileUpload} 
+              disabled={uploading}
+            />
+            {uploading ? (
+              <Loader className="animate-spin text-primary-600" size={24} />
+            ) : (
+              <Upload className="text-gray-400 group-hover:text-primary-600 transition-colors" size={24} />
+            )}
+            <span className="text-sm font-medium group-hover:text-primary-700">
+                {uploading ? 'Enviando...' : 'Clique para fazer upload'}
+            </span>
+            <span className="text-xs text-gray-400">JPG, PNG (Galeria)</span>
+        </label>
+
+        <div className="flex-1 w-full flex gap-2 items-center h-32 bg-white p-4 rounded-xl border border-gray-200">
+            <div className="flex-1 space-y-2">
+               <p className="text-xs font-bold text-gray-400 uppercase">Ou adicione por Link</p>
+               <div className="flex gap-2">
+                <input 
+                    type="url" 
+                    className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                    placeholder="https://..."
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImageFromUrl())}
+                />
+                <button type="button" onClick={addImageFromUrl} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg">
+                    <Plus size={18} />
+                </button>
+               </div>
+            </div>
+        </div>
       </div>
       
       {images.length > 0 && (
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-4 mt-2">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-4 mt-4">
           {images.map((img, idx) => (
-            <div key={idx} className="relative group aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+            <div key={idx} className="relative group aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
               <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
               <button 
                 type="button" 
                 onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                className="absolute top-1 right-1 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600"
+                title="Remover imagem"
               >
-                <X size={12} />
+                <X size={14} />
               </button>
+              {idx === 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] font-bold text-center py-1">
+                      Capa Principal
+                  </div>
+              )}
             </div>
           ))}
         </div>
