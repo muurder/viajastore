@@ -135,6 +135,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         cnpj: a.cnpj,
         description: a.description,
         logo: a.logo_url,
+        whatsapp: a.whatsapp, // Added field
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
         subscriptionExpiresAt: a.subscription_expires_at,

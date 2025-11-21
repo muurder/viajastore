@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, ArrowLeft, Search, Globe, Filter, X, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone } from 'lucide-react';
 import { Trip } from '../types';
 
 // Reuse Filters from Home
@@ -26,7 +26,6 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, loading } = useData();
-  const navigate = useNavigate();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -67,7 +66,7 @@ const AgencyLandingPage: React.FC = () => {
   
   // Filtering Logic specific to this agency's trips
   const filteredTrips = trips.filter(t => {
-    // First check: Must belong to agency (redundant but safe)
+    // STRICT CHECK: Must belong to agency
     if (t.agencyId !== agency.id) return false;
 
     const matchesSearch = 
@@ -104,46 +103,68 @@ const AgencyLandingPage: React.FC = () => {
       setSelectedInterests([]);
   };
 
+  const handleContact = () => {
+      if (agency.whatsapp) {
+          const num = agency.whatsapp.replace(/\D/g, '');
+          window.open(`https://wa.me/${num}?text=Olá, vi seu site na ViajaStore e gostaria de saber mais sobre os pacotes.`, '_blank');
+      } else {
+          window.location.href = `mailto:${agency.email}`;
+      }
+  };
+
   return (
     <div className="space-y-8 animate-[fadeIn_0.3s]">
       {/* Agency Hero Banner */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden relative">
-        <div className="h-48 md:h-64 relative overflow-hidden">
+        <div className="h-56 md:h-72 relative overflow-hidden">
             {/* Background Image - Use featured trip image or generic pattern */}
             {featuredTrip ? (
                  <img src={featuredTrip.images[0]} className="absolute inset-0 w-full h-full object-cover blur-sm scale-110 opacity-50" />
             ) : (
                  <div className="absolute inset-0 bg-gradient-to-r from-primary-900 to-gray-900"></div>
             )}
-            <div className="absolute inset-0 bg-black/40"></div>
+            <div className="absolute inset-0 bg-black/50"></div>
         </div>
         
         <div className="px-8 pb-8 relative">
            <div className="relative -mt-16 mb-6 flex flex-col md:flex-row items-center md:items-end gap-6">
-              <img src={agency.logo} alt={agency.name} className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover bg-white" />
-              <div className="text-center md:text-left flex-1 text-white md:text-gray-900">
-                 <h1 className="text-3xl md:text-4xl font-extrabold flex items-center justify-center md:justify-start gap-2 mb-2 drop-shadow-md md:drop-shadow-none">
-                    {agency.name}
-                    <ShieldCheck className="text-blue-500 fill-blue-50 md:fill-white" size={28} />
-                 </h1>
-                 <p className="text-gray-100 md:text-gray-600 max-w-2xl drop-shadow md:drop-shadow-none font-medium">{agency.description}</p>
+              {/* Logo Display */}
+              <div className="relative">
+                  <img 
+                    src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
+                    alt={agency.name} 
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover bg-white" 
+                  />
+                  <div className="absolute bottom-2 right-1 bg-green-500 text-white rounded-full p-1 border-2 border-white shadow-sm" title="Verificado">
+                      <ShieldCheck size={16} />
+                  </div>
               </div>
-              <div className="flex gap-3 mt-4 md:mt-0">
+              
+              <div className="text-center md:text-left flex-1 text-white md:text-gray-900 w-full">
+                 <h1 className="text-3xl md:text-4xl font-extrabold mb-2 drop-shadow-md md:drop-shadow-none break-words leading-tight">
+                    {agency.name}
+                 </h1>
+                 <p className="text-gray-100 md:text-gray-600 max-w-2xl drop-shadow md:drop-shadow-none font-medium text-sm md:text-base break-words">
+                    {agency.description}
+                 </p>
+              </div>
+              
+              <div className="flex gap-3 mt-4 md:mt-0 flex-shrink-0">
                 {agency.website && (
                     <a href={`http://${agency.website}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 font-bold flex items-center text-sm shadow-sm">
                         <Globe size={16} className="mr-2"/> Site
                     </a>
                 )}
-                <button onClick={() => window.location.href = `mailto:${agency.email}`} className="px-4 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 shadow-lg shadow-primary-500/30 flex items-center text-sm">
-                   <Mail size={16} className="mr-2" /> Contato
+                <button onClick={handleContact} className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 shadow-lg shadow-green-500/30 flex items-center text-sm">
+                   {agency.whatsapp ? <Smartphone size={16} className="mr-2" /> : <Mail size={16} className="mr-2" />}
+                   {agency.whatsapp ? 'WhatsApp' : 'Email'}
                 </button>
               </div>
            </div>
            
            <div className="flex flex-wrap gap-6 text-sm text-gray-500 justify-center md:justify-start border-t border-gray-100 pt-6">
               <span className="flex items-center"><MapPin size={16} className="mr-2" /> {agency.address?.city || 'Brasil'}</span>
-              <span className="flex items-center">CNPJ: {agency.cnpj}</span>
-              <span className="flex items-center text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full">✓ Parceiro Verificado</span>
+              {agency.whatsapp && <span className="flex items-center text-gray-600 font-medium"><Smartphone size={16} className="mr-2" /> {agency.whatsapp}</span>}
            </div>
         </div>
       </div>

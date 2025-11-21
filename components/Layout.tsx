@@ -13,7 +13,6 @@ const Layout: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
   // Detect Agency Mode via URL segments
-  // Pattern: /:agencySlug/...
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const potentialSlug = pathSegments[0];
   
@@ -30,9 +29,14 @@ const Layout: React.FC = () => {
   // Try to find agency data if in agency mode
   const currentAgency = isAgencyMode ? getAgencyBySlug(potentialSlug) : undefined;
 
+  // Logout Logic: Stay on microsite if in agency mode
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    if (isAgencyMode) {
+        navigate(`/${potentialSlug}`);
+    } else {
+        navigate('/');
+    }
   };
 
   const getLinkClasses = (path: string) => {
@@ -68,7 +72,7 @@ const Layout: React.FC = () => {
                               <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover mr-3 border border-gray-200"/>
                           )}
                           <div className="flex flex-col">
-                              <span className="font-bold text-gray-900 text-lg leading-tight">{currentAgency.name}</span>
+                              <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all">{currentAgency.name}</span>
                               <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
                                  Parceiro ViajaStore <ShieldCheck size={10} className="ml-1 text-green-500"/>
                               </span>
@@ -207,8 +211,8 @@ const Layout: React.FC = () => {
               <div className="flex items-center mb-4">
                 {isAgencyMode && currentAgency ? (
                    <>
-                    {currentAgency.logo && <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2" alt="Logo" />}
-                    <span className="font-bold text-xl text-gray-800">{currentAgency.name}</span>
+                    {currentAgency.logo && <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2 border border-gray-100" alt="Logo" />}
+                    <span className="font-bold text-xl text-gray-800 line-clamp-1">{currentAgency.name}</span>
                    </>
                 ) : (
                    <>
@@ -254,7 +258,8 @@ const Layout: React.FC = () => {
                    <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato Rápido</h3>
                    {currentAgency && (
                       <ul className="space-y-2 text-sm text-gray-600">
-                          {currentAgency.phone && <li>WhatsApp: {currentAgency.phone}</li>}
+                          {currentAgency.whatsapp && <li>WhatsApp: {currentAgency.whatsapp}</li>}
+                          {currentAgency.phone && !currentAgency.whatsapp && <li>Telefone: {currentAgency.phone}</li>}
                           {currentAgency.email && <li>Email: {currentAgency.email}</li>}
                           {currentAgency.address && <li>{currentAgency.address.city}, {currentAgency.address.state}</li>}
                       </ul>

@@ -126,6 +126,9 @@ const TripDetails: React.FC = () => {
     });
 
     setIsBookingModalOpen(false);
+    
+    // Use state to pass context to Success Page, or just navigate to global success
+    // Ideally, we would have a route /:agencySlug/checkout/success, but standard is fine if navigation history works.
     navigate('/checkout/success');
   };
 

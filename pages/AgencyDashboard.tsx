@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
@@ -128,6 +128,38 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
   );
 };
 
+const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => void }> = ({ currentLogo, onUpload }) => {
+    const { uploadImage } = useAuth();
+    const [uploading, setUploading] = useState(false);
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        setUploading(true);
+        try {
+            const url = await uploadImage(e.target.files[0], 'agency-logos');
+            if (url) onUpload(url);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="flex items-center gap-4">
+            <div className="w-24 h-24 rounded-full border-2 border-gray-200 bg-gray-50 overflow-hidden relative group">
+                <img src={currentLogo || `https://ui-avatars.com/api/?name=Logo&background=random`} alt="Logo" className="w-full h-full object-cover" />
+                {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/60"><Loader className="animate-spin text-primary-600"/></div>}
+            </div>
+            <div>
+                <label className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-gray-50 inline-flex items-center gap-2">
+                    <Upload size={16}/> Alterar Logo
+                    <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+                </label>
+                <p className="text-xs text-gray-500 mt-2">JPG, PNG ou WEBP. Max 2MB.</p>
+            </div>
+        </div>
+    );
+};
+
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser } = useAuth();
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, refreshData } = useData();
@@ -162,16 +194,9 @@ const AgencyDashboard: React.FC = () => {
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
   
-  // CORRECTED: Construct URL cleanly using window.location.origin
-  // This prevents duplicating the path segments if user is already deep in the app.
-  const cleanSlug = myAgency.slug || '';
-  const agencyHomeLink = cleanSlug ? `/${cleanSlug}` : '#';
-  
-  // Full absolute URL for display/copying
-  // Assuming HashRouter: origin + /#/ + slug
-  const fullAgencyLink = cleanSlug 
-      ? `${window.location.origin}/#/${cleanSlug}` 
-      : '';
+  // CORRECTED URL Generation to avoid duplication
+  const cleanSlug = myAgency.slug ? myAgency.slug.replace(/^\/+|\/+$/g, '') : '';
+  const fullAgencyLink = cleanSlug ? `${window.location.origin}/#/${cleanSlug}` : '';
 
   const handleOpenCreate = () => {
     setEditingTripId(null);
@@ -264,6 +289,12 @@ const AgencyDashboard: React.FC = () => {
       }
   };
 
+  // Sanitize Slug Input
+  const handleSlugChange = (val: string) => {
+     const sanitized = slugify(val);
+     setAgencyForm({...agencyForm, slug: sanitized});
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
@@ -273,24 +304,24 @@ const AgencyDashboard: React.FC = () => {
              <h1 className="text-2xl font-bold text-gray-900">{myAgency.name}</h1>
              <div className="flex items-center gap-3 mt-1">
                 {isActive ? <p className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={12}/> Ativo</p> : <p className="text-red-600 text-xs font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><X size={12}/> Pendente</p>}
-                {myAgency.slug && (
-                    <Link to={agencyHomeLink} target="_blank" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100 hover:underline">
+                {cleanSlug && (
+                    <a href={fullAgencyLink} target="_blank" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100 hover:underline">
                         <Eye size={12}/> Ver Página Pública
-                    </Link>
+                    </a>
                 )}
              </div>
            </div>
         </div>
-        <button onClick={() => setActiveTab('SETTINGS')} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50"><Settings size={18} className="mr-2"/> Editar Perfil</button>
+        <button onClick={() => setActiveTab('SETTINGS')} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50 whitespace-nowrap"><Settings size={18} className="mr-2"/> Editar Perfil</button>
       </div>
 
       {viewMode === 'LIST' ? (
         <>
-          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2">
-            <button onClick={() => setActiveTab('STATS')} className={`py-4 px-6 font-bold text-sm border-b-2 ${activeTab === 'STATS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Visão Geral</button>
-            <button onClick={() => setActiveTab('TRIPS')} className={`py-4 px-6 font-bold text-sm border-b-2 ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Pacotes</button>
-            <button onClick={() => setActiveTab('SUBSCRIPTION')} className={`py-4 px-6 font-bold text-sm border-b-2 ${activeTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Assinatura</button>
-            <button onClick={() => setActiveTab('SETTINGS')} className={`py-4 px-6 font-bold text-sm border-b-2 ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Configurações</button>
+          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide">
+            <button onClick={() => setActiveTab('STATS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'STATS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Visão Geral</button>
+            <button onClick={() => setActiveTab('TRIPS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Pacotes</button>
+            <button onClick={() => setActiveTab('SUBSCRIPTION')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Assinatura</button>
+            <button onClick={() => setActiveTab('SETTINGS')} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}`}>Configurações</button>
           </div>
 
           {activeTab === 'TRIPS' && isActive && (
@@ -313,13 +344,13 @@ const AgencyDashboard: React.FC = () => {
                                    <span>•</span>
                                    <span>{trip.views || 0} views</span>
                                    <span>•</span>
-                                   <Link 
-                                      to={myAgency.slug ? `/${myAgency.slug}/viagem/${trip.slug || trip.id}` : `/viagem/${trip.slug || trip.id}`} 
+                                   <a 
+                                      href={cleanSlug ? `${window.location.origin}/#/${cleanSlug}/viagem/${trip.slug || trip.id}` : '#'} 
                                       target="_blank" 
                                       className="text-primary-600 hover:underline flex items-center gap-1"
                                    >
                                       <Eye size={10}/> Preview
-                                   </Link>
+                                   </a>
                                </div>
                            </div>
                            <div className="flex gap-2">
@@ -357,19 +388,39 @@ const AgencyDashboard: React.FC = () => {
           {activeTab === 'SETTINGS' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                 <form onSubmit={handleAgencyUpdate} className="space-y-6">
-                    <div><label className="block text-xs font-bold mb-1">Nome da Agência</label><input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>
+                    <div>
+                        <label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label>
+                        <LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><label className="block text-xs font-bold mb-1">Nome da Agência</label><input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>
+                        <div>
+                            <label className="block text-xs font-bold mb-1">WhatsApp (somente números)</label>
+                            <div className="relative">
+                                <Smartphone className="absolute left-3 top-3 text-gray-400" size={18} />
+                                <input 
+                                  value={agencyForm.whatsapp || ''} 
+                                  onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} 
+                                  className="w-full border rounded-lg p-3 pl-10 outline-none focus:border-primary-500" 
+                                  placeholder="5511999999999"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div>
                         <label className="block text-xs font-bold mb-1">Slug URL (Seu endereço exclusivo)</label>
                         <div className="relative">
                             <input 
                               value={agencyForm.slug || ''} 
-                              onChange={e => setAgencyForm({...agencyForm, slug: slugify(e.target.value)})} 
+                              onChange={e => handleSlugChange(e.target.value)} 
                               className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48" 
                             />
                             <span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{window.location.host}/#/</span>
                         </div>
                         
-                        {agencyForm.slug && (
+                        {cleanSlug && (
                             <div className="mt-2">
                                 <a 
                                     href={fullAgencyLink}
@@ -393,13 +444,13 @@ const AgencyDashboard: React.FC = () => {
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
                  <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
                  <div className="flex gap-3">
-                    <Link 
-                        to={myAgency.slug ? `/${myAgency.slug}/viagem/${tripForm.slug}` : `/viagem/${tripForm.slug}`} 
+                    <a 
+                        href={cleanSlug ? `${window.location.origin}/#/${cleanSlug}/viagem/${tripForm.slug}` : '#'} 
                         target="_blank" 
                         className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"
                     >
                         <Eye size={18} className="mr-2"/> Preview
-                    </Link>
+                    </a>
                     <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
                  </div>
              </div>
@@ -411,16 +462,6 @@ const AgencyDashboard: React.FC = () => {
                     <div>
                         <label className="font-bold text-sm">Slug (URL Amigável)</label>
                         <input value={tripForm.slug} onChange={e => { setSlugTouched(true); setTripForm({...tripForm, slug: slugify(e.target.value)}) }} className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700" />
-                        {tripForm.slug && myAgency.slug && (
-                            <a 
-                                href={`${window.location.origin}/#/${myAgency.slug}/viagem/${tripForm.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
-                            >
-                                {window.location.host}/#/{myAgency.slug}/viagem/{tripForm.slug} <ExternalLink size={10} />
-                            </a>
-                        )}
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4">
@@ -453,16 +494,16 @@ const AgencyDashboard: React.FC = () => {
                      <h3 className="font-bold border-b pb-2 mb-4">Galeria de Imagens</h3>
                      <ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} />
                  </section>
-
-                 {/* Duplicate Buttons Section */}
+                 
+                 {/* Duplicate buttons bottom */}
                  <div className="flex justify-end gap-3 border-t pt-6 mt-8">
-                    <Link 
-                        to={myAgency.slug ? `/${myAgency.slug}/viagem/${tripForm.slug}` : `/viagem/${tripForm.slug}`} 
+                    <a 
+                        href={cleanSlug ? `${window.location.origin}/#/${cleanSlug}/viagem/${tripForm.slug}` : '#'} 
                         target="_blank" 
                         className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100"
                     >
                         <Eye size={18} className="mr-2"/> Preview
-                    </Link>
+                    </a>
                     <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700">{isSubmitting ? <Loader className="animate-spin"/> : <Save size={18} className="mr-2"/>} Salvar</button>
                  </div>
              </div>

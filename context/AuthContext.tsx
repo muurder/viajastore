@@ -57,6 +57,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           cnpj: agencyData.cnpj || '',
           description: agencyData.description || '',
           logo: agencyData.logo_url || '',
+          whatsapp: agencyData.whatsapp, // New field
           subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
           subscriptionPlan: agencyData.subscription_plan || 'BASIC',
           subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
@@ -253,6 +254,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
+        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
 
         const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
         if (error) throw error;

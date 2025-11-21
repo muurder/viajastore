@@ -44,6 +44,7 @@ export interface Client extends User {
 export interface Agency extends User {
   role: UserRole.AGENCY;
   slug: string; // New field for multi-tenant URL
+  whatsapp?: string; // New field for contact
   cnpj: string;
   description: string;
   logo: string;
