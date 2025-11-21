@@ -161,7 +161,17 @@ const AgencyDashboard: React.FC = () => {
   const isActive = myAgency.subscriptionStatus === 'ACTIVE';
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
-  const agencyHomeLink = myAgency.slug ? `/${myAgency.slug}` : '#';
+  
+  // CORRECTED: Construct URL cleanly using window.location.origin
+  // This prevents duplicating the path segments if user is already deep in the app.
+  const cleanSlug = myAgency.slug || '';
+  const agencyHomeLink = cleanSlug ? `/${cleanSlug}` : '#';
+  
+  // Full absolute URL for display/copying
+  // Assuming HashRouter: origin + /#/ + slug
+  const fullAgencyLink = cleanSlug 
+      ? `${window.location.origin}/#/${cleanSlug}` 
+      : '';
 
   const handleOpenCreate = () => {
     setEditingTripId(null);
@@ -180,15 +190,13 @@ const AgencyDashboard: React.FC = () => {
   const handleDuplicateTrip = async (trip: Trip) => {
       if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
       
-      // Remove ID to ensure Supabase sees it as a new insert
-      // Append random string to slug to avoid client-side logic errors before DB trigger fixes it
       const { id, ...rest } = trip;
       
       const timestamp = Math.floor(Date.now() / 1000);
       const duplicatedTrip = {
           ...rest,
           title: `${trip.title} (Cópia)`,
-          slug: `${slugify(trip.title)}-copy-${timestamp}`, // Explicit unique slug
+          slug: `${slugify(trip.title)}-copy-${timestamp}`, 
           active: false, 
           views: 0,
           sales: 0
@@ -305,7 +313,6 @@ const AgencyDashboard: React.FC = () => {
                                    <span>•</span>
                                    <span>{trip.views || 0} views</span>
                                    <span>•</span>
-                                   {/* Preview with Agency Context */}
                                    <Link 
                                       to={myAgency.slug ? `/${myAgency.slug}/viagem/${trip.slug || trip.id}` : `/viagem/${trip.slug || trip.id}`} 
                                       target="_blank" 
@@ -353,20 +360,26 @@ const AgencyDashboard: React.FC = () => {
                     <div><label className="block text-xs font-bold mb-1">Nome da Agência</label><input value={agencyForm.name} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>
                     <div>
                         <label className="block text-xs font-bold mb-1">Slug URL (Seu endereço exclusivo)</label>
-                        <input 
-                          value={agencyForm.slug || ''} 
-                          onChange={e => setAgencyForm({...agencyForm, slug: slugify(e.target.value)})} 
-                          className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium" 
-                        />
+                        <div className="relative">
+                            <input 
+                              value={agencyForm.slug || ''} 
+                              onChange={e => setAgencyForm({...agencyForm, slug: slugify(e.target.value)})} 
+                              className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48" 
+                            />
+                            <span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{window.location.host}/#/</span>
+                        </div>
+                        
                         {agencyForm.slug && (
-                            <a 
-                                href={`${window.location.origin}/#/${agencyForm.slug}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-primary-600 mt-2 hover:underline font-medium"
-                            >
-                                {window.location.host}/#/{agencyForm.slug} <ExternalLink size={10} />
-                            </a>
+                            <div className="mt-2">
+                                <a 
+                                    href={fullAgencyLink}
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline font-medium bg-primary-50 px-2 py-1 rounded-md"
+                                >
+                                    {fullAgencyLink} <ExternalLink size={10} />
+                                </a>
+                            </div>
                         )}
                     </div>
                     <div><label className="block text-xs font-bold mb-1">Descrição</label><textarea rows={3} value={agencyForm.description} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div>

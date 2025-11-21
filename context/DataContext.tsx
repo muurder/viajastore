@@ -269,7 +269,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             status: b.status,
             totalPrice: b.total_price,
             passengers: b.passengers,
-            voucher_code: b.voucher_code,
+            voucherCode: b.voucher_code,
             paymentMethod: b.payment_method
           }));
           setBookings(formattedBookings);

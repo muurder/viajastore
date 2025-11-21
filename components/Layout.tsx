@@ -42,7 +42,7 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  // Home Link Logic - Be robust even if currentAgency hasn't loaded yet
+  // Home Link Logic - Redirect to agency root if in agency mode
   const homeLink = isAgencyMode 
     ? `/${potentialSlug}` 
     : '/';
