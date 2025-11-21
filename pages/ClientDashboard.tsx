@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
@@ -12,6 +13,8 @@ const ClientDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PROFILE' | 'BOOKINGS' | 'FAVORITES' | 'SETTINGS' | 'SECURITY'>('PROFILE');
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [loadingCep, setLoadingCep] = useState(false);
+  const navigate = useNavigate();
 
   const currentClient = user as any;
 
@@ -44,6 +47,11 @@ const ClientDashboard: React.FC = () => {
   const favoriteTrips = currentClient.favorites ? currentClient.favorites.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined) : [];
 
   // Handlers
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files || e.target.files.length === 0) return;
       setUploading(true);
@@ -52,6 +60,35 @@ const ClientDashboard: React.FC = () => {
           await updateUser({ avatar: url });
       }
       setUploading(false);
+  };
+
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAddressForm({ ...addressForm, zipCode: value });
+
+    const cleanCep = value.replace(/\D/g, '');
+
+    if (cleanCep.length === 8) {
+      setLoadingCep(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await response.json();
+
+        if (!data.erro) {
+          setAddressForm(prev => ({
+            ...prev,
+            street: data.logradouro,
+            district: data.bairro,
+            city: data.localidade,
+            state: data.uf
+          }));
+        }
+      } catch (error) {
+        console.error("Erro ao buscar CEP", error);
+      } finally {
+        setLoadingCep(false);
+      }
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -129,7 +166,7 @@ const ClientDashboard: React.FC = () => {
                 </button>
             ))}
             <div className="h-px bg-gray-100 my-1"></div>
-            <button onClick={logout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors">
+            <button onClick={handleLogout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors">
                 <LogOut size={18} className="mr-3" /> Sair da Conta
             </button>
           </nav>
@@ -258,9 +295,15 @@ const ClientDashboard: React.FC = () => {
                   <div className="border-t pt-6">
                       <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="md:col-span-1">
+                          <div className="md:col-span-1 relative">
                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label>
-                             <input value={addressForm.zipCode} onChange={e => setAddressForm({...addressForm, zipCode: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="00000-000" />
+                             <input 
+                               value={addressForm.zipCode} 
+                               onChange={handleCepChange} 
+                               className="w-full border border-gray-300 rounded-lg p-2" 
+                               placeholder="00000-000" 
+                             />
+                             {loadingCep && <div className="absolute right-3 top-8"><Loader size={14} className="animate-spin text-primary-600"/></div>}
                           </div>
                           <div className="md:col-span-3">
                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label>

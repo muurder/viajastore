@@ -1,11 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { Trip, UserRole, ItineraryDay, Agency } from '../types';
+import { Trip, UserRole, Agency } from '../types';
 import { PLANS } from '../services/mockData';
 import { supabase } from '../services/supabase';
-import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, AlertTriangle, Lock, CheckCircle, X, BarChart3, Eye, MapPin, Loader, Image as ImageIcon, Search, Save, ArrowLeft, Bold, Italic, List, Smile, Upload, Camera, Settings, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, ShoppingCart, DollarSign, Lock, CheckCircle, X, Eye, Loader, Save, ArrowLeft, Bold, Italic, List, Upload, Camera, Settings, QrCode, Copy } from 'lucide-react';
 
 // --- COMPONENTS AUXILIARES ---
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
@@ -80,13 +80,18 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, updateUser, deleteAccount, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, loading } = useData();
+  const { user, updateUser, uploadImage } = useAuth();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
   
+  // States
   const [activeTab, setActiveTab] = useState<'TRIPS' | 'STATS' | 'SUBSCRIPTION' | 'SETTINGS'>('STATS');
   const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Payment States
+  const [selectedPlan, setSelectedPlan] = useState<'BASIC' | 'PREMIUM' | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
   
   // Profile Edit State
   const myAgency = agencies.find(a => a.id === user?.id) as Agency;
@@ -96,10 +101,30 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', destination: '', price: 0, category: 'PRAIA', durationDays: 1, included: [], images: [], itinerary: []
   });
-  const [inclusionInput, setInclusionInput] = useState('');
 
-  if (!user || user.role !== UserRole.AGENCY || !myAgency) return <div className="min-h-screen flex justify-center items-center">Carregando...</div>;
+  // Init form with current data
+  useEffect(() => {
+      if(myAgency) {
+          setAgencyForm({
+              name: myAgency.name,
+              description: myAgency.description,
+              cnpj: myAgency.cnpj,
+              phone: myAgency.phone,
+              address: myAgency.address,
+              bankInfo: myAgency.bankInfo,
+              logo: myAgency.logo
+          });
+          
+          // Force Subscription Tab if inactive
+          if (myAgency.subscriptionStatus !== 'ACTIVE') {
+              setActiveTab('SUBSCRIPTION');
+          }
+      }
+  }, [myAgency]);
 
+  if (!user || user.role !== UserRole.AGENCY || !myAgency) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
+
+  const isActive = myAgency.subscriptionStatus === 'ACTIVE';
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
 
@@ -142,18 +167,29 @@ const AgencyDashboard: React.FC = () => {
       if (url) setAgencyForm({ ...agencyForm, logo: url });
   };
 
-  // Init form with current data
-  React.useEffect(() => {
-      if(myAgency) setAgencyForm({
-          name: myAgency.name,
-          description: myAgency.description,
-          cnpj: myAgency.cnpj,
-          phone: myAgency.phone,
-          address: myAgency.address,
-          bankInfo: myAgency.bankInfo,
-          logo: myAgency.logo
-      });
-  }, [myAgency]);
+  const handleConfirmPayment = async () => {
+      if (selectedPlan) {
+          await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan);
+          alert('Pagamento confirmado! Sua assinatura está ativa.');
+          setShowPayment(false);
+          setActiveTab('STATS');
+      }
+  };
+
+  const TabButton = ({ id, label, icon: Icon }: any) => (
+      <button 
+        onClick={() => setActiveTab(id)} 
+        disabled={!isActive && id !== 'SUBSCRIPTION' && id !== 'SETTINGS'}
+        className={`
+            flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors
+            ${activeTab === id ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500'}
+            ${(!isActive && id !== 'SUBSCRIPTION' && id !== 'SETTINGS') ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-800'}
+        `}
+      >
+          {Icon && <Icon size={16}/>} {label}
+          {(!isActive && id !== 'SUBSCRIPTION' && id !== 'SETTINGS') && <Lock size={12} className="ml-1"/>}
+      </button>
+  );
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
@@ -161,12 +197,18 @@ const AgencyDashboard: React.FC = () => {
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
         <div className="flex items-center gap-4 w-full">
            <div className="relative group">
-              <img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover" />
+              <img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover" alt="Logo" />
               <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-1.5 rounded-full cursor-pointer hover:bg-primary-700"><Camera size={14}/><input type="file" hidden onChange={handleLogoUpload}/></label>
            </div>
            <div>
              <h1 className="text-2xl font-bold text-gray-900">{myAgency.name}</h1>
-             <p className="text-gray-500 text-sm flex items-center gap-2"><CheckCircle size={14} className="text-green-500"/> Agência Verificada</p>
+             <div className="flex items-center gap-3 mt-1">
+                {isActive ? (
+                    <p className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={12}/> Assinatura Ativa</p>
+                ) : (
+                    <p className="text-red-600 text-xs font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><X size={12}/> Assinatura Pendente</p>
+                )}
+             </div>
            </div>
         </div>
         <div className="flex gap-2">
@@ -176,18 +218,23 @@ const AgencyDashboard: React.FC = () => {
 
       {viewMode === 'LIST' ? (
         <>
-          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto">
-            {['STATS', 'TRIPS', 'SUBSCRIPTION', 'SETTINGS'].map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab as any)} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap ${activeTab === tab ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-                    {tab === 'STATS' && 'Visão Geral'}
-                    {tab === 'TRIPS' && 'Pacotes'}
-                    {tab === 'SUBSCRIPTION' && 'Assinatura'}
-                    {tab === 'SETTINGS' && 'Configurações'}
-                </button>
-            ))}
+          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2">
+            <TabButton id="STATS" label="Visão Geral" icon={TrendingUp} />
+            <TabButton id="TRIPS" label="Pacotes" icon={ShoppingCart} />
+            <TabButton id="SUBSCRIPTION" label="Assinatura" icon={DollarSign} />
+            <TabButton id="SETTINGS" label="Configurações" icon={Settings} />
           </div>
 
-          {activeTab === 'STATS' && (
+          {!isActive && activeTab !== 'SUBSCRIPTION' && activeTab !== 'SETTINGS' && (
+             <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+                 <Lock size={48} className="text-gray-300 mx-auto mb-4" />
+                 <h3 className="text-xl font-bold text-gray-900">Funcionalidade Bloqueada</h3>
+                 <p className="text-gray-500 mb-6">Você precisa ativar sua assinatura para acessar os recursos do painel.</p>
+                 <button onClick={() => setActiveTab('SUBSCRIPTION')} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold">Ir para Assinatura</button>
+             </div>
+          )}
+
+          {activeTab === 'STATS' && isActive && (
             <div className="space-y-8 animate-[fadeIn_0.3s]">
                 {/* Metric Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -226,7 +273,7 @@ const AgencyDashboard: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'TRIPS' && (
+          {activeTab === 'TRIPS' && isActive && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
                <div className="flex justify-between mb-6">
                    <h2 className="text-xl font-bold">Gerenciar Pacotes</h2>
@@ -235,7 +282,7 @@ const AgencyDashboard: React.FC = () => {
                <div className="space-y-4">
                    {myTrips.map(trip => (
                        <div key={trip.id} className="flex flex-col md:flex-row items-center gap-4 p-4 border border-gray-100 rounded-xl hover:bg-gray-50">
-                           <img src={trip.images[0]} className="w-16 h-16 rounded-lg object-cover" />
+                           <img src={trip.images[0]} className="w-16 h-16 rounded-lg object-cover" alt="" />
                            <div className="flex-1">
                                <h3 className="font-bold text-gray-900">{trip.title}</h3>
                                <p className="text-xs text-gray-500">{trip.sales || 0} vendas • {trip.views || 0} views</p>
@@ -247,6 +294,55 @@ const AgencyDashboard: React.FC = () => {
                        </div>
                    ))}
                </div>
+            </div>
+          )}
+
+          {activeTab === 'SUBSCRIPTION' && (
+            <div className="animate-[fadeIn_0.3s]">
+                {!isActive ? (
+                    <div className="space-y-8">
+                        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8">
+                            <h3 className="font-bold text-amber-800">Sua conta está pendente</h3>
+                            <p className="text-sm text-amber-700">Para começar a criar viagens e vender, escolha um plano abaixo e realize o pagamento.</p>
+                        </div>
+                        
+                        <h2 className="text-2xl font-bold text-center mb-8">Escolha o Plano Ideal</h2>
+                        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                            {PLANS.map(plan => (
+                                <div key={plan.id} className={`bg-white p-8 rounded-2xl border-2 transition-all ${selectedPlan === plan.id ? 'border-primary-600 shadow-xl scale-105 z-10' : 'border-gray-100 hover:border-gray-200 shadow-sm'}`}>
+                                    <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+                                    <p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)}<span className="text-sm text-gray-500 font-normal">/mês</span></p>
+                                    <ul className="mt-6 space-y-3 mb-8">
+                                        {plan.features.map((feat, i) => (
+                                            <li key={i} className="flex items-start text-sm text-gray-600">
+                                                <CheckCircle size={16} className="text-green-500 mr-2 mt-0.5 flex-shrink-0"/> {feat}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <button 
+                                        onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }}
+                                        className={`w-full py-3 rounded-xl font-bold transition-colors ${selectedPlan === plan.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+                                    >
+                                        Selecionar {plan.name}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold">Sua Assinatura</h2>
+                            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold">ATIVA</span>
+                        </div>
+                        <div className="bg-gray-50 p-6 rounded-xl mb-6">
+                            <p className="text-sm text-gray-500 uppercase font-bold mb-1">Plano Atual</p>
+                            <p className="text-xl font-bold text-gray-900">{myAgency.subscriptionPlan === 'PREMIUM' ? 'Plano Premium' : 'Plano Básico'}</p>
+                            <p className="text-sm text-gray-500 mt-2">Expira em: {new Date(myAgency.subscriptionExpiresAt).toLocaleDateString()}</p>
+                        </div>
+                        <p className="text-gray-600">Sua assinatura está em dia e você tem acesso total ao sistema.</p>
+                    </div>
+                )}
             </div>
           )}
 
@@ -318,6 +414,33 @@ const AgencyDashboard: React.FC = () => {
                      <label className="font-bold block mb-2">Descrição</label>
                      <RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} />
                  </div>
+             </div>
+         </div>
+      )}
+
+      {/* Modal Pagamento PIX */}
+      {showPayment && selectedPlan && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}>
+             <div className="bg-white rounded-2xl p-8 max-w-md w-full" onClick={e => e.stopPropagation()}>
+                 <h3 className="text-2xl font-bold mb-4 text-center">Pagamento via PIX</h3>
+                 <p className="text-center text-gray-600 mb-6">Escaneie o QR Code abaixo para ativar o plano <strong>{PLANS.find(p => p.id === selectedPlan)?.name}</strong>.</p>
+                 
+                 <div className="bg-gray-100 p-6 rounded-xl flex justify-center mb-6">
+                     <QrCode size={160} />
+                 </div>
+                 
+                 <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg mb-6 border border-gray-200">
+                     <span className="text-xs text-gray-500 truncate w-48">00020126580014br.gov.bcb.pix0136...</span>
+                     <button className="text-primary-600 text-xs font-bold flex items-center"><Copy size={12} className="mr-1"/> Copiar</button>
+                 </div>
+
+                 <button 
+                    onClick={handleConfirmPayment} 
+                    className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 mb-3 shadow-lg shadow-green-500/20"
+                 >
+                    Já realizei o pagamento
+                 </button>
+                 <button onClick={() => setShowPayment(false)} className="w-full text-gray-500 font-medium py-2">Cancelar</button>
              </div>
          </div>
       )}

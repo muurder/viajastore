@@ -36,6 +36,14 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
+// Helper to normalize strings for comparison (remove accents, lowercase)
+const normalizeText = (text: string) => {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+
 const Home: React.FC = () => {
   const { getPublicTrips, agencies } = useData();
   const navigate = useNavigate();
@@ -119,12 +127,24 @@ const Home: React.FC = () => {
   const displayedTrips = selectedInterests.length === 0
     ? allTrips.sort((a, b) => b.rating - a.rating).slice(0, 9)
     : allTrips.filter(t => {
-        // OR Logic: If trip matches ANY of the selected interests (via tags or category)
-        return selectedInterests.some(interest => 
-            t.tags.some(tag => tag.toLowerCase() === interest.toLowerCase()) || 
-            t.category.toLowerCase() === interest.toLowerCase().replace(' ', '_') ||
-            (interest === 'Viagem barata' && (t.category === 'VIAGEM_BARATA' || t.tags.includes('Viagem barata')))
-        );
+        // Improved OR Logic: Check categories and tags with normalization
+        return selectedInterests.some(interest => {
+            const cleanInterest = normalizeText(interest);
+            const cleanCategory = normalizeText(t.category);
+            
+            // 1. Check Category (Exact or Mapped)
+            if (cleanCategory === cleanInterest) return true;
+            if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true; // Handles "Vida Noturna" -> "vida_noturna"
+            
+            // Specific fix for "Gastronomia" vs "Gastronomico"
+            if (cleanInterest === 'gastronomia' && cleanCategory === 'gastronomico') return true;
+
+            // 2. Check Tags (Partial match)
+            return t.tags.some(tag => {
+                const cleanTag = normalizeText(tag);
+                return cleanTag.includes(cleanInterest) || cleanInterest.includes(cleanTag);
+            });
+        });
     }).slice(0, 9);
 
   const handleSearch = (e: React.FormEvent) => {

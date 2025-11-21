@@ -176,6 +176,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
+        // CHANGE: Set default status to INACTIVE so they must pay first
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
@@ -184,6 +185,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: data.phone,
           description: data.description,
           logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
+          subscription_status: 'INACTIVE',
+          subscription_plan: 'BASIC'
         }, { onConflict: 'id' });
         
         if (agencyError) throw agencyError;
