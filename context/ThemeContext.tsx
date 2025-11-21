@@ -42,7 +42,7 @@ interface ThemeContextType {
   activeTheme: ThemePalette;
   loading: boolean;
   setTheme: (themeId: string) => Promise<void>;
-  addTheme: (theme: Partial<ThemePalette>) => Promise<void>;
+  addTheme: (theme: Partial<ThemePalette>) => Promise<string | null>; // Returns ID
   deleteTheme: (themeId: string) => Promise<void>;
   previewTheme: (theme: ThemePalette) => void; // Temporarily apply without saving
   resetPreview: () => void;
@@ -90,11 +90,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
       fetchThemes();
 
-      // Real-time subscription for theme changes
+      // --- REALTIME SUBSCRIPTION ---
+      // This listens to ANY change in the 'themes' table.
+      // When the admin sets 'is_active' to true, ALL clients will receive this event
+      // and re-fetch the themes, automatically applying the new active theme.
       const channel = supabase
         .channel('public:themes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
-            // Simple refresh on any change to ensure consistency across clients
+            console.log('Theme change detected!', payload);
             fetchThemes();
         })
         .subscribe();
@@ -104,7 +107,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       };
   }, []);
 
-  // Apply CSS Variables
+  // Apply CSS Variables to :root
   useEffect(() => {
     const theme = previewMode || activeTheme;
     const root = document.documentElement;
@@ -129,20 +132,22 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [activeTheme, previewMode]);
 
   const setTheme = async (themeId: string) => {
-      // Optimistic UI update
+      // Optimistic UI update (instant feedback for the user who clicked)
       const targetTheme = themes.find(t => t.id === themeId);
       if (targetTheme) setActiveTheme(targetTheme);
 
       try {
+          // Transaction-like behavior:
           // 1. Set all to inactive
-          await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); // Update all matches
+          await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); 
           
           // 2. Set target to active
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
           
           if (error) throw error;
           
-          // Refresh to confirm state
+          // We don't necessarily need to fetchThemes() here because the Realtime subscription
+          // will trigger it, but calling it ensures local consistency if realtime is slow.
           await fetchThemes();
       } catch (error) {
           console.error("Error setting theme:", error);
@@ -150,20 +155,24 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
   };
 
-  const addTheme = async (theme: Partial<ThemePalette>) => {
+  const addTheme = async (theme: Partial<ThemePalette>): Promise<string | null> => {
       try {
-          const { error } = await supabase.from('themes').insert({
+          const { data, error } = await supabase.from('themes').insert({
               name: theme.name,
               colors: theme.colors,
-              is_active: false,
+              is_active: false, // Default to false, must apply explicitly
               is_default: false
-          });
+          }).select().single();
 
           if (error) throw error;
-          await fetchThemes();
+          
+          // Force refresh to get the new ID into the list
+          await fetchThemes(); 
+          
+          return data ? data.id : null;
       } catch (error) {
           console.error("Error adding theme:", error);
-          alert("Erro ao salvar novo tema.");
+          return null;
       }
   };
 

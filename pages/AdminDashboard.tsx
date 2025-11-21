@@ -33,6 +33,7 @@ const AdminDashboard: React.FC = () => {
       name: 'Novo Tema',
       colors: { primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' }
   });
+  const [savingTheme, setSavingTheme] = useState(false);
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -76,21 +77,41 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  const handleSaveTheme = () => {
+  const handleSaveTheme = async () => {
       if (!newTheme.name) {
           showToast('Nome do tema é obrigatório', 'error');
           return;
       }
-      const id = `theme-${Date.now()}`;
-      addTheme({
-          id,
-          name: newTheme.name,
-          colors: newTheme.colors,
-          isActive: false,
-          isDefault: false
-      });
-      showToast('Tema salvo com sucesso!', 'success');
-      logAuditAction('CREATE_THEME', `Created theme ${newTheme.name}`);
+      
+      setSavingTheme(true);
+      try {
+        // 1. Create Theme in DB
+        const newId = await addTheme({
+            name: newTheme.name,
+            colors: newTheme.colors,
+        });
+
+        if (newId) {
+             // 2. Apply it globally
+             await setTheme(newId);
+             showToast('Tema salvo e aplicado para todos os usuários!', 'success');
+             logAuditAction('CREATE_THEME', `Created and applied theme ${newTheme.name}`);
+             
+             // Reset
+             setNewTheme({
+                 name: 'Novo Tema',
+                 colors: { primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' }
+             });
+             resetPreview();
+        } else {
+            showToast('Erro ao salvar tema no banco.', 'error');
+        }
+      } catch (error) {
+          console.error(error);
+          showToast('Erro inesperado.', 'error');
+      } finally {
+          setSavingTheme(false);
+      }
   };
 
   const handleApplyTheme = (id: string) => {
@@ -323,8 +344,13 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                   </div>
 
-                                  <button onClick={handleSaveTheme} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-green-500/20 transition-all active:scale-95">
-                                      <Save size={18}/> Salvar Novo Tema
+                                  <button 
+                                      onClick={handleSaveTheme} 
+                                      disabled={savingTheme}
+                                      className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-green-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                      {savingTheme ? <Loader className="animate-spin" size={18} /> : <Save size={18}/>} 
+                                      Salvar e Aplicar
                                   </button>
                               </div>
 
