@@ -5,9 +5,11 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
+
+const MAX_IMAGES = 8;
 
 // Pill Input Component
 const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string }> = ({ value, onChange, placeholder }) => {
@@ -35,11 +37,11 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors"
+        className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"
       />
-      <div className="flex flex-wrap gap-2 mt-3">
+      <div className="flex flex-wrap gap-2 mt-3 min-h-[2.5rem]">
         {value.map((item, index) => (
-          <div key={index} className="flex items-center bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]">
+          <div key={index} className="flex items-center bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1.5 rounded-full animate-[scaleIn_0.2s] border border-gray-200">
             <span>{item}</span>
             <button type="button" onClick={() => handleRemove(item)} className="ml-2 text-gray-500 hover:text-red-500">
               <X size={14} />
@@ -119,11 +121,17 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
   const [uploading, setUploading] = useState(false);
   const { uploadImage } = useAuth();
   const { showToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
+    if (images.length + files.length > MAX_IMAGES) {
+        showToast(`Você pode enviar no máximo ${MAX_IMAGES} imagens.`, 'error');
+        return;
+    }
+
     setUploading(true);
     const newImages: string[] = [];
 
@@ -143,16 +151,20 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
       showToast(error.message || 'Erro no upload.', 'error');
     } finally {
       setUploading(false);
+      // Reset file input to allow re-uploading the same file
+      if(fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
+  const isLimitReached = images.length >= MAX_IMAGES;
+
   return (
     <div className="space-y-4">
-      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-            <input type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl transition-colors ${isLimitReached ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer'}`}>
+            <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading || isLimitReached} />
             {uploading ? <Loader className="animate-spin text-primary-600" /> : <Upload className="text-gray-400" />}
-            <span className="text-sm font-medium text-gray-500 mt-2">{uploading ? 'Enviando...' : 'Clique ou arraste para enviar fotos'}</span>
-            <span className="text-xs text-gray-400 mt-1">Primeira imagem será a capa</span>
+            <span className="text-sm font-medium text-gray-500 mt-2">{uploading ? 'Enviando...' : (isLimitReached ? 'Limite de imagens atingido' : 'Clique ou arraste para enviar fotos')}</span>
+            <span className="text-xs text-gray-400 mt-1">{images.length}/{MAX_IMAGES} imagens | Primeira imagem será a capa</span>
       </label>
       {images.length > 0 && (
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -215,7 +227,7 @@ const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => vo
 const defaultTripForm: Partial<Trip> = {
     title: '', slug: '', destination: '', price: 0, category: 'PRAIA', 
     durationDays: 1, included: [], notIncluded: [], tags: [], travelerTypes: [], 
-    images: [], itinerary: [], featuredInHero: false, description: '',
+    images: [], itinerary: [], featuredInHero: false, description: '', paymentMethods: [],
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 };
@@ -478,24 +490,24 @@ const AgencyDashboard: React.FC = () => {
       ) : (
          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center"><button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button><div className="flex gap-3"><button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 disabled:opacity-50">{isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar</button></div></div>
-             <form onSubmit={handleTripSubmit} className="p-8 space-y-10 max-w-4xl mx-auto">
+             <form onSubmit={handleTripSubmit} className="p-8 space-y-10 max-w-4xl mx-auto bg-gray-50/50">
                  <section><div className="flex justify-between items-center border-b pb-2 mb-6"><h3 className="text-lg font-bold">Informações Básicas</h3><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!tripForm.featuredInHero} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"/><span className="text-sm font-bold text-amber-600 flex items-center"><Star size={14} className="mr-1 fill-amber-500"/> Destacar no Hero</span></label></div>
                     <div className="space-y-4">
-                        <div><label className="font-bold text-sm mb-1 block">Título do Pacote</label><input value={tripForm.title || ''} onChange={handleTitleChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" placeholder="Ex: Fim de semana em Paraty"/></div>
-                        <div><label className="font-bold text-sm mb-1 block">Slug (URL Amigável)</label><input value={tripForm.slug || ''} onFocus={() => setSlugTouched(true)} onChange={e => setTripForm({...tripForm, slug: slugify(e.target.value)}) } className="w-full border p-3 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:border-primary-500 transition-colors" /></div>
+                        <div><label className="font-bold text-sm mb-1 block">Título do Pacote</label><input value={tripForm.title || ''} onChange={handleTitleChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" placeholder="Ex: Fim de semana em Paraty"/></div>
+                        <div><label className="font-bold text-sm mb-1 block">Slug (URL Amigável)</label><input value={tripForm.slug || ''} onFocus={() => setSlugTouched(true)} onChange={e => setTripForm({...tripForm, slug: slugify(e.target.value)}) } className="w-full border p-3 rounded-lg bg-gray-100 font-mono text-primary-700 outline-none focus:border-primary-500 transition-colors" /></div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><label className="font-bold text-sm mb-1 block">Preço (R$)</label><input type="number" value={tripForm.price || ''} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" /></div>
-                            <div><label className="font-bold text-sm mb-1 block">Duração (Dias)</label><input type="number" value={tripForm.durationDays || ''} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" /></div>
-                            <div><label className="font-bold text-sm mb-1 block">Categoria</label><select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white"><option value="PRAIA">Praia</option><option value="AVENTURA">Aventura</option><option value="FAMILIA">Família</option><option value="ROMANTICO">Romântico</option><option value="URBANO">Urbano</option><option value="NATUREZA">Natureza</option><option value="CULTURA">Cultura</option><option value="GASTRONOMICO">Gastronômico</option></select></div>
+                            <div><label className="font-bold text-sm mb-1 block">Preço (R$)</label><input type="number" value={tripForm.price || ''} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div>
+                            <div><label className="font-bold text-sm mb-1 block">Duração (Dias)</label><input type="number" value={tripForm.durationDays || ''} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div>
+                            <div><label className="font-bold text-sm mb-1 block">Categoria</label><select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"><option value="PRAIA">Praia</option><option value="AVENTURA">Aventura</option><option value="FAMILIA">Família</option><option value="ROMANTICO">Romântico</option><option value="URBANO">Urbano</option><option value="NATUREZA">Natureza</option><option value="CULTURA">Cultura</option><option value="GASTRONOMICO">Gastronômico</option></select></div>
                         </div>
-                        <div><label className="font-bold text-sm mb-1 block">Destino (Cidade/Estado)</label><input value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" /></div>
+                        <div><label className="font-bold text-sm mb-1 block">Destino (Cidade/Estado)</label><input value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div>
                     </div>
                  </section>
                  
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Datas da Viagem</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Início</label><input type="date" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" /></div>
-                        <div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Fim</label><input type="date" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors" /></div>
+                        <div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Início</label><input type="date" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div>
+                        <div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Fim</label><input type="date" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div>
                     </div>
                  </section>
                  
@@ -504,6 +516,13 @@ const AgencyDashboard: React.FC = () => {
                         <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label><PillInput value={tripForm.tags || []} onChange={v => setTripForm({...tripForm, tags: v})} placeholder="Digite uma tag e aperte Enter" /></div>
                         <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Users size={14}/> Tipo de Viajante</label><PillInput value={tripForm.travelerTypes as string[] || []} onChange={v => setTripForm({...tripForm, travelerTypes: v as TravelerType[]})} placeholder="Ex: Casal, Família..." /></div>
                     </div>
+                 </section>
+
+                 <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Formas de Pagamento</h3>
+                   <div>
+                     <label className="font-bold text-sm mb-2 block flex items-center gap-2"><CreditCard size={14}/> Métodos Aceitos</label>
+                     <PillInput value={tripForm.paymentMethods || []} onChange={v => setTripForm({...tripForm, paymentMethods: v})} placeholder="Ex: Pix, Cartão de Crédito..." />
+                   </div>
                  </section>
 
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Inclusos e Não Inclusos</h3>
