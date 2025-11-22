@@ -65,7 +65,7 @@ const TripDetails: React.FC = () => {
 
   const handleFavorite = () => {
     if (!user) {
-      navigate('/login');
+      navigate('/#login');
       return;
     }
     if (user.role !== 'CLIENT') {
@@ -103,7 +103,7 @@ const TripDetails: React.FC = () => {
 
   const handleBooking = () => {
     if (!user) {
-      navigate('/login');
+      navigate('/#login');
       return;
     }
     if (user.role !== 'CLIENT') {
@@ -194,7 +194,7 @@ const TripDetails: React.FC = () => {
   // Breadcrumb Links
   const homeLink = agencySlug ? `/${agencySlug}` : '/';
   const homeLabel = agencySlug ? (agency?.name || 'Agência') : 'Home';
-  const tripsLink = agencySlug ? `/${agencySlug}` : '/trips';
+  const tripsLink = agencySlug ? `/${agencySlug}/trips` : '/trips';
   const tripsLabel = agencySlug ? 'Pacotes' : 'Viagens';
 
   return (

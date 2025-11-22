@@ -136,7 +136,7 @@ const Home: React.FC = () => {
   return (
     <div className="space-y-12 pb-12">
       {/* HERO SECTION */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[550px] flex items-center group mx-4 sm:mx-6 lg:mx-8 mt-4 bg-gray-900">
+      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[550px] flex items-center group bg-gray-900">
         <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
             <img 
             src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop"
@@ -166,7 +166,7 @@ const Home: React.FC = () => {
                       placeholder="Para onde você quer ir?" 
                       className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
                       value={search}
-                      onChange={(e) => setSearch.call(null, e.target.value)}
+                      onChange={(e) => setSearch(e.target.value)}
                     />
                   </div>
                   <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
@@ -178,7 +178,9 @@ const Home: React.FC = () => {
 
             {/* Right Side: Featured Trip Carousel */}
             <div className="hidden lg:flex justify-center items-center h-full relative">
-              {currentHeroTrip && (
+              {loading ? (
+                 <div className="w-full max-w-sm h-80 bg-black/20 backdrop-blur-md border border-dashed border-white/20 rounded-2xl shadow-lg animate-pulse"></div>
+              ) : currentHeroTrip ? (
                 <Link 
                   to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
                   key={currentHeroTrip.id} 
@@ -207,8 +209,7 @@ const Home: React.FC = () => {
                         </div>
                     </div>
                 </Link>
-              )}
-              {heroTrips.length === 0 && !loading && (
+              ) : (
                  <div className="w-full max-w-sm text-center bg-black/20 backdrop-blur-md border border-dashed border-white/20 rounded-2xl p-4 shadow-lg">
                     <p className="text-white font-medium">Nenhum pacote em destaque no momento.</p>
                  </div>
@@ -216,8 +217,13 @@ const Home: React.FC = () => {
 
               {heroTrips.length > 1 && (
                 <>
-                  <button onClick={prevSlide} className="absolute -left-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronLeft size={32}/></button>
-                  <button onClick={nextSlide} className="absolute -right-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronRight size={32}/></button>
+                  <button onClick={prevSlide} aria-label="Anterior" className="absolute -left-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronLeft size={32}/></button>
+                  <button onClick={nextSlide} aria-label="Próximo" className="absolute -right-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronRight size={32}/></button>
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                      {heroTrips.map((_, idx) => (
+                          <button key={idx} aria-label={`Ir para o slide ${idx + 1}`} onClick={() => { setCurrentSlide(idx); resetTimer(); }} className={`w-2 h-2 rounded-full transition-all ${idx === currentSlide ? 'bg-white/90 w-6' : 'bg-white/40'}`} />
+                      ))}
+                  </div>
                 </>
               )}
             </div>

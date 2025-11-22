@@ -197,7 +197,6 @@ export const MOCK_TRIPS: Trip[] = [
     images: [getImg('amazon'), getImg('natureza'), getImg('aventura')],
     category: 'AVENTURA',
     tags: ['Selva', 'Ecoturismo', 'Sobrevivência'],
-    // FIX: Corrected TravelerType. 'AVENTURA' is a category, not a traveler type. 'MOCHILAO' is a suitable replacement.
     travelerTypes: ['MOCHILAO', 'SOZINHO', 'AMIGOS'],
     paymentMethods: ['Pix', 'Boleto'],
     active: true,
@@ -223,7 +222,6 @@ export const MOCK_TRIPS: Trip[] = [
     images: [getImg('noronha'), getImg('praia'), getImg('ilhabela')],
     category: 'PRAIA',
     tags: ['Mergulho', 'Natureza', 'Exclusivo'],
-    // FIX: Corrected TravelerType. 'ROMANTICO' is a category, not a traveler type. 'CASAL' already covers the target audience.
     travelerTypes: ['CASAL'],
     paymentMethods: ['Cartão de Crédito'],
     active: true,
@@ -250,7 +248,6 @@ export const MOCK_TRIPS: Trip[] = [
     images: [getImg('chapada'), getImg('aventura'), getImg('natureza')],
     category: 'AVENTURA',
     tags: ['Trekking', 'Cachoeiras', 'Ecoturismo'],
-    // FIX: Corrected TravelerType. 'AVENTURA' is a category, not a traveler type. 'MOCHILAO' is a suitable replacement.
     travelerTypes: ['MOCHILAO', 'AMIGOS', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
     active: true,
