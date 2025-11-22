@@ -39,21 +39,36 @@ const Home: React.FC = () => {
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // --- HERO CAROUSEL LOGIC ---
-  const [heroTrips] = useState(() => 
-    allTrips.filter(trip => trip.featuredInHero).slice(0, 5)
-  );
+  const heroTrips = allTrips.filter(trip => trip.featuredInHero).slice(0, 5);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  const resetTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (heroTrips.length > 1) {
+      timerRef.current = window.setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+      }, 7000);
+    }
+  };
 
   useEffect(() => {
-    if (heroTrips.length > 1) {
-        const timer = setInterval(() => {
-            setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-        }, 7000); // Change trip every 7 seconds
-
-        return () => clearInterval(timer);
-    }
+    resetTimer();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [heroTrips.length]);
   
+  const nextSlide = () => {
+    setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+    resetTimer();
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
+    resetTimer();
+  };
+
   const currentHeroTrip = heroTrips[currentSlide];
   // --- END HERO CAROUSEL LOGIC ---
 
@@ -162,7 +177,7 @@ const Home: React.FC = () => {
             </div>
 
             {/* Right Side: Featured Trip Carousel */}
-            <div className="hidden lg:flex justify-center items-center h-full">
+            <div className="hidden lg:flex justify-center items-center h-full relative">
               {currentHeroTrip && (
                 <Link 
                   to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
@@ -192,6 +207,18 @@ const Home: React.FC = () => {
                         </div>
                     </div>
                 </Link>
+              )}
+              {heroTrips.length === 0 && !loading && (
+                 <div className="w-full max-w-sm text-center bg-black/20 backdrop-blur-md border border-dashed border-white/20 rounded-2xl p-4 shadow-lg">
+                    <p className="text-white font-medium">Nenhum pacote em destaque no momento.</p>
+                 </div>
+              )}
+
+              {heroTrips.length > 1 && (
+                <>
+                  <button onClick={prevSlide} className="absolute -left-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronLeft size={32}/></button>
+                  <button onClick={nextSlide} className="absolute -right-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronRight size={32}/></button>
+                </>
               )}
             </div>
           </div>

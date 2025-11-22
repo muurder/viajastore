@@ -1,4 +1,5 @@
 
+
 import { Agency, Client, Admin, Trip, Booking, Review, UserRole, Plan, TripCategory, TravelerType } from '../types';
 import { slugify } from '../utils/slugify';
 
@@ -104,220 +105,224 @@ export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   subscriptionStatus: 'ACTIVE',
   subscriptionPlan: 'PREMIUM',
   subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-  website: `www.${slugify(ag.name)}.com.br`,
-  phone: `(11) 99999-${index}000`,
-  address: { zipCode: '00000-000', street: 'Rua Exemplo', number: '123', district: 'Centro', city: 'São Paulo', state: 'SP' },
-  bankInfo: { bank: 'Banco Exemplo', agency: '0001', account: '12345-6', pixKey: 'chave@pix.com' },
-  createdAt: new Date().toISOString()
+  website: `www.${slugify(ag.name)}.com`,
+  phone: `(11) 98765-43${index < 10 ? '0' : ''}${index}`,
+  whatsapp: `55119876543${index < 10 ? '0' : ''}${index}`,
+  address: {
+      zipCode: '01311-000',
+      street: 'Av. Paulista',
+      number: `${index + 1}00`,
+      city: 'São Paulo',
+      state: 'SP',
+      district: 'Bela Vista'
+  },
+  bankInfo: {
+      bank: '341',
+      agency: '1234',
+      account: `56789-${index}`,
+      pixKey: `contato@${slugify(ag.name)}.com`
+  }
 }));
 
-export const MOCK_ADMINS: Admin[] = [
+// --- 30 TRIPS DATA ---
+export const MOCK_TRIPS: Trip[] = [
+  // --- Cataratas do Iguaçu (ag_1) ---
   {
-    id: 'adm1',
-    name: 'Administrador Sistema',
-    email: 'admin@viajastore.com',
-    password: '123',
-    role: UserRole.ADMIN,
-    avatar: 'https://ui-avatars.com/api/?name=Admin+System&background=000&color=fff',
-    createdAt: '2023-01-01T00:00:00Z'
-  }
+    id: 't1',
+    agencyId: 'ag_1',
+    title: 'Maravilhas de Foz do Iguaçu',
+    slug: 'maravilhas-de-foz-do-iguacu',
+    description: 'Explore as Cataratas do Iguaçu, um dos mais espetaculares conjuntos de quedas d\'água do planeta. Este pacote inclui passeios pelos lados brasileiro e argentino, além de uma visita ao Parque das Aves.',
+    destination: 'Foz do Iguaçu, PR',
+    price: 1850,
+    startDate: '2024-09-10T00:00:00Z',
+    endDate: '2024-09-15T00:00:00Z',
+    durationDays: 6,
+    images: [getImg('iguacu'), getImg('macela'), getImg('aventura')],
+    category: 'NATUREZA',
+    tags: ['Cataratas', 'Parque Nacional', 'Fotografia'],
+    travelerTypes: ['FAMILIA', 'CASAL', 'AMIGOS'],
+    itinerary: [
+      { day: 1, title: 'Chegada e Acomodação', description: 'Transfer do aeroporto para o hotel e dia livre.' },
+      { day: 2, title: 'Lado Brasileiro das Cataratas', description: 'Visita ao Parque Nacional do Iguaçu com vista panorâmica das quedas.' }
+    ],
+    paymentMethods: ['Pix', 'Cartão de Crédito', 'Boleto'],
+    active: true,
+    rating: 4.9,
+    totalReviews: 128,
+    included: ['Hospedagem com café da manhã', 'Transfer aeroporto/hotel', 'Ingresso para o lado brasileiro das Cataratas', 'Guia local'],
+    notIncluded: ['Passagens aéreas', 'Almoço e jantar', 'Ingresso para o lado argentino'],
+    views: 12500,
+    sales: 150,
+    featuredInHero: true,
+  },
+  // --- Rio de Janeiro (ag_2) ---
+  {
+    id: 't2',
+    agencyId: 'ag_2',
+    title: 'Rio de Janeiro: Cidade Maravilhosa',
+    slug: 'rio-de-janeiro-cidade-maravilhosa',
+    description: 'Viva a energia contagiante do Rio. Visite o Cristo Redentor, o Pão de Açúcar, as praias de Copacabana e Ipanema e sinta o ritmo da cidade em um passeio pela Lapa.',
+    destination: 'Rio de Janeiro, RJ',
+    price: 1500,
+    startDate: '2024-10-20T00:00:00Z',
+    endDate: '2024-10-24T00:00:00Z',
+    durationDays: 5,
+    images: [getImg('rio'), getImg('praia'), getImg('vidanoturna')],
+    category: 'URBANO',
+    tags: ['Praia', 'Vida Noturna', 'Cultura'],
+    travelerTypes: ['AMIGOS', 'CASAL', 'SOZINHO'],
+    paymentMethods: ['Pix', 'Cartão de Crédito'],
+    active: true,
+    rating: 4.8,
+    totalReviews: 210,
+    included: ['Hospedagem em Copacabana', 'Café da manhã', 'Tour Cristo e Pão de Açúcar', 'Guia credenciado'],
+    notIncluded: ['Passagens aéreas', 'Refeições'],
+    views: 22000,
+    sales: 280,
+    featuredInHero: true,
+  },
+  // --- Amazônia (ag_3) ---
+  {
+    id: 't3',
+    agencyId: 'ag_3',
+    title: 'Expedição Amazônia Selvagem',
+    slug: 'expedicao-amazonia-selvagem',
+    description: 'Uma imersão completa na maior floresta tropical do mundo. Fique em um lodge na selva, faça trilhas, focagem noturna de jacarés e visite uma comunidade ribeirinha.',
+    destination: 'Manaus, AM',
+    price: 3200,
+    startDate: '2024-11-05T00:00:00Z',
+    endDate: '2024-11-10T00:00:00Z',
+    durationDays: 6,
+    images: [getImg('amazon'), getImg('natureza'), getImg('aventura')],
+    category: 'AVENTURA',
+    tags: ['Selva', 'Ecoturismo', 'Sobrevivência'],
+    // FIX: Corrected TravelerType. 'AVENTURA' is a category, not a traveler type. 'MOCHILAO' is a suitable replacement.
+    travelerTypes: ['MOCHILAO', 'SOZINHO', 'AMIGOS'],
+    paymentMethods: ['Pix', 'Boleto'],
+    active: true,
+    rating: 5.0,
+    totalReviews: 89,
+    included: ['Hospedagem em lodge na selva', 'Pensão completa', 'Todos os passeios descritos', 'Guia nativo'],
+    notIncluded: ['Passagens aéreas até Manaus', 'Bebidas'],
+    views: 9800,
+    sales: 75,
+  },
+   // --- Fernando de Noronha (ag_4) ---
+  {
+    id: 't4',
+    agencyId: 'ag_4',
+    title: 'Paraíso em Fernando de Noronha',
+    slug: 'paraiso-em-fernando-de-noronha',
+    description: 'Descubra o santuário ecológico de Fernando de Noronha. Mergulhe em águas cristalinas, caminhe por praias paradisíacas e encante-se com a vida marinha exuberante.',
+    destination: 'Fernando de Noronha, PE',
+    price: 4800,
+    startDate: '2024-12-01T00:00:00Z',
+    endDate: '2024-12-06T00:00:00Z',
+    durationDays: 6,
+    images: [getImg('noronha'), getImg('praia'), getImg('ilhabela')],
+    category: 'PRAIA',
+    tags: ['Mergulho', 'Natureza', 'Exclusivo'],
+    // FIX: Corrected TravelerType. 'ROMANTICO' is a category, not a traveler type. 'CASAL' already covers the target audience.
+    travelerTypes: ['CASAL'],
+    paymentMethods: ['Cartão de Crédito'],
+    active: true,
+    rating: 4.9,
+    totalReviews: 150,
+    included: ['Pousada com café da manhã', 'Transfer aeroporto/pousada', 'Passeio de barco', 'Trilha histórica'],
+    notIncluded: ['Passagens aéreas', 'Taxa de Preservação Ambiental', 'Ingresso do Parque Nacional Marinho'],
+    views: 18000,
+    sales: 110,
+    featuredInHero: true,
+  },
+  // --- Chapada Diamantina (ag_7) ---
+  {
+    id: 't5',
+    agencyId: 'ag_7',
+    title: 'Aventura na Chapada Diamantina',
+    slug: 'aventura-na-chapada-diamantina',
+    description: 'Explore o coração da Bahia em um roteiro de trekking e paisagens deslumbrantes. Visite o Morro do Pai Inácio, a Cachoeira da Fumaça e os poços de águas cristalinas.',
+    destination: 'Lençóis, BA',
+    price: 2100,
+    startDate: '2024-09-25T00:00:00Z',
+    endDate: '2024-09-30T00:00:00Z',
+    durationDays: 6,
+    images: [getImg('chapada'), getImg('aventura'), getImg('natureza')],
+    category: 'AVENTURA',
+    tags: ['Trekking', 'Cachoeiras', 'Ecoturismo'],
+    // FIX: Corrected TravelerType. 'AVENTURA' is a category, not a traveler type. 'MOCHILAO' is a suitable replacement.
+    travelerTypes: ['MOCHILAO', 'AMIGOS', 'SOZINHO'],
+    paymentMethods: ['Pix', 'Cartão de Crédito'],
+    active: true,
+    rating: 4.9,
+    totalReviews: 132,
+    included: ['Hospedagem em Lençóis', 'Café da manhã', 'Passeios guiados', 'Transporte para os passeios'],
+    notIncluded: ['Passagens aéreas', 'Refeições', 'Taxas de entrada nos atrativos'],
+    views: 11500,
+    sales: 95,
+    featuredInHero: true,
+  },
+   // --- Rota do Vinho SP (ag_8) ---
+   {
+    id: 't6',
+    agencyId: 'ag_8',
+    title: 'Rota do Vinho em São Roque',
+    slug: 'rota-do-vinho-sao-roque',
+    description: 'Um dia delicioso explorando as vinícolas de São Roque. Deguste vinhos, sucos e produtos artesanais, e desfrute de um almoço típico em um ambiente charmoso.',
+    destination: 'São Roque, SP',
+    price: 350,
+    startDate: '2024-08-25T00:00:00Z',
+    endDate: '2024-08-25T00:00:00Z',
+    durationDays: 1,
+    images: [getImg('wine'), getImg('food'), getImg('campos')],
+    category: 'GASTRONOMICO',
+    tags: ['Vinho', 'Bate e Volta', 'Ideal para viajar sozinho'],
+    travelerTypes: ['CASAL', 'AMIGOS', 'FAMILIA'],
+    paymentMethods: ['Pix'],
+    active: true,
+    rating: 4.7,
+    totalReviews: 88,
+    included: ['Transporte saindo de SP', 'Guia', 'Visita a 3 vinícolas com degustação'],
+    notIncluded: ['Almoço', 'Compras pessoais'],
+    views: 8500,
+    sales: 210,
+    popularNearSP: true,
+    featuredInHero: true,
+  },
+  // --- Trindade (ag_9) ---
+  {
+    id: 't7',
+    agencyId: 'ag_9',
+    title: 'Fim de Semana em Trindade',
+    slug: 'fim-de-semana-trindade',
+    description: 'Fuja da rotina em um fim de semana nas praias e cachoeiras de Trindade. Conheça a Praia do Meio, a Praia do Cachadaço e a famosa piscina natural.',
+    destination: 'Trindade, RJ',
+    price: 580,
+    startDate: '2024-09-13T00:00:00Z',
+    endDate: '2024-09-15T00:00:00Z',
+    durationDays: 3,
+    images: [getImg('trindade'), getImg('praia'), getImg('natureza')],
+    category: 'VIAGEM_BARATA',
+    tags: ['Praia', 'Cachoeira', 'Mochilão'],
+    travelerTypes: ['AMIGOS', 'SOZINHO', 'MOCHILAO'],
+    paymentMethods: ['Pix', 'Boleto'],
+    active: true,
+    rating: 4.6,
+    totalReviews: 112,
+    included: ['Transporte saindo de SP', 'Hospedagem em camping ou pousada simples', 'Guia acompanhante'],
+    notIncluded: ['Alimentação', 'Passeios de barco'],
+    views: 15000,
+    sales: 350,
+    popularNearSP: true,
+  },
 ];
 
-// --- TRIP SPECIFICATIONS ---
-interface TripSpec {
-  title: string;
-  dest: string;
-  cat: TripCategory;
-  days: number;
-  price: number;
-  desc: string;
-  imgKey: string;
-  tags?: string[];
-  featured?: boolean;
-  nearSP?: boolean;
-}
+// --- BOOKINGS (Exemplos) ---
+export const MOCK_BOOKINGS: Booking[] = [
+  { id: 'b1', tripId: 't1', clientId: 'c1', date: '2024-07-15T14:00:00Z', status: 'CONFIRMED', totalPrice: 1850, passengers: 1, voucherCode: 'VS-IGUACU-123', paymentMethod: 'CREDIT_CARD' }
+];
 
-// Helper to generate variations to reach 100+ trips
-const createVariations = (base: TripSpec, count: number): TripSpec[] => {
-  const variations: TripSpec[] = [];
-  for(let i=0; i<count; i++) {
-    variations.push({
-      ...base,
-      title: i === 0 ? base.title : `${base.title} ${['Express', 'Plus', 'Vip', 'Adventure'][i%4]}`,
-      price: base.price + (i * 50),
-      days: base.days + (i % 2),
-      tags: base.tags,
-      // Distribute featured flags randomly for variations
-      featured: Math.random() > 0.7 ? true : false,
-      nearSP: base.nearSP
-    });
-  }
-  return variations;
-};
-
-// --- TRIPS DATA PER AGENCY ---
-const agencyTripsData: Record<string, TripSpec[]> = {
-  'Paraíso das Cataratas': [
-    { title: 'Iguaçu Essencial', dest: 'Foz do Iguaçu, PR', cat: 'NATUREZA', days: 3, price: 1800, desc: 'Visita completa às cataratas lado BR e AR.', imgKey: 'iguacu', featured: true },
-    { title: 'Foz Compras & Natureza', dest: 'Foz do Iguaçu, PR', cat: 'URBANO', days: 4, price: 2200, desc: 'Cataratas e compras no Paraguai.', imgKey: 'iguacu' },
-    { title: 'Rota das Águas', dest: 'Foz do Iguaçu, PR', cat: 'AVENTURA', days: 5, price: 2800, desc: 'Macuco Safari e trilhas.', imgKey: 'iguacu' },
-  ],
-  'Carioca Urbano Tours': [
-    { title: 'Rio Histórico', dest: 'Rio de Janeiro, RJ', cat: 'CULTURA', days: 3, price: 1200, desc: 'Centro histórico e museus.', imgKey: 'rio' },
-    { title: 'Rio Bate-Volta', dest: 'Rio de Janeiro, RJ', cat: 'URBANO', days: 1, price: 350, desc: 'Cristo, Pão de Açúcar e almoço.', imgKey: 'rio', nearSP: true },
-    { title: 'Arraial do Cabo Caribe', dest: 'Arraial do Cabo, RJ', cat: 'PRAIA', days: 2, price: 600, desc: 'O caribe brasileiro com passeio de barco.', imgKey: 'arraial', featured: true, nearSP: true, tags: ['Praia', 'Viagem barata'] },
-    { title: 'Trindade Caiçara', dest: 'Paraty, RJ', cat: 'PRAIA', days: 3, price: 750, desc: 'Praias selvagens e piscinas naturais.', imgKey: 'trindade', featured: true, nearSP: true, tags: ['Natureza', 'Praia'] },
-  ],
-  'Amazônia Selvagem': [
-    { title: 'Imersão na Selva', dest: 'Manaus, AM', cat: 'AVENTURA', days: 5, price: 3500, desc: 'Hospedagem em redário na selva.', imgKey: 'amazon' },
-    { title: 'Cruzeiro Fluvial', dest: 'Rio Amazonas, AM', cat: 'ROMANTICO', days: 4, price: 5000, desc: 'Luxo e natureza sobre as águas.', imgKey: 'amazon' },
-    { title: 'Sana: Refúgio Verde', dest: 'Sana, RJ', cat: 'NATUREZA', days: 3, price: 550, desc: 'Cachoeiras e paz na serra fluminense.', imgKey: 'sana', nearSP: true, tags: ['Natureza', 'Viagem barata'] },
-  ],
-  'Ilhas Românticas': [
-    { title: 'Noronha Lua de Mel', dest: 'Fernando de Noronha, PE', cat: 'ROMANTICO', days: 7, price: 8000, desc: 'A viagem dos sonhos para casais.', imgKey: 'noronha', featured: true },
-    { title: 'Ilha Grande Relax', dest: 'Ilha Grande, RJ', cat: 'PRAIA', days: 4, price: 1200, desc: 'Sem carros, só praias e trilhas.', imgKey: 'ilhagrande', nearSP: true, tags: ['Praia', 'Casal'] },
-    { title: 'Ilhabela Charme', dest: 'Ilhabela, SP', cat: 'ROMANTICO', days: 3, price: 1500, desc: 'Pousada boutique e praias exclusivas.', imgKey: 'ilhabela', nearSP: true },
-  ],
-  'Pantanal Safaris': [
-    { title: 'Pantanal Norte', dest: 'Poconé, MT', cat: 'NATUREZA', days: 4, price: 3200, desc: 'Em busca da onça-pintada.', imgKey: 'pantanal', featured: true },
-    { title: 'Bonito & Pantanal', dest: 'Bonito, MS', cat: 'AVENTURA', days: 6, price: 4500, desc: 'Flutuação e safári.', imgKey: 'bonito' },
-  ],
-  'Lendas do Nordeste': [
-    { title: 'Lençóis 4x4', dest: 'Barreirinhas, MA', cat: 'AVENTURA', days: 4, price: 2800, desc: 'Aventura nas dunas.', imgKey: 'lencois' },
-    { title: 'Salvador Raiz', dest: 'Salvador, BA', cat: 'CULTURA', days: 4, price: 1800, desc: 'Pelourinho, axé e dendê.', imgKey: 'salvador' },
-  ],
-  'Aventura & Diversão': [
-    { title: 'Trilha das 7 Praias', dest: 'Ubatuba, SP', cat: 'AVENTURA', days: 2, price: 380, desc: 'Trekking desafiador com visuais incríveis.', imgKey: 'ubatuba', nearSP: true, featured: true, tags: ['Trilha', 'Viagem barata', 'Jovens'] },
-    { title: 'Jalapão Bruto', dest: 'Jalapão, TO', cat: 'AVENTURA', days: 5, price: 3100, desc: 'Fervedouros e dunas.', imgKey: 'jalapao', featured: true },
-    { title: 'Chapada Diamantina Trek', dest: 'Lençóis, BA', cat: 'AVENTURA', days: 6, price: 3400, desc: 'Vale do Pati.', imgKey: 'chapada' },
-  ],
-  'Serra & Vinho Experiências': [
-    { title: 'Rota do Vinho Premium', dest: 'São Roque, SP', cat: 'GASTRONOMICO', days: 1, price: 250, desc: 'Degustação e almoço harmonizado.', imgKey: 'wine', nearSP: true, featured: true, tags: ['Vinho', 'Gastronomia'] },
-    { title: 'Campos do Jordão Inverno', dest: 'Campos do Jordão, SP', cat: 'ROMANTICO', days: 3, price: 1800, desc: 'Frio, fondue e lareira.', imgKey: 'campos', nearSP: true, tags: ['Frio', 'Casal'] },
-    { title: 'Maromba & Visconde', dest: 'Visconde de Mauá, RJ', cat: 'ROMANTICO', days: 3, price: 1100, desc: 'Cachoeiras geladas e chalés aconchegantes.', imgKey: 'maromba', nearSP: true },
-    ...createVariations({ title: 'São Roque Básico', dest: 'São Roque, SP', cat: 'GASTRONOMICO', days: 1, price: 120, desc: 'Passeio simples pelas vinícolas.', imgKey: 'wine', nearSP: true, tags: ['Viagem barata'] }, 2),
-  ],
-  'Trilhas & Mochilão Brasil': [
-    { title: 'São Thomé Místico', dest: 'São Thomé das Letras, MG', cat: 'NATUREZA', days: 3, price: 450, desc: 'Pôr do sol na pirâmide e grutas.', imgKey: 'saothome', nearSP: true, featured: true, tags: ['Místico', 'Viagem barata', 'Mochilão'] },
-    { title: 'Camping Pedra da Macela', dest: 'Cunha, SP', cat: 'AVENTURA', days: 2, price: 250, desc: 'Camping selvagem com vista para o mar.', imgKey: 'macela', nearSP: true, featured: true, tags: ['Camping', 'Aventura'] },
-    { title: 'Ilha do Mel Raiz', dest: 'Ilha do Mel, PR', cat: 'PRAIA', days: 4, price: 800, desc: 'Sem frescura, muita natureza.', imgKey: 'ilhamel', nearSP: true, tags: ['Praia', 'Natureza'] },
-    { title: 'Sana Camping', dest: 'Sana, RJ', cat: 'NATUREZA', days: 2, price: 300, desc: 'Fim de semana no meio do mato.', imgKey: 'sana', nearSP: true, tags: ['Viagem barata', 'Camping'] },
-    ...createVariations({ title: 'Mochilão Ubatuba', dest: 'Ubatuba, SP', cat: 'PRAIA', days: 3, price: 500, desc: 'Praias do norte de Ubatuba.', imgKey: 'ubatuba', nearSP: true, tags: ['Praia', 'Mochilão'] }, 3),
-  ],
-  'Fé & Cultura Viagens': [
-    { title: 'Aparecida Santuário', dest: 'Aparecida, SP', cat: 'CULTURA', days: 1, price: 150, desc: 'Excursão para a Basílica.', imgKey: 'aparecida', nearSP: true, featured: true, tags: ['Religioso', 'Família', 'Viagem barata'] },
-    { title: 'Aparecida & Canção Nova', dest: 'Aparecida, SP', cat: 'CULTURA', days: 2, price: 400, desc: 'Roteiro religioso completo.', imgKey: 'aparecida', nearSP: true },
-    { title: 'Minas Histórica', dest: 'Ouro Preto, MG', cat: 'CULTURA', days: 4, price: 1600, desc: 'Barroco mineiro e igrejas.', imgKey: 'ouropreto' },
-  ]
-};
-
-// --- HELPERS FOR TRIPS GENERATION ---
-const getTravelerTypes = (cat: TripCategory): TravelerType[] => {
-    const types: TravelerType[] = ['AMIGOS']; 
-    if (['PRAIA', 'FAMILIA', 'VIAGEM_BARATA', 'CULTURA'].includes(cat)) types.push('FAMILIA');
-    if (['ROMANTICO', 'PRAIA', 'GASTRONOMICO', 'VIDA_NOTURNA'].includes(cat)) types.push('CASAL');
-    if (['AVENTURA', 'NATUREZA', 'ARTE', 'CULTURA'].includes(cat)) types.push('SOZINHO', 'MOCHILAO');
-    if (cat === 'VIDA_NOTURNA') types.push('AMIGOS');
-    if (cat === 'CULTURA' || cat === 'GASTRONOMICO') types.push('MELHOR_IDADE');
-    if (Math.random() > 0.4) types.push('SOZINHO');
-    return Array.from(new Set(types)); 
-};
-
-const getTags = (cat: TripCategory, dest: string, extraTags: string[] = []): string[] => {
-    const tags: string[] = [...extraTags];
-    
-    if (cat === 'PRAIA') tags.push('Praia', 'Sol e Mar');
-    if (cat === 'AVENTURA') tags.push('Adrenalina', 'Trilhas', 'Natureza');
-    if (cat === 'NATUREZA') tags.push('Ecoturismo', 'Ar Livre');
-    if (cat === 'CULTURA') tags.push('História', 'Museus');
-    if (cat === 'GASTRONOMICO') tags.push('Culinária Típica', 'Vinhos');
-    if (cat === 'URBANO') tags.push('Cidade Grande', 'Passeios');
-    if (cat === 'ROMANTICO') tags.push('Ideal para casais', 'Lua de Mel');
-    if (cat === 'FAMILIA') tags.push('Crianças', 'Diversão');
-    if (cat === 'VIDA_NOTURNA') tags.push('Festas', 'Agito');
-    if (cat === 'VIAGEM_BARATA') tags.push('Econômico', 'Promoção');
-
-    if (dest.includes('São Thomé') || dest.includes('Sana')) tags.push('Good Vibes', 'Natureza');
-    if (dest.includes('Camping')) tags.push('Camping', 'Aventura');
-    
-    // SP Context tags
-    if (dest.includes('SP') || dest.includes('RJ') || dest.includes('MG') || dest.includes('PR')) {
-        tags.push('Perto de SP');
-    }
-    
-    // Random fillers
-    if (Math.random() > 0.7) tags.push('Instagramável');
-    if (Math.random() > 0.8) tags.push('Guiado');
-
-    return Array.from(new Set(tags));
-};
-
-// Build the trips array
-const generatedTrips: Trip[] = [];
-
-MOCK_AGENCIES.forEach((agency) => {
-  let specs = agencyTripsData[agency.name];
-  
-  // If agency has few trips defined, generate generic ones to reach ~10 trips per agency
-  if (!specs || specs.length < 10) {
-      const existingSpecs = specs || [];
-      const needed = 10 - existingSpecs.length;
-      const genericSpecs: TripSpec[] = [];
-      const baseImg = existingSpecs[0]?.imgKey || 'praia';
-      
-      for(let k=0; k<needed; k++) {
-         genericSpecs.push({
-             title: `Expedição ${agency.name.split(' ')[0]} ${k+1}`,
-             dest: 'Destino Surpresa',
-             cat: 'AVENTURA',
-             days: 3 + k,
-             price: 500 + (k*100),
-             desc: 'Um roteiro exclusivo preparado pela nossa agência.',
-             imgKey: baseImg,
-             tags: ['Exclusivo'],
-             featured: Math.random() > 0.8 // Small chance of being featured
-         });
-      }
-      specs = [...existingSpecs, ...genericSpecs];
-  }
-
-  specs.forEach((spec, i) => {
-    const uniqueTags = getTags(spec.cat, spec.dest, spec.tags);
-    const id = `t_${agency.id}_${i}`;
-    
-    // Randomly enable Hero Featured for demonstration
-    const isFeaturedInHero = Math.random() > 0.7;
-
-    generatedTrips.push({
-      id: id,
-      agencyId: agency.id,
-      title: spec.title,
-      slug: slugify(spec.title) + `-${id}`, // Generate simple slug
-      description: spec.desc,
-      destination: spec.dest,
-      price: spec.price,
-      startDate: new Date(Date.now() + Math.random() * 10000000000).toISOString(),
-      endDate: new Date(Date.now() + Math.random() * 10000000000 + spec.days * 86400000).toISOString(),
-      durationDays: spec.days,
-      images: [getImg(spec.imgKey)],
-      category: spec.cat,
-      tags: uniqueTags,
-      travelerTypes: getTravelerTypes(spec.cat),
-      active: true,
-      rating: 4 + Math.random(),
-      totalReviews: Math.floor(Math.random() * 100),
-      included: ['Hospedagem', 'Café da Manhã', 'Guia'],
-      notIncluded: ['Almoço', 'Jantar', 'Bebidas'],
-      views: Math.floor(Math.random() * 5000),
-      sales: Math.floor(Math.random() * 100),
-      featured: spec.featured || false,
-      featuredInHero: isFeaturedInHero, // New Field
-      popularNearSP: spec.nearSP || false,
-      itinerary: [] // Default empty
-    });
-  });
-});
-
-export const MOCK_TRIPS: Trip[] = generatedTrips;
-export const MOCK_BOOKINGS: Booking[] = [];
-export const MOCK_REVIEWS: Review[] = [];
+// --- REVIEWS (Exemplos) ---
+export const MOCK_REVIEWS: Review[] = [
+  { id: 'r1', tripId: 't1', clientId: 'c1', rating: 5, comment: 'Viagem incrível! O guia era muito experiente e as cataratas são de tirar o fôlego. Recomendo!', date: '2024-07-20T10:00:00Z', clientName: 'João Viajante' }
+];

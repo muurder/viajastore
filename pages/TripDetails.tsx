@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft, Share2 } from 'lucide-react';
+import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft, Share2, CreditCard } from 'lucide-react';
 
 const TripDetails: React.FC = () => {
   // Capture params. If agencySlug exists, we are in agency mode.
@@ -431,7 +431,7 @@ const TripDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-4 mb-8">
+            <div className="space-y-4 mb-6">
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                 <div className="text-xs font-bold text-gray-500 uppercase mb-1">Datas</div>
                 <div className="flex items-center font-bold text-gray-800">
@@ -452,7 +452,18 @@ const TripDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
+            {trip.paymentMethods && trip.paymentMethods.length > 0 && (
+                <div className="mb-6">
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center"><CreditCard size={14} className="mr-1.5"/> Formas de Pagamento</div>
+                    <div className="flex flex-wrap gap-2">
+                        {trip.paymentMethods.map(method => (
+                            <span key={method} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-md border border-gray-200">{method}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="flex justify-between items-center mb-6 pb-6 border-t border-gray-100 pt-6">
               <span className="text-gray-600 font-medium">Total estimado</span>
               <span className="font-bold text-2xl text-primary-600">R$ {totalPrice.toLocaleString()}</span>
             </div>
