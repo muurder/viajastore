@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -5,14 +6,21 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
 const MAX_IMAGES = 8;
 
-// Pill Input Component
-const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string }> = ({ value, onChange, placeholder }) => {
+// --- CONSTANTS FOR SUGGESTIONS ---
+const SUGGESTED_TAGS = ['Ecoturismo', 'História', 'Relaxamento', 'Esportes Radicais', 'Luxo', 'Econômico', 'All Inclusive', 'Pet Friendly', 'Acessível', 'LGBTQIA+'];
+const SUGGESTED_TRAVELERS = ['SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'];
+const SUGGESTED_PAYMENTS = ['Pix', 'Cartão de Crédito (até 12x)', 'Boleto Bancário', 'Transferência', 'Dinheiro'];
+const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
+const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
+
+// Pill Input Component Enhanced
+const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[] }> = ({ value, onChange, placeholder, suggestions = [] }) => {
   const [inputValue, setInputValue] = useState('');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -25,12 +33,37 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
     }
   };
   
+  const handleAdd = (item: string) => {
+    if (!value.includes(item)) {
+        onChange([...value, item]);
+    }
+  };
+  
   const handleRemove = (itemToRemove: string) => {
     onChange(value.filter(item => item !== itemToRemove));
   };
 
+  // Filter suggestions that are not yet selected
+  const availableSuggestions = suggestions.filter(s => !value.includes(s));
+
   return (
-    <div>
+    <div className="space-y-3">
+      {/* Suggestions Area */}
+      {availableSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+            {availableSuggestions.map(s => (
+                <button 
+                    type="button"
+                    key={s} 
+                    onClick={() => handleAdd(s)}
+                    className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded-md hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all flex items-center gap-1"
+                >
+                    <Plus size={10} /> {s}
+                </button>
+            ))}
+        </div>
+      )}
+
       <input
         type="text"
         value={inputValue}
@@ -39,11 +72,12 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
         placeholder={placeholder}
         className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"
       />
-      <div className="flex flex-wrap gap-2 mt-3 min-h-[2.5rem]">
+      
+      <div className="flex flex-wrap gap-2 min-h-[2rem]">
         {value.map((item, index) => (
-          <div key={index} className="flex items-center bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1.5 rounded-full animate-[scaleIn_0.2s] border border-gray-200">
+          <div key={index} className="flex items-center bg-primary-50 text-primary-800 border border-primary-100 text-sm font-bold px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]">
             <span>{item}</span>
-            <button type="button" onClick={() => handleRemove(item)} className="ml-2 text-gray-500 hover:text-red-500">
+            <button type="button" onClick={() => handleRemove(item)} className="ml-2 text-primary-400 hover:text-red-500">
               <X size={14} />
             </button>
           </div>
@@ -53,20 +87,28 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   );
 };
 
-
+// Enhanced Rich Text Editor
 const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const execCmd = (command: string, arg?: string) => {
     document.execCommand(command, false, arg);
     if (contentRef.current) onChange(contentRef.current.innerHTML);
   };
 
+  // Correction for typing backwards: Only update HTML if component is NOT focused
   useEffect(() => {
-    if (contentRef.current && contentRef.current.innerHTML !== value) {
-       if (value === '' || contentRef.current.innerText.trim() === '') {
-           contentRef.current.innerHTML = value;
-       }
+    if (contentRef.current) {
+        const isActive = document.activeElement === contentRef.current;
+        // Only update the innerHTML from props if the content is different AND we aren't currently typing in it
+        if (contentRef.current.innerHTML !== value && !isActive) {
+            contentRef.current.innerHTML = value;
+        }
+        // Edge case: if value is empty, clear it even if focused (reset)
+        if (value === '' && contentRef.current.innerHTML !== '') {
+            contentRef.current.innerHTML = '';
+        }
     }
   }, [value]);
 
@@ -75,47 +117,82 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   };
 
   const addLink = () => {
-      const url = prompt('Digite a URL:');
+      const url = prompt('Digite a URL do link:');
       if(url) execCmd('createLink', url);
   };
 
-  const Button = ({ cmd, icon: Icon, title, arg }: { cmd?: string, icon: any, title: string, arg?: string }) => (
+  const addImage = () => {
+      const url = prompt('Cole a URL da imagem (ex: https://...):');
+      if(url) execCmd('insertImage', url);
+  };
+  
+  const addEmoji = (emoji: string) => {
+      execCmd('insertText', emoji);
+      setShowEmojiPicker(false);
+  };
+
+  const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false }: any) => (
     <button 
         type="button" 
         onClick={() => cmd && execCmd(cmd, arg)} 
-        className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-all" 
+        className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`}
         title={title}
     >
-        <Icon size={16}/>
+        <Icon size={18}/>
     </button>
   );
 
+  const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
+
+  const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
+
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm">
-      <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center">
-        <Button cmd="bold" icon={Bold} title="Negrito" />
-        <Button cmd="italic" icon={Italic} title="Itálico" />
-        <div className="w-px h-5 bg-gray-300 mx-1"></div>
-        <Button cmd="formatBlock" arg="h3" icon={Heading1} title="Título 1" />
-        <Button cmd="formatBlock" arg="h4" icon={Heading2} title="Título 2" />
-        <div className="w-px h-5 bg-gray-300 mx-1"></div>
-        <Button cmd="insertUnorderedList" icon={List} title="Lista com marcadores" />
-        <Button cmd="insertOrderedList" icon={ListOrdered} title="Lista numerada" />
-        <div className="w-px h-5 bg-gray-300 mx-1"></div>
-        <button type="button" onClick={addLink} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Inserir Link"><LinkIcon size={16}/></button>
+    <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm flex flex-col">
+      <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center sticky top-0 z-10">
+        <ToolbarButton cmd="bold" icon={Bold} title="Negrito" />
+        <ToolbarButton cmd="italic" icon={Italic} title="Itálico" />
+        <ToolbarButton cmd="underline" icon={Underline} title="Sublinhado" />
+        <Divider />
+        <ToolbarButton cmd="formatBlock" arg="h2" icon={Heading1} title="Título Grande" />
+        <ToolbarButton cmd="formatBlock" arg="h3" icon={Heading2} title="Título Médio" />
+        <ToolbarButton cmd="formatBlock" arg="blockquote" icon={Quote} title="Citação" />
+        <Divider />
+        <ToolbarButton cmd="justifyLeft" icon={AlignLeft} title="Alinhar Esquerda" />
+        <ToolbarButton cmd="justifyCenter" icon={AlignCenter} title="Centralizar" />
+        <ToolbarButton cmd="justifyRight" icon={AlignRight} title="Alinhar Direita" />
+        <Divider />
+        <ToolbarButton cmd="insertUnorderedList" icon={List} title="Lista com marcadores" />
+        <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista numerada" />
+        <Divider />
+        <button type="button" onClick={addLink} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Inserir Link"><LinkIcon size={18}/></button>
+        <button type="button" onClick={addImage} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Inserir Imagem"><ImageIcon size={18}/></button>
+        
+        <div className="relative">
+            <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Emojis"><Smile size={18}/></button>
+            {showEmojiPicker && (
+                <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 shadow-xl rounded-lg p-2 w-48 grid grid-cols-4 gap-1 z-20">
+                    {COMMON_EMOJIS.map(e => (
+                        <button key={e} type="button" onClick={() => addEmoji(e)} className="text-xl hover:bg-gray-100 p-1 rounded">{e}</button>
+                    ))}
+                </div>
+            )}
+        </div>
       </div>
+      
       <div 
         ref={contentRef}
         contentEditable
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: value }}
-        className="w-full p-5 min-h-[300px] outline-none text-gray-800 prose prose-sm max-w-none [&>h3]:font-bold [&>h3]:text-xl [&>h4]:font-bold [&>h4]:text-lg [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5"
-        style={{ minHeight: '300px' }}
+        className="w-full p-6 min-h-[300px] outline-none text-gray-800 prose prose-blue max-w-none 
+        [&>h2]:text-2xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-2
+        [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-800 [&>h3]:mb-2
+        [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5
+        [&>blockquote]:border-l-4 [&>blockquote]:border-primary-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600
+        [&>img]:max-w-full [&>img]:rounded-lg [&>img]:shadow-md [&>img]:my-4"
       />
     </div>
   );
 };
-
 
 const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => void }> = ({ images, onChange }) => {
   const [uploading, setUploading] = useState(false);
@@ -160,21 +237,27 @@ const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => v
 
   return (
     <div className="space-y-4">
-      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl transition-colors ${isLimitReached ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer'}`}>
+      <div className="flex justify-between items-end">
+         <span className="text-sm font-bold text-gray-700">Gerenciar Fotos</span>
+         <span className="text-xs text-gray-400">{images.length}/{MAX_IMAGES} imagens (Máx)</span>
+      </div>
+      
+      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl transition-all group ${isLimitReached ? 'bg-gray-50 border-gray-200 cursor-not-allowed' : 'border-primary-200 bg-primary-50/50 hover:bg-primary-50 hover:border-primary-400 cursor-pointer'}`}>
             <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading || isLimitReached} />
-            {uploading ? <Loader className="animate-spin text-primary-600" /> : <Upload className="text-gray-400" />}
-            <span className="text-sm font-medium text-gray-500 mt-2">{uploading ? 'Enviando...' : (isLimitReached ? 'Limite de imagens atingido' : 'Clique ou arraste para enviar fotos')}</span>
-            <span className="text-xs text-gray-400 mt-1">{images.length}/{MAX_IMAGES} imagens | Primeira imagem será a capa</span>
+            {uploading ? <Loader className="animate-spin text-primary-600" /> : <Upload className="text-primary-400 group-hover:text-primary-600 transition-colors" />}
+            <span className="text-sm font-bold text-primary-600 mt-2">{uploading ? 'Enviando...' : (isLimitReached ? 'Limite de imagens atingido' : 'Adicionar Fotos')}</span>
+            <span className="text-xs text-gray-400 mt-1 hidden sm:inline">JPG, PNG, WEBP</span>
       </label>
+
       {images.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4 animate-[fadeIn_0.3s]">
             {images.map((img, idx) => (
-                <div key={idx} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden group border border-gray-200 shadow-sm">
+                <div key={idx} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden group border border-gray-200 shadow-sm hover:shadow-md transition-all">
                   <img src={img} className="w-full h-full object-cover" alt={`Imagem ${idx+1}`} />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button type="button" onClick={() => onChange(images.filter((_, i) => i !== idx))} className="bg-red-600 text-white p-2 rounded-full transform scale-75 group-hover:scale-100 transition-transform"><Trash2 size={16} /></button>
+                    <button type="button" onClick={() => onChange(images.filter((_, i) => i !== idx))} className="bg-red-600 text-white p-2 rounded-full transform scale-75 group-hover:scale-100 transition-transform shadow-lg" title="Remover"><Trash2 size={16} /></button>
                   </div>
-                  {idx === 0 && <div className="absolute bottom-0 w-full bg-primary-600 text-white text-[10px] text-center py-1 font-bold">Capa</div>}
+                  {idx === 0 && <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white text-[10px] text-center py-1 font-bold">Capa Principal</div>}
                 </div>
             ))}
           </div>
@@ -513,26 +596,29 @@ const AgencyDashboard: React.FC = () => {
                  
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Tags & Público</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label><PillInput value={tripForm.tags || []} onChange={v => setTripForm({...tripForm, tags: v})} placeholder="Digite uma tag e aperte Enter" /></div>
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Users size={14}/> Tipo de Viajante</label><PillInput value={tripForm.travelerTypes as string[] || []} onChange={v => setTripForm({...tripForm, travelerTypes: v as TravelerType[]})} placeholder="Ex: Casal, Família..." /></div>
+                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label><PillInput value={tripForm.tags || []} onChange={v => setTripForm({...tripForm, tags: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TAGS}/></div>
+                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Users size={14}/> Tipo de Viajante</label><PillInput value={tripForm.travelerTypes as string[] || []} onChange={v => setTripForm({...tripForm, travelerTypes: v as TravelerType[]})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TRAVELERS} /></div>
                     </div>
                  </section>
 
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Formas de Pagamento</h3>
                    <div>
                      <label className="font-bold text-sm mb-2 block flex items-center gap-2"><CreditCard size={14}/> Métodos Aceitos</label>
-                     <PillInput value={tripForm.paymentMethods || []} onChange={v => setTripForm({...tripForm, paymentMethods: v})} placeholder="Ex: Pix, Cartão de Crédito..." />
+                     <PillInput value={tripForm.paymentMethods || []} onChange={v => setTripForm({...tripForm, paymentMethods: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_PAYMENTS} />
                    </div>
                  </section>
 
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Inclusos e Não Inclusos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-green-600"><Check size={14}/> Itens Inclusos</label><PillInput value={tripForm.included || []} onChange={v => setTripForm({...tripForm, included: v})} placeholder="Ex: Hospedagem, Café da manhã..." /></div>
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-red-500"><X size={14}/> Itens NÃO Inclusos</label><PillInput value={tripForm.notIncluded || []} onChange={v => setTripForm({...tripForm, notIncluded: v})} placeholder="Ex: Passagens aéreas..." /></div>
+                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-green-600"><Check size={14}/> Itens Inclusos</label><PillInput value={tripForm.included || []} onChange={v => setTripForm({...tripForm, included: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_INCLUDED} /></div>
+                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-red-500"><X size={14}/> Itens NÃO Inclusos</label><PillInput value={tripForm.notIncluded || []} onChange={v => setTripForm({...tripForm, notIncluded: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_NOT_INCLUDED} /></div>
                     </div>
                  </section>
 
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Descrição Detalhada</h3><RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} /></section>
+                 <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Descrição Detalhada</h3>
+                   <p className="text-sm text-gray-500 mb-4">Use o editor abaixo para contar a história da sua viagem. Adicione títulos, listas e imagens para tornar o texto atrativo.</p>
+                   <RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} />
+                 </section>
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Galeria de Imagens</h3><ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} /></section>
              </form>
          </div>
