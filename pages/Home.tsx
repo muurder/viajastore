@@ -38,6 +38,25 @@ const Home: React.FC = () => {
   const allTrips = getPublicTrips();
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
+  // --- HERO CAROUSEL LOGIC ---
+  const [heroTrips] = useState(() => 
+    allTrips.filter(trip => trip.featuredInHero).slice(0, 5)
+  );
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (heroTrips.length > 1) {
+        const timer = setInterval(() => {
+            setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+        }, 7000); // Change trip every 7 seconds
+
+        return () => clearInterval(timer);
+    }
+  }, [heroTrips.length]);
+  
+  const currentHeroTrip = heroTrips[currentSlide];
+  // --- END HERO CAROUSEL LOGIC ---
+
   const checkScroll = () => {
     if (scrollRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
@@ -102,41 +121,80 @@ const Home: React.FC = () => {
   return (
     <div className="space-y-12 pb-12">
       {/* HERO SECTION */}
-      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4 bg-gray-900">
+      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[550px] flex items-center group mx-4 sm:mx-6 lg:mx-8 mt-4 bg-gray-900">
         <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
             <img 
             src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop"
             alt="Hero background showing a beautiful landscape" 
             className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent"></div>
         </div>
         
-        <div className="relative z-10 px-6 md:px-12 w-full max-w-2xl mx-auto text-center md:text-left">
-            <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4 drop-shadow-lg animate-[fadeInUp_0.7s]">
-              Encontre sua<br/>próxima viagem.
-            </h1>
-            <p className="text-lg text-gray-200 mb-8 max-w-lg mx-auto md:mx-0 font-light animate-[fadeInUp_0.9s]">
-              Compare pacotes das melhores agências e compre com segurança.
-            </p>
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left Side: Text and Search */}
+            <div className="text-center lg:text-left">
+              <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4 drop-shadow-lg animate-[fadeInUp_0.7s]">
+                Encontre sua<br/>próxima viagem.
+              </h1>
+              <p className="text-lg text-gray-200 mb-8 max-w-lg mx-auto lg:mx-0 font-light animate-[fadeInUp_0.9s]">
+                Compare pacotes das melhores agências e compre com segurança.
+              </p>
 
-            <div className="animate-[fadeInUp_1.1s]">
-              <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto md:mx-0">
-                <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
-                  <MapPin className="text-primary-500 mr-3" />
-                  <input 
-                    type="text" 
-                    placeholder="Para onde você quer ir?" 
-                    className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
-                    value={search}
-                    onChange={(e) => setSearch.call(null, e.target.value)}
-                  />
-                </div>
-                <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
-                  <Search size={20} className="mr-2 md:hidden" /> Buscar
-                </button>
-              </form>
+              <div className="animate-[fadeInUp_1.1s]">
+                <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto lg:mx-0">
+                  <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
+                    <MapPin className="text-primary-500 mr-3" />
+                    <input 
+                      type="text" 
+                      placeholder="Para onde você quer ir?" 
+                      className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
+                      value={search}
+                      onChange={(e) => setSearch.call(null, e.target.value)}
+                    />
+                  </div>
+                  <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
+                    <Search size={20} className="mr-2 md:hidden" /> Buscar
+                  </button>
+                </form>
+              </div>
             </div>
+
+            {/* Right Side: Featured Trip Carousel */}
+            <div className="hidden lg:flex justify-center items-center h-full">
+              {currentHeroTrip && (
+                <Link 
+                  to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
+                  key={currentHeroTrip.id} 
+                  className="block w-full max-w-sm bg-black/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-lg hover:border-white/40 transition-all duration-300 animate-[fadeIn_1s]"
+                  aria-live="polite"
+                >
+                    <div className="relative h-40 w-full rounded-xl overflow-hidden mb-3">
+                        <img src={currentHeroTrip.images[0]} alt={currentHeroTrip.title} className="w-full h-full object-cover" />
+                        <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">{currentHeroTrip.category.replace('_', ' ')}</div>
+                    </div>
+                    <h3 className="font-bold text-white text-lg leading-tight line-clamp-2 min-h-[2.5rem]">{currentHeroTrip.title}</h3>
+                    <div className="flex items-center text-xs text-gray-300 mt-2">
+                        <MapPin size={12} className="mr-1.5" />
+                        <span className="truncate">{currentHeroTrip.destination}</span>
+                        <span className="mx-2">•</span>
+                        <Clock size={12} className="mr-1.5" />
+                        <span>{currentHeroTrip.durationDays} dias</span>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-white/20 flex justify-between items-end">
+                        <div>
+                            <p className="text-xs text-gray-300">A partir de</p>
+                            <p className="text-2xl font-bold text-white">R$ {currentHeroTrip.price}</p>
+                        </div>
+                        <div className="text-xs font-bold text-white flex items-center group-hover:text-amber-300 transition-colors">
+                            Ver Pacote <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                    </div>
+                </Link>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
