@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -64,6 +65,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           heroBannerUrl: agencyData.hero_banner_url,
           heroTitle: agencyData.hero_title,
           heroSubtitle: agencyData.hero_subtitle,
+          
+          // Custom Settings (Pills)
+          customSettings: agencyData.custom_settings || {},
 
           subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
           subscriptionPlan: agencyData.subscription_plan || 'BASIC',
@@ -270,6 +274,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).heroBannerUrl) updates.hero_banner_url = (userData as Agency).heroBannerUrl;
         if ((userData as Agency).heroTitle) updates.hero_title = (userData as Agency).heroTitle;
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
+
+        // Custom Suggestions
+        if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
 
         const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
         if (error) throw error;

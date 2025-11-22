@@ -56,6 +56,14 @@ export interface Agency extends User {
   heroTitle?: string;
   heroSubtitle?: string;
 
+  // Custom Suggestions (Tags, Includes, etc saved by the agency)
+  customSettings?: {
+    tags?: string[];
+    included?: string[];
+    notIncluded?: string[];
+    paymentMethods?: string[];
+  };
+
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
   subscriptionExpiresAt: string; // ISO Date

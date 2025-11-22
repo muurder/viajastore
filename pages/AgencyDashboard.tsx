@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -6,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MessageCircle, MapPin, Clock, ShieldCheck, Share2, Heart, ChevronDown, ChevronUp } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -20,7 +21,14 @@ const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas'
 const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
 
 // Pill Input Component Enhanced
-const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[] }> = ({ value, onChange, placeholder, suggestions = [] }) => {
+const PillInput: React.FC<{ 
+    value: string[]; 
+    onChange: (val: string[]) => void; 
+    placeholder: string; 
+    suggestions?: string[];
+    customSuggestions?: string[];
+    onDeleteCustomSuggestion?: (item: string) => void;
+}> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
   const [inputValue, setInputValue] = useState('');
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -43,13 +51,21 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
     onChange(value.filter(item => item !== itemToRemove));
   };
 
+  const handleDeleteCustom = (e: React.MouseEvent, item: string) => {
+      e.stopPropagation();
+      if (window.confirm(`Remover "${item}" das suas sugestões salvas?`)) {
+          if (onDeleteCustomSuggestion) onDeleteCustomSuggestion(item);
+      }
+  };
+
   // Filter suggestions that are not yet selected
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
+  const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
   return (
     <div className="space-y-3">
       {/* Suggestions Area */}
-      {availableSuggestions.length > 0 && (
+      {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
         <div className="flex flex-wrap gap-2">
             {availableSuggestions.map(s => (
                 <button 
@@ -59,6 +75,23 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
                     className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded-md hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all flex items-center gap-1"
                 >
                     <Plus size={10} /> {s}
+                </button>
+            ))}
+            {availableCustom.map(s => (
+                <button 
+                    type="button"
+                    key={s} 
+                    onClick={() => handleAdd(s)}
+                    className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-100 transition-all flex items-center gap-1 group relative pr-6"
+                >
+                    <Plus size={10} /> {s}
+                    <span 
+                        onClick={(e) => handleDeleteCustom(e, s)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-300 hover:text-red-500 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remover sugestão salva"
+                    >
+                        <X size={10} />
+                    </span>
                 </button>
             ))}
         </div>
@@ -101,11 +134,9 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   useEffect(() => {
     if (contentRef.current) {
         const isActive = document.activeElement === contentRef.current;
-        // Only update the innerHTML from props if the content is different AND we aren't currently typing in it
         if (contentRef.current.innerHTML !== value && !isActive) {
             contentRef.current.innerHTML = value;
         }
-        // Edge case: if value is empty, clear it even if focused (reset)
         if (value === '' && contentRef.current.innerHTML !== '') {
             contentRef.current.innerHTML = '';
         }
@@ -113,6 +144,14 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   }, [value]);
 
   const handleInput = () => {
+      if (contentRef.current) onChange(contentRef.current.innerHTML);
+  };
+  
+  // Fix Paste Refresh Bug: Intercept paste, strip HTML, insert text
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const text = e.clipboardData.getData('text/plain');
+      document.execCommand('insertText', false, text);
       if (contentRef.current) onChange(contentRef.current.innerHTML);
   };
 
@@ -183,6 +222,7 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         ref={contentRef}
         contentEditable
         onInput={handleInput}
+        onPaste={handlePaste}
         className="w-full p-6 min-h-[300px] outline-none text-gray-800 prose prose-blue max-w-none 
         [&>h2]:text-2xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-2
         [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-800 [&>h3]:mb-2
@@ -307,6 +347,114 @@ const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => vo
     );
 };
 
+const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose: () => void }> = ({ trip, agency, onClose }) => {
+    const [openAccordion, setOpenAccordion] = useState<string | null>('included');
+    const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
+    
+    const renderDescription = (desc: string) => {
+        const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>');
+        if (isHTML) {
+            return (
+                <div 
+                  className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
+                  dangerouslySetInnerHTML={{ __html: desc }} 
+                />
+            );
+        }
+        return <p className="leading-relaxed whitespace-pre-line">{desc}</p>;
+    };
+
+    const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://placehold.co/800x400/e2e8f0/94a3b8?text=Sem+Imagem';
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto animate-[fadeIn_0.2s]">
+            {/* Toolbar */}
+            <div className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex justify-between items-center shadow-md">
+                <div className="flex items-center gap-2">
+                    <Eye size={18} className="text-primary-400"/>
+                    <span className="font-bold">Modo de Visualização</span>
+                </div>
+                <button onClick={onClose} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <X size={16}/> Fechar
+                </button>
+            </div>
+
+            <div className="max-w-5xl mx-auto p-4 md:p-8 pb-20">
+                <div className="flex items-center text-sm text-gray-500 mb-6">
+                    <span>Home</span> <span className="mx-2">/</span> <span>Pacotes</span> <span className="mx-2">/</span> <span className="text-gray-900 font-medium">{trip.title || 'Sem Título'}</span>
+                </div>
+
+                {/* Images Grid Mock */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[300px] md:h-[400px]">
+                    <div className="md:col-span-2 h-full"><img src={mainImage} className="w-full h-full object-cover" alt="Main" /></div>
+                    <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
+                        <img src={trip.images?.[1] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="1" />
+                        <img src={trip.images?.[2] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="2" />
+                        <img src={trip.images?.[3] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="3" />
+                        <img src={trip.images?.[4] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="4" />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    <div className="lg:col-span-2 space-y-8">
+                        <div>
+                             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight mb-4">{trip.title || 'Título da Viagem'}</h1>
+                             <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 mb-6">
+                                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination || 'Destino'}</div>
+                                <div className="flex items-center"><Clock className="text-primary-500 mr-2" size={18}/> {trip.durationDays || 0} Dias</div>
+                             </div>
+                             <div className="flex flex-wrap gap-2">
+                                {trip.tags?.map((tag, i) => (
+                                    <span key={i} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-medium">{tag}</span>
+                                ))}
+                             </div>
+                        </div>
+                        
+                        <div className="h-px bg-gray-200"></div>
+                        
+                        <div className="text-gray-600">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
+                            {renderDescription(trip.description || '')}
+                        </div>
+
+                        {/* Accordions Mock */}
+                         <div className="space-y-4">
+                             <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <button onClick={() => toggleAccordion('included')} className="w-full flex items-center justify-between p-4 bg-gray-50 font-bold text-gray-900"><span>O que está incluído</span>{openAccordion === 'included' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}</button>
+                                {openAccordion === 'included' && (
+                                    <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {trip.included?.map((item, i) => <div key={i} className="flex items-start"><Check size={18} className="text-green-500 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-600 text-sm">{item}</span></div>)}
+                                    </div>
+                                )}
+                             </div>
+                             <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <button onClick={() => toggleAccordion('notIncluded')} className="w-full flex items-center justify-between p-4 bg-gray-50 font-bold text-gray-900"><span>O que NÃO está incluído</span>{openAccordion === 'notIncluded' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}</button>
+                                {openAccordion === 'notIncluded' && (
+                                    <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {trip.notIncluded?.map((item, i) => <div key={i} className="flex items-start"><X size={18} className="text-red-400 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-600 text-sm">{item}</span></div>)}
+                                    </div>
+                                )}
+                             </div>
+                         </div>
+                    </div>
+
+                    <div className="lg:col-span-1">
+                        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sticky top-24">
+                            <p className="text-sm text-gray-500 mb-1 font-medium">A partir de</p>
+                            <div className="flex items-baseline gap-1 mb-6">
+                                <span className="text-4xl font-extrabold text-gray-900">R$ {trip.price || 0}</span>
+                                <span className="text-gray-500">/ pessoa</span>
+                            </div>
+                            <button disabled className="w-full bg-primary-600 text-white font-bold py-4 rounded-xl mb-4 opacity-50 cursor-not-allowed">Reservar Agora</button>
+                            <p className="text-center text-xs text-gray-400">Botão desabilitado na prévia.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const defaultTripForm: Partial<Trip> = {
     title: '', slug: '', destination: '', price: 0, category: 'PRAIA', 
     durationDays: 1, included: [], notIncluded: [], tags: [], travelerTypes: [], 
@@ -329,6 +477,7 @@ const AgencyDashboard: React.FC = () => {
   
   const [selectedPlan, setSelectedPlan] = useState<'BASIC' | 'PREMIUM' | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   
   const myAgency = agencies.find(a => a.id === user?.id) as Agency;
@@ -336,6 +485,9 @@ const AgencyDashboard: React.FC = () => {
 
   const [tripForm, setTripForm] = useState<Partial<Trip>>(defaultTripForm);
   const [slugTouched, setSlugTouched] = useState(false);
+
+  // Custom Settings from Agency
+  const customSettings = myAgency?.customSettings || { tags: [], included: [], notIncluded: [], paymentMethods: [] };
 
   useEffect(() => {
       if(myAgency) {
@@ -407,6 +559,34 @@ const AgencyDashboard: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     const tripData = { ...tripForm, agencyId: user.id } as Trip;
+    
+    // --- PERSIST CUSTOM PILLS LOGIC ---
+    const newSettings = { ...customSettings };
+    let settingsChanged = false;
+
+    const updateSuggestions = (key: keyof typeof newSettings, items: string[] | undefined, existingList: string[]) => {
+        if (!items) return;
+        items.forEach(item => {
+            // Check if it's NOT in standard lists (we need to import SUGGESTED_X here or pass them)
+            // Simplification: If it's not in user's saved settings, add it.
+            // Ideally we check against standard lists too, but adding a standard item to custom list is harmless redundancy.
+            if (!existingList.includes(item) && !newSettings[key]?.includes(item)) {
+                newSettings[key] = [...(newSettings[key] || []), item];
+                settingsChanged = true;
+            }
+        });
+    };
+
+    updateSuggestions('tags', tripData.tags, SUGGESTED_TAGS);
+    updateSuggestions('included', tripData.included, SUGGESTED_INCLUDED);
+    updateSuggestions('notIncluded', tripData.notIncluded, SUGGESTED_NOT_INCLUDED);
+    updateSuggestions('paymentMethods', tripData.paymentMethods, SUGGESTED_PAYMENTS);
+
+    if (settingsChanged) {
+        await updateUser({ customSettings: newSettings });
+    }
+    // ----------------------------------
+
     try {
         if (editingTripId) {
             await updateTrip(tripData);
@@ -421,6 +601,14 @@ const AgencyDashboard: React.FC = () => {
     } finally {
         setIsSubmitting(false);
     }
+  };
+
+  const handleDeleteCustomSuggestion = async (type: keyof typeof customSettings, item: string) => {
+     const currentList = customSettings[type] || [];
+     const newList = currentList.filter(i => i !== item);
+     const newSettings = { ...customSettings, [type]: newList };
+     await updateUser({ customSettings: newSettings });
+     showToast('Sugestão removida.', 'success');
   };
 
   const handleDeleteTrip = async (tripId: string) => {
@@ -477,6 +665,16 @@ const AgencyDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+      
+      {/* PREVIEW MODAL */}
+      {showPreview && (
+          <TripPreviewModal 
+            trip={tripForm} 
+            agency={myAgency} 
+            onClose={() => setShowPreview(false)} 
+          />
+      )}
+
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
         <div className="flex items-center gap-4 w-full">
            <img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover bg-white" alt="Logo" />
@@ -572,8 +770,19 @@ const AgencyDashboard: React.FC = () => {
         </>
       ) : (
          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
-             <div className="bg-gray-50 p-6 border-b flex justify-between items-center"><button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button><div className="flex gap-3"><button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 disabled:opacity-50">{isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar</button></div></div>
-             <form onSubmit={handleTripSubmit} className="p-8 space-y-10 max-w-4xl mx-auto bg-gray-50/50">
+             <div className="bg-gray-50 p-6 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
+                 <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
+                 <div className="flex gap-3">
+                     <button type="button" onClick={() => setShowPreview(true)} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-50 transition-colors">
+                        <Eye size={18} className="mr-2"/> Prévia
+                     </button>
+                     <button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 disabled:opacity-50 shadow-sm">
+                        {isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar
+                     </button>
+                 </div>
+             </div>
+             
+             <form onSubmit={handleTripSubmit} className="p-8 space-y-10 max-w-4xl mx-auto bg-gray-50/50 pb-32">
                  <section><div className="flex justify-between items-center border-b pb-2 mb-6"><h3 className="text-lg font-bold">Informações Básicas</h3><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!tripForm.featuredInHero} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"/><span className="text-sm font-bold text-amber-600 flex items-center"><Star size={14} className="mr-1 fill-amber-500"/> Destacar na página da agência</span></label></div>
                     <div className="space-y-4">
                         <div><label className="font-bold text-sm mb-1 block">Título do Pacote</label><input value={tripForm.title || ''} onChange={handleTitleChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" placeholder="Ex: Fim de semana em Paraty"/></div>
@@ -596,7 +805,17 @@ const AgencyDashboard: React.FC = () => {
                  
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Tags & Público</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label><PillInput value={tripForm.tags || []} onChange={v => setTripForm({...tripForm, tags: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TAGS}/></div>
+                        <div>
+                            <label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label>
+                            <PillInput 
+                                value={tripForm.tags || []} 
+                                onChange={v => setTripForm({...tripForm, tags: v})} 
+                                placeholder="Digite ou selecione..." 
+                                suggestions={SUGGESTED_TAGS}
+                                customSuggestions={customSettings.tags}
+                                onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('tags', s)}
+                            />
+                        </div>
                         <div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Users size={14}/> Tipo de Viajante</label><PillInput value={tripForm.travelerTypes as string[] || []} onChange={v => setTripForm({...tripForm, travelerTypes: v as TravelerType[]})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TRAVELERS} /></div>
                     </div>
                  </section>
@@ -604,14 +823,41 @@ const AgencyDashboard: React.FC = () => {
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Formas de Pagamento</h3>
                    <div>
                      <label className="font-bold text-sm mb-2 block flex items-center gap-2"><CreditCard size={14}/> Métodos Aceitos</label>
-                     <PillInput value={tripForm.paymentMethods || []} onChange={v => setTripForm({...tripForm, paymentMethods: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_PAYMENTS} />
+                     <PillInput 
+                        value={tripForm.paymentMethods || []} 
+                        onChange={v => setTripForm({...tripForm, paymentMethods: v})} 
+                        placeholder="Digite ou selecione..." 
+                        suggestions={SUGGESTED_PAYMENTS} 
+                        customSuggestions={customSettings.paymentMethods}
+                        onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('paymentMethods', s)}
+                     />
                    </div>
                  </section>
 
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Inclusos e Não Inclusos</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-green-600"><Check size={14}/> Itens Inclusos</label><PillInput value={tripForm.included || []} onChange={v => setTripForm({...tripForm, included: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_INCLUDED} /></div>
-                        <div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-red-500"><X size={14}/> Itens NÃO Inclusos</label><PillInput value={tripForm.notIncluded || []} onChange={v => setTripForm({...tripForm, notIncluded: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_NOT_INCLUDED} /></div>
+                        <div>
+                            <label className="font-bold text-sm mb-2 block flex items-center gap-2 text-green-600"><Check size={14}/> Itens Inclusos</label>
+                            <PillInput 
+                                value={tripForm.included || []} 
+                                onChange={v => setTripForm({...tripForm, included: v})} 
+                                placeholder="Digite ou selecione..." 
+                                suggestions={SUGGESTED_INCLUDED} 
+                                customSuggestions={customSettings.included}
+                                onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('included', s)}
+                            />
+                        </div>
+                        <div>
+                            <label className="font-bold text-sm mb-2 block flex items-center gap-2 text-red-500"><X size={14}/> Itens NÃO Inclusos</label>
+                            <PillInput 
+                                value={tripForm.notIncluded || []} 
+                                onChange={v => setTripForm({...tripForm, notIncluded: v})} 
+                                placeholder="Digite ou selecione..." 
+                                suggestions={SUGGESTED_NOT_INCLUDED} 
+                                customSuggestions={customSettings.notIncluded}
+                                onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('notIncluded', s)}
+                            />
+                        </div>
                     </div>
                  </section>
 
@@ -621,6 +867,21 @@ const AgencyDashboard: React.FC = () => {
                  </section>
                  <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Galeria de Imagens</h3><ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} /></section>
              </form>
+             
+             {/* Sticky Footer Bar */}
+             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+                <div className="max-w-4xl mx-auto flex justify-between items-center">
+                    <p className="text-xs text-gray-500 hidden sm:block">Certifique-se de salvar todas as alterações.</p>
+                    <div className="flex gap-3 w-full sm:w-auto">
+                        <button type="button" onClick={() => setShowPreview(true)} className="flex-1 sm:flex-initial bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold flex justify-center items-center hover:bg-gray-50 transition-colors">
+                            <Eye size={18} className="mr-2"/> Prévia
+                        </button>
+                        <button onClick={handleTripSubmit} disabled={isSubmitting} className="flex-1 sm:flex-initial bg-primary-600 text-white px-8 py-3 rounded-xl font-bold flex justify-center items-center hover:bg-primary-700 disabled:opacity-50 shadow-lg shadow-primary-500/30 transition-all">
+                            {isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar Viagem
+                        </button>
+                    </div>
+                </div>
+             </div>
          </div>
       )}
 
