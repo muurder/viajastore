@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | Client | Agency | Admin | null;
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (redirectPath?: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
@@ -128,12 +128,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
-          // This handles the user coming back from Google login
           if (event === 'SIGNED_IN') {
-             await fetchUserData(session.user.id, session.user.email!);
+             setTimeout(() => fetchUserData(session.user.id, session.user.email!), 1000);
+          } else if (event === 'TOKEN_REFRESHED') {
+             // Optional: refresh user data silently
           } else {
-             // For other events, fetch user data as well
-             await fetchUserData(session.user.id, session.user.email!);
+             fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -161,12 +161,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { success: true };
   };
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (redirectPath?: string) => {
+    const redirectTo = redirectPath 
+        ? `${window.location.origin}/#${redirectPath}` 
+        : `${window.location.origin}/`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
-      },
+        redirectTo: redirectTo
+      }
     });
     if (error) console.error("Google login error:", error);
   };
@@ -283,7 +287,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Refresh local state
-      await fetchUserData(user.id, userData.email || user.email!);
+      setUser({ ...user, ...userData } as any);
       return { success: true };
 
     } catch (error: any) {
@@ -340,7 +344,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
