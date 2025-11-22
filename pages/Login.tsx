@@ -1,14 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft, Plane } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { Agency } from '../types';
 
 const Login: React.FC = () => {
   const { login, loginWithGoogle } = useAuth();
-  const { getAgencyBySlug } = useData();
+  const { getAgencyBySlug, loading: dataLoading } = useData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -17,25 +17,30 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  const [agency, setAgency] = useState<Agency | undefined>(undefined);
 
   const fromParam = searchParams.get('from');
   const redirectTo = fromParam || '/';
   
-  let agency: Agency | undefined;
-  let agencySlug: string | null = null;
-  if (fromParam) {
-      const segments = fromParam.split('/').filter(Boolean);
-      if (segments.length > 0) {
-          const potentialSlug = segments[0];
-          const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
-          if (!reservedRoutes.includes(potentialSlug)) {
-              agency = getAgencyBySlug(potentialSlug);
-              if (agency) {
-                  agencySlug = potentialSlug;
-              }
-          }
-      }
-  }
+  const agencySlug = React.useMemo(() => {
+    if (!fromParam || fromParam === '/') return null;
+    const segments = fromParam.split('/').filter(Boolean);
+    if (segments.length > 0) {
+        const potentialSlug = segments[0];
+        const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
+        if (!reservedRoutes.includes(potentialSlug)) {
+            return potentialSlug;
+        }
+    }
+    return null;
+  }, [fromParam]);
+
+  useEffect(() => {
+    if (agencySlug && !dataLoading) {
+      setAgency(getAgencyBySlug(agencySlug));
+    }
+  }, [agencySlug, dataLoading, getAgencyBySlug]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,20 +61,33 @@ const Login: React.FC = () => {
       await loginWithGoogle(redirectTo);
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      
-      {agency && agencySlug && (
-        <div className="mb-6 text-center">
-            <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group">
-                <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover mb-2 border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
-                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Continuar em</span>
-                <span className="font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency.name}</span>
-            </Link>
-        </div>
-      )}
+  const MicrositeHeader = () => (
+    <div className="absolute top-0 left-0 right-0 p-6">
+        <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group gap-2 text-center">
+            <img src={agency!.logo} alt={agency!.name} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
+            <div>
+                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Voltar para</span>
+                <span className="block font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency!.name}</span>
+            </div>
+        </Link>
+    </div>
+  );
 
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+  const GlobalHeader = () => (
+     <div className="absolute top-0 left-0 right-0 p-6">
+        <Link to="/" className="flex items-center group gap-2">
+            <Plane className="h-8 w-8 text-primary-600 group-hover:rotate-12 transition-transform" />
+            <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
+        </Link>
+     </div>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+      
+      {agencySlug ? (agency && <MicrositeHeader />) : <GlobalHeader />}
+      
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl border border-gray-100 mt-24">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-gray-900">
               {agency ? `Bem-vindo de volta` : 'Acesse sua conta'}
@@ -173,15 +191,6 @@ const Login: React.FC = () => {
           </div>
         </form>
       </div>
-      
-      {agencySlug && (
-         <div className="mt-8">
-            <Link to={`/${agencySlug}`} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-2">
-                <ArrowLeft size={14} /> Voltar para a página da agência
-            </Link>
-         </div>
-      )}
-
     </div>
   );
 };

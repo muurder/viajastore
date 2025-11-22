@@ -32,6 +32,10 @@ export const Unauthorized: React.FC = () => (
 export const CheckoutSuccess: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>();
 
+  // Determine the correct link for the client dashboard based on context.
+  // The user should be directed to their bookings tab inside the microsite.
+  const clientDashboardLink = agencySlug ? `/${agencySlug}/client/BOOKINGS` : '/';
+
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 animate-[fadeIn_0.5s]">
       <div className="bg-green-100 p-6 rounded-full mb-6">
@@ -42,11 +46,11 @@ export const CheckoutSuccess: React.FC = () => {
         Sua viagem está confirmada. Enviamos os detalhes para seu e-mail e o voucher já está disponível no seu painel.
       </p>
       <div className="flex gap-4">
-        <Link to="/client/dashboard" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+        <Link to={clientDashboardLink} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
           Ver Minhas Viagens
         </Link>
         <Link 
-          to={agencySlug ? `/${agencySlug}/trips` : "/trips"} 
+          to={agencySlug ? `/${agencySlug}` : "/trips"} 
           className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
         >
           Continuar Explorando

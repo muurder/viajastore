@@ -4,18 +4,87 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole } from '../types';
-import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, RefreshCw, Activity, X, AlertTriangle, Check } from 'lucide-react';
+import { UserRole, Agency } from '../types';
+import { ToggleLeft, ToggleRight, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, RefreshCw, Activity, X, AlertTriangle, Check, Edit, ExternalLink } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
+import { slugify } from '../utils/slugify';
+import { supabase } from '../services/supabase';
+
+const AgencyEditForm: React.FC<{ agency: Agency; onSave: (data: Partial<Agency>) => void; onClose: () => void; }> = ({ agency, onSave, onClose }) => {
+    const [formData, setFormData] = useState<Partial<Agency>>(agency);
+    const { agencies } = useData();
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        // Slug uniqueness validation
+        if (formData.slug && agencies.some(a => a.slug === formData.slug && a.id !== agency.id)) {
+            alert('Erro: Este slug já está em uso por outra agência.');
+            return;
+        }
+        onSave(formData);
+    };
+
+    const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const sanitized = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        setFormData({ ...formData, slug: sanitized });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-gray-100">
+                <form onSubmit={handleSubmit}>
+                    <div className="p-6 border-b flex justify-between items-center">
+                        <h3 className="text-xl font-bold text-gray-900">Editar Agência: {agency.name}</h3>
+                        <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-100 rounded-full"><X size={20}/></button>
+                    </div>
+                    <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <div>
+                            <label className="text-sm font-bold">Nome</label>
+                            <input value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full border p-2 rounded-lg" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold">Slug</label>
+                            <input value={formData.slug || ''} onChange={handleSlugChange} className="w-full border p-2 rounded-lg font-mono" />
+                            {formData.slug && (
+                                <a href={`/#/${formData.slug}`} target="_blank" className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1 mt-1"><ExternalLink size={12}/> Visualizar</a>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-sm font-bold">Plano</label>
+                                <select value={formData.subscriptionPlan} onChange={e => setFormData({...formData, subscriptionPlan: e.target.value as any})} className="w-full border p-2 rounded-lg">
+                                    <option value="BASIC">Básico</option>
+                                    <option value="PREMIUM">Premium</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold">Status</label>
+                                <select value={formData.subscriptionStatus} onChange={e => setFormData({...formData, subscriptionStatus: e.target.value as any})} className="w-full border p-2 rounded-lg">
+                                    <option value="ACTIVE">Ativo</option>
+                                    <option value="INACTIVE">Inativo</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 bg-gray-50 border-t flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg font-bold bg-gray-200 text-gray-700 hover:bg-gray-300">Cancelar</button>
+                        <button type="submit" className="px-6 py-2 rounded-lg font-bold bg-primary-600 text-white hover:bg-primary-700">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { agencies, bookings, trips, reviews, clients, auditLogs, updateAgencySubscription, toggleTripStatus, deleteReview, deleteUser, logAuditAction } = useData();
+  const { agencies, bookings, trips, reviews, clients, auditLogs, updateAgencySubscription, toggleTripStatus, deleteReview, deleteUser, logAuditAction, refreshData } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview } = useTheme();
   const { showToast } = useToast();
   
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'AGENCIES' | 'USERS' | 'TRIPS' | 'REVIEWS' | 'THEMES' | 'AUDIT' | 'SYSTEM'>('OVERVIEW');
-  
+  const [editingAgency, setEditingAgency] = useState<Agency | null>(null);
+
   // Master Check
   const isMaster = user?.email === 'juannicolas1@gmail.com';
 
@@ -39,27 +108,48 @@ const AdminDashboard: React.FC = () => {
 
   const totalRevenue = bookings.reduce((acc, curr) => acc + curr.totalPrice, 0);
 
-  const handleToggleAgency = (agencyId: string, currentStatus: string, plan: any) => {
+  const handleToggleAgencyStatus = (agency: Agency) => {
+      const currentStatus = agency.subscriptionStatus;
       const action = currentStatus === 'ACTIVE' ? 'suspender' : 'ativar';
-      if(window.confirm(`Tem certeza que deseja ${action} esta agência?`)) {
-          updateAgencySubscription(agencyId, currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE', plan);
+      if(window.confirm(`Tem certeza que deseja ${action} a agência "${agency.name}"?`)) {
+          const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+          updateAgencySubscription(agency.id, newStatus, agency.subscriptionPlan);
           showToast(`Agência ${action === 'ativar' ? 'ativada' : 'suspensa'} com sucesso!`, 'success');
+      }
+  };
+  
+  const handleSaveAgency = async (data: Partial<Agency>) => {
+      if(!editingAgency) return;
+
+      const { error } = await supabase
+        .from('agencies')
+        .update({
+            name: data.name,
+            slug: data.slug,
+            subscription_plan: data.subscriptionPlan,
+            subscription_status: data.subscriptionStatus,
+        })
+        .eq('id', editingAgency.id);
+      
+      if (error) {
+          showToast(`Erro ao salvar: ${error.message}`, 'error');
+      } else {
+          showToast('Agência atualizada com sucesso!', 'success');
+          await refreshData();
+          setEditingAgency(null);
       }
   };
 
   const handleToggleTrip = (tripId: string) => {
-      // Quick toggle, toast feedback
       toggleTripStatus(tripId);
       showToast('Status da viagem alterado.', 'info');
   };
 
-  // Open Delete Modal
   const openDeleteModal = (id: string, role: UserRole, name: string) => {
       setUserToDelete({ id, role, name });
       setDeleteConfirmation('');
   };
 
-  // Execute Delete
   const handleConfirmDelete = async () => {
       if (!userToDelete) return;
       if (deleteConfirmation !== 'DELETAR') return;
@@ -85,19 +175,15 @@ const AdminDashboard: React.FC = () => {
       
       setSavingTheme(true);
       try {
-        // 1. Create Theme in DB
         const newId = await addTheme({
             name: newTheme.name,
             colors: newTheme.colors,
         });
 
         if (newId) {
-             // 2. Apply it globally
              await setTheme(newId);
              showToast('Tema salvo e aplicado para todos os usuários!', 'success');
              logAuditAction('CREATE_THEME', `Created and applied theme ${newTheme.name}`);
-             
-             // Reset
              setNewTheme({
                  name: 'Novo Tema',
                  colors: { primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' }
@@ -115,7 +201,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleApplyTheme = (id: string) => {
-      // Simple confirm browser alert is okay here for global action, or could be a modal too.
       if(window.confirm('Atenção: Isso alterará as cores do site para TODOS os usuários. Confirmar?')) {
           setTheme(id);
           showToast('Tema aplicado globalmente.', 'success');
@@ -140,7 +225,6 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  // Helper for updating color state and preview
   const updateColor = (type: 'primary' | 'secondary', value: string) => {
     let hex = value;
     if (!hex.startsWith('#')) {
@@ -150,7 +234,6 @@ const AdminDashboard: React.FC = () => {
     const updatedColors = { ...newTheme.colors, [type]: hex };
     setNewTheme({ ...newTheme, colors: updatedColors });
     
-    // Only update preview if it's a valid hex length
     if (hex.length === 4 || hex.length === 7) {
         previewTheme({
             ...newTheme,
@@ -164,6 +247,8 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen relative">
+      
+      {editingAgency && <AgencyEditForm agency={editingAgency} onSave={handleSaveAgency} onClose={() => setEditingAgency(null)} />}
       
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
@@ -230,8 +315,6 @@ const AdminDashboard: React.FC = () => {
       {activeTab === 'THEMES' && isMaster && (
           <div className="animate-[fadeIn_0.3s]">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  
-                  {/* Sidebar: List of Themes */}
                   <div className="lg:col-span-4 space-y-6">
                       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Palette size={20}/> Biblioteca de Temas</h2>
@@ -242,15 +325,11 @@ const AdminDashboard: React.FC = () => {
                                         <span className="font-bold text-gray-900">{theme.name}</span>
                                         {activeTheme.id === theme.id && <span className="text-[10px] uppercase tracking-wider font-bold bg-primary-600 text-white px-2 py-0.5 rounded-full">Ativo</span>}
                                     </div>
-                                    
-                                    {/* Color Dots */}
                                     <div className="flex gap-2 mb-4">
                                         <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5" title="Primária" style={{backgroundColor: theme.colors.primary}}></div>
                                         <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5" title="Secundária" style={{backgroundColor: theme.colors.secondary}}></div>
                                         <div className="w-8 h-8 rounded-full shadow-sm ring-1 ring-black/5 border border-gray-100" title="Fundo" style={{backgroundColor: theme.colors.background}}></div>
                                     </div>
-                                    
-                                    {/* Action Buttons */}
                                     <div className="flex gap-2 opacity-100 sm:opacity-60 group-hover:opacity-100 transition-opacity">
                                         {activeTheme.id !== theme.id && (
                                             <button onClick={() => handleApplyTheme(theme.id)} className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-1">
@@ -271,8 +350,6 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                   </div>
-
-                  {/* Main: Editor & Preview */}
                   <div className="lg:col-span-8 space-y-6">
                       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                           <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
@@ -282,9 +359,7 @@ const AdminDashboard: React.FC = () => {
                             </div>
                             <button onClick={resetPreview} className="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center bg-gray-100 px-3 py-1.5 rounded-lg transition-colors"><RefreshCw size={14} className="mr-2"/> Resetar</button>
                           </div>
-                          
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                              {/* Inputs */}
                               <div className="space-y-5">
                                   <div>
                                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Nome do Tema</label>
@@ -295,8 +370,6 @@ const AdminDashboard: React.FC = () => {
                                           placeholder="Ex: Verão 2024"
                                       />
                                   </div>
-                                  
-                                  {/* Color Picker: Primary */}
                                   <div>
                                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Primária (Marca)</label>
                                       <div className="flex items-center gap-3">
@@ -319,8 +392,6 @@ const AdminDashboard: React.FC = () => {
                                           </div>
                                       </div>
                                   </div>
-
-                                  {/* Color Picker: Secondary */}
                                   <div>
                                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Secundária (Destaque)</label>
                                       <div className="flex items-center gap-3">
@@ -343,7 +414,6 @@ const AdminDashboard: React.FC = () => {
                                           </div>
                                       </div>
                                   </div>
-
                                   <button 
                                       onClick={handleSaveTheme} 
                                       disabled={savingTheme}
@@ -353,23 +423,17 @@ const AdminDashboard: React.FC = () => {
                                       Salvar e Aplicar
                                   </button>
                               </div>
-
-                              {/* Live Preview Area */}
                               <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 flex flex-col">
                                   <div className="flex items-center gap-2 mb-4">
                                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Live Preview</span>
                                   </div>
-
                                   <div className="space-y-4 flex-1 flex flex-col justify-center">
-                                      {/* Buttons */}
                                       <div className="flex gap-2 flex-wrap">
                                           <button className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-primary-500/20 text-sm">Botão Primário</button>
                                           <button className="bg-secondary-500 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-secondary-500/20 text-sm">Destaque</button>
                                           <button className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg font-bold text-sm">Neutro</button>
                                       </div>
-
-                                      {/* Card */}
                                       <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                                           <h4 className="text-primary-700 font-bold text-base mb-1">Título do Exemplo</h4>
                                           <p className="text-gray-500 text-xs leading-relaxed">
@@ -377,8 +441,6 @@ const AdminDashboard: React.FC = () => {
                                           </p>
                                           <div className="mt-3 h-1 w-12 bg-secondary-500 rounded-full"></div>
                                       </div>
-
-                                      {/* Alert */}
                                       <div className="bg-primary-50 border border-primary-100 text-primary-700 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2">
                                           <AlertOctagon size={16}/>
                                           <span>Mensagem de alerta ou info.</span>
@@ -432,7 +494,7 @@ const AdminDashboard: React.FC = () => {
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Agência</th>
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Plano</th>
                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
-                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ação</th>
+                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ações</th>
                      </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-100">
@@ -441,7 +503,10 @@ const AdminDashboard: React.FC = () => {
                              <td className="px-6 py-4">
                                  <div className="flex items-center">
                                      <img src={agency.logo} className="w-10 h-10 rounded-full object-cover mr-3" alt=""/>
-                                     <span className="font-bold text-gray-900">{agency.name}</span>
+                                     <div>
+                                         <span className="font-bold text-gray-900">{agency.name}</span>
+                                         <a href={`/#/${agency.slug}`} target="_blank" className="text-xs text-gray-400 hover:text-primary-600 block transition-colors">/{agency.slug}</a>
+                                     </div>
                                  </div>
                              </td>
                              <td className="px-6 py-4 text-sm text-gray-600">{agency.subscriptionPlan}</td>
@@ -451,14 +516,14 @@ const AdminDashboard: React.FC = () => {
                                  </span>
                              </td>
                              <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                 <button 
-                                     onClick={() => handleToggleAgency(agency.id, agency.subscriptionStatus, agency.subscriptionPlan)}
-                                     className={`text-xs font-bold px-3 py-1 rounded border ${agency.subscriptionStatus === 'ACTIVE' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
-                                 >
-                                     {agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Ativar'}
+                                 <button onClick={() => handleToggleAgencyStatus(agency)} className="p-2 text-gray-400 hover:text-primary-600 rounded hover:bg-gray-100" title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Ativar'}>
+                                    {agency.subscriptionStatus === 'ACTIVE' ? <ToggleRight size={20} className="text-green-500"/> : <ToggleLeft size={20} className="text-gray-500"/>}
+                                 </button>
+                                 <button onClick={() => setEditingAgency(agency)} className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-gray-100" title="Editar">
+                                    <Edit size={16}/>
                                  </button>
                                  {isMaster && (
-                                     <button onClick={() => openDeleteModal(agency.id, UserRole.AGENCY, agency.name)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                     <button onClick={() => openDeleteModal(agency.id, UserRole.AGENCY, agency.name)} className="p-2 text-gray-400 hover:text-red-500 rounded hover:bg-gray-100" title="Excluir"><Trash2 size={16}/></button>
                                  )}
                              </td>
                          </tr>
@@ -579,7 +644,6 @@ const AdminDashboard: React.FC = () => {
                     </p>
                 </div>
              </div>
-
              <div className="bg-gray-900 rounded-xl p-6 font-mono text-sm text-green-400 h-64 overflow-y-auto mb-6">
                  {migrationLogs.length === 0 ? (
                      <span className="text-gray-500">// Logs de migração aparecerão aqui...</span>
@@ -587,7 +651,6 @@ const AdminDashboard: React.FC = () => {
                      migrationLogs.map((log, i) => <div key={i}>{log}</div>)
                  )}
              </div>
-
              <button 
                 onClick={runMigration}
                 disabled={isMigrating}
@@ -612,11 +675,9 @@ const AdminDashboard: React.FC = () => {
                         <p className="text-sm text-gray-500">Esta ação é irreversível.</p>
                     </div>
                 </div>
-                
                 <p className="text-gray-600 mb-6 text-sm leading-relaxed">
                     Você está prestes a excluir permanentemente a conta de <strong>{userToDelete.name}</strong> e todos os dados associados.
                 </p>
-
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
                         Digite <span className="text-gray-900">DELETAR</span> para confirmar:
@@ -629,7 +690,6 @@ const AdminDashboard: React.FC = () => {
                         placeholder="DELETAR"
                     />
                 </div>
-
                 <div className="flex gap-3">
                     <button 
                         onClick={() => setUserToDelete(null)} 
