@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe } from 'lucide-react';
+import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus } from 'lucide-react';
 import AuthModal from './AuthModal';
 
 const Layout: React.FC = () => {
@@ -14,6 +14,21 @@ const Layout: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
+  // Scroll Lock when Menu is Open
+  React.useEffect(() => {
+    if (isMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isMenuOpen]);
+
+  // Close menu on route change
+  React.useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const potentialSlug = pathSegments[0];
   
@@ -82,20 +97,27 @@ const Layout: React.FC = () => {
               <div className="flex items-center">
                 <Link to={`/${currentAgency.slug}`} className="flex items-center gap-3 group">
                   <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover border-2 border-gray-100 group-hover:scale-105 transition-transform" />
-                  <span className="font-bold text-gray-800 group-hover:text-primary-600 transition-colors">{currentAgency.name}</span>
+                  <span className="font-bold text-gray-800 group-hover:text-primary-600 transition-colors truncate max-w-[150px] md:max-w-none">{currentAgency.name}</span>
                 </Link>
               </div>
               <div className="flex items-center gap-4">
-                 <Link to={`/${currentAgency.slug}/client/PROFILE`} className="text-sm font-medium text-gray-600 hover:text-primary-600 hidden md:flex items-center gap-1.5"><User size={14}/> Meu Perfil</Link>
-                 <Link to={`/${currentAgency.slug}/client/BOOKINGS`} className="text-sm font-medium text-gray-600 hover:text-primary-600 hidden md:flex items-center gap-1.5"><ShoppingBag size={14}/> Minhas Viagens</Link>
-                 <button onClick={handleLogout} className="text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors"><LogOut size={14}/> Sair</button>
+                 <div className="hidden md:flex items-center gap-4">
+                    <Link to={`/${currentAgency.slug}/client/PROFILE`} className="text-sm font-medium text-gray-600 hover:text-primary-600 flex items-center gap-1.5"><User size={14}/> Meu Perfil</Link>
+                    <Link to={`/${currentAgency.slug}/client/BOOKINGS`} className="text-sm font-medium text-gray-600 hover:text-primary-600 flex items-center gap-1.5"><ShoppingBag size={14}/> Minhas Viagens</Link>
+                    <button onClick={handleLogout} className="text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors"><LogOut size={14}/> Sair</button>
+                 </div>
+                 <div className="flex items-center md:hidden">
+                    <button onClick={() => setIsMenuOpen(true)} className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100">
+                      <Menu size={24} />
+                    </button>
+                 </div>
               </div>
             </div>
           ) : (
             // Default Header (Global or Public Microsite)
             <div className="flex justify-between h-16">
               <div className="flex items-center">
-                <Link to={homeLink} className="flex-shrink-0 flex items-center group">
+                <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!isAgencyMode ? (
                     <>
                       <Plane className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform" />
@@ -109,7 +131,7 @@ const Layout: React.FC = () => {
                               <img src={currentAgency.logo} alt={currentAgency.name} className="w-10 h-10 rounded-full object-cover mr-3 border border-gray-200"/>
                           )}
                           <div className="flex flex-col">
-                              <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all max-w-[200px]">{currentAgency.name}</span>
+                              <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all max-w-[180px] md:max-w-[200px]">{currentAgency.name}</span>
                               <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
                                 Parceiro Verificado <ShieldCheck size={10} className="ml-1 text-green-500"/>
                               </span>
@@ -151,6 +173,7 @@ const Layout: React.FC = () => {
                 </div>
               </div>
 
+              {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
                 {isAgencyMode && currentAgency && currentAgency.whatsapp && (
                   <a 
@@ -191,19 +214,159 @@ const Layout: React.FC = () => {
                 )}
               </div>
 
+              {/* Mobile Menu Button */}
               <div className="flex items-center md:hidden">
-                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100">
-                  {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                <button 
+                    onClick={() => setIsMenuOpen(true)} 
+                    className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    aria-label="Abrir menu"
+                >
+                  <Menu size={28} />
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu (Off-canvas) */}
         {isMenuOpen && (
-          <div className="md:hidden bg-white border-t border-gray-200 absolute w-full z-50 shadow-lg animate-[fadeIn_0.2s]">
-            {/* Mobile menu content remains largely the same, logic needs to adapt */}
+          <div className="fixed inset-0 z-[100] md:hidden">
+            {/* Overlay Backdrop */}
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-[fadeIn_0.2s]" 
+                onClick={() => setIsMenuOpen(false)}
+            />
+            
+            {/* Menu Panel */}
+            <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl transform transition-transform duration-300 ease-out flex flex-col h-full animate-slideIn">
+                {/* Mobile Header */}
+                <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                         {!isAgencyMode ? (
+                            <>
+                                <Plane className="h-6 w-6 text-primary-600" />
+                                <span className="font-bold text-lg text-gray-900">Menu</span>
+                            </>
+                         ) : currentAgency ? (
+                            <div className="flex items-center gap-2">
+                                <img src={currentAgency.logo} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+                                <span className="font-bold text-gray-900 truncate max-w-[150px]">{currentAgency.name}</span>
+                            </div>
+                         ) : (
+                             <span className="font-bold text-lg text-gray-900">Menu</span>
+                         )}
+                    </div>
+                    <button 
+                        onClick={() => setIsMenuOpen(false)}
+                        className="p-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto py-4 px-2">
+                    <div className="space-y-1 px-2">
+                        {/* Client Microsite Links */}
+                        {isMicrositeClientArea && currentAgency && (
+                            <>
+                                <Link to={`/${currentAgency.slug}`} className="flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <HomeIcon size={20} className="mr-3 text-gray-400"/> Voltar para Home
+                                </Link>
+                                <Link to={`/${currentAgency.slug}/client/PROFILE`} className="flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <User size={20} className="mr-3 text-gray-400"/> Meu Perfil
+                                </Link>
+                                <Link to={`/${currentAgency.slug}/client/BOOKINGS`} className="flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <ShoppingBag size={20} className="mr-3 text-gray-400"/> Minhas Viagens
+                                </Link>
+                            </>
+                        )}
+
+                        {/* Agency Public Links */}
+                        {isAgencyMode && !isMicrositeClientArea && activeSlug && (
+                            <>
+                                <Link to={`/${activeSlug}`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><HomeIcon size={20} className="mr-3 text-gray-400"/> Início</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
+                                </Link>
+                                <Link to={`/${activeSlug}/trips`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
+                                </Link>
+                                {currentAgency?.whatsapp && (
+                                    <a 
+                                        href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer" 
+                                        className="flex items-center justify-between px-4 py-3 rounded-xl text-green-700 bg-green-50 hover:bg-green-100 font-bold mt-2"
+                                    >
+                                        <div className="flex items-center"><Smartphone size={20} className="mr-3 text-green-600"/> WhatsApp</div>
+                                        <ChevronRight size={16} className="text-green-400"/>
+                                    </a>
+                                )}
+                            </>
+                        )}
+
+                        {/* Global Links */}
+                        {!isAgencyMode && (
+                            <>
+                                <Link to="/trips" className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Explorar Viagens</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
+                                </Link>
+                                <Link to="/agencies" className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><ShieldCheck size={20} className="mr-3 text-gray-400"/> Agências</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
+                                </Link>
+                                <Link to="/about" className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><Globe size={20} className="mr-3 text-gray-400"/> Sobre</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
+                                </Link>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer (Auth) */}
+                <div className="p-5 border-t border-gray-100 bg-gray-50">
+                    {user ? (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-3 mb-4 px-2">
+                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold">
+                                    {user.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="overflow-hidden">
+                                    <p className="font-bold text-gray-900 truncate">{user.name}</p>
+                                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <Link to={clientDashboardLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
+                                    Minha Conta
+                                </Link>
+                                {user.role === 'AGENCY' && (
+                                    <Link to="/agency/dashboard" className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700">
+                                        Painel
+                                    </Link>
+                                )}
+                            </div>
+                            <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-bold transition-colors">
+                                <LogOut size={16} className="mr-2"/> Sair
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                            <Link to="#login" className="flex items-center justify-center px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors">
+                                <LogIn size={18} className="mr-2"/> Entrar
+                            </Link>
+                            <Link to="#signup" className="flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">
+                                <UserPlus size={18} className="mr-2"/> Criar Conta
+                            </Link>
+                        </div>
+                    )}
+                </div>
+            </div>
           </div>
         )}
       </nav>
