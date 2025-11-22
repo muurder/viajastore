@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
-import InterestFilterBar from '../components/InterestFilterBar';
-import { MapPin, ArrowRight, Search, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { MapPin, ArrowRight, Building, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trip } from '../types';
 
@@ -31,10 +30,15 @@ const Home: React.FC = () => {
   
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
   const allTrips = getPublicTrips();
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // --- HERO CAROUSEL LOGIC ---
+  // Select a random sample of up to 5 trips from the entire catalog
   const heroTrips = React.useMemo(() => 
     allTrips.sort(() => 0.5 - Math.random()).slice(0, 5), 
   [allTrips]);
@@ -71,7 +75,31 @@ const Home: React.FC = () => {
   const currentHeroTrip = heroTrips[currentSlide];
   // --- END HERO CAROUSEL LOGIC ---
 
-  const toggleInterest = (label: string) => {
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 5);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = scrollRef.current.clientWidth / 2;
+      scrollRef.current.scrollBy({ 
+        left: direction === 'left' ? -scrollAmount : scrollAmount, 
+        behavior: 'smooth' 
+      });
+    }
+  };
+
+  const toggleInterest = (label: string, elementId: string) => {
      if (label === 'Todos') {
          setSelectedInterests([]);
      } else {
@@ -208,14 +236,42 @@ const Home: React.FC = () => {
 
       {/* FILTERS & GRID */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        {/* NEW INTEREST FILTER COMPONENT */}
         <div className="mb-8">
-            <InterestFilterBar 
-                interests={INTEREST_CHIPS}
-                selectedInterests={selectedInterests}
-                onToggle={toggleInterest}
-            />
+           <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2 text-gray-400">
+                 <Filter size={14} />
+                 <span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span>
+              </div>
+           </div>
+           
+           <div className="relative group/scroll">
+             {canScrollLeft && (
+               <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex"><ChevronLeft size={18} /></button>
+             )}
+             <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`}></div>
+             <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none ${canScrollRight ? 'opacity-100' : 'opacity-0'}`}></div>
+             {canScrollRight && (
+               <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex"><ChevronRight size={18} /></button>
+             )}
+             
+             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-2 overflow-x-auto pb-2 pt-1 px-1 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
+                {INTEREST_CHIPS.map(({label, icon: Icon, id}) => {
+                   const isAll = label === 'Todos';
+                   const isActive = isAll ? selectedInterests.length === 0 : selectedInterests.includes(label);
+                   
+                   return (
+                     <button
+                        key={label}
+                        id={id}
+                        onClick={() => toggleInterest(label, id)}
+                        className={`snap-start flex-shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                     >
+                        <Icon size={14} /> {label}
+                     </button>
+                   );
+                })}
+             </div>
+           </div>
         </div>
 
         <div className="mb-8">

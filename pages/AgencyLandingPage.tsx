@@ -2,13 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import InterestFilterBar from '../components/InterestFilterBar';
-import { MapPin, Mail, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Trip } from '../types';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
-  { label: 'Todos', icon: Globe, id: 'chip-all' },
+  { label: 'Todos', id: 'chip-all' },
   { label: 'Praia', icon: Umbrella, id: 'chip-praia' },
   { label: 'Aventura', icon: Mountain, id: 'chip-aventura' },
   { label: 'Natureza', icon: TreePine, id: 'chip-natureza' },
@@ -260,15 +259,23 @@ const AgencyLandingPage: React.FC = () => {
             </div>
         </div>
 
-        {/* NEW INTEREST FILTER COMPONENT */}
-        <div className="mb-8">
-            <InterestFilterBar 
-                interests={INTEREST_CHIPS}
-                selectedInterests={selectedInterests}
-                onToggle={toggleInterest}
-                title="Filtrar por Categoria"
-                subtitle="Escolha o estilo de viagem desta agência"
-            />
+        {/* Filter Chips */}
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-8">
+            {INTEREST_CHIPS.map(({label, icon: Icon}) => {
+                const isSelected = label === 'Todos' ? selectedInterests.length === 0 : selectedInterests.includes(label);
+                return (
+                    <button 
+                        key={label}
+                        onClick={() => toggleInterest(label)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${isSelected ? 'bg-gray-900 text-white border-gray-900 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}
+                    >
+                        {Icon && <Icon size={14} />} {label}
+                    </button>
+                );
+            })}
+            {selectedInterests.length > 0 && (
+                <button onClick={() => setSelectedInterests([])} className="text-red-500 text-sm font-bold hover:underline px-2">Limpar</button>
+            )}
         </div>
 
         {filteredTrips.length > 0 ? (
