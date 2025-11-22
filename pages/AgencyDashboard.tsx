@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, TripCategory, TravelerType } from '../types';
+import { Trip, UserRole, TripCategory } from '../types';
 import { 
   LayoutDashboard, Map, Calendar, Settings, Plus, Image as ImageIcon, 
-  Trash2, Edit, Save, X, DollarSign, Users, MapPin, 
-  CheckCircle, AlertCircle, Clock, ChevronRight, Upload, 
-  Search, ExternalLink, BarChart, Smartphone, Globe, Loader, Link as LinkIcon
+  Trash2, Edit, Save, X, DollarSign, Upload, 
+  ExternalLink, BarChart, Smartphone, Globe, Loader, Link as LinkIcon,
+  MapPin, Clock, Users
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { slugify } from '../utils/slugify';
 
 const INITIAL_TRIP: Partial<Trip> = {
@@ -39,23 +39,35 @@ const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
   const { 
       getAgencyTrips, bookings, createTrip, updateTrip, deleteTrip, 
-      getAgencyStats, refreshData 
+      getAgencyStats
   } = useData();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRIPS' | 'BOOKINGS' | 'SETTINGS'>('OVERVIEW');
+  // --- STATE MANAGEMENT VIA URL (FIXES BUG) ---
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Trip Editor State
-  const [isEditing, setIsEditing] = useState(false);
+  // Tabs: OVERVIEW, TRIPS, BOOKINGS, SETTINGS
+  const activeTab = (searchParams.get('tab') || 'OVERVIEW') as 'OVERVIEW' | 'TRIPS' | 'BOOKINGS' | 'SETTINGS';
+  
+  // Action Mode: 'new' | 'edit' | null
+  const action = searchParams.get('action');
+  const editId = searchParams.get('id');
+  const isEditing = !!action;
+
+  // Form State
   const [tripForm, setTripForm] = useState<Partial<Trip>>(INITIAL_TRIP);
   const [saving, setSaving] = useState(false);
   const [imageUrlInput, setImageUrlInput] = useState('');
+  const formInitializedRef = useRef(false);
 
   // Agency Settings State
   const [agencyForm, setAgencyForm] = useState<any>({});
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
+  // --- EFFECTS ---
+
+  // 1. Load Agency Settings
   useEffect(() => {
     if (user?.role === UserRole.AGENCY) {
         setAgencyForm({
@@ -73,38 +85,91 @@ const AgencyDashboard: React.FC = () => {
     }
   }, [user]);
 
+  // 2. Handle Trip Form Initialization & Persistance
+  useEffect(() => {
+    const myTrips = getAgencyTrips(user?.id || '');
+    
+    if (action === 'edit' && editId) {
+        // Load existing trip
+        if (!formInitializedRef.current || tripForm.id !== editId) {
+            const tripToEdit = myTrips.find(t => t.id === editId);
+            if (tripToEdit) {
+                setTripForm({
+                    ...tripToEdit,
+                    startDate: tripToEdit.startDate ? tripToEdit.startDate.split('T')[0] : '',
+                    endDate: tripToEdit.endDate ? tripToEdit.endDate.split('T')[0] : '',
+                });
+                formInitializedRef.current = true;
+            }
+        }
+    } else if (action === 'new') {
+        // Try load draft from localStorage or init default
+        if (!formInitializedRef.current) {
+            const savedDraft = localStorage.getItem('trip_draft');
+            if (savedDraft) {
+                try {
+                    setTripForm(JSON.parse(savedDraft));
+                } catch (e) {
+                    setTripForm({ ...INITIAL_TRIP, agencyId: user?.id });
+                }
+            } else {
+                setTripForm({ ...INITIAL_TRIP, agencyId: user?.id });
+            }
+            formInitializedRef.current = true;
+        }
+    } else {
+        // Reset init flag when leaving edit mode
+        formInitializedRef.current = false;
+    }
+  }, [action, editId, user, getAgencyTrips]);
+
+  // 3. Save Draft to LocalStorage (Auto-save)
+  useEffect(() => {
+      if (action === 'new') {
+          localStorage.setItem('trip_draft', JSON.stringify(tripForm));
+      }
+  }, [tripForm, action]);
+
   if (!user || user.role !== UserRole.AGENCY) {
       return <div className="p-8 text-center">Acesso restrito a agências.</div>;
   }
 
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
-  
-  // Filter bookings for this agency
   const myBookings = bookings.filter(b => myTrips.some(t => t.id === b.tripId));
 
+  // --- HANDLERS ---
+
+  const navigateTo = (tab: string, act?: string, id?: string) => {
+      const params: any = { tab };
+      if (act) params.action = act;
+      if (id) params.id = id;
+      setSearchParams(params);
+      
+      // Clear draft if leaving new mode
+      if (action === 'new' && act !== 'new') {
+          localStorage.removeItem('trip_draft');
+          setTripForm(INITIAL_TRIP);
+      }
+  };
+
   const handleEditTrip = (trip: Trip) => {
-      setTripForm({
-          ...trip,
-          startDate: trip.startDate ? trip.startDate.split('T')[0] : '',
-          endDate: trip.endDate ? trip.endDate.split('T')[0] : '',
-      });
-      setIsEditing(true);
+      navigateTo('TRIPS', 'edit', trip.id);
   };
 
   const handleCreateTrip = () => {
-      setTripForm({
-          ...INITIAL_TRIP,
-          agencyId: user.id
-      });
-      setIsEditing(true);
+      setTripForm({ ...INITIAL_TRIP, agencyId: user.id });
+      navigateTo('TRIPS', 'new');
+  };
+
+  const handleCancelEdit = () => {
+      navigateTo('TRIPS');
   };
 
   const handleSaveTrip = async (e: React.FormEvent) => {
       e.preventDefault();
       setSaving(true);
       try {
-          // Format dates to ISO
           const finalTrip = {
              ...tripForm,
              startDate: tripForm.startDate ? new Date(tripForm.startDate).toISOString() : new Date().toISOString(),
@@ -116,10 +181,12 @@ const AgencyDashboard: React.FC = () => {
               await updateTrip(finalTrip);
               showToast('Viagem atualizada com sucesso!', 'success');
           } else {
-              await createTrip({ ...finalTrip, id: `t_${Date.now()}` }); // Mock ID gen if undefined
+              await createTrip({ ...finalTrip, id: `t_${Date.now()}` });
               showToast('Viagem criada com sucesso!', 'success');
           }
-          setIsEditing(false);
+          
+          localStorage.removeItem('trip_draft'); // Clear draft
+          navigateTo('TRIPS'); // Go back to list
       } catch (error) {
           showToast('Erro ao salvar viagem.', 'error');
       } finally {
@@ -164,7 +231,6 @@ const AgencyDashboard: React.FC = () => {
       if (url) {
           if (type === 'logo') {
               setAgencyForm((prev: any) => ({ ...prev, logo: url }));
-              // Auto save logo update
               await updateUser({ logo: url });
           } else {
               setAgencyForm((prev: any) => ({ ...prev, heroBannerUrl: url }));
@@ -178,14 +244,14 @@ const AgencyDashboard: React.FC = () => {
 
   if (isEditing) {
       return (
-          <div className="max-w-4xl mx-auto py-8 px-4">
-              <button onClick={() => setIsEditing(false)} className="flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors">
+          <div className="max-w-4xl mx-auto py-8 px-4 animate-[fadeIn_0.3s]">
+              <button onClick={handleCancelEdit} className="flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors">
                   <X className="mr-2" size={20}/> Cancelar Edição
               </button>
               
               <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                   <div className="bg-gray-50 px-8 py-6 border-b border-gray-100 flex justify-between items-center">
-                      <h2 className="text-xl font-bold text-gray-900">{tripForm.id ? 'Editar Viagem' : 'Nova Viagem'}</h2>
+                      <h2 className="text-xl font-bold text-gray-900">{action === 'edit' ? 'Editar Viagem' : 'Nova Viagem'}</h2>
                       <button onClick={handleSaveTrip} disabled={saving} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50">
                           {saving ? <Loader className="animate-spin" size={18}/> : <Save size={18}/>} Salvar
                       </button>
@@ -242,7 +308,7 @@ const AgencyDashboard: React.FC = () => {
                           </div>
                       </section>
                       
-                      {/* Dates Logic (Restored from snippet) */}
+                      {/* Dates Logic */}
                       <section className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-6">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -428,14 +494,13 @@ const AgencyDashboard: React.FC = () => {
               ].map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => navigateTo(tab.id)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === tab.id ? 'bg-white text-primary-600 shadow-md border border-primary-100' : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}
                   >
                       <div className="flex items-center gap-3">
                           <tab.icon size={18} className={activeTab === tab.id ? 'text-primary-600' : 'text-gray-400'}/>
                           {tab.label}
                       </div>
-                      {activeTab === tab.id && <ChevronRight size={16}/>}
                   </button>
               ))}
           </aside>
