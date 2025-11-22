@@ -74,7 +74,7 @@ const AgencyLandingPage: React.FC = () => {
      if (agency.heroMode === 'TRIPS' && heroTrips.length > 1) {
          timerRef.current = window.setInterval(() => {
              setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-         }, 5000);
+         }, 7000); // Increased interval
      }
      return () => {
          if (timerRef.current) clearInterval(timerRef.current);
@@ -99,7 +99,7 @@ const AgencyLandingPage: React.FC = () => {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = window.setInterval(() => {
           setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-      }, 5000);
+      }, 7000); // Increased interval
   };
   
   // Filtering Logic
@@ -140,7 +140,8 @@ const AgencyLandingPage: React.FC = () => {
   const handleContact = () => {
       if (agency.whatsapp) {
           const num = agency.whatsapp.replace(/\D/g, '');
-          window.open(`https://wa.me/${num}?text=Olá, vi seu site na ViajaStore e gostaria de saber mais sobre os pacotes.`, '_blank');
+          const message = encodeURIComponent('Olá, vi seu site na ViajaStore e gostaria de saber mais sobre os pacotes.');
+          window.open(`https://wa.me/${num}?text=${message}`, '_blank');
       } else if (agency.email) {
           window.location.href = `mailto:${agency.email}`;
       } else {
