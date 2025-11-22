@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -39,7 +38,11 @@ const Home: React.FC = () => {
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
   // --- HERO CAROUSEL LOGIC ---
-  const heroTrips = allTrips.filter(trip => trip.featuredInHero).slice(0, 5);
+  // Select a random sample of up to 5 trips from the entire catalog
+  const heroTrips = React.useMemo(() => 
+    allTrips.sort(() => 0.5 - Math.random()).slice(0, 5), 
+  [allTrips]);
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const timerRef = useRef<number | null>(null);
 
