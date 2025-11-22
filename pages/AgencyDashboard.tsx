@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
@@ -464,13 +465,17 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, trips } = useData();
   const { showToast } = useToast();
   
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS'>('OVERVIEW');
+  // URL STATE MANAGEMENT - SOURCE OF TRUTH
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  const activeTab = (searchParams.get('tab') as 'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS') || 'OVERVIEW';
+  const viewMode = (searchParams.get('view') as 'LIST' | 'FORM') || 'LIST';
+  const editingTripId = searchParams.get('editId');
+
   const [settingsSection, setSettingsSection] = useState<'PROFILE' | 'PAGE'>('PROFILE');
-  const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
-  const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tripSearch, setTripSearch] = useState('');
   
@@ -488,18 +493,66 @@ const AgencyDashboard: React.FC = () => {
   // Custom Settings from Agency
   const customSettings = myAgency?.customSettings || { tags: [], included: [], notIncluded: [], paymentMethods: [] };
 
+  // Sync Agency Form
   useEffect(() => {
       if(myAgency) {
           setAgencyForm({ 
               ...myAgency, 
               heroMode: myAgency.heroMode || 'TRIPS' 
           });
-          if (myAgency.subscriptionStatus !== 'ACTIVE') setActiveTab('SUBSCRIPTION');
+          if (myAgency.subscriptionStatus !== 'ACTIVE' && activeTab !== 'SUBSCRIPTION') {
+             // Optional: Redirect to Subscription if inactive
+             // setSearchParams({ tab: 'SUBSCRIPTION' });
+          }
       }
   }, [myAgency]);
 
-  if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
+  // --- PERSISTENCE LOGIC FOR NEW PACKAGE DRAFT ---
+  // Load draft or existing trip on mode change
+  useEffect(() => {
+    if (viewMode === 'FORM') {
+        if (editingTripId) {
+            // Edit Mode: Load Trip
+            const tripToEdit = trips.find(t => t.id === editingTripId);
+            if (tripToEdit) {
+                setTripForm({
+                    ...defaultTripForm,
+                    ...tripToEdit,
+                    startDate: tripToEdit.startDate?.split('T')[0] || defaultTripForm.startDate,
+                    endDate: tripToEdit.endDate?.split('T')[0] || defaultTripForm.endDate
+                });
+                setSlugTouched(true);
+            }
+        } else {
+            // Create Mode: Try load draft from LocalStorage
+            const savedDraft = localStorage.getItem('trip_draft');
+            if (savedDraft) {
+                try {
+                    setTripForm(JSON.parse(savedDraft));
+                } catch (e) {
+                    setTripForm(defaultTripForm);
+                }
+            } else {
+                setTripForm(defaultTripForm);
+            }
+            setSlugTouched(false);
+        }
+    }
+  }, [viewMode, editingTripId, trips]);
 
+  // Save draft to LocalStorage when changing form in Create Mode
+  useEffect(() => {
+      if (viewMode === 'FORM' && !editingTripId) {
+          const timeout = setTimeout(() => {
+            localStorage.setItem('trip_draft', JSON.stringify(tripForm));
+          }, 500); // Debounce save
+          return () => clearTimeout(timeout);
+      }
+  }, [tripForm, viewMode, editingTripId]);
+
+  // Clear draft on successful submit (handled in handleSubmit)
+
+  if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
   if (!myAgency) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin text-primary-600" /></div>;
 
   const isActive = myAgency.subscriptionStatus === 'ACTIVE';
@@ -512,25 +565,34 @@ const AgencyDashboard: React.FC = () => {
   const cleanSlug = rawSlug.replace(/[^a-z0-9-]/gi, '');
   const fullAgencyLink = cleanSlug ? `${window.location.origin}/#/${cleanSlug}` : '';
 
+  // --- NAVIGATION HANDLERS ---
+  const updateParams = (newParams: Record<string, string | null>) => {
+      setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          Object.entries(newParams).forEach(([key, val]) => {
+              if (val === null) next.delete(key);
+              else next.set(key, val);
+          });
+          return next;
+      });
+  };
+
+  const handleTabChange = (tab: string) => {
+      updateParams({ tab, view: null, editId: null });
+  };
+
   const handleOpenCreate = () => {
-    setEditingTripId(null);
-    setTripForm(defaultTripForm);
-    setSlugTouched(false);
-    setViewMode('FORM');
+    updateParams({ view: 'FORM', editId: null });
   };
 
   const handleOpenEdit = (trip: Trip) => {
-    setEditingTripId(trip.id);
-    setTripForm({ 
-        ...defaultTripForm, // Ensure all fields are present
-        ...trip,
-        startDate: trip.startDate?.split('T')[0] || defaultTripForm.startDate,
-        endDate: trip.endDate?.split('T')[0] || defaultTripForm.endDate
-    });
-    setSlugTouched(true); 
-    setViewMode('FORM');
+    updateParams({ view: 'FORM', editId: trip.id });
   };
   
+  const handleBackToList = () => {
+      updateParams({ view: 'LIST', editId: null });
+  };
+
   const handleDuplicateTrip = async (trip: Trip) => {
       if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return;
       const { id, ...rest } = trip;
@@ -589,8 +651,10 @@ const AgencyDashboard: React.FC = () => {
         } else {
             await createTrip({ ...tripData, active: true } as Trip);
             showToast('Viagem criada!', 'success');
+            // Clear draft on success
+            localStorage.removeItem('trip_draft');
         }
-        setViewMode('LIST');
+        handleBackToList();
     } catch (err: any) { 
         showToast('Erro ao salvar: ' + (err.message || err), 'error');
     } finally {
@@ -645,7 +709,7 @@ const AgencyDashboard: React.FC = () => {
           await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan);
           showToast('Assinatura ativada!', 'success');
           setShowPayment(false);
-          setActiveTab('OVERVIEW');
+          handleTabChange('OVERVIEW');
       }
   };
 
@@ -654,9 +718,9 @@ const AgencyDashboard: React.FC = () => {
      setAgencyForm({...agencyForm, slug: sanitized});
   };
 
-  const NavButton: React.FC<{tabId: any, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => (
+  const NavButton: React.FC<{tabId: string, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => (
     <button 
-      onClick={() => setActiveTab(tabId)} 
+      onClick={() => handleTabChange(tabId)} 
       className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
     >
       <Icon size={16} />
@@ -747,7 +811,7 @@ const AgencyDashboard: React.FC = () => {
                                  <span className="font-bold block">Criar Novo Pacote</span>
                                  <span className="text-xs text-gray-500">Adicione uma nova viagem ao catálogo.</span>
                              </button>
-                             <button onClick={() => { setActiveTab('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
+                             <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
                                  <div className="bg-gray-100 text-gray-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Settings size={20}/></div>
                                  <span className="font-bold block">Editar Perfil</span>
                                  <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
@@ -758,7 +822,7 @@ const AgencyDashboard: React.FC = () => {
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold mb-2">Dica do Dia</h3>
                             <p className="text-primary-100 text-sm mb-4 leading-relaxed">Pacotes com mais de 5 fotos de alta qualidade têm 40% mais chances de venda. Capriche na galeria!</p>
-                            <button onClick={() => setActiveTab('TRIPS')} className="bg-white text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-50 transition-colors">Gerenciar Fotos</button>
+                            <button onClick={() => handleTabChange('TRIPS')} className="bg-white text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-50 transition-colors">Gerenciar Fotos</button>
                         </div>
                         <div className="absolute -right-6 -bottom-6 text-primary-700 opacity-50">
                             <Star size={120} />
@@ -966,7 +1030,7 @@ const AgencyDashboard: React.FC = () => {
         /* --- EDIT MODE (TRIP FORM) --- */
          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
-                 <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
+                 <button onClick={handleBackToList} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
                  <div className="flex gap-3">
                      <button type="button" onClick={() => setShowPreview(true)} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-50 transition-colors">
                         <Eye size={18} className="mr-2"/> Prévia
