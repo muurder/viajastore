@@ -60,7 +60,7 @@ const Layout: React.FC = () => {
   };
 
   const homeLink = isAgencyMode && activeSlug ? `/${activeSlug}` : '/';
-  const clientDashboardLink = isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard';
+  const clientDashboardLink = isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE';
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">

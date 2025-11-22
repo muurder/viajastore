@@ -53,7 +53,7 @@ const App: React.FC = () => {
                   {/* Protected Routes */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
-                  <Route path="client/dashboard" element={<ClientDashboard />} />
+                  <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 
                   {/* --- AGENCY MODE ROUTES --- */}
                   {/* Captura /:agencySlug e suas sub-rotas */}
