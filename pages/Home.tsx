@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import TripCard from '../components/TripCard';
+import TripCard, { TripCardSkeleton } from '../components/TripCard';
 import { MapPin, ArrowRight, Building, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trip } from '../types';
@@ -185,7 +185,7 @@ const Home: React.FC = () => {
               <div className="animate-[fadeIn_0.3s]">
                   <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
-                    <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{displayedTrips.length}</span>
+                    {!loading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{displayedTrips.length}</span>}
                   </h2>
               </div>
               {selectedInterests.length > 0 && (
@@ -197,7 +197,7 @@ const Home: React.FC = () => {
             
             {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3].map((n) => <div key={n} className="h-80 bg-gray-200 rounded-2xl animate-pulse"></div>)}
+                    {[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}
                 </div>
             ) : displayedTrips.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">

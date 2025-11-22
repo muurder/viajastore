@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import TripCard from '../components/TripCard';
+import TripCard, { TripCardSkeleton } from '../components/TripCard';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader } from 'lucide-react';
 
@@ -189,8 +189,12 @@ const TripList: React.FC = () => {
       setSearchParams({});
   };
 
-  if (isResolvingAgency) {
-      return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin w-10 h-10 text-primary-600" /></div>;
+  if (isResolvingAgency || loading && !initialTrips.length) {
+      return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
+          </div>
+      );
   }
 
   if (isAgencyNotFound) {
@@ -411,24 +415,30 @@ const TripList: React.FC = () => {
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTrips.map(trip => (
-              <TripCard key={trip.id} trip={trip} />
-            ))}
-          </div>
-
-          {filteredTrips.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
-              <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Search className="text-gray-300" size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
-              <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">
-                Limpar todos os filtros
-              </button>
+          
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
             </div>
+          ) : (
+            filteredTrips.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredTrips.map(trip => (
+                        <TripCard key={trip.id} trip={trip} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                  <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Search className="text-gray-300" size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
+                  <p className="text-gray-500 mb-6 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
+                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">
+                    Limpar todos os filtros
+                  </button>
+                </div>
+            )
           )}
         </div>
       </div>

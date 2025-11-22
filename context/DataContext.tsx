@@ -42,7 +42,7 @@ interface DataContextType {
   getPublicTrips: () => Trip[]; 
   getAgencyPublicTrips: (agencyId: string) => Trip[];
   getAgencyTrips: (agencyId: string) => Trip[]; 
-  getTripById: (id: string) => Trip | undefined;
+  getTripById: (id: string | undefined) => Trip | undefined;
   getTripBySlug: (slug: string) => Trip | undefined; 
   getAgencyBySlug: (slug: string) => Agency | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
@@ -102,8 +102,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             active: t.active,
-            rating: 5.0, 
-            totalReviews: 0, 
+            rating: t.avg_rating || 5.0, 
+            totalReviews: t.reviews_count || 0, 
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -403,7 +403,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error adding review:', error);
     }
-    await refreshData();
+    // No need to call refreshData, the trigger will update trips and realtime will update UI.
+    // However, to see the new review in the list immediately, we still need to fetch it.
+    await fetchReviews();
   };
 
   const deleteReview = async (reviewId: string) => {
@@ -411,7 +413,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error deleting review:', error);
     }
-    await refreshData();
+    await fetchReviews();
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
@@ -589,7 +591,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getPublicTrips = () => trips.filter(t => t.active);
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
-  const getTripById = (id: string) => trips.find(t => t.id === id);
+  const getTripById = (id: string | undefined) => id ? trips.find(t => t.id === id) : undefined;
   const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); 
   
   // Case-insensitive slug search for agencies
