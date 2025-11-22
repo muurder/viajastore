@@ -1,7 +1,6 @@
 
-
 import React from 'react';
-import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch, useParams } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe } from 'lucide-react';
@@ -14,47 +13,52 @@ const Layout: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
-  // Use useParams to get the slug from any route, more reliable
-  const params = useParams<{ agencySlug?: string }>();
-  const agencySlugFromURL = params.agencySlug;
-
-  const reservedGlobalRoutes = [
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const potentialSlug = pathSegments[0];
+  
+  const reservedRoutes = [
     'trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'terms', 
     'privacy', 'help', 'blog', 'careers', 'press', 'checkout', 'unauthorized', 
     'forgot-password', 'login', 'signup', 'admin', 'client'
   ];
   
-  // An agency microsite is active if there is a slug in the URL that is not a reserved global route.
-  const isAgencyMode = agencySlugFromURL ? !reservedGlobalRoutes.includes(agencySlugFromURL) : false;
+  const isReserved = reservedRoutes.includes(potentialSlug);
+  let isAgencyMode = !isReserved && !!potentialSlug;
 
   const fromParam = searchParams.get('from');
   const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(location.pathname);
   
-  // Check if the auth page was accessed from a valid microsite link
-  const cameFromMicrosite = fromParam && fromParam.startsWith('/') && !reservedGlobalRoutes.includes(fromParam.split('/')[1]);
+  const cameFromMicrosite = fromParam && !reservedRoutes.includes(fromParam.split('/').filter(Boolean)[0] || '');
 
   // New logic for isolated views
   const matchMicrositeClient = useMatch('/:agencySlug/client/:tab?');
   const isMicrositeClientArea = !!matchMicrositeClient;
   
-  // If we are on an auth page AND we came from a microsite, render a minimal layout.
+  if (isMicrositeClientArea) {
+      isAgencyMode = true; // Force agency mode for client dashboard context
+  }
+
   const isIsolatedAuth = isAuthPage && cameFromMicrosite;
 
   if (isIsolatedAuth) {
-    return (
-      <div className="bg-gray-50">
-        <Outlet />
-      </div>
-    );
+    return <Outlet />; // Auth pages will handle their own minimal layout
   }
 
-  const activeSlug = isAgencyMode ? agencySlugFromURL : null;
+  let preservedAgencySlug = null;
+  if (isAuthPage && cameFromMicrosite) {
+      const fromSegments = fromParam!.split('/').filter(Boolean);
+      const fromSlug = fromSegments[0];
+      if (fromSlug && !reservedRoutes.includes(fromSlug)) {
+          preservedAgencySlug = fromSlug;
+      }
+  }
+
+  const activeSlug = matchMicrositeClient?.params.agencySlug || preservedAgencySlug || (isAgencyMode ? potentialSlug : null);
   const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
   
   const handleLogout = async () => {
     await logout();
-    // After logout, stay on the current agency's page if applicable.
-    if (activeSlug) {
+    if (isAgencyMode && activeSlug) {
         navigate(`/${activeSlug}`);
     } else {
         navigate('/');
@@ -68,12 +72,15 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  const homeLink = activeSlug ? `/${activeSlug}` : '/';
-  const clientDashboardLink = activeSlug ? `/${activeSlug}/client/PROFILE` : '/'; // Fallback to home, global dashboard is disabled
+  const homeLink = isAgencyMode && activeSlug ? `/${activeSlug}` : '/';
+  const clientDashboardLink = isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard';
 
   const getAuthLink = (path: string) => {
-      // Preserve the microsite context when navigating to login/signup
-      const finalFrom = activeSlug ? `/${activeSlug}` : '/';
+      let currentPath = location.pathname;
+      if (location.search) currentPath += location.search;
+      if (location.hash) currentPath += location.hash;
+      
+      const finalFrom = fromParam || (isAgencyMode ? location.pathname : '/');
       return `${path}?from=${encodeURIComponent(finalFrom)}`;
   };
 
@@ -83,7 +90,7 @@ const Layout: React.FC = () => {
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {isMicrositeClientArea && currentAgency ? (
-             // --- Microsite Client Dashboard Header (ISOLATED) ---
+             // Microsite Client Dashboard Header
             <div className="flex justify-between h-16">
               <div className="flex items-center">
                 <Link to={`/${currentAgency.slug}`} className="flex items-center gap-3 group">
@@ -98,7 +105,7 @@ const Layout: React.FC = () => {
               </div>
             </div>
           ) : (
-            // --- Default Header (Global or Public Microsite) ---
+            // Default Header (Global or Public Microsite)
             <div className="flex justify-between h-16">
               <div className="flex items-center">
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group">
@@ -158,16 +165,15 @@ const Layout: React.FC = () => {
               </div>
 
               <div className="hidden md:flex items-center">
-                {/* FIX: Replaced all instances of undefined 'agency' variable with 'currentAgency'. */}
-                {isAgencyMode && currentAgency && (currentAgency.whatsapp || currentAgency.email) && (
-                   <a 
-                     href={currentAgency.whatsapp ? `https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.` : `mailto:${currentAgency.email}`}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
-                   >
-                     {currentAgency.whatsapp ? <><Smartphone size={16} className="mr-2"/> WhatsApp</> : <><Mail size={16} className="mr-2"/> Fale Conosco</>}
-                   </a>
+                {isAgencyMode && currentAgency && currentAgency.whatsapp && (
+                  <a 
+                    href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
+                  >
+                    <Smartphone size={16} className="mr-2"/> WhatsApp
+                  </a>
                 )}
 
                 {user ? (
@@ -179,27 +185,16 @@ const Layout: React.FC = () => {
                       <Link to="/admin/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Admin</Link>
                     )}
                     
-                    {/* User Menu */}
                     <div className="relative flex items-center gap-3 bg-gray-50 py-1 px-3 rounded-full border border-gray-100">
-                      {user.role === 'CLIENT' && activeSlug && (
-                          <Link to={clientDashboardLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
-                              <User size={16} className="mr-2" />
-                              <span className="max-w-[100px] truncate">{user.name}</span>
-                          </Link>
-                      )}
-                      {(user.role !== 'CLIENT' || !activeSlug) && (
-                         <div className="flex items-center text-sm font-medium text-gray-700">
-                             <User size={16} className="mr-2" />
-                             <span className="max-w-[100px] truncate">{user.name}</span>
-                         </div>
-                      )}
-                      
+                      <Link to={clientDashboardLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
+                        <User size={16} className="mr-2" />
+                        <span className="max-w-[100px] truncate">{user.name}</span>
+                      </Link>
                       <div className="h-4 w-px bg-gray-300 mx-1"></div>
                       <button onClick={handleLogout} className="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors" title="Sair">
                         <LogOut size={16} className="mr-1" /> Sair
                       </button>
                     </div>
-
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
@@ -234,14 +229,14 @@ const Layout: React.FC = () => {
       {/* Footer */}
       <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
          {isMicrositeClientArea ? (
-            // --- Microsite Client Dashboard Footer (ISOLATED) ---
+            // Microsite Client Dashboard Footer
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                <Link to="/" className="inline-flex items-center gap-2 text-xs text-gray-500 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
                   <Globe size={12}/> Voltar para o Marketplace ViajaStore
                </Link>
             </div>
          ) : (
-            // --- Default Footer (Global or Public Microsite) ---
+            // Default Footer (Global or Public Microsite)
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                 <div className="col-span-1 md:col-span-1">

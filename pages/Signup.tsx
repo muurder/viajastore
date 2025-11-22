@@ -1,21 +1,20 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { UserRole, Agency } from '../types';
-import { User, Building, AlertCircle, ArrowRight, ArrowLeft, Plane } from 'lucide-react';
+import { User, Building, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 const Signup: React.FC = () => {
   const { register, loginWithGoogle } = useAuth();
-  const { getAgencyBySlug, loading: dataLoading } = useData();
+  const { getAgencyBySlug } = useData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [agency, setAgency] = useState<Agency | undefined>(undefined);
   
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', confirmPassword: '',
@@ -25,24 +24,21 @@ const Signup: React.FC = () => {
   const fromParam = searchParams.get('from');
   const redirectTo = fromParam || '/';
 
-  const agencySlug = React.useMemo(() => {
-    if (!fromParam || fromParam === '/') return null;
-    const segments = fromParam.split('/').filter(Boolean);
-    if (segments.length > 0) {
-        const potentialSlug = segments[0];
-        const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
-        if (!reservedRoutes.includes(potentialSlug)) {
-            return potentialSlug;
-        }
-    }
-    return null;
-  }, [fromParam]);
-
-  useEffect(() => {
-    if (agencySlug && !dataLoading) {
-      setAgency(getAgencyBySlug(agencySlug));
-    }
-  }, [agencySlug, dataLoading, getAgencyBySlug]);
+  let agency: Agency | undefined;
+  let agencySlug: string | null = null;
+  if (fromParam) {
+      const segments = fromParam.split('/').filter(Boolean);
+      if (segments.length > 0) {
+          const potentialSlug = segments[0];
+          const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
+          if (!reservedRoutes.includes(potentialSlug)) {
+               agency = getAgencyBySlug(potentialSlug);
+               if (agency) {
+                   agencySlug = potentialSlug;
+               }
+          }
+      }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -99,33 +95,19 @@ const Signup: React.FC = () => {
       await loginWithGoogle(redirectTo);
   };
 
-  const MicrositeHeader = () => (
-    <div className="absolute top-0 left-0 right-0 p-6">
-        <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group gap-2 text-center">
-            <img src={agency!.logo} alt={agency!.name} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
-            <div>
-                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Voltar para</span>
-                <span className="block font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency!.name}</span>
-            </div>
-        </Link>
-    </div>
-  );
-
-  const GlobalHeader = () => (
-     <div className="absolute top-0 left-0 right-0 p-6">
-        <Link to="/" className="flex items-center group gap-2">
-            <Plane className="h-8 w-8 text-primary-600 group-hover:rotate-12 transition-transform" />
-            <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
-        </Link>
-     </div>
-  );
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
-      
-      {agencySlug ? (agency && <MicrositeHeader />) : <GlobalHeader />}
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {agency && agencySlug && (
+        <div className="mb-6 text-center">
+            <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group">
+                <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover mb-2 border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
+                <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Cadastro em</span>
+                <span className="font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency.name}</span>
+            </Link>
+        </div>
+      )}
 
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-gray-100 mt-28">
+      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-gray-900">Crie sua conta</h2>
           <p className="mt-2 text-sm text-gray-600">
@@ -230,6 +212,15 @@ const Signup: React.FC = () => {
             <Link to={`/login${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">Fazer Login</Link>
         </div>
       </div>
+      
+      {agencySlug && (
+         <div className="mt-8">
+            <Link to={`/${agencySlug}`} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-2">
+                <ArrowLeft size={14} /> Voltar para a página da agência
+            </Link>
+         </div>
+      )}
+
     </div>
   );
 };

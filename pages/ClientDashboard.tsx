@@ -5,28 +5,21 @@ import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader } from 'lucide-react';
-import { useNavigate, useParams, Link, Navigate } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
-  const { bookings, getTripById, clients, getAgencyBySlug } = useData();
+  const { bookings, getTripById, clients } = useData();
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const navigate = useNavigate();
 
   const { agencySlug, tab } = useParams<{ agencySlug?: string; tab?: string }>();
-  
-  // CRITICAL FIX: This component is now microsite-only. 
-  // If no slug is present, it's an invalid route that could be an escape point.
-  // We redirect to a safe global page.
-  if (!agencySlug) {
-    return <Navigate to="/agencies" replace />;
-  }
-
-  const currentAgency = getAgencyBySlug(agencySlug);
   const activeTab = tab ? tab.toUpperCase() : 'PROFILE';
   
+  const isMicrositeMode = !!agencySlug;
+
   const dataContextClient = clients.find(c => c.id === user?.id);
   const currentClient = dataContextClient || (user as any);
 
@@ -53,13 +46,8 @@ const ClientDashboard: React.FC = () => {
   });
 
   if (!user || user.role !== UserRole.CLIENT) {
-    // This will redirect to the microsite's unauthorized page, which is correct.
-    navigate(`/${agencySlug}/unauthorized`);
+    navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized');
     return null;
-  }
-  
-  if (!currentAgency) {
-      return <div className="flex items-center justify-center p-10"><Loader className="animate-spin" /> Carregando agência...</div>
   }
 
   const myBookings = bookings.filter(b => b.clientId === user.id);
@@ -69,7 +57,7 @@ const ClientDashboard: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate(`/${agencySlug}`);
+    navigate(isMicrositeMode ? `/${agencySlug}` : '/');
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,11 +136,13 @@ const ClientDashboard: React.FC = () => {
       }
   };
   
-  const getNavLink = (tab: string) => `/${agencySlug}/client/${tab.toUpperCase()}`;
-  const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab.toUpperCase() ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
+  const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard`; // Global dashboard is monolithic for now.
+  const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
 
   return (
     <div className="max-w-6xl mx-auto py-6">
+      {!isMicrositeMode && <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
         <div className="lg:col-span-1">

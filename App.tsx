@@ -59,7 +59,8 @@ const App: React.FC = () => {
                   {/* Protected Routes */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
-                  
+                  <Route path="client/dashboard" element={<ClientDashboard />} />
+
                   {/* --- AGENCY MODE ROUTES --- */}
                   {/* Captura /:agencySlug e suas sub-rotas */}
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
@@ -67,7 +68,7 @@ const App: React.FC = () => {
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
                   <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
                   
-                  {/* Microsite Client Dashboard (replaces global /client/dashboard) */}
+                  {/* Microsite Client Dashboard */}
                   <Route path=":agencySlug/client/:tab?" element={<ClientDashboard />} />
 
 
