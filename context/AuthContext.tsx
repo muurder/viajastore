@@ -162,11 +162,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async () => {
-    // By removing the `redirectTo` option, we rely on the Supabase Dashboard configuration,
-    // which is the most robust way to handle OAuth redirects.
-    // Make sure your Site URL is set correctly in Supabase Auth settings.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
     });
     if (error) console.error("Google login error:", error);
   };

@@ -2,13 +2,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { UserRole, Agency } from '../types';
-import { User, Building, AlertCircle, ArrowRight, ArrowLeft, Plane } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { UserRole } from '../types';
+import { User, Building, AlertCircle } from 'lucide-react';
 
 const Signup: React.FC = () => {
   const { register, loginWithGoogle } = useAuth();
-  const { getAgencyBySlug } = useData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -21,38 +19,11 @@ const Signup: React.FC = () => {
     phone: '', cpf: '', cnpj: '', description: ''
   });
 
-  const fromParam = searchParams.get('from');
-  const redirectTo = fromParam || '/';
-
-  let agency: Agency | undefined;
-  let agencySlug: string | null = null;
-  if (fromParam) {
-      const segments = fromParam.split('/').filter(Boolean);
-      if (segments.length > 0) {
-          const potentialSlug = segments[0];
-          const reservedRoutes = ['trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'login', 'signup', 'admin', 'client'];
-          if (!reservedRoutes.includes(potentialSlug)) {
-               agency = getAgencyBySlug(potentialSlug);
-               if (agency) {
-                   agencySlug = potentialSlug;
-               }
-          }
-      }
-  }
+  const from = searchParams.get('from') || '/';
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
-  };
-
-  const validateCPF = (cpf: string) => {
-      const cleanCPF = cpf.replace(/[^\d]/g, '');
-      return cleanCPF.length === 11;
-  };
-  
-  const validateCNPJ = (cnpj: string) => {
-      const cleanCNPJ = cnpj.replace(/[^\d]/g, '');
-      return cleanCNPJ.length === 14;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,21 +41,11 @@ const Signup: React.FC = () => {
         setLoading(false);
         return;
     }
-    if (activeTab === 'CLIENT' && !validateCPF(formData.cpf)) {
-        setError('CPF inválido. Digite os 11 números.');
-        setLoading(false);
-        return;
-    }
-    if (activeTab === 'AGENCY' && !validateCNPJ(formData.cnpj)) {
-        setError('CNPJ inválido. Digite os 14 números.');
-        setLoading(false);
-        return;
-    }
 
     const result = await register(formData, activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
 
     if (result.success) {
-        navigate(redirectTo);
+        navigate(from, { replace: true });
     } else {
         setError(result.error || 'Erro ao criar conta. Tente novamente.');
     }
@@ -96,132 +57,103 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
-      {/* Left Side - Image Panel */}
-      <div className="hidden lg:flex flex-col items-center justify-center bg-gray-900 text-white p-12 relative bg-cover bg-center" style={{backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop')"}}>
-         <div className="absolute inset-0 bg-black/60"></div>
-         <div className="relative z-10 text-center">
-            <Link to="/" className="inline-flex items-center gap-3 mb-6 group">
-               <Plane className="w-12 h-12 text-white group-hover:text-primary-300 transition-colors" />
-               <span className="text-4xl font-bold">ViajaStore</span>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Crie sua conta gratuita
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Já tem uma conta?{' '}
+            <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
+              Faça login
             </Link>
-            <h1 className="text-4xl font-bold leading-tight">Sua jornada<br/>começa aqui.</h1>
-            <p className="mt-4 text-lg text-gray-300 max-w-sm">O maior marketplace de viagens do Brasil. Conectando você às melhores agências.</p>
-         </div>
-      </div>
+          </p>
+        </div>
 
-      {/* Right Side - Form Panel */}
-      <div className="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-md w-full">
-          {agency && agencySlug && (
-            <div className="mb-6 text-center">
-                <Link to={`/${agencySlug}`} className="inline-flex flex-col items-center group">
-                    <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover mb-2 border-2 border-white shadow-md group-hover:scale-105 transition-transform" />
-                    <span className="text-xs text-gray-500 group-hover:text-primary-600 transition-colors">Cadastro em</span>
-                    <span className="font-bold text-gray-800 text-lg group-hover:text-primary-600 transition-colors">{agency.name}</span>
-                </Link>
-            </div>
-          )}
+        <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+            <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg"><g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)"><path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" /><path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" /><path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.734 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" /><path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z" /></g></svg>
+            Cadastrar com Google
+        </button>
 
-          <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 space-y-6">
-            <div className="text-center">
-              <h2 className="text-3xl font-extrabold text-gray-900">Crie sua conta</h2>
-              <p className="mt-2 text-sm text-gray-600">
-                  {agency ? `Cadastre-se para viajar com ${agency.name}` : 'Junte-se ao maior marketplace de viagens do Brasil'}
-              </p>
-            </div>
+        <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div>
+            <div className="relative flex justify-center text-sm"><span className="px-2 bg-gray-50 text-gray-500">ou com seu email</span></div>
+        </div>
 
-            <button
-                type="button"
-                onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-                <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg"><g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)"><path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" /><path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" /><path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.734 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" /><path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z" /></g></svg>
-                Cadastrar com Google
-            </button>
+        <div className="flex bg-gray-200 p-1 rounded-md">
+          <button
+            className={`w-1/2 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-600'}`}
+            onClick={() => setActiveTab('CLIENT')}
+          ><User size={16} /> Sou Viajante</button>
+          <button
+            className={`w-1/2 py-2 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-600'}`}
+            onClick={() => setActiveTab('AGENCY')}
+          ><Building size={16} /> Sou Agência</button>
+        </div>
 
-            <div className="relative">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
-                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">ou com seu email</span></div>
-            </div>
-
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <button
-                className={`flex-1 py-2.5 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('CLIENT')}
-              ><User size={16} /> Sou Viajante</button>
-              <button
-                className={`flex-1 py-2.5 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('AGENCY')}
-              ><Building size={16} /> Sou Agência</button>
-            </div>
-
-            {error && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded flex items-center text-red-700 text-sm animate-[fadeIn_0.3s]">
-                    <AlertCircle size={18} className="mr-2 flex-shrink-0" /> 
-                    <span>{error}</span>
+        {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                <div className="flex items-center">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    <div className="ml-3 text-sm text-red-700">{error}</div>
                 </div>
-            )}
+            </div>
+        )}
 
-            <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{activeTab === 'CLIENT' ? 'Nome Completo' : 'Nome da Agência'}</label>
-                <input name="name" type="text" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="Ex: João Silva" value={formData.name} onChange={handleInputChange} />
+                <label className="sr-only">{activeTab === 'CLIENT' ? 'Nome Completo' : 'Nome da Agência'}</label>
+                <input name="name" type="text" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder={activeTab === 'CLIENT' ? 'Nome Completo' : 'Nome da Agência'} value={formData.name} onChange={handleInputChange} />
               </div>
               
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
-                <input name="email" type="email" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="exemplo@gmail.com" value={formData.email} onChange={handleInputChange} />
+                <label className="sr-only">Email</label>
+                <input name="email" type="email" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="Email" value={formData.email} onChange={handleInputChange} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Senha</label>
-                    <input name="password" type="password" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="******" value={formData.password} onChange={handleInputChange} />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirmar</label>
-                    <input name="confirmPassword" type="password" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="******" value={formData.confirmPassword} onChange={handleInputChange} />
-                </div>
+              <div>
+                <label className="sr-only">Senha</label>
+                <input name="password" type="password" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="Senha (mínimo 6 caracteres)" value={formData.password} onChange={handleInputChange} />
+              </div>
+              <div>
+                <label className="sr-only">Confirmar Senha</label>
+                <input name="confirmPassword" type="password" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="Confirmar Senha" value={formData.confirmPassword} onChange={handleInputChange} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone</label>
-                    <input name="phone" type="text" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="(11) 99999-9999" value={formData.phone} onChange={handleInputChange} />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">{activeTab === 'CLIENT' ? 'CPF' : 'CNPJ'}</label>
-                    <input name={activeTab === 'CLIENT' ? 'cpf' : 'cnpj'} type="text" required className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder={activeTab === 'CLIENT' ? "111.222.333-44" : "11.222.333/0001-44"} value={activeTab === 'CLIENT' ? formData.cpf : formData.cnpj} onChange={handleInputChange} />
-                </div>
+              <div>
+                <label className="sr-only">Telefone</label>
+                <input name="phone" type="text" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="Telefone com DDD" value={formData.phone} onChange={handleInputChange} />
               </div>
-
-              {activeTab === 'AGENCY' && (
+              
+              {activeTab === 'CLIENT' ? (
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição da Agência</label>
-                    <textarea name="description" required rows={2} className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 focus:bg-white transition-colors outline-none focus:ring-2 focus:ring-primary-500" placeholder="Breve descrição dos seus serviços..." value={formData.description} onChange={handleInputChange} />
+                  <label className="sr-only">CPF</label>
+                  <input name="cpf" type="text" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="CPF" value={formData.cpf} onChange={handleInputChange} />
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="sr-only">CNPJ</label>
+                    <input name="cnpj" type="text" required className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="CNPJ" value={formData.cnpj} onChange={handleInputChange} />
+                  </div>
+                  <div>
+                    <label className="sr-only">Descrição da Agência</label>
+                    <textarea name="description" required rows={2} className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm" placeholder="Breve descrição dos seus serviços..." value={formData.description} onChange={handleInputChange} />
+                  </div>
+                </>
               )}
 
-              <button type="submit" disabled={loading} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-primary-600 hover:bg-primary-700 transition-all disabled:opacity-50">
-                {loading ? 'Criando conta...' : 'Criar Conta'} <ArrowRight size={16} className="ml-2" />
-              </button>
-            </form>
-
-            <div className="text-center pt-2">
-                <span className="text-sm text-gray-600">Já tem conta? </span>
-                <Link to={`/login${fromParam ? `?from=${fromParam}` : ''}`} className="text-sm font-bold text-primary-600 hover:text-primary-500 hover:underline">Fazer Login</Link>
-            </div>
-          </div>
-          
-          {agencySlug && (
-            <div className="mt-8 text-center">
-                <Link to={`/${agencySlug}`} className="text-sm text-gray-500 hover:text-gray-900 flex items-center justify-center gap-2">
-                    <ArrowLeft size={14} /> Voltar para a página da agência
-                </Link>
-            </div>
-          )}
-        </div>
+              <div>
+                <button type="submit" disabled={loading} className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50">
+                  {loading ? 'Criando conta...' : 'Criar Conta'}
+                </button>
+              </div>
+        </form>
       </div>
     </div>
   );
