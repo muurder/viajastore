@@ -4,6 +4,7 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe } from 'lucide-react';
+import AuthModal from './AuthModal';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -24,13 +25,14 @@ const Layout: React.FC = () => {
   
   const isReserved = reservedRoutes.includes(potentialSlug);
   let isAgencyMode = !isReserved && !!potentialSlug;
+  
+  // Auth Modal Logic
+  const showAuthModal = location.hash === '#login' || location.hash === '#signup';
+  const initialView = location.hash.substring(1) as 'login' | 'signup';
+  const handleCloseModal = () => navigate(location.pathname, { replace: true });
 
   const fromParam = searchParams.get('from');
-  const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(location.pathname);
   
-  const cameFromMicrosite = fromParam && !reservedRoutes.includes(fromParam.split('/').filter(Boolean)[0] || '');
-
-  // New logic for isolated views
   const matchMicrositeClient = useMatch('/:agencySlug/client/:tab?');
   const isMicrositeClientArea = !!matchMicrositeClient;
   
@@ -38,22 +40,7 @@ const Layout: React.FC = () => {
       isAgencyMode = true; // Force agency mode for client dashboard context
   }
 
-  const isIsolatedAuth = isAuthPage && cameFromMicrosite;
-
-  if (isIsolatedAuth) {
-    return <Outlet />; // Auth pages will handle their own minimal layout
-  }
-
-  let preservedAgencySlug = null;
-  if (isAuthPage && cameFromMicrosite) {
-      const fromSegments = fromParam!.split('/').filter(Boolean);
-      const fromSlug = fromSegments[0];
-      if (fromSlug && !reservedRoutes.includes(fromSlug)) {
-          preservedAgencySlug = fromSlug;
-      }
-  }
-
-  const activeSlug = matchMicrositeClient?.params.agencySlug || preservedAgencySlug || (isAgencyMode ? potentialSlug : null);
+  const activeSlug = matchMicrositeClient?.params.agencySlug || (isAgencyMode ? potentialSlug : null);
   const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
   
   const handleLogout = async () => {
@@ -75,17 +62,17 @@ const Layout: React.FC = () => {
   const homeLink = isAgencyMode && activeSlug ? `/${activeSlug}` : '/';
   const clientDashboardLink = isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard';
 
-  const getAuthLink = (path: string) => {
-      let currentPath = location.pathname;
-      if (location.search) currentPath += location.search;
-      if (location.hash) currentPath += location.hash;
-      
-      const finalFrom = fromParam || (isAgencyMode ? location.pathname : '/');
-      return `${path}?from=${encodeURIComponent(finalFrom)}`;
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          initialView={initialView}
+          onClose={handleCloseModal}
+          agencyContext={currentAgency}
+        />
+      )}
+
       {/* Navbar */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -198,8 +185,8 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Link to={getAuthLink('/login')} className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
-                    <Link to={getAuthLink('/signup')} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
+                    <Link to="#login" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
+                    <Link to="#signup" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
                   </div>
                 )}
               </div>

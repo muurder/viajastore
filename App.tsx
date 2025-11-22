@@ -15,8 +15,6 @@ import AgencyDashboard from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
@@ -51,10 +49,6 @@ const App: React.FC = () => {
                   <Route path="checkout/success" element={<CheckoutSuccess />} />
                   <Route path="unauthorized" element={<Unauthorized />} />
                   <Route path="forgot-password" element={<ForgotPassword />} />
-                  
-                  {/* Auth Routes */}
-                  <Route path="login" element={<Login />} />
-                  <Route path="signup" element={<Signup />} />
                   
                   {/* Protected Routes */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />

@@ -6,21 +6,6 @@ import { MapPin, ArrowRight, Building, Search, Filter, TreePine, Landmark, Utens
 import { useNavigate, Link } from 'react-router-dom';
 import { Trip } from '../types';
 
-// CATEGORIES IMAGES
-const CATEGORY_IMAGES: Record<string, string> = {
-  PRAIA: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop',
-  AVENTURA: 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?q=80&w=800&auto=format&fit=crop',
-  FAMILIA: 'https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop',
-  ROMANTICO: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=800&auto=format&fit=crop',
-  URBANO: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=800&auto=format&fit=crop',
-  NATUREZA: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=800&auto=format&fit=crop',
-  CULTURA: 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?q=80&w=800&auto=format&fit=crop',
-  GASTRONOMICO: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop',
-  VIDA_NOTURNA: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?q=80&w=800&auto=format&fit=crop', 
-  VIAGEM_BARATA: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=800&auto=format&fit=crop',
-  ARTE: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=800&auto=format&fit=crop',
-};
-
 const INTEREST_CHIPS = [
   { label: 'Todos', icon: Globe, id: 'chip-all' },
   { label: 'Praia', icon: Umbrella, id: 'chip-praia' },
@@ -45,7 +30,6 @@ const Home: React.FC = () => {
   const [search, setSearch] = useState('');
   
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [featuredTrip, setFeaturedTrip] = useState<Trip | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -53,19 +37,6 @@ const Home: React.FC = () => {
 
   const allTrips = getPublicTrips();
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
-
-  // ROTATING HERO LOGIC
-  useEffect(() => {
-    if (!loading && allTrips.length > 0 && !featuredTrip) {
-        // Prioritize 'featured' trips, fallback to random
-        const featuredPool = allTrips.filter(t => t.featured);
-        const pool = featuredPool.length > 0 ? featuredPool : allTrips;
-        
-        // Random Selection
-        const randomTrip = pool[Math.floor(Math.random() * pool.length)];
-        setFeaturedTrip(randomTrip);
-    }
-  }, [allTrips, loading, featuredTrip]); 
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -132,31 +103,25 @@ const Home: React.FC = () => {
     <div className="space-y-12 pb-12">
       {/* HERO SECTION */}
       <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[480px] flex flex-col justify-center group mx-4 sm:mx-6 lg:mx-8 mt-4 bg-gray-900">
-        {(loading || !featuredTrip) ? (
-           <div className="absolute inset-0 bg-gray-800 animate-pulse"></div>
-        ) : (
-           <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
-                <img 
-                key={featuredTrip.id} 
-                src={featuredTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
-                alt="Hero" 
-                className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent/80 md:to-transparent"></div>
-           </div>
-        )}
+        <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
+            <img 
+            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop"
+            alt="Hero background showing a beautiful landscape" 
+            className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/20"></div>
+        </div>
         
-        <div className="relative z-10 px-6 md:px-12 w-full max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
-          <div className="max-w-2xl w-full pt-4 md:pt-0">
+        <div className="relative z-10 px-6 md:px-12 w-full max-w-2xl mx-auto text-center md:text-left">
             <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4 drop-shadow-lg animate-[fadeInUp_0.7s]">
               Encontre sua<br/>próxima viagem.
             </h1>
-            <p className="text-lg text-gray-200 mb-8 max-w-lg font-light animate-[fadeInUp_0.9s]">
+            <p className="text-lg text-gray-200 mb-8 max-w-lg mx-auto md:mx-0 font-light animate-[fadeInUp_0.9s]">
               Compare pacotes das melhores agências e compre com segurança.
             </p>
 
             <div className="animate-[fadeInUp_1.1s]">
-              <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl">
+              <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto md:mx-0">
                 <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
                   <MapPin className="text-primary-500 mr-3" />
                   <input 
@@ -172,37 +137,6 @@ const Home: React.FC = () => {
                 </button>
               </form>
             </div>
-          </div>
-
-          {/* Featured Card */}
-          {(!loading && featuredTrip) && (
-            <div key={featuredTrip.id} className="w-full md:w-auto md:max-w-xs animate-[scaleIn_0.8s] mt-4 md:mt-0">
-               <Link to={`/trip/${featuredTrip.id}`} className="block bg-white/95 backdrop-blur-sm p-4 rounded-2xl shadow-2xl hover:scale-105 transition-transform duration-300 border border-white/20">
-                  <div className="relative h-32 rounded-xl overflow-hidden mb-3 bg-gray-100">
-                      <img 
-                        src={featuredTrip.images[0]} 
-                        alt={featuredTrip.title} 
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-2 right-2 bg-amber-400 text-amber-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm">
-                          DESTAQUE
-                      </div>
-                  </div>
-                  <div>
-                      <h3 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-1">{featuredTrip.title}</h3>
-                      <p className="text-xs text-gray-500 mb-2 flex items-center"><MapPin size={10} className="mr-1"/> {featuredTrip.destination}</p>
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-2">
-                          <div className="flex items-center text-xs font-medium text-gray-500">
-                              <Clock size={12} className="mr-1"/> {featuredTrip.durationDays} dias
-                          </div>
-                          <div className="text-sm font-bold text-primary-700">
-                              R$ {featuredTrip.price}
-                          </div>
-                      </div>
-                  </div>
-               </Link>
-            </div>
-          )}
         </div>
       </div>
 
