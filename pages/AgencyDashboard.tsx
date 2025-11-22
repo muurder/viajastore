@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MessageCircle, MapPin, Clock, ShieldCheck, Share2, Heart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -356,7 +355,7 @@ const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose:
         if (isHTML) {
             return (
                 <div 
-                  className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
+                  className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
                   dangerouslySetInnerHTML={{ __html: desc }} 
                 />
             );
@@ -567,9 +566,6 @@ const AgencyDashboard: React.FC = () => {
     const updateSuggestions = (key: keyof typeof newSettings, items: string[] | undefined, existingList: string[]) => {
         if (!items) return;
         items.forEach(item => {
-            // Check if it's NOT in standard lists (we need to import SUGGESTED_X here or pass them)
-            // Simplification: If it's not in user's saved settings, add it.
-            // Ideally we check against standard lists too, but adding a standard item to custom list is harmless redundancy.
             if (!existingList.includes(item) && !newSettings[key]?.includes(item)) {
                 newSettings[key] = [...(newSettings[key] || []), item];
                 settingsChanged = true;
@@ -585,7 +581,6 @@ const AgencyDashboard: React.FC = () => {
     if (settingsChanged) {
         await updateUser({ customSettings: newSettings });
     }
-    // ----------------------------------
 
     try {
         if (editingTripId) {
@@ -659,8 +654,14 @@ const AgencyDashboard: React.FC = () => {
      setAgencyForm({...agencyForm, slug: sanitized});
   };
 
-  const NavButton: React.FC<{tabId: any, children: React.ReactNode}> = ({ tabId, children }) => (
-    <button onClick={() => setActiveTab(tabId)} className={`py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === tabId ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>{children}</button>
+  const NavButton: React.FC<{tabId: any, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => (
+    <button 
+      onClick={() => setActiveTab(tabId)} 
+      className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+    >
+      <Icon size={16} />
+      {label}
+    </button>
   );
 
   return (
@@ -675,6 +676,7 @@ const AgencyDashboard: React.FC = () => {
           />
       )}
 
+      {/* HEADER */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
         <div className="flex items-center gap-4 w-full">
            <img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover bg-white" alt="Logo" />
@@ -686,89 +688,282 @@ const AgencyDashboard: React.FC = () => {
              </div>
            </div>
         </div>
-        <button onClick={() => { setActiveTab('SETTINGS'); setSettingsSection('PROFILE'); }} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50 whitespace-nowrap transition-all"><Settings size={18} className="mr-2"/> Configurações</button>
       </div>
 
       {viewMode === 'LIST' ? (
         <>
-          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide">
-            <NavButton tabId="OVERVIEW">Visão Geral</NavButton>
-            <NavButton tabId="TRIPS">Pacotes</NavButton>
-            <NavButton tabId="SUBSCRIPTION">Assinatura</NavButton>
-            <NavButton tabId="SETTINGS">Configurações</NavButton>
+          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} />
+            <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} />
+            <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} />
+            <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} />
           </div>
           
           <div className="animate-[fadeIn_0.3s]">
+          
+          {/* --- OVERVIEW HUB --- */}
           {activeTab === 'OVERVIEW' && isActive && (
             <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase flex items-center"><Plane size={12} className="mr-1.5"/> Pacotes Ativos</p><h3 className="text-3xl font-extrabold text-gray-900 mt-2">{myTrips.filter(t => t.active).length}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase flex items-center"><Users size={12} className="mr-1.5"/> Total Vendas</p><h3 className="text-3xl font-extrabold text-primary-600 mt-2">{stats.totalSales}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase flex items-center"><Eye size={12} className="mr-1.5"/> Visualizações</p><h3 className="text-3xl font-extrabold text-gray-900 mt-2">{stats.totalViews.toLocaleString()}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"><p className="text-xs font-bold text-gray-500 uppercase flex items-center"><DollarSign size={12} className="mr-1.5"/> Receita Total</p><h3 className="text-3xl font-extrabold text-green-600 mt-2">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                           <div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:bg-green-100 transition-colors"><DollarSign size={24}/></div>
+                           <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full">Total</span>
+                        </div>
+                        <p className="text-sm text-gray-500 font-medium">Receita Total</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {stats.totalRevenue.toLocaleString()}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                           <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:bg-blue-100 transition-colors"><Plane size={24}/></div>
+                           <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full">Ativos</span>
+                        </div>
+                        <p className="text-sm text-gray-500 font-medium">Pacotes Publicados</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.active).length}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                           <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:bg-purple-100 transition-colors"><ShoppingBag size={24}/></div>
+                        </div>
+                        <p className="text-sm text-gray-500 font-medium">Total de Vendas</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                           <div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-100 transition-colors"><Eye size={24}/></div>
+                           <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">Conv: {stats.conversionRate.toFixed(1)}%</span>
+                        </div>
+                        <p className="text-sm text-gray-500 font-medium">Visualizações</p>
+                        <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalViews.toLocaleString()}</h3>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
+                         <div className="grid grid-cols-2 gap-4">
+                             <button onClick={() => handleOpenCreate()} className="p-4 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all text-left group">
+                                 <div className="bg-primary-100 text-primary-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Plus size={20}/></div>
+                                 <span className="font-bold block">Criar Novo Pacote</span>
+                                 <span className="text-xs text-gray-500">Adicione uma nova viagem ao catálogo.</span>
+                             </button>
+                             <button onClick={() => { setActiveTab('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
+                                 <div className="bg-gray-100 text-gray-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Settings size={20}/></div>
+                                 <span className="font-bold block">Editar Perfil</span>
+                                 <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
+                             </button>
+                         </div>
+                    </div>
+                    <div className="bg-primary-600 rounded-2xl shadow-lg shadow-primary-500/30 p-6 text-white relative overflow-hidden">
+                        <div className="relative z-10">
+                            <h3 className="text-xl font-bold mb-2">Dica do Dia</h3>
+                            <p className="text-primary-100 text-sm mb-4 leading-relaxed">Pacotes com mais de 5 fotos de alta qualidade têm 40% mais chances de venda. Capriche na galeria!</p>
+                            <button onClick={() => setActiveTab('TRIPS')} className="bg-white text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-50 transition-colors">Gerenciar Fotos</button>
+                        </div>
+                        <div className="absolute -right-6 -bottom-6 text-primary-700 opacity-50">
+                            <Star size={120} />
+                        </div>
+                    </div>
                 </div>
             </div>
           )}
 
+          {/* --- TRIPS TAB --- */}
           {activeTab === 'TRIPS' && isActive && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-               <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4"><h2 className="text-xl font-bold">Meus Pacotes</h2>
-                <div className="flex gap-4 w-full md:w-auto">
-                    <div className="relative flex-1">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col min-h-[600px]">
+               <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                 <div className="flex items-center gap-3">
+                     <h2 className="text-xl font-bold text-gray-900">Gerenciar Pacotes</h2>
+                     <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{myTrips.length} Total</span>
+                 </div>
+                 <div className="flex gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-64">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-                        <input value={tripSearch} onChange={e => setTripSearch(e.target.value)} type="text" placeholder="Buscar pacote..." className="w-full pl-9 pr-3 py-2 border rounded-lg outline-none focus:border-primary-500 bg-gray-50"/>
+                        <input value={tripSearch} onChange={e => setTripSearch(e.target.value)} type="text" placeholder="Buscar por nome..." className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm"/>
                     </div>
-                    <button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-colors whitespace-nowrap"><Plus size={18} className="mr-2"/> Novo Pacote</button>
-                </div>
+                    <button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center hover:bg-primary-700 transition-colors shadow-md shadow-primary-500/20 whitespace-nowrap">
+                        <Plus size={18} className="mr-2"/> Novo Pacote
+                    </button>
+                 </div>
                </div>
-               <div className="overflow-x-auto">
+
+               <div className="flex-1 overflow-x-auto">
                  <table className="min-w-full divide-y divide-gray-100">
-                     <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th><th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th><th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Preço</th><th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Ações</th></tr></thead>
-                     <tbody className="divide-y divide-gray-100">
-                        {filteredTrips.map(trip => (<tr key={trip.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3"><div className="flex items-center gap-3"><img src={trip.images?.[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-12 h-12 rounded-lg object-cover bg-gray-100" alt={trip.title} /><span className="font-bold text-gray-900 text-sm">{trip.title}</span></div></td>
-                            <td className="px-4 py-3"><span className={`text-[10px] px-2 py-1 rounded-full font-bold ${trip.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>{trip.active ? 'ATIVO' : 'RASCUNHO'}</span></td>
-                            <td className="px-4 py-3 text-sm font-bold text-gray-700">R$ {trip.price}</td>
-                            <td className="px-4 py-3"><div className="flex gap-1 justify-end">
-                                <a href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-primary-600 rounded hover:bg-gray-100" title="Visualizar"><Eye size={16}/></a>
-                                <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-gray-400 hover:text-blue-500 rounded hover:bg-gray-100" title="Duplicar"><Copy size={16}/></button>
-                                <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100" title="Editar"><Edit size={16}/></button>
-                                <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-400 hover:text-red-500 rounded hover:bg-gray-100" title="Excluir"><Trash2 size={16}/></button>
-                            </div></td>
-                        </tr>))}
+                     <thead className="bg-gray-50/50">
+                        <tr>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-100 bg-white">
+                        {filteredTrips.map(trip => (
+                            <tr key={trip.id} className="hover:bg-gray-50/80 transition-colors group">
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                                            <img src={trip.images?.[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
+                                            <p className="text-xs text-gray-500 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/> {trip.destination}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border ${trip.active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                                        {trip.active ? 'PUBLICADO' : 'RASCUNHO'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                                        <div className="flex items-center" title="Visualizações">
+                                            <Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}
+                                        </div>
+                                        <div className="flex items-center" title="Vendas">
+                                            <ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex gap-1 justify-end opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {trip.slug && (
+                                            <a href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Ver Página Pública">
+                                                <ExternalLink size={16}/>
+                                            </a>
+                                        )}
+                                        <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Duplicar">
+                                            <Copy size={16}/>
+                                        </button>
+                                        <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Editar">
+                                            <Edit size={16}/>
+                                        </button>
+                                        <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
+                                            <Trash2 size={16}/>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
                      </tbody>
                  </table>
-                 {filteredTrips.length === 0 && <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200"><p className="text-gray-500">Nenhum pacote encontrado.</p></div>}
+                 {filteredTrips.length === 0 && (
+                     <div className="text-center py-16">
+                        <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Search className="text-gray-300" size={24}/>
+                        </div>
+                        <p className="text-gray-500 font-medium">Nenhum pacote encontrado.</p>
+                        {tripSearch && <button onClick={() => setTripSearch('')} className="text-primary-600 text-sm font-bold hover:underline mt-2">Limpar busca</button>}
+                     </div>
+                 )}
                </div>
             </div>
           )}
 
+          {/* --- SUBSCRIPTION TAB --- */}
           {activeTab === 'SUBSCRIPTION' && (
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                {PLANS.map(plan => (<div key={plan.id} className="bg-white p-8 rounded-2xl border hover:border-primary-600 transition-all shadow-sm hover:shadow-xl">
-                    <h3 className="text-xl font-bold">{plan.name}</h3><p className="text-3xl font-bold text-primary-600 mt-2">R$ {plan.price.toFixed(2)}</p>
-                    <ul className="mt-6 space-y-3 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => <li key={i} className="flex gap-2"><CheckCircle size={16} className="text-green-500 mt-0.5"/> {f}</li>)}</ul>
-                    <button onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">Selecionar Plano</button>
-                </div>))}
+                {PLANS.map(plan => (
+                    <div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>
+                        {myAgency.subscriptionPlan === plan.id && isActive && (
+                            <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>
+                        )}
+                        <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+                        <p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p>
+                        
+                        <ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">
+                            {plan.features.map((f, i) => (
+                                <li key={i} className="flex gap-3 items-start">
+                                    <CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> 
+                                    <span className="leading-snug">{f}</span>
+                                </li>
+                            ))}
+                        </ul>
+                        
+                        <button 
+                            onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }} 
+                            className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`}
+                            disabled={myAgency.subscriptionPlan === plan.id && isActive}
+                        >
+                            {myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}
+                        </button>
+                    </div>
+                ))}
             </div>
           )}
 
+          {/* --- SETTINGS TAB --- */}
           {activeTab === 'SETTINGS' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row min-h-[600px]">
-                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl"><h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu</h3><nav className="space-y-2">
-                    <button onClick={() => setSettingsSection('PROFILE')} className={`w-full text-left px-4 py-2 rounded-lg text-sm font-bold transition-colors ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>Perfil & Contato</button>
-                    <button onClick={() => setSettingsSection('PAGE')} className={`w-full text-left px-4 py-2 rounded-lg text-sm font-bold transition-colors ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>Página Pública (Hero)</button>
-                </nav></div>
-                <div className="flex-1 p-8"><form onSubmit={handleAgencyUpdate} className="space-y-8 max-w-2xl">
-                    {settingsSection === 'PROFILE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><h2 className="text-xl font-bold text-gray-900 pb-2 border-b border-gray-100">Identidade & Contato</h2><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label><LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-xs font-bold mb-1">Nome da Agência</label><input value={agencyForm.name || ''} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" /></div><div><label className="block text-xs font-bold mb-1">WhatsApp (Apenas números)</label><div className="relative"><Smartphone className="absolute left-3 top-3 text-gray-400" size={18} /><input value={agencyForm.whatsapp || ''} onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} className="w-full border rounded-lg p-3 pl-10 outline-none focus:border-primary-500" placeholder="5511999999999"/></div></div></div><div><label className="block text-xs font-bold mb-1">Descrição</label><textarea rows={3} value={agencyForm.description || ''} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:border-primary-500" placeholder="Sobre a agência..." /></div><div><label className="block text-xs font-bold mb-1">Slug (Endereço Personalizado)</label><div className="relative"><input value={agencyForm.slug || ''} onChange={e => handleSlugChange(e.target.value)} className="w-full border rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48" /><span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{`${window.location.host}/#/`}</span></div>{cleanSlug && (<a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-2 font-medium"><ExternalLink size={10} /> {fullAgencyLink}</a>)}</div></section>)}
-                    {settingsSection === 'PAGE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><h2 className="text-xl font-bold text-gray-900 pb-2 border-b border-gray-100">Configuração do Hero (Banner)</h2><p className="text-sm text-gray-500">Escolha como o topo do seu site será exibido para os visitantes.</p><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Modo de Exibição</label><div className="flex gap-4"><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'TRIPS' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'TRIPS' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Layout size={16}/> Carrossel de Viagens</div><p className="text-xs text-gray-500">Exibe suas viagens ativas e destacadas rotativamente.</p></button><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'STATIC' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'STATIC' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><ImageIcon size={16}/> Banner Estático</div><p className="text-xs text-gray-500">Exibe uma imagem fixa com título e subtítulo.</p></button></div></div>{agencyForm.heroMode === 'STATIC' && (<div className="bg-gray-50 p-6 rounded-xl border border-gray-100 space-y-4 animate-[fadeIn_0.3s]"><div><label className="block text-xs font-bold mb-1">Imagem do Banner</label><div className="flex items-center gap-4"><div className="w-32 h-16 bg-gray-200 rounded-lg overflow-hidden relative border border-gray-300">{agencyForm.heroBannerUrl ? (<img src={agencyForm.heroBannerUrl} className="w-full h-full object-cover" alt="Banner" />) : (<div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem imagem</div>)}{uploadingBanner && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}</div><label className="cursor-pointer bg-white border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50"><input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner}/>Enviar Imagem</label></div></div><div><label className="block text-xs font-bold mb-1">Título do Hero</label><input value={agencyForm.heroTitle || ''} onChange={e => setAgencyForm({...agencyForm, heroTitle: e.target.value})} className="w-full border rounded-lg p-2 outline-none focus:border-primary-500" placeholder="Ex: Explore o Mundo Conosco"/></div><div><label className="block text-xs font-bold mb-1">Subtítulo do Hero</label><input value={agencyForm.heroSubtitle || ''} onChange={e => setAgencyForm({...agencyForm, heroSubtitle: e.target.value})} className="w-full border rounded-lg p-2 outline-none focus:border-primary-500" placeholder="Ex: As melhores experiências para você."/></div></div>)}</section>)}
-                    <div className="pt-4 border-t border-gray-100"><button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all">Salvar Alterações</button></div>
+                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu de Ajustes</h3>
+                    <nav className="space-y-2">
+                        <button onClick={() => setSettingsSection('PROFILE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}>
+                            <Users size={16}/> Perfil & Contato
+                        </button>
+                        <button onClick={() => setSettingsSection('PAGE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}>
+                            <Layout size={16}/> Página Pública (Hero)
+                        </button>
+                    </nav>
+                </div>
+                <div className="flex-1 p-8">
+                    <form onSubmit={handleAgencyUpdate} className="space-y-8 max-w-2xl">
+                    {settingsSection === 'PROFILE' && (
+                        <section className="space-y-6 animate-[fadeIn_0.2s]">
+                            <div className="pb-4 border-b border-gray-100">
+                                <h2 className="text-xl font-bold text-gray-900">Identidade & Contato</h2>
+                                <p className="text-sm text-gray-500 mt-1">Essas informações serão exibidas na sua página pública.</p>
+                            </div>
+                            
+                            <div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label><LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} /></div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div><label className="block text-xs font-bold mb-1.5 text-gray-700">Nome da Agência</label><input value={agencyForm.name || ''} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /></div>
+                                <div><label className="block text-xs font-bold mb-1.5 text-gray-700">WhatsApp (Apenas números)</label><div className="relative"><Smartphone className="absolute left-3 top-3 text-gray-400" size={18} /><input value={agencyForm.whatsapp || ''} onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="5511999999999"/></div></div>
+                            </div>
+                            <div><label className="block text-xs font-bold mb-1.5 text-gray-700">Descrição</label><textarea rows={3} value={agencyForm.description || ''} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="Sobre a agência..." /></div>
+                            <div><label className="block text-xs font-bold mb-1.5 text-gray-700">Slug (Endereço Personalizado)</label><div className="relative"><input value={agencyForm.slug || ''} onChange={e => handleSlugChange(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48 focus:bg-white outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /><span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{`${window.location.host}/#/`}</span></div>{cleanSlug && (<a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-2 font-medium"><ExternalLink size={10} /> {fullAgencyLink}</a>)}</div>
+                        </section>
+                    )}
+                    {settingsSection === 'PAGE' && (
+                        <section className="space-y-6 animate-[fadeIn_0.2s]">
+                            <div className="pb-4 border-b border-gray-100">
+                                <h2 className="text-xl font-bold text-gray-900">Banner Principal (Hero)</h2>
+                                <p className="text-sm text-gray-500 mt-1">Escolha como o topo do seu site será exibido para os visitantes.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold mb-3 uppercase text-gray-500">Modo de Exibição</label>
+                                <div className="flex gap-4">
+                                    <button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'TRIPS' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'TRIPS' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Layout size={16}/> Carrossel de Viagens</div><p className="text-xs text-gray-500">Exibe suas viagens ativas e destacadas rotativamente.</p></button>
+                                    <button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'STATIC' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'STATIC' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><ImageIcon size={16}/> Banner Estático</div><p className="text-xs text-gray-500">Exibe uma imagem fixa com título e subtítulo.</p></button>
+                                </div>
+                            </div>
+                            
+                            {agencyForm.heroMode === 'STATIC' && (
+                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4 animate-[fadeIn_0.3s]">
+                                    <div><label className="block text-xs font-bold mb-1 text-gray-700">Imagem do Banner</label><div className="flex items-center gap-4"><div className="w-32 h-16 bg-gray-200 rounded-lg overflow-hidden relative border border-gray-300 shadow-sm">{agencyForm.heroBannerUrl ? (<img src={agencyForm.heroBannerUrl} className="w-full h-full object-cover" alt="Banner" />) : (<div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem imagem</div>)}{uploadingBanner && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}</div><label className="cursor-pointer bg-white border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm"><input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner}/>Enviar Imagem</label></div></div>
+                                    <div><label className="block text-xs font-bold mb-1 text-gray-700">Título do Hero</label><input value={agencyForm.heroTitle || ''} onChange={e => setAgencyForm({...agencyForm, heroTitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: Explore o Mundo Conosco"/></div>
+                                    <div><label className="block text-xs font-bold mb-1 text-gray-700">Subtítulo do Hero</label><input value={agencyForm.heroSubtitle || ''} onChange={e => setAgencyForm({...agencyForm, heroSubtitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: As melhores experiências para você."/></div>
+                                </div>
+                            )}
+                        </section>
+                    )}
+                    <div className="pt-6 border-t border-gray-100">
+                        <button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all flex items-center justify-center gap-2">
+                            <Save size={18}/> Salvar Alterações
+                        </button>
+                    </div>
                 </form></div>
              </div>
           )}
           </div>
         </>
       ) : (
+        /* --- EDIT MODE (TRIP FORM) --- */
          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
              <div className="bg-gray-50 p-6 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
                  <button onClick={() => setViewMode('LIST')} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
