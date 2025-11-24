@@ -198,13 +198,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchAgencyReviews = async () => {
       try {
-          // New Agency Reviews Table logic
+          // FIX: Use standard relationship syntax instead of column alias causing PGRST200
           const { data, error } = await supabase
             .from('agency_reviews')
             .select(`
                 *, 
-                profiles:client_id (full_name),
-                agencies:agency_id (name, logo_url)
+                profiles (full_name),
+                agencies (name, logo_url)
             `);
             
           if (error) {
@@ -221,6 +221,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   rating: r.rating,
                   comment: r.comment,
                   createdAt: r.created_at,
+                  // Map nested objects correctly
                   clientName: r.profiles?.full_name || 'Viajante',
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
