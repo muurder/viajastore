@@ -57,6 +57,19 @@ const Layout: React.FC = () => {
 
   const activeSlug = matchMicrositeClient?.params.agencySlug || (isAgencyMode ? potentialSlug : null);
   const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
+
+  // --- PAGE TITLE MANAGEMENT ---
+  React.useEffect(() => {
+    // If we are NOT on a detail page (which sets its own title), reset the title
+    // Detail pages usually contain '/viagem/' in the path
+    if (!location.pathname.includes('/viagem/')) {
+        if (isAgencyMode && currentAgency) {
+            document.title = `${currentAgency.name} | ViajaStore`;
+        } else {
+            document.title = 'ViajaStore | O maior marketplace de viagens';
+        }
+    }
+  }, [location.pathname, isAgencyMode, currentAgency]);
   
   const handleLogout = async () => {
     await logout();
@@ -75,7 +88,13 @@ const Layout: React.FC = () => {
   };
 
   const homeLink = isAgencyMode && activeSlug ? `/${activeSlug}` : '/';
-  const clientDashboardLink = isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE';
+  
+  // Logic for the "User Pill" link in header
+  // If Agency: Go to Agency Dashboard Settings
+  // If Client: Go to Client Dashboard
+  const userProfileLink = user?.role === 'AGENCY' 
+      ? '/agency/dashboard?tab=SETTINGS' 
+      : (isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE');
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
@@ -195,8 +214,8 @@ const Layout: React.FC = () => {
                       <Link to="/admin/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Admin</Link>
                     )}
                     
-                    <div className="relative flex items-center gap-3 bg-gray-50 py-1 px-3 rounded-full border border-gray-100">
-                      <Link to={clientDashboardLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
+                    <div className="relative flex items-center gap-3 bg-gray-50 py-1 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
+                      <Link to={userProfileLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
                         <User size={16} className="mr-2" />
                         <span className="max-w-[100px] truncate">{user.name}</span>
                       </Link>
@@ -342,7 +361,7 @@ const Layout: React.FC = () => {
                             </div>
                             
                             <div className="grid grid-cols-2 gap-3">
-                                <Link to={clientDashboardLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
+                                <Link to={userProfileLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
                                     Minha Conta
                                 </Link>
                                 {user.role === 'AGENCY' && (

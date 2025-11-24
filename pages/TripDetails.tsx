@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -37,6 +38,11 @@ const TripDetails: React.FC = () => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
       }
+      
+      // Cleanup title on unmount
+      return () => {
+          document.title = 'ViajaStore | O maior marketplace de viagens';
+      };
   }, [trip]);
   
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
@@ -199,7 +205,20 @@ const TripDetails: React.FC = () => {
   const tripsLabel = agencySlug ? 'Pacotes' : 'Viagens';
 
   return (
-    <div className="max-w-6xl mx-auto pb-12">
+    <div className="max-w-6xl mx-auto pb-12 relative">
+      {/* Floating WhatsApp Button (Mobile Only) */}
+      {whatsappLink && (
+        <a 
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fixed bottom-6 right-6 z-[60] p-4 bg-green-500 rounded-full text-white shadow-lg hover:bg-green-600 hover:scale-110 transition-all lg:hidden animate-[scaleIn_0.5s]"
+            title="Falar no WhatsApp"
+        >
+            <MessageCircle size={28} className="fill-current" />
+        </a>
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center text-sm text-gray-500 mb-6">
           <Link to={homeLink} className="hover:text-primary-600 flex items-center"><ArrowLeft size={12} className="mr-1"/> {homeLabel}</Link> 
@@ -245,11 +264,23 @@ const TripDetails: React.FC = () => {
               )}
             </div>
             
-            <div className="flex items-start justify-between gap-4 mb-2">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title}</h1>
                 
-                {/* Action Buttons: Share & Favorite */}
+                {/* Action Buttons: Share, Favorite, WhatsApp */}
                 <div className="flex items-center gap-3">
+                  {whatsappLink && (
+                      <a 
+                        href={whatsappLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Falar com a agência"
+                        className="hidden md:flex p-3 rounded-full border bg-green-50 border-green-200 text-green-600 hover:bg-green-100 transition-all shadow-sm flex-shrink-0 items-center gap-2 font-bold text-sm"
+                      >
+                          <MessageCircle size={20} />
+                          <span>WhatsApp</span>
+                      </a>
+                  )}
                   <button
                       onClick={handleShare}
                       title="Compartilhar"
