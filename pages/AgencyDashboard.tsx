@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Bell, Globe } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -662,7 +662,7 @@ const AgencyDashboard: React.FC = () => {
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
 
-  // Recent Bookings Logic
+  // Recent Bookings Logic - WITH NEW BADGE LOGIC
   const recentBookings = bookings
     .filter(b => {
         const trip = trips.find(t => t.id === b.tripId);
@@ -670,6 +670,14 @@ const AgencyDashboard: React.FC = () => {
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
+    
+  // Calculate new sales count (last 24h)
+  const newSalesCount = recentBookings.filter(b => {
+      const bookingDate = new Date(b.date);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return bookingDate > yesterday;
+  }).length;
 
   const filteredTrips = myTrips.filter(t => t.title.toLowerCase().includes(tripSearch.toLowerCase()));
   
@@ -830,13 +838,18 @@ const AgencyDashboard: React.FC = () => {
      setAgencyForm({...agencyForm, slug: sanitized});
   };
 
-  const NavButton: React.FC<{tabId: string, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => (
+  const NavButton: React.FC<{tabId: string, label: string, icon: any, badge?: number}> = ({ tabId, label, icon: Icon, badge }) => (
     <button 
       onClick={() => handleTabChange(tabId)} 
-      className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+      className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
     >
       <Icon size={16} />
       {label}
+      {badge && badge > 0 && (
+          <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
+              {badge}
+          </span>
+      )}
     </button>
   );
 
@@ -869,7 +882,7 @@ const AgencyDashboard: React.FC = () => {
       {viewMode === 'LIST' ? (
         <>
           <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} />
+            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} badge={newSalesCount} />
             <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} />
             <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} />
             <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} />
@@ -880,6 +893,16 @@ const AgencyDashboard: React.FC = () => {
           {/* --- OVERVIEW HUB --- */}
           {activeTab === 'OVERVIEW' && isActive && (
             <div className="space-y-8">
+                {/* Notification Banner for New Sales */}
+                {newSalesCount > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between animate-[pulse_2s_infinite]">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-green-100 p-2 rounded-full text-green-600"><Bell size={20} /></div>
+                            <p className="text-green-800 font-bold text-sm">Você tem {newSalesCount} nova(s) venda(s) nas últimas 24 horas!</p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
                         <div className="flex justify-between items-start mb-4">
@@ -897,9 +920,10 @@ const AgencyDashboard: React.FC = () => {
                         <p className="text-sm text-gray-500 font-medium">Pacotes Publicados</p>
                         <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.active).length}</h3>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                    <div className={`bg-white p-6 rounded-2xl border shadow-sm group transition-colors ${newSalesCount > 0 ? 'border-purple-300 ring-2 ring-purple-100' : 'border-gray-100 hover:border-primary-200'}`}>
                         <div className="flex justify-between items-start mb-4">
                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:bg-purple-100 transition-colors"><ShoppingBag size={24}/></div>
+                           {newSalesCount > 0 && <span className="text-xs font-bold text-white bg-purple-600 px-2 py-1 rounded-full animate-pulse">+{newSalesCount} Novos</span>}
                         </div>
                         <p className="text-sm text-gray-500 font-medium">Total de Vendas</p>
                         <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3>
@@ -916,6 +940,81 @@ const AgencyDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-8">
+                        
+                        {/* MINI SITE LINK CARD (Added as requested) */}
+                        {cleanSlug && (
+                            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white relative overflow-hidden group">
+                                <div className="relative z-10 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><Layout size={20}/> Seu Mini Site está no ar!</h3>
+                                        <p className="text-indigo-100 text-sm mb-4">Divulgue este link para seus clientes verem apenas seus pacotes.</p>
+                                        <div className="flex gap-3">
+                                            <a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="bg-white text-indigo-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2">
+                                                <ExternalLink size={16}/> Acessar Página
+                                            </a>
+                                            <button onClick={() => {navigator.clipboard.writeText(fullAgencyLink); showToast('Link copiado!', 'success')}} className="bg-indigo-700/50 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 backdrop-blur-sm border border-white/20">
+                                                <Copy size={16}/> Copiar Link
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="hidden md:block bg-white/20 p-3 rounded-xl backdrop-blur-sm border border-white/30">
+                                        <div className="bg-white p-2 rounded-lg">
+                                            {/* Mock QR Code */}
+                                            <div className="w-16 h-16 bg-gray-900 flex items-center justify-center text-white text-[8px]">QR CODE</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
+                                    <Globe size={200} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VENDAS RECENTES WIDGET */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>
+                                <button className="text-xs font-bold text-primary-600 hover:underline">Ver Relatório</button>
+                            </div>
+                            
+                            {recentBookings.length > 0 ? (
+                                <div className="space-y-3">
+                                    {recentBookings.map(booking => {
+                                        const trip = trips.find(t => t.id === booking.tripId);
+                                        const client = clients.find(c => c.id === booking.clientId);
+                                        const isNew = new Date(booking.date).getTime() > new Date().getTime() - 24 * 60 * 60 * 1000;
+
+                                        return (
+                                            <div key={booking.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isNew ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${isNew ? 'bg-green-200 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                                                        {client?.name.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-bold text-gray-900">{client?.name || 'Cliente'}</p>
+                                                            {isNew && <span className="text-[10px] font-bold bg-green-600 text-white px-1.5 py-0.5 rounded animate-pulse">NOVO</span>}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 line-clamp-1">{trip?.title || 'Pacote desconhecido'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold text-green-600">+ R$ {booking.totalPrice.toLocaleString()}</p>
+                                                    <p className="text-[10px] text-gray-400 flex items-center justify-end gap-1">
+                                                        <Clock size={10} /> {new Date(booking.date).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                    Nenhuma venda registrada recentemente.
+                                </div>
+                            )}
+                        </div>
+                        
                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
                             <div className="grid grid-cols-2 gap-4">
@@ -930,40 +1029,6 @@ const AgencyDashboard: React.FC = () => {
                                     <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
                                 </button>
                             </div>
-                        </div>
-
-                        {/* VENDAS RECENTES WIDGET */}
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>
-                            {recentBookings.length > 0 ? (
-                                <div className="space-y-3">
-                                    {recentBookings.map(booking => {
-                                        const trip = trips.find(t => t.id === booking.tripId);
-                                        const client = clients.find(c => c.id === booking.clientId);
-                                        return (
-                                            <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold">
-                                                        {client?.name.charAt(0) || 'U'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-bold text-gray-900">{client?.name || 'Cliente'}</p>
-                                                        <p className="text-xs text-gray-500 line-clamp-1">{trip?.title || 'Pacote desconhecido'}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-sm font-bold text-green-600">+ R$ {booking.totalPrice.toLocaleString()}</p>
-                                                    <p className="text-[10px] text-gray-400">{new Date(booking.date).toLocaleDateString()}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-400 text-sm">
-                                    Nenhuma venda registrada recentemente.
-                                </div>
-                            )}
                         </div>
                     </div>
 

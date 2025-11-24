@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, ChevronRight } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const ClientDashboard: React.FC = () => {
@@ -243,17 +243,22 @@ const ClientDashboard: React.FC = () => {
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
                         <img src={trip.images[0]} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
                         <div className="flex-1">
-                           <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-2">{trip.title}</h3>
-                           <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
+                           <div className="flex justify-between items-start">
+                               <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-2">{trip.title}</h3>
+                               <span className="text-xs font-bold bg-green-50 text-green-700 px-2 py-1 rounded-md border border-green-100">Confirmado</span>
+                           </div>
+                           
+                           <div className="grid grid-cols-2 gap-y-2 text-sm mb-4 mt-2">
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
                              <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {new Date(trip.startDate).toLocaleDateString()}</div>
                            </div>
-                           <div className="flex gap-2">
-                               <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
-                                    <QrCode size={16} /> Abrir Voucher
+                           
+                           <div className="flex gap-3 mt-auto">
+                               <button onClick={() => setSelectedBooking(booking)} className="flex-1 bg-gray-900 text-white text-sm font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-black transition-colors shadow-sm">
+                                    <QrCode size={16} /> Ver Voucher
                                </button>
-                               <Link to={tripLink} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
-                                    <Star size={16} /> Avaliar
+                               <Link to={tripLink} className="flex-1 bg-amber-50 text-amber-700 text-sm font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
+                                    <Star size={16} /> Avaliar Experiência
                                </Link>
                            </div>
                         </div>
@@ -264,6 +269,7 @@ const ClientDashboard: React.FC = () => {
                  <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
                    <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" />
                    <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3>
+                   <p className="text-gray-500 mt-2 text-sm">Suas compras recentes aparecerão aqui em instantes.</p>
                  </div>
                )}
              </div>

@@ -31,19 +31,19 @@ export const Unauthorized: React.FC = () => (
 
 export const CheckoutSuccess: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>();
-  const linkDashboard = agencySlug ? `/${agencySlug}/client/dashboard` : '/client/dashboard';
+  const linkDashboard = agencySlug ? `/${agencySlug}/client/BOOKINGS` : '/client/dashboard/BOOKINGS';
   const linkTrips = agencySlug ? `/${agencySlug}/trips` : '/trips';
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 py-12 bg-gray-50 animate-[fadeIn_0.5s]">
       
       {/* Ticket Visual */}
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200 transform hover:scale-[1.02] transition-transform duration-500">
           {/* Top Section (Green) */}
           <div className="bg-green-600 p-8 text-white relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
               <div className="relative z-10 flex flex-col items-center">
-                  <div className="bg-white/20 p-3 rounded-full mb-4 backdrop-blur-sm">
+                  <div className="bg-white/20 p-3 rounded-full mb-4 backdrop-blur-sm animate-[scaleIn_0.5s]">
                       <CheckCircle size={48} className="text-white" />
                   </div>
                   <h1 className="text-2xl font-bold mb-1">Reserva Confirmada!</h1>
@@ -70,7 +70,7 @@ export const CheckoutSuccess: React.FC = () => {
                       </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-4">
+                  <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-4 border border-gray-100">
                       <QrCode size={64} className="text-gray-800" />
                       <div className="text-left">
                           <p className="text-xs text-gray-500 leading-tight mb-1">Apresente este código ou acesse seu voucher digital no painel.</p>
