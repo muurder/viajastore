@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft, Share2, CreditCard } from 'lucide-react';
+import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
   // Capture params. If agencySlug exists, we are in agency mode.
@@ -57,6 +57,7 @@ const TripDetails: React.FC = () => {
   const agency = agencies.find(a => a.id === trip.agencyId);
   const totalPrice = trip.price * passengers;
   const reviews = getReviewsByTripId(trip.id);
+  const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
   
   const canReview = user?.role === 'CLIENT' && hasUserPurchasedTrip(user.id, trip.id);
 
@@ -426,7 +427,7 @@ const TripDetails: React.FC = () => {
             <div className="mb-6">
               <p className="text-sm text-gray-500 mb-1 font-medium">A partir de</p>
               <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold text-gray-900">R$ {trip.price}</span>
+                <span className="text-4xl font-extrabold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</span>
                 <span className="text-gray-500">/ pessoa</span>
               </div>
             </div>
@@ -467,6 +468,17 @@ const TripDetails: React.FC = () => {
               <span className="text-gray-600 font-medium">Total estimado</span>
               <span className="font-bold text-2xl text-primary-600">R$ {totalPrice.toLocaleString()}</span>
             </div>
+
+            {whatsappLink && (
+               <a 
+                 href={whatsappLink} 
+                 target="_blank" 
+                 rel="noopener noreferrer" 
+                 className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3"
+               >
+                 <MessageCircle size={20} /> Falar com a agência
+               </a>
+            )}
 
             {user?.role === 'AGENCY' || user?.role === 'ADMIN' ? (
                 <button 

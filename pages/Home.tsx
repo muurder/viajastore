@@ -1,9 +1,9 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
-import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const INTEREST_CHIPS = [
   { label: 'Todos', icon: Globe, id: 'chip-all' },
@@ -77,6 +77,16 @@ const Home: React.FC = () => {
   };
 
   const currentHeroTrip = heroTrips[currentSlide];
+  
+  // Get Agency for Hero Trip to generate WhatsApp Link
+  const currentHeroAgency = useMemo(() => {
+    return currentHeroTrip ? agencies.find(a => a.id === currentHeroTrip.agencyId) : undefined;
+  }, [currentHeroTrip, agencies]);
+
+  const heroWhatsAppLink = (currentHeroAgency?.whatsapp && currentHeroTrip) 
+      ? buildWhatsAppLink(currentHeroAgency.whatsapp, currentHeroTrip) 
+      : null;
+
   // --- END HERO LOGIC ---
 
   // --- GRID LOGIC (INDEPENDENT) ---
@@ -154,6 +164,13 @@ const Home: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     navigate(`/trips?q=${search}`);
+  };
+
+  const handleWhatsAppClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (heroWhatsAppLink) {
+        window.open(heroWhatsAppLink, '_blank');
+    }
   };
 
   return (
@@ -269,8 +286,19 @@ const Home: React.FC = () => {
                                 <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
                             </div>
                         </div>
-                        <div className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-bold flex items-center group-hover/card:bg-primary-500 transition-colors shadow-lg shadow-primary-900/20">
-                            Ver Pacote <ArrowRight size={16} className="ml-2 group-hover/card:translate-x-1 transition-transform" />
+                        <div className="flex gap-2">
+                             {heroWhatsAppLink && (
+                                <button
+                                    onClick={handleWhatsAppClick}
+                                    className="p-3 bg-green-500/80 hover:bg-green-600 text-white rounded-xl shadow-lg transition-colors backdrop-blur-sm flex items-center justify-center border border-green-400/30"
+                                    title="Falar com a agência"
+                                >
+                                    <MessageCircle size={20} />
+                                </button>
+                             )}
+                            <div className="px-5 py-3 bg-primary-600 text-white rounded-xl text-sm font-bold flex items-center group-hover/card:bg-primary-500 transition-colors shadow-lg shadow-primary-900/20">
+                                Ver Pacote <ArrowRight size={16} className="ml-2 group-hover/card:translate-x-1 transition-transform" />
+                            </div>
                         </div>
                     </div>
                 </Link>

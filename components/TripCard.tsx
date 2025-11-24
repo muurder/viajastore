@@ -1,11 +1,11 @@
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
-import { MapPin, Star, Heart, Clock } from 'lucide-react';
+import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
+import { buildWhatsAppLink } from '../utils/whatsapp';
 
 interface TripCardProps {
   trip: Trip;
@@ -13,7 +13,7 @@ interface TripCardProps {
 
 const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
-  const { toggleFavorite, clients, getAgencyBySlug } = useData();
+  const { toggleFavorite, clients, agencies } = useData();
   const { showToast } = useToast();
   const [imgError, setImgError] = useState(false);
   
@@ -30,6 +30,10 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const currentUserData = clients.find(c => c.id === user?.id);
   const isFavorite = user?.role === 'CLIENT' && currentUserData?.favorites.includes(trip.id);
 
+  // Find Agency for WhatsApp
+  const agency = agencies.find(a => a.id === trip.agencyId);
+  const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
+
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent Link navigation
     e.stopPropagation(); // Stop bubbling
@@ -43,6 +47,14 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
       toggleFavorite(trip.id, user.id);
     } else {
       showToast('Apenas viajantes podem favoritar.', 'warning');
+    }
+  };
+
+  const handleWhatsAppClick = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent Link navigation
+    e.stopPropagation(); // Stop bubbling
+    if (whatsappLink) {
+        window.open(whatsappLink, '_blank');
     }
   };
 
@@ -127,10 +139,21 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
                 <span className="text-xl font-extrabold text-gray-900 group-hover:text-primary-700 transition-colors">{trip.price.toLocaleString('pt-BR')}</span>
             </div>
           </div>
-          <div className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0 duration-300">
-             <span className="text-xs font-bold text-primary-600 flex items-center">
-               Ver detalhes &rarr;
-             </span>
+          <div className="flex items-center gap-2">
+              {whatsappLink && (
+                  <button 
+                    onClick={handleWhatsAppClick}
+                    className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center border border-green-100"
+                    title="Falar com a agência"
+                  >
+                      <MessageCircle size={18} />
+                  </button>
+              )}
+              <div className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0 duration-300">
+                 <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full">
+                   Detalhes &rarr;
+                 </span>
+              </div>
           </div>
         </div>
       </div>
