@@ -110,7 +110,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             views: t.views_count || 0,
             sales: t.sales_count || 0,
             featured: t.featured || false,
-            featuredInHero: t.featured_in_hero || false, // New Field
+            featuredInHero: t.featured_in_hero || false, 
             popularNearSP: t.popular_near_sp || false
           }));
 
@@ -144,6 +144,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroBannerUrl: a.hero_banner_url,
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
+
+        // Custom Settings
+        customSettings: a.custom_settings || {},
 
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
@@ -227,17 +230,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                    if(existing) {
                        return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
                    }
-                   
-                   // If user not in client list yet (race condition), add them properly
-                   const me: Client = {
-                       id: user.id,
-                       name: user.name,
-                       email: user.email || '',
-                       role: UserRole.CLIENT,
-                       favorites: favIds,
-                       createdAt: new Date().toISOString()
-                   };
-                   return [...prev, me];
+                   return prev;
                });
             }
           } catch (err) {
@@ -250,23 +243,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return;
 
     try {
-        let query = supabase.from('bookings').select('*');
-
-        if (user.role === UserRole.CLIENT) {
-          query = query.eq('client_id', user.id);
-        } 
-        else if (user.role === UserRole.AGENCY) {
-          const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
-          const myTripIds = myTrips?.map(t => t.id) || [];
-          if(myTripIds.length > 0) {
-              query = query.in('trip_id', myTripIds);
-          } else {
-              setBookings([]);
-              return;
-          }
-        }
-        
-        const { data, error } = await query;
+        // FIX: Trust the Database RLS Policies.
+        // We don't filter by ID manually here because the SQL Policy already does it.
+        // This ensures that if a user is an Agency, they see bookings for their trips.
+        // If a user is a Client, they see their own bookings.
+        const { data, error } = await supabase
+            .from('bookings')
+            .select('*');
 
         if (error) throw error;
 
@@ -306,10 +289,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setAuditLogs(logs);
           }
       } catch (err) {
-          const mockLogs: AuditLog[] = [
-             { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado (Modo Offline/Mock)', createdAt: new Date().toISOString() }
-          ];
-          setAuditLogs(mockLogs);
+          setAuditLogs([]);
       }
   };
 
@@ -342,10 +322,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- ACTIONS ---
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
+    // ... same logic ...
     const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
     const isCurrentlyFavorite = currentClient.favorites.includes(tripId);
     
-    // Optimistic Update
+    // Optimistic
     const updatedFavorites = isCurrentlyFavorite 
       ? currentClient.favorites.filter(id => id !== tripId)
       : [...currentClient.favorites, tripId];
@@ -354,37 +335,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
         if (isCurrentlyFavorite) {
-            // Remove from DB
-            const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
-            if (error) throw error;
+            await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
             showToast('Removido dos favoritos', 'info');
         } else {
-            // Add to DB
-            const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
-            if (error) throw error;
+            await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
             showToast('Adicionado aos favoritos', 'success');
         }
-        // We don't strictly need to fetch again if optimistic update worked, but it's safer for consistency
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
         showToast('Erro ao atualizar favoritos', 'error');
-        // Revert Optimistic Update on Error
+        // Revert
         setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
     }
   };
 
   const addBooking = async (booking: Booking) => {
-    // Optimistic Update for Bookings List
     setBookings(prev => [...prev, booking]);
-
-    // Optimistic Update for Trip Sales Count (to reflect on Dashboard immediately)
     setTrips(prev => prev.map(t => t.id === booking.tripId ? { ...t, sales: (t.sales || 0) + 1 } : t));
 
     const { error } = await supabase.from('bookings').insert({
-      id: booking.id,
       trip_id: booking.tripId,
       client_id: booking.clientId,
-      created_at: booking.date,
       status: booking.status,
       total_price: booking.totalPrice,
       passengers: booking.passengers,
@@ -394,20 +365,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (error) {
       console.error('Error adding booking:', error);
-      // Revert optimistic updates if failed (basic implementation)
-      setBookings(prev => prev.filter(b => b.id !== booking.id));
+      setBookings(prev => prev.filter(b => b.voucherCode !== booking.voucherCode));
     } else {
-        // No need to call increment sales manually if the SQL trigger is set up.
-        // But we refresh data to sync everything up perfectly.
         await refreshData(); 
     }
   };
 
   const incrementTripViews = async (tripId: string) => {
-      // Optimistic update local state
       setTrips(prev => prev.map(t => t.id === tripId ? { ...t, views: (t.views || 0) + 1 } : t));
-
-      // Call Database RPC
       try {
           await supabase.rpc('increment_trip_views', { row_id: tripId });
       } catch (err) {
@@ -417,33 +382,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addReview = async (review: Review) => {
     const { error } = await supabase.from('reviews').insert({
-      id: review.id,
       trip_id: review.tripId,
       user_id: review.clientId, 
       rating: review.rating,
       comment: review.comment,
-      created_at: review.date,
-      response: review.response
     });
-    if (error) {
-      console.error('Error adding review:', error);
-    }
+    if (error) console.error('Error adding review:', error);
     await fetchReviews();
   };
 
   const deleteReview = async (reviewId: string) => {
     const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
-    if (error) {
-      console.error('Error deleting review:', error);
-    }
+    if (error) console.error('Error deleting review:', error);
     await fetchReviews();
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
     const { error } = await supabase.from('profiles').update(data).eq('id', clientId);
-    if (error) {
-      console.error('Error updating client profile:', error);
-    }
+    if (error) console.error('Error updating client profile:', error);
     await refreshData();
   };
 
@@ -453,15 +409,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_plan: plan,
       subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
     }).eq('id', agencyId);
-    if (error) {
-      console.error('Error updating agency subscription:', error);
-    }
+    if (error) console.error('Error updating agency subscription:', error);
     await refreshData();
   };
 
   const createTrip = async (trip: Trip) => {
+    // ... existing creation logic ...
     const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
-
     const dbTrip: any = {
         agency_id: trip.agencyId,
         title: trip.title,
@@ -480,37 +434,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured ?? false,
-        featured_in_hero: trip.featuredInHero ?? false, // New Field
+        featured_in_hero: trip.featuredInHero ?? false,
         popular_near_sp: trip.popularNearSP ?? false,
     };
-
-    if (tripSlug) {
-        dbTrip.slug = tripSlug;
-    }
+    if (tripSlug) dbTrip.slug = tripSlug;
 
     const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
-
-    if (error) {
-      console.error('Error creating trip:', error);
-      throw error;
-    }
+    if (error) throw error;
 
     if (newTrip && trip.images && trip.images.length > 0) {
       const imageInserts = trip.images.map(url => ({
         trip_id: newTrip.id,
         image_url: url
       }));
-      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
-      if (imageError) {
-        console.error('Error inserting trip images:', imageError);
-      }
+      await supabase.from('trip_images').insert(imageInserts);
     }
     await refreshData();
   };
 
   const updateTrip = async (trip: Trip) => {
     const { id, images } = trip;
-    
     const dbTrip = {
         title: trip.title,
         slug: trip.slug, 
@@ -529,39 +472,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured,
-        featured_in_hero: trip.featuredInHero, // New Field
+        featured_in_hero: trip.featuredInHero, 
         popular_near_sp: trip.popularNearSP,
     };
 
     const { error } = await supabase.from('trips').update(dbTrip).eq('id', id);
+    if (error) throw error;
 
-    if (error) {
-      console.error('Error updating trip:', error);
-      throw error;
-    }
-
-    // Handle images: delete old ones and insert new ones
     await supabase.from('trip_images').delete().eq('trip_id', id);
     if (images && images.length > 0) {
       const imageInserts = images.map(url => ({
         trip_id: id,
         image_url: url
       }));
-      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
-      if (imageError) console.error('Error updating trip images:', imageError);
+      await supabase.from('trip_images').insert(imageInserts);
     }
     await refreshData();
   };
 
   const deleteTrip = async (tripId: string) => {
-    const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
-    if (imagesError) console.error('Error deleting trip images:', imagesError);
-
-    const { error: tripError } = await supabase.from('trips').delete().eq('id', tripId);
-    if (tripError) {
-      console.error('Error deleting trip:', tripError);
-      throw tripError;
-    }
+    await supabase.from('trip_images').delete().eq('trip_id', tripId);
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) throw error;
     await refreshData();
   };
 
@@ -569,9 +501,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const { error } = await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
-    if (error) {
-      console.error('Error toggling trip status:', error);
-    }
+    if (error) console.error('Error toggling trip status:', error);
     await refreshData();
   };
 
@@ -589,24 +519,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await supabase.from('bookings').delete().eq('client_id', userId);
       await supabase.from('reviews').delete().eq('user_id', userId);
     }
-    
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
-    if (authDeleteError) console.error('Error deleting auth user:', authDeleteError);
-    
+    await supabase.auth.admin.deleteUser(userId);
     await refreshData();
   };
 
   const logAuditAction = async (action: string, details: string) => {
-    if (!user || user.role !== UserRole.ADMIN) {
-        return;
-    }
-    const { error } = await supabase.from('audit_logs').insert({
+    if (!user || user.role !== UserRole.ADMIN) return;
+    await supabase.from('audit_logs').insert({
       admin_email: user.email,
       action: action,
       details: details,
-      created_at: new Date().toISOString()
     });
-    if (error) console.error('Error logging audit action:', error);
     await refreshData();
   };
 
@@ -617,26 +540,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getTripById = (id: string | undefined) => id ? trips.find(t => t.id === id) : undefined;
   const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); 
   
-  // Case-insensitive slug search for agencies
   const getAgencyBySlug = (slug: string) => {
       if (!slug) return undefined;
       return agencies.find(a => a.slug && a.slug.toLowerCase() === slug.toLowerCase());
   };
   
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId);
 
   const getAgencyStats = (agencyId: string) => {
     const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-    const agencyBookings = bookings.filter(b => agencyTrips.some(t => t.id === b.tripId));
+    const agencyTripIds = agencyTrips.map(t => t.id);
+    const agencyBookings = bookings.filter(b => agencyTripIds.includes(b.tripId));
 
     const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
     const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0);
+    // Use the calculated sales count from trips table if available, or count booking rows
+    const totalSalesFromBookings = agencyBookings.length;
+    
     const totalRevenue = agencyBookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
 
-    const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+    const conversionRate = totalViews > 0 ? (totalSalesFromBookings / totalViews) * 100 : 0;
 
-    return { totalRevenue, totalViews, totalSales, conversionRate };
+    return { totalRevenue, totalViews, totalSales: totalSalesFromBookings, conversionRate };
   };
 
   return (

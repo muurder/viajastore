@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ArrowRight, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -30,7 +30,9 @@ const AgencyLandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
-  // Wait for data loading
+  // Carousel State
+  const [currentSlide, setCurrentSlide] = useState(0);
+
   if (loading) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -52,8 +54,11 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // Fetch trips for this agency
   const allTrips = getAgencyPublicTrips(agency.id);
+  const featuredTrips = allTrips.filter(t => t.featuredInHero);
+  
+  // If no featured trips, use latest 3 active trips
+  const heroSlides = featuredTrips.length > 0 ? featuredTrips : allTrips.slice(0, 3);
 
   // --- AGGREGATED DATA ---
   const agencyReviews = useMemo(() => {
@@ -67,11 +72,10 @@ const AgencyLandingPage: React.FC = () => {
       const totalReviews = agencyReviews.length;
       const averageRating = totalReviews > 0 
           ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
-          : 0; // New agencies might default to 5.0 or 0 depending on preference, 0 forces "New" label
+          : 0;
       
       const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
 
-      // Calculate top specialties based on trip categories
       const catCounts: Record<string, number> = {};
       allTrips.forEach(t => {
           catCounts[t.category] = (catCounts[t.category] || 0) + 1;
@@ -84,7 +88,6 @@ const AgencyLandingPage: React.FC = () => {
       return { totalReviews, averageRating, totalClients, specialties };
   }, [agencyReviews, allTrips]);
 
-  
   // Filtering Logic
   const filteredTrips = allTrips.filter(t => {
     if (t.agencyId !== agency.id) return false;
@@ -140,105 +143,168 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  // Fallback cover image if agency hasn't set one
+  // Slider Logic
+  useEffect(() => {
+      if (agency.heroMode === 'TRIPS' && heroSlides.length > 1) {
+          const timer = setInterval(() => {
+              setCurrentSlide(prev => (prev + 1) % heroSlides.length);
+          }, 6000);
+          return () => clearInterval(timer);
+      }
+  }, [agency.heroMode, heroSlides.length]);
+
   const coverImage = agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
-      {/* --- BRAND HERO SECTION --- */}
-      <div className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[450px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4">
-          
-          {/* Background Image with Parallax-like effect */}
-          <div className="absolute inset-0 z-0">
-              <img 
-                src={coverImage} 
-                className="w-full h-full object-cover opacity-90 transition-transform duration-[10s] ease-linear group-hover:scale-105" 
-                alt="Cover" 
-              />
-              {/* Gradient Overlays for readability */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
-              <div className="absolute inset-0 bg-black/20 mix-blend-multiply"></div>
-          </div>
-
-          {/* Content Container */}
-          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
-              <div className="flex flex-col md:flex-row items-start md:items-end gap-6 md:gap-8">
-                  
-                  {/* Agency Logo */}
-                  <div className="relative shrink-0">
-                      <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl border-4 border-white/20 bg-white shadow-2xl overflow-hidden">
-                          <img 
-                            src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                            className="w-full h-full object-cover" 
-                            alt="Logo"
-                          />
-                      </div>
-                      {agency.subscriptionStatus === 'ACTIVE' && (
-                          <div className="absolute -bottom-2 -right-2 bg-green-500 text-white p-1.5 rounded-full border-4 border-gray-900 shadow-sm" title="Verificado">
-                              <ShieldCheck size={16} fill="currentColor" className="text-white" />
-                          </div>
-                      )}
-                  </div>
-
-                  {/* Agency Text Info */}
-                  <div className="flex-1 text-white">
-                      <div className="flex flex-wrap items-center gap-3 mb-2">
-                          {agencyStats.specialties.map(spec => (
-                              <span key={spec} className="px-2.5 py-0.5 rounded-md bg-white/20 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm border border-white/10">
-                                  {spec.replace('_', ' ')}
+      {/* --- HERO SECTION --- */}
+      {agency.heroMode === 'TRIPS' && heroSlides.length > 0 ? (
+          // MODE: CAROUSEL
+          <div className="relative min-h-[500px] md:min-h-[600px] bg-gray-900 rounded-b-3xl md:rounded-3xl overflow-hidden shadow-2xl mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4 group">
+              {heroSlides.map((trip, index) => (
+                  <div 
+                    key={trip.id} 
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                  >
+                      <img src={trip.images[0]} alt={trip.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20"></div>
+                      
+                      <div className="absolute inset-0 flex items-end justify-center pb-24 md:pb-32 px-4">
+                          <div className="text-center max-w-4xl mx-auto text-white animate-[fadeInUp_0.8s]">
+                              <span className="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/10 text-xs font-bold uppercase tracking-wider mb-4">
+                                  {trip.category.replace('_', ' ')}
                               </span>
-                          ))}
-                          {agencyStats.averageRating > 0 && (
-                              <div className="flex items-center bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-400/30 text-[10px] font-bold">
-                                  <Star size={10} className="fill-current mr-1"/> {agencyStats.averageRating.toFixed(1)}
+                              <h2 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight drop-shadow-lg">{trip.title}</h2>
+                              <div className="flex items-center justify-center gap-6 text-lg font-medium mb-8">
+                                  <span className="flex items-center"><MapPin size={20} className="mr-2"/> {trip.destination}</span>
+                                  <span className="flex items-center"><Clock size={20} className="mr-2"/> {trip.durationDays} Dias</span>
+                              </div>
+                              <div className="flex justify-center gap-4">
+                                  <Link to={`/${agencySlug}/viagem/${trip.slug}`} className="bg-primary-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:bg-primary-700 transition-transform hover:scale-105 flex items-center">
+                                      Ver Detalhes <ArrowRight size={20} className="ml-2"/>
+                                  </Link>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              ))}
+              
+              {/* Carousel Indicators */}
+              {heroSlides.length > 1 && (
+                  <div className="absolute bottom-28 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                      {heroSlides.map((_, idx) => (
+                          <button 
+                            key={idx} 
+                            onClick={() => setCurrentSlide(idx)}
+                            className={`h-1.5 rounded-full transition-all ${idx === currentSlide ? 'w-8 bg-white' : 'w-2 bg-white/40'}`}
+                          />
+                      ))}
+                  </div>
+              )}
+
+              {/* Agency Bar Overlay */}
+              <div className="absolute bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/10 p-4 md:p-6 z-30">
+                  <div className="max-w-7xl mx-auto flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <img src={agency.logo} className="w-12 h-12 rounded-full border-2 border-white shadow-sm" alt="Logo"/>
+                          <div className="text-white">
+                              <h3 className="font-bold text-lg leading-tight">{agency.name}</h3>
+                              <p className="text-xs text-gray-300">{agency.address?.city || 'Brasil'}</p>
+                          </div>
+                      </div>
+                      <div className="flex gap-3">
+                          {agency.whatsapp && (
+                              <button onClick={handleContact} className="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full shadow-lg transition-transform hover:scale-110">
+                                  <Smartphone size={20} />
+                              </button>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      ) : (
+          // MODE: STATIC BANNER (Premium)
+          <div className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[450px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4">
+              <div className="absolute inset-0 z-0">
+                  <img 
+                    src={coverImage} 
+                    className="w-full h-full object-cover opacity-90 transition-transform duration-[10s] ease-linear group-hover:scale-105" 
+                    alt="Cover" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
+                  <div className="absolute inset-0 bg-black/20 mix-blend-multiply"></div>
+              </div>
+
+              <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
+                  <div className="flex flex-col md:flex-row items-start md:items-end gap-6 md:gap-8">
+                      <div className="relative shrink-0">
+                          <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl border-4 border-white/20 bg-white shadow-2xl overflow-hidden">
+                              <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-full h-full object-cover" alt="Logo"/>
+                          </div>
+                          {agency.subscriptionStatus === 'ACTIVE' && (
+                              <div className="absolute -bottom-2 -right-2 bg-green-500 text-white p-1.5 rounded-full border-4 border-gray-900 shadow-sm" title="Verificado">
+                                  <ShieldCheck size={16} fill="currentColor" className="text-white" />
                               </div>
                           )}
                       </div>
 
-                      <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 text-white drop-shadow-md">
-                          {agency.name}
-                      </h1>
-                      
-                      <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-gray-300 text-sm md:text-base font-medium mb-6">
-                          {agency.address && (
-                              <span className="flex items-center">
-                                  <MapPin size={16} className="mr-1.5 text-gray-400"/> 
-                                  {agency.address.city || 'Brasil'}, {agency.address.state}
-                              </span>
+                      <div className="flex-1 text-white">
+                          <div className="flex flex-wrap items-center gap-3 mb-2">
+                              {agencyStats.specialties.map(spec => (
+                                  <span key={spec} className="px-2.5 py-0.5 rounded-md bg-white/20 text-white text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm border border-white/10">
+                                      {spec.replace('_', ' ')}
+                                  </span>
+                              ))}
+                              {agencyStats.averageRating > 0 && (
+                                  <div className="flex items-center bg-amber-400/20 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-400/30 text-[10px] font-bold">
+                                      <Star size={10} className="fill-current mr-1"/> {agencyStats.averageRating.toFixed(1)}
+                                  </div>
+                              )}
+                          </div>
+
+                          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 text-white drop-shadow-md">
+                              {agency.heroTitle || agency.name}
+                          </h1>
+                          
+                          {agency.heroSubtitle && (
+                              <p className="text-xl text-gray-200 font-medium mb-4 max-w-2xl drop-shadow-sm">{agency.heroSubtitle}</p>
                           )}
-                          <span className="flex items-center">
-                              <Users size={16} className="mr-1.5 text-gray-400"/> 
-                              {agencyStats.totalClients > 0 ? `${agencyStats.totalClients} viajantes embarcados` : 'Agência nova na plataforma'}
-                          </span>
+                          
+                          <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-gray-300 text-sm md:text-base font-medium mb-6">
+                              {agency.address && (
+                                  <span className="flex items-center">
+                                      <MapPin size={16} className="mr-1.5 text-gray-400"/> 
+                                      {agency.address.city || 'Brasil'}, {agency.address.state}
+                                  </span>
+                              )}
+                              <span className="flex items-center">
+                                  <Users size={16} className="mr-1.5 text-gray-400"/> 
+                                  {agencyStats.totalClients > 0 ? `${agencyStats.totalClients} viajantes embarcados` : 'Agência nova na plataforma'}
+                              </span>
+                          </div>
                       </div>
 
-                      {/* Desktop Tagline */}
-                      <p className="hidden md:block text-gray-300/80 max-w-2xl line-clamp-2 mb-1">
-                          {agency.description}
-                      </p>
-                  </div>
-
-                  {/* CTAs */}
-                  <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                      {agency.whatsapp && (
+                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                          {agency.whatsapp && (
+                              <button 
+                                onClick={handleContact}
+                                className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-green-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+                              >
+                                  <Smartphone size={20} /> WhatsApp
+                              </button>
+                          )}
                           <button 
-                            onClick={handleContact}
-                            className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-green-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+                            onClick={scrollToPackages}
+                            className="flex-1 md:flex-none bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3.5 rounded-xl font-bold backdrop-blur-md flex items-center justify-center gap-2 transition-all active:scale-95"
                           >
-                              <Smartphone size={20} /> WhatsApp
+                              Ver Pacotes <ArrowDown size={18}/>
                           </button>
-                      )}
-                      <button 
-                        onClick={scrollToPackages}
-                        className="flex-1 md:flex-none bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3.5 rounded-xl font-bold backdrop-blur-md flex items-center justify-center gap-2 transition-all active:scale-95"
-                      >
-                          Ver Pacotes <ArrowDown size={18}/>
-                      </button>
+                      </div>
                   </div>
               </div>
           </div>
-      </div>
+      )}
 
       {/* --- NAVIGATION TABS --- */}
       <div className="sticky top-[64px] z-40 bg-gray-50/90 backdrop-blur-md border-b border-gray-200 shadow-sm -mt-6 pt-4">
