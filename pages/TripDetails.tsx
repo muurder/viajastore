@@ -156,6 +156,8 @@ const TripDetails: React.FC = () => {
     addReview({
       id: `r${Date.now()}`,
       tripId: trip.id,
+      // FIX: Added missing agencyId to associate the review correctly.
+      agencyId: trip.agencyId,
       clientId: user.id,
       clientName: user.name,
       rating,
