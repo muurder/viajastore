@@ -157,6 +157,8 @@ export interface Booking {
 export interface Review {
   id: string;
   tripId: string;
+  // FIX: Added agencyId to the Review interface
+  agencyId: string;
   clientId: string;
   rating: number; // 1-5
   comment: string;

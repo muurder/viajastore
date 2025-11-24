@@ -9,7 +9,7 @@ import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
   // Capture params. If agencySlug exists, we are in agency mode.
-  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
+  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string; }>();
   
   // Handle both global (/viagem/:slug) and nested (/:agencySlug/viagem/:tripSlug) routes
   const activeTripSlug = tripSlug || slug;
@@ -115,7 +115,7 @@ const TripDetails: React.FC = () => {
 
   const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
 
-  const handleBooking = () => {
+  const handleBooking = async () => {
     if (!user) {
       navigate('/#login');
       return;
@@ -125,27 +125,26 @@ const TripDetails: React.FC = () => {
       return;
     }
     
-    const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
-    
-    addBooking({
-      id: `b${Date.now()}`,
+    // FIX: Removed id, date, and voucherCode from the object to match the expected type.
+    // The addBooking function returns a promise that resolves to a boolean.
+    const success = await addBooking({
       tripId: trip.id,
       clientId: user.id,
-      date: new Date().toISOString(),
       status: 'CONFIRMED',
       totalPrice,
       passengers,
-      voucherCode,
       paymentMethod: 'CREDIT_CARD'
     });
 
     setIsBookingModalOpen(false);
     
-    // Navigate to Scoped Success Page if in microsite, else global
-    if (agencySlug) {
-        navigate(`/${agencySlug}/checkout/success`);
-    } else {
-        navigate('/checkout/success');
+    if (success) {
+      // Navigate to Scoped Success Page if in microsite, else global
+      if (agencySlug) {
+          navigate(`/${agencySlug}/checkout/success`);
+      } else {
+          navigate('/checkout/success');
+      }
     }
   };
 
@@ -153,16 +152,13 @@ const TripDetails: React.FC = () => {
     e.preventDefault();
     if (!user) return;
     
+    // FIX: Removed id, clientName, and date from the object to match the expected type.
     addReview({
-      id: `r${Date.now()}`,
       tripId: trip.id,
-      // FIX: Added missing agencyId to associate the review correctly.
       agencyId: trip.agencyId,
       clientId: user.id,
-      clientName: user.name,
       rating,
       comment,
-      date: new Date().toISOString()
     });
     setComment('');
     showToast('Avaliação enviada com sucesso!', 'success');
