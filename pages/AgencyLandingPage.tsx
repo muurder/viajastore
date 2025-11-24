@@ -5,7 +5,6 @@ import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ArrowRight, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 
-// Reuse Filters from Home
 const INTEREST_CHIPS = [
   { label: 'Todos', id: 'chip-all' },
   { label: 'Praia', icon: Umbrella, id: 'chip-praia' },
@@ -30,7 +29,6 @@ const AgencyLandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
-  // Carousel State
   const [currentSlide, setCurrentSlide] = useState(0);
 
   if (loading) {
@@ -56,11 +54,9 @@ const AgencyLandingPage: React.FC = () => {
 
   const allTrips = getAgencyPublicTrips(agency.id);
   const featuredTrips = allTrips.filter(t => t.featuredInHero);
-  
-  // If no featured trips, use latest 3 active trips
   const heroSlides = featuredTrips.length > 0 ? featuredTrips : allTrips.slice(0, 3);
 
-  // --- AGGREGATED DATA ---
+  // AGGREGATED DATA
   const agencyReviews = useMemo(() => {
       return allTrips.flatMap(trip => {
           const tripReviews = getReviewsByTripId(trip.id);
@@ -88,7 +84,7 @@ const AgencyLandingPage: React.FC = () => {
       return { totalReviews, averageRating, totalClients, specialties };
   }, [agencyReviews, allTrips]);
 
-  // Filtering Logic
+  // FILTERING
   const filteredTrips = allTrips.filter(t => {
     if (t.agencyId !== agency.id) return false;
 
@@ -143,7 +139,6 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  // Slider Logic
   useEffect(() => {
       if (agency.heroMode === 'TRIPS' && heroSlides.length > 1) {
           const timer = setInterval(() => {
@@ -158,7 +153,7 @@ const AgencyLandingPage: React.FC = () => {
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
-      {/* --- HERO SECTION --- */}
+      {/* HERO SECTION */}
       {agency.heroMode === 'TRIPS' && heroSlides.length > 0 ? (
           // MODE: CAROUSEL
           <div className="relative min-h-[500px] md:min-h-[600px] bg-gray-900 rounded-b-3xl md:rounded-3xl overflow-hidden shadow-2xl mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4 group">
@@ -190,7 +185,7 @@ const AgencyLandingPage: React.FC = () => {
                   </div>
               ))}
               
-              {/* Carousel Indicators */}
+              {/* Indicators */}
               {heroSlides.length > 1 && (
                   <div className="absolute bottom-28 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                       {heroSlides.map((_, idx) => (
@@ -224,7 +219,7 @@ const AgencyLandingPage: React.FC = () => {
               </div>
           </div>
       ) : (
-          // MODE: STATIC BANNER (Premium)
+          // MODE: STATIC BANNER
           <div className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[450px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4">
               <div className="absolute inset-0 z-0">
                   <img 
@@ -233,7 +228,6 @@ const AgencyLandingPage: React.FC = () => {
                     alt="Cover" 
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
-                  <div className="absolute inset-0 bg-black/20 mix-blend-multiply"></div>
               </div>
 
               <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
@@ -306,7 +300,7 @@ const AgencyLandingPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- NAVIGATION TABS --- */}
+      {/* NAVIGATION TABS */}
       <div className="sticky top-[64px] z-40 bg-gray-50/90 backdrop-blur-md border-b border-gray-200 shadow-sm -mt-6 pt-4">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center gap-8">
               {[
@@ -325,10 +319,10 @@ const AgencyLandingPage: React.FC = () => {
           </div>
       </div>
 
-      {/* --- CONTENT SECTIONS --- */}
+      {/* CONTENT */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[500px]">
         
-        {/* TAB: PACKAGES */}
+        {/* PACKAGES */}
         {activeTab === 'PACKAGES' && (
             <div id="packages-section" className="animate-[fadeIn_0.3s]">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 mt-8">
@@ -349,7 +343,7 @@ const AgencyLandingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filter Chips */}
+                {/* Filters */}
                 <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-8">
                     {INTEREST_CHIPS.map(({label, icon: Icon}) => {
                         const isSelected = label === 'Todos' ? selectedInterests.length === 0 : selectedInterests.includes(label);
@@ -391,11 +385,9 @@ const AgencyLandingPage: React.FC = () => {
             </div>
         )}
 
-        {/* TAB: ABOUT */}
+        {/* ABOUT */}
         {activeTab === 'ABOUT' && (
             <div className="max-w-4xl mx-auto animate-[fadeIn_0.3s] mt-8 space-y-12">
-                
-                {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
                         <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Users size={24}/></div>
@@ -420,7 +412,6 @@ const AgencyLandingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Content & Sidebar */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                     <div className="md:col-span-2 space-y-8">
                         <div>
@@ -466,7 +457,6 @@ const AgencyLandingPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Sidebar Info */}
                     <div className="space-y-6">
                         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
                             <h4 className="font-bold text-gray-900 mb-4">Contatos</h4>
@@ -496,7 +486,6 @@ const AgencyLandingPage: React.FC = () => {
                                     {agency.address.street}, {agency.address.number}<br/>
                                     {agency.address.district} - {agency.address.city}/{agency.address.state}
                                 </p>
-                                {/* Placeholder for Map */}
                                 <div className="w-full h-32 bg-gray-200 rounded-xl flex items-center justify-center text-gray-400 text-xs font-bold uppercase tracking-widest border border-gray-300">
                                     Mapa da Região
                                 </div>
@@ -507,7 +496,7 @@ const AgencyLandingPage: React.FC = () => {
             </div>
         )}
 
-        {/* TAB: REVIEWS */}
+        {/* REVIEWS */}
         {activeTab === 'REVIEWS' && (
             <div className="max-w-4xl mx-auto animate-[fadeIn_0.3s] mt-8">
                 <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm mb-8 text-center md:text-left flex flex-col md:flex-row items-center gap-8">
