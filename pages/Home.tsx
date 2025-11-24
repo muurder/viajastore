@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
-import { MapPin, ArrowRight, Building, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Trip } from '../types';
 
 const INTEREST_CHIPS = [
   { label: 'Todos', icon: Globe, id: 'chip-all' },
@@ -18,6 +18,8 @@ const INTEREST_CHIPS = [
   { label: 'Arte', icon: Palette, id: 'chip-arte' },
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
+
+const DEFAULT_HERO_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop";
 
 const normalizeText = (text: string) => {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -37,10 +39,10 @@ const Home: React.FC = () => {
   const allTrips = getPublicTrips();
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
 
-  // --- HERO CAROUSEL LOGIC ---
-  // Select a random sample of up to 5 trips from the entire catalog
-  const heroTrips = React.useMemo(() => 
-    allTrips.sort(() => 0.5 - Math.random()).slice(0, 5), 
+  // --- HERO LOGIC (INDEPENDENT) ---
+  // Select a random sample of up to 5 trips from the entire catalog for the Hero
+  const heroTrips = useMemo(() => 
+    allTrips.length > 0 ? allTrips.sort(() => 0.5 - Math.random()).slice(0, 5) : [], 
   [allTrips]);
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -73,7 +75,18 @@ const Home: React.FC = () => {
   };
 
   const currentHeroTrip = heroTrips[currentSlide];
-  // --- END HERO CAROUSEL LOGIC ---
+  // --- END HERO LOGIC ---
+
+  // --- GRID LOGIC (INDEPENDENT) ---
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = scrollRef.current.clientWidth / 2;
+      scrollRef.current.scrollBy({ 
+        left: direction === 'left' ? -scrollAmount : scrollAmount, 
+        behavior: 'smooth' 
+      });
+    }
+  };
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -89,16 +102,6 @@ const Home: React.FC = () => {
     return () => window.removeEventListener('resize', checkScroll);
   }, []);
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollRef.current) {
-      const scrollAmount = scrollRef.current.clientWidth / 2;
-      scrollRef.current.scrollBy({ 
-        left: direction === 'left' ? -scrollAmount : scrollAmount, 
-        behavior: 'smooth' 
-      });
-    }
-  };
-
   const toggleInterest = (label: string, elementId: string) => {
      if (label === 'Todos') {
          setSelectedInterests([]);
@@ -113,9 +116,15 @@ const Home: React.FC = () => {
      }
   };
 
-  const displayedTrips = selectedInterests.length === 0
-    ? allTrips.sort((a, b) => b.rating - a.rating).slice(0, 9)
-    : allTrips.filter(t => {
+  // Explicitly separate the grid trips logic from the hero logic
+  const featuredGridTrips = useMemo(() => {
+    if (selectedInterests.length === 0) {
+        // Default View: Sort by Rating or Sales, ensuring high quality first
+        return [...allTrips].sort((a, b) => b.rating - a.rating).slice(0, 9);
+    }
+
+    // Filtered View
+    return allTrips.filter(t => {
         return selectedInterests.some(interest => {
             const cleanInterest = normalizeText(interest);
             const cleanCategory = normalizeText(t.category);
@@ -130,6 +139,7 @@ const Home: React.FC = () => {
             });
         });
     }).slice(0, 9);
+  }, [allTrips, selectedInterests]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,16 +150,39 @@ const Home: React.FC = () => {
     <div className="space-y-12 pb-12">
       {/* HERO SECTION */}
       <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[500px] md:min-h-[550px] flex items-center group bg-gray-900">
-        <div className="absolute inset-0 transition-transform duration-[30s] hover:scale-105">
-            <img 
-            src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop"
-            alt="Hero background showing a beautiful landscape" 
-            className="w-full h-full object-cover animate-[kenburns_30s_infinite_alternate]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent"></div>
-        </div>
         
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 md:px-12">
+        {/* DYNAMIC BACKGROUND LAYER (Z-0) */}
+        {heroTrips.length > 0 ? (
+            heroTrips.map((trip, index) => (
+                <div 
+                    key={trip.id} 
+                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100' : 'opacity-0'}`}
+                >
+                    <img 
+                        src={trip.images?.[0] || DEFAULT_HERO_IMG}
+                        alt="" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
+                    />
+                </div>
+            ))
+        ) : (
+            // Fallback Background
+            <div className="absolute inset-0">
+                <img 
+                    src={DEFAULT_HERO_IMG}
+                    alt="Hero background" 
+                    className="w-full h-full object-cover"
+                />
+            </div>
+        )}
+
+        {/* STATIC OVERLAY LAYER (Z-10) */}
+        {/* Constant gradient to ensure text readability regardless of image */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent/20 z-10 pointer-events-none"></div>
+        
+        {/* CONTENT LAYER (Z-20) */}
+        <div className="relative z-20 w-full max-w-7xl mx-auto px-6 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Side: Text and Search */}
             <div className="text-center lg:text-left">
@@ -187,44 +220,44 @@ const Home: React.FC = () => {
                 <Link 
                   to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
                   key={currentHeroTrip.id} 
-                  className="block w-full max-w-sm bg-black/20 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-lg hover:border-white/40 transition-all duration-300 animate-[fadeIn_1s]"
+                  className="block w-full max-w-sm bg-black/40 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-2xl hover:bg-black/50 hover:border-white/40 transition-all duration-300 animate-[fadeIn_1s] transform hover:-translate-y-1"
                   aria-live="polite"
                 >
-                    <div className="relative h-40 w-full rounded-xl overflow-hidden mb-3">
+                    <div className="relative h-48 w-full rounded-xl overflow-hidden mb-4 shadow-inner">
                         <img src={currentHeroTrip.images[0]} alt={currentHeroTrip.title} className="w-full h-full object-cover" />
-                        <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">{currentHeroTrip.category.replace('_', ' ')}</div>
+                        <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider">{currentHeroTrip.category.replace('_', ' ')}</div>
                     </div>
-                    <h3 className="font-bold text-white text-lg leading-tight line-clamp-2 min-h-[2.5rem]">{currentHeroTrip.title}</h3>
-                    <div className="flex items-center text-xs text-gray-300 mt-2">
-                        <MapPin size={12} className="mr-1.5" />
-                        <span className="truncate">{currentHeroTrip.destination}</span>
-                        <span className="mx-2">•</span>
-                        <Clock size={12} className="mr-1.5" />
+                    <h3 className="font-bold text-white text-xl leading-tight line-clamp-2 min-h-[3.5rem] mb-2">{currentHeroTrip.title}</h3>
+                    <div className="flex items-center text-xs text-gray-300 mb-4">
+                        <MapPin size={14} className="mr-1.5 text-primary-400" />
+                        <span className="truncate max-w-[150px]">{currentHeroTrip.destination}</span>
+                        <span className="mx-2 opacity-50">•</span>
+                        <Clock size={14} className="mr-1.5 text-primary-400" />
                         <span>{currentHeroTrip.durationDays} dias</span>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-white/20 flex justify-between items-end">
+                    <div className="pt-4 border-t border-white/10 flex justify-between items-end">
                         <div>
-                            <p className="text-xs text-gray-300">A partir de</p>
-                            <p className="text-2xl font-bold text-white">R$ {currentHeroTrip.price}</p>
+                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">A partir de</p>
+                            <p className="text-2xl font-extrabold text-white">R$ {currentHeroTrip.price}</p>
                         </div>
-                        <div className="text-xs font-bold text-white flex items-center group-hover:text-amber-300 transition-colors">
+                        <div className="text-xs font-bold text-white bg-primary-600/20 px-3 py-1.5 rounded-lg border border-primary-500/30 flex items-center group-hover:bg-primary-600 transition-colors">
                             Ver Pacote <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
                         </div>
                     </div>
                 </Link>
               ) : (
-                 <div className="w-full max-w-sm text-center bg-black/20 backdrop-blur-md border border-dashed border-white/20 rounded-2xl p-4 shadow-lg">
+                 <div className="w-full max-w-sm text-center bg-black/20 backdrop-blur-md border border-dashed border-white/20 rounded-2xl p-8 shadow-lg">
                     <p className="text-white font-medium">Nenhum pacote em destaque no momento.</p>
                  </div>
               )}
 
               {heroTrips.length > 1 && (
                 <>
-                  <button onClick={prevSlide} aria-label="Anterior" className="absolute -left-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronLeft size={32}/></button>
-                  <button onClick={nextSlide} aria-label="Próximo" className="absolute -right-10 top-1/2 -translate-y-1/2 z-20 text-white/50 hover:text-white transition-colors p-2"><ChevronRight size={32}/></button>
-                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                  <button onClick={prevSlide} aria-label="Anterior" className="absolute -left-12 top-1/2 -translate-y-1/2 z-20 text-white/40 hover:text-white hover:scale-110 transition-all p-2"><ChevronLeft size={40}/></button>
+                  <button onClick={nextSlide} aria-label="Próximo" className="absolute -right-12 top-1/2 -translate-y-1/2 z-20 text-white/40 hover:text-white hover:scale-110 transition-all p-2"><ChevronRight size={40}/></button>
+                  <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                       {heroTrips.map((_, idx) => (
-                          <button key={idx} aria-label={`Ir para o slide ${idx + 1}`} onClick={() => { setCurrentSlide(idx); resetTimer(); }} className={`w-2 h-2 rounded-full transition-all ${idx === currentSlide ? 'bg-white/90 w-6' : 'bg-white/40'}`} />
+                          <button key={idx} aria-label={`Ir para o slide ${idx + 1}`} onClick={() => { setCurrentSlide(idx); resetTimer(); }} className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentSlide ? 'bg-white w-8' : 'bg-white/30 w-2 hover:bg-white/50'}`} />
                       ))}
                   </div>
                 </>
@@ -246,15 +279,15 @@ const Home: React.FC = () => {
            
            <div className="relative group/scroll">
              {canScrollLeft && (
-               <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex"><ChevronLeft size={18} /></button>
+               <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex hover:bg-white text-gray-700"><ChevronLeft size={18} /></button>
              )}
-             <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`}></div>
-             <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none ${canScrollRight ? 'opacity-100' : 'opacity-0'}`}></div>
+             <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`}></div>
+             <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${canScrollRight ? 'opacity-100' : 'opacity-0'}`}></div>
              {canScrollRight && (
-               <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex"><ChevronRight size={18} /></button>
+               <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex hover:bg-white text-gray-700"><ChevronRight size={18} /></button>
              )}
              
-             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-2 overflow-x-auto pb-2 pt-1 px-1 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
+             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-2 overflow-x-auto pb-4 pt-1 px-1 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
                 {INTEREST_CHIPS.map(({label, icon: Icon, id}) => {
                    const isAll = label === 'Todos';
                    const isActive = isAll ? selectedInterests.length === 0 : selectedInterests.includes(label);
@@ -264,7 +297,7 @@ const Home: React.FC = () => {
                         key={label}
                         id={id}
                         onClick={() => toggleInterest(label, id)}
-                        className={`snap-start flex-shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-200 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-md transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                        className={`snap-start flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-lg transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
                      >
                         <Icon size={14} /> {label}
                      </button>
@@ -279,11 +312,11 @@ const Home: React.FC = () => {
               <div className="animate-[fadeIn_0.3s]">
                   <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
-                    {!loading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{displayedTrips.length}</span>}
+                    {!loading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{featuredGridTrips.length}</span>}
                   </h2>
               </div>
               {selectedInterests.length > 0 && (
-                  <button onClick={() => setSelectedInterests([])} className="text-sm text-red-500 font-bold hover:underline">
+                  <button onClick={() => setSelectedInterests([])} className="text-sm text-red-500 font-bold hover:underline bg-red-50 px-3 py-1 rounded-lg">
                       Limpar Filtros
                   </button>
               )}
@@ -293,9 +326,9 @@ const Home: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}
                 </div>
-            ) : displayedTrips.length > 0 ? (
+            ) : featuredGridTrips.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">
-                    {displayedTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+                    {featuredGridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
                 </div>
             ) : (
                 <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -315,9 +348,9 @@ const Home: React.FC = () => {
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {activeAgencies.map(agency => (
-                <Link key={agency.id} to={`/${agency.slug || agency.id}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center">
-                    <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100"/>
-                    <h3 className="font-bold text-gray-900 text-sm line-clamp-1">{agency.name}</h3>
+                <Link key={agency.id} to={`/${agency.slug || agency.id}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center group">
+                    <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100 group-hover:border-primary-100 transition-colors"/>
+                    <h3 className="font-bold text-gray-900 text-sm line-clamp-1 group-hover:text-primary-600 transition-colors">{agency.name}</h3>
                 </Link>
             ))}
          </div>
