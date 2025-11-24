@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +14,7 @@ const TripDetails: React.FC = () => {
   // Handle both global (/viagem/:slug) and nested (/:agencySlug/viagem/:tripSlug) routes
   const activeTripSlug = tripSlug || slug;
 
-  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
+  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug, incrementTripViews } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -22,6 +22,7 @@ const TripDetails: React.FC = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<string | null>('included');
+  const viewIncrementedRef = useRef(false);
   
   // Review State
   const [rating, setRating] = useState(5);
@@ -33,10 +34,16 @@ const TripDetails: React.FC = () => {
   const contextAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.id);
 
-  // SEO / Metadata Update
+  // SEO / Metadata Update & View Increment
   useEffect(() => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
+          
+          // Only increment views once per mount
+          if (!viewIncrementedRef.current) {
+              incrementTripViews(trip.id);
+              viewIncrementedRef.current = true;
+          }
       }
       
       // Cleanup title on unmount

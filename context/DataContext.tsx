@@ -34,6 +34,7 @@ interface DataContextType {
   updateTrip: (trip: Trip) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
   toggleTripStatus: (tripId: string) => Promise<void>; 
+  incrementTripViews: (tripId: string) => Promise<void>;
   
   // Master Admin Functions
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
@@ -373,6 +374,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addBooking = async (booking: Booking) => {
+    // Optimistic Update for Bookings List
+    setBookings(prev => [...prev, booking]);
+
+    // Optimistic Update for Trip Sales Count (to reflect on Dashboard immediately)
+    setTrips(prev => prev.map(t => t.id === booking.tripId ? { ...t, sales: (t.sales || 0) + 1 } : t));
+
     const { error } = await supabase.from('bookings').insert({
       id: booking.id,
       trip_id: booking.tripId,
@@ -384,10 +391,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       voucher_code: booking.voucherCode,
       payment_method: booking.paymentMethod
     });
+    
     if (error) {
       console.error('Error adding booking:', error);
+      // Revert optimistic updates if failed (basic implementation)
+      setBookings(prev => prev.filter(b => b.id !== booking.id));
+    } else {
+        // No need to call increment sales manually if the SQL trigger is set up.
+        // But we refresh data to sync everything up perfectly.
+        await refreshData(); 
     }
-    await refreshData();
+  };
+
+  const incrementTripViews = async (tripId: string) => {
+      // Optimistic update local state
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, views: (t.views || 0) + 1 } : t));
+
+      // Call Database RPC
+      try {
+          await supabase.rpc('increment_trip_views', { row_id: tripId });
+      } catch (err) {
+          console.error('Failed to increment views', err);
+      }
   };
 
   const addReview = async (review: Review) => {
@@ -403,8 +428,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error adding review:', error);
     }
-    // No need to call refreshData, the trigger will update trips and realtime will update UI.
-    // However, to see the new review in the list immediately, we still need to fetch it.
     await fetchReviews();
   };
 
@@ -621,7 +644,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, clients, auditLogs, loading,
       addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
-      deleteUser, logAuditAction,
+      deleteUser, logAuditAction, incrementTripViews,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
