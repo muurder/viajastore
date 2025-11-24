@@ -25,6 +25,7 @@ interface DataContextType {
   
   addBooking: (booking: Booking) => Promise<void>;
   addReview: (review: Review) => Promise<void>;
+  addAgencyReview: (review: any) => Promise<void>;
   deleteReview: (reviewId: string) => Promise<void>;
   toggleFavorite: (tripId: string, clientId: string) => Promise<void>;
   updateClientProfile: (clientId: string, data: Partial<Client>) => Promise<void>;
@@ -252,11 +253,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return;
 
     try {
-        // Simplified query relying on RLS Policies in Supabase
-        // We ask for everything, and the database filters what the user is allowed to see
+        // Optimized query to fetch necessary nested data for Voucher/Dashboard
+        // NOTE: Ensure you have RLS policies allowing this read
         const { data, error } = await supabase
             .from('bookings')
-            .select('*, trips(id, title, agency_id)'); // Join with trips to get extra info if needed
+            .select(`
+              *, 
+              trips (
+                id, 
+                title, 
+                agency_id,
+                destination,
+                start_date,
+                images,
+                agencies (
+                  name,
+                  whatsapp,
+                  logo_url
+                )
+              )
+            `);
 
         if (error) throw error;
 
@@ -270,7 +286,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             totalPrice: b.total_price,
             passengers: b.passengers,
             voucherCode: b.voucher_code,
-            paymentMethod: b.payment_method
+            paymentMethod: b.payment_method,
+            // Inject expanded data if needed for quick access in UI
+            _trip: b.trips,
+            _agency: b.trips?.agencies
           }));
           setBookings(formattedBookings);
         }
@@ -354,18 +373,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (error) throw error;
             showToast('Adicionado aos favoritos', 'success');
         }
-        // We don't strictly need to fetch again if optimistic update worked, but it's safer for consistency
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
         showToast('Erro ao atualizar favoritos', 'error');
-        // Revert Optimistic Update on Error
         setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
     }
   };
 
   const addBooking = async (booking: Booking) => {
     const { error } = await supabase.from('bookings').insert({
-      id: booking.id,
+      id: booking.id, // Assuming ID is generated on client or handled by DB
       trip_id: booking.tripId,
       client_id: booking.clientId,
       created_at: booking.date,
@@ -377,13 +394,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
       console.error('Error adding booking:', error);
+      showToast('Erro ao criar reserva', 'error');
+    } else {
+      showToast('Reserva realizada com sucesso!', 'success');
     }
     await refreshData();
   };
 
   const addReview = async (review: Review) => {
     const { error } = await supabase.from('reviews').insert({
-      id: review.id,
       trip_id: review.tripId,
       user_id: review.clientId, 
       rating: review.rating,
@@ -393,8 +412,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
       console.error('Error adding review:', error);
+      showToast('Erro ao enviar avaliação', 'error');
     }
     await fetchReviews();
+  };
+
+  const addAgencyReview = async (review: { agencyId: string, clientId: string, rating: number, comment: string, bookingId?: string }) => {
+      const { error } = await supabase.from('agency_reviews').insert({
+          agency_id: review.agencyId,
+          client_id: review.clientId,
+          rating: review.rating,
+          comment: review.comment,
+          booking_id: review.bookingId
+      });
+      
+      if (error) {
+          console.error('Error adding agency review:', error);
+          showToast('Erro ao avaliar agência', 'error');
+          throw error;
+      } else {
+          showToast('Avaliação da agência enviada!', 'success');
+      }
   };
 
   const deleteReview = async (reviewId: string) => {
@@ -446,7 +484,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured ?? false,
-        featured_in_hero: trip.featuredInHero ?? false, // New Field
+        featured_in_hero: trip.featuredInHero ?? false, 
         popular_near_sp: trip.popularNearSP ?? false,
     };
 
@@ -495,7 +533,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         included: trip.included,
         not_included: trip.notIncluded,
         featured: trip.featured,
-        featured_in_hero: trip.featuredInHero, // New Field
+        featured_in_hero: trip.featuredInHero,
         popular_near_sp: trip.popularNearSP,
     };
 
@@ -583,7 +621,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getTripById = (id: string | undefined) => id ? trips.find(t => t.id === id) : undefined;
   const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); 
   
-  // Case-insensitive slug search for agencies
   const getAgencyBySlug = (slug: string) => {
       if (!slug) return undefined;
       return agencies.find(a => a.slug && a.slug.toLowerCase() === slug.toLowerCase());
@@ -608,7 +645,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <DataContext.Provider value={{ 
       trips, agencies, bookings, reviews, clients, auditLogs, loading,
-      addBooking, addReview, deleteReview, toggleFavorite, updateClientProfile,
+      addBooking, addReview, addAgencyReview, deleteReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       deleteUser, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId,

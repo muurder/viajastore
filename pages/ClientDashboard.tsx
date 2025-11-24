@@ -4,13 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
-  const { bookings, getTripById, clients } = useData();
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const { bookings, getTripById, clients, addAgencyReview } = useData();
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null); // Relax type to access extended properties
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const navigate = useNavigate();
@@ -135,6 +138,88 @@ const ClientDashboard: React.FC = () => {
           else alert("Erro ao excluir conta: " + result.error);
       }
   };
+
+  // --- FUNCTIONALITIES ---
+
+  const generatePDF = () => {
+      if (!selectedBooking) return;
+      const trip = selectedBooking._trip;
+      const agency = selectedBooking._agency;
+
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFillColor(59, 130, 246); // Primary Blue
+      doc.rect(0, 0, 210, 40, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
+
+      // Info Content
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      
+      let y = 60;
+      const addLine = (label: string, value: string) => {
+          doc.setFont('helvetica', 'bold');
+          doc.text(label, 20, y);
+          doc.setFont('helvetica', 'normal');
+          doc.text(value, 80, y);
+          y += 10;
+      };
+
+      addLine('Código da Reserva:', selectedBooking.voucherCode);
+      addLine('Passageiro:', user.name);
+      addLine('Viagem:', trip?.title || '---');
+      addLine('Destino:', trip?.destination || '---');
+      addLine('Data:', new Date(trip?.start_date).toLocaleDateString());
+      addLine('Agência:', agency?.name || 'ViajaStore Partner');
+      
+      y += 10;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, y, 190, y);
+      y += 20;
+
+      // Footer
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Apresente este documento ou o QR Code no momento do embarque/check-in.', 105, y, { align: 'center' });
+      y += 10;
+      doc.text('Dúvidas? Entre em contato com a agência.', 105, y, { align: 'center' });
+
+      doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
+  };
+
+  const openWhatsApp = () => {
+      if (!selectedBooking || !selectedBooking._agency?.whatsapp) return;
+      
+      const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
+      const msg = `Olá! Comprei o pacote *${selectedBooking._trip?.title}* (Ref: ${selectedBooking.voucherCode}) pela ViajaStore e gostaria de tirar algumas dúvidas.`;
+      
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selectedBooking) return;
+      
+      try {
+          await addAgencyReview({
+              agencyId: selectedBooking._trip.agency_id,
+              clientId: user.id,
+              bookingId: selectedBooking.id,
+              rating: reviewForm.rating,
+              comment: reviewForm.comment
+          });
+          setShowReviewModal(false);
+          setSelectedBooking(null);
+          setReviewForm({ rating: 5, comment: '' });
+      } catch (error) {
+          // Toast handled in context
+      }
+  };
   
   const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard/${tab}`;
   const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
@@ -235,26 +320,28 @@ const ClientDashboard: React.FC = () => {
                <h2 className="text-2xl font-bold text-gray-900 mb-4">Minhas Viagens</h2>
                {myBookings.length > 0 ? (
                  myBookings.map(booking => {
-                    const trip = getTripById(booking.tripId);
+                    // Use extended data from fetch or fallback to context lookup
+                    const trip = booking._trip || getTripById(booking.tripId);
                     if (!trip) return null;
                     const tripLink = isMicrositeMode ? `/${agencySlug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`;
+                    const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
                     
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
-                        <img src={trip.images[0]} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
+                        <img src={imgUrl} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
                         <div className="flex-1">
                            <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-2">{trip.title}</h3>
                            <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
-                             <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {new Date(trip.startDate).toLocaleDateString()}</div>
+                             <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {new Date(trip.start_date || trip.startDate).toLocaleDateString()}</div>
                            </div>
-                           <div className="flex gap-2">
+                           <div className="flex gap-2 flex-wrap">
                                <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
-                               <Link to={tripLink} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
-                                    <Star size={16} /> Avaliar
-                               </Link>
+                               <button onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
+                                    <Star size={16} /> Avaliar Agência
+                               </button>
                            </div>
                         </div>
                       </div>
@@ -392,21 +479,99 @@ const ClientDashboard: React.FC = () => {
         </div>
       </div>
 
-      {selectedBooking && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setSelectedBooking(null)}>
+      {/* VOUCHER MODAL */}
+      {selectedBooking && !showReviewModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <div className="bg-primary-600 p-6 text-white text-center">
-                    <h3 className="text-2xl font-bold">Voucher de Viagem</h3>
-                    <p className="text-primary-100 text-sm">{selectedBooking.voucherCode}</p>
+                <button onClick={() => setSelectedBooking(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 z-10"><X size={24}/></button>
+                <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
+                    <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
                 </div>
                 <div className="p-8 text-center">
-                    <QrCode size={120} className="mx-auto mb-4" />
-                    <p className="font-bold text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-500 mb-6">{getTripById(selectedBooking.tripId)?.title}</p>
-                    <button className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2"><Download size={18}/> Baixar PDF</button>
+                    {/* Dynamic QR Code */}
+                    <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl">
+                        <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} 
+                            alt="QR Code" 
+                            className="w-full h-full object-contain mix-blend-multiply"
+                        />
+                    </div>
+                    
+                    <p className="font-bold text-gray-900 text-lg">{user.name}</p>
+                    <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
+                    <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
+                    
+                    <div className="space-y-3">
+                        <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg">
+                            <Download size={18}/> Baixar PDF
+                        </button>
+                        
+                        {selectedBooking._agency?.whatsapp && (
+                            <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg">
+                                <MessageCircle size={18}/> Falar com a Agência
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
          </div>
+      )}
+
+      {/* AGENCY REVIEW MODAL */}
+      {showReviewModal && selectedBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }}>
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3>
+                      <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      {selectedBooking._agency?.logo_url && (
+                          <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/>
+                      )}
+                      <div>
+                          <p className="text-xs text-gray-500 uppercase font-bold">Agência</p>
+                          <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p>
+                      </div>
+                  </div>
+
+                  <form onSubmit={handleReviewSubmit}>
+                      <div className="mb-6 text-center">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Sua Nota</label>
+                          <div className="flex justify-center gap-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                  <button
+                                      type="button"
+                                      key={star}
+                                      onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                                      className="focus:outline-none transition-transform hover:scale-110"
+                                  >
+                                      <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                      
+                      <div className="mb-6">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
+                          <textarea 
+                              className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none"
+                              placeholder="Conte como foi sua experiência com a agência..."
+                              value={reviewForm.comment}
+                              onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                              required
+                          />
+                      </div>
+
+                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2">
+                          <Send size={18}/> Enviar Avaliação
+                      </button>
+                  </form>
+              </div>
+          </div>
       )}
     </div>
   );
