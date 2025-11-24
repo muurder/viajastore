@@ -254,7 +254,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
         // Optimized query to fetch necessary nested data for Voucher/Dashboard
-        // NOTE: Ensure you have RLS policies allowing this read
+        // NOTE: This query requires RLS policies to be set up for agencies and clients
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -265,6 +265,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 agency_id,
                 destination,
                 start_date,
+                duration_days,
                 images,
                 agencies (
                   name,
@@ -287,7 +288,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             passengers: b.passengers,
             voucherCode: b.voucher_code,
             paymentMethod: b.payment_method,
-            // Inject expanded data if needed for quick access in UI
+            // Inject expanded data for quick access in UI without extra fetches
             _trip: b.trips,
             _agency: b.trips?.agencies
           }));

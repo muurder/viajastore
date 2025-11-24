@@ -148,46 +148,67 @@ const ClientDashboard: React.FC = () => {
 
       const doc = new jsPDF();
       
-      // Header
+      // Header Background
       doc.setFillColor(59, 130, 246); // Primary Blue
       doc.rect(0, 0, 210, 40, 'F');
+      
+      // Title
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
       doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
 
-      // Info Content
+      // Reset Text
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
       
+      // Section 1: Details
       let y = 60;
-      const addLine = (label: string, value: string) => {
+      
+      const addField = (label: string, value: string) => {
           doc.setFont('helvetica', 'bold');
           doc.text(label, 20, y);
           doc.setFont('helvetica', 'normal');
-          doc.text(value, 80, y);
+          doc.text(value, 70, y);
           y += 10;
       };
 
-      addLine('Código da Reserva:', selectedBooking.voucherCode);
-      addLine('Passageiro:', user.name);
-      addLine('Viagem:', trip?.title || '---');
-      addLine('Destino:', trip?.destination || '---');
-      addLine('Data:', new Date(trip?.start_date).toLocaleDateString());
-      addLine('Agência:', agency?.name || 'ViajaStore Partner');
-      
+      addField('Código da Reserva:', selectedBooking.voucherCode);
+      addField('Passageiro Principal:', user.name);
+      addField('CPF:', currentClient?.cpf || 'Não informado');
+      y += 5;
+      addField('Pacote:', trip?.title || '---');
+      addField('Destino:', trip?.destination || '---');
+      addField('Data da Viagem:', new Date(trip?.start_date || trip?.startDate).toLocaleDateString());
+      addField('Duração:', `${trip?.duration_days || trip?.durationDays} Dias`);
+      y += 5;
+      addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
+      if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
+
+      // Separator
       y += 10;
       doc.setDrawColor(200, 200, 200);
       doc.line(20, y, 190, y);
       y += 20;
 
-      // Footer
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Apresente este documento ou o QR Code no momento do embarque/check-in.', 105, y, { align: 'center' });
+      // Instructions
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Instruções', 20, y);
       y += 10;
-      doc.text('Dúvidas? Entre em contato com a agência.', 105, y, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
+      y += 6;
+      doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
+      y += 6;
+      doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
+
+      // Footer
+      y = 280;
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
 
       doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
   };
@@ -196,7 +217,10 @@ const ClientDashboard: React.FC = () => {
       if (!selectedBooking || !selectedBooking._agency?.whatsapp) return;
       
       const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
-      const msg = `Olá! Comprei o pacote *${selectedBooking._trip?.title}* (Ref: ${selectedBooking.voucherCode}) pela ViajaStore e gostaria de tirar algumas dúvidas.`;
+      const tripTitle = selectedBooking._trip?.title || 'Pacote';
+      
+      // Exact format requested
+      const msg = `Olá! Comprei o pacote ${tripTitle} pela ViajaStore e gostaria de tirar algumas dúvidas.`;
       
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -207,7 +231,7 @@ const ClientDashboard: React.FC = () => {
       
       try {
           await addAgencyReview({
-              agencyId: selectedBooking._trip.agency_id,
+              agencyId: selectedBooking._trip.agency_id || selectedBooking._trip.agencyId, // Handle potential casing diff
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
@@ -218,6 +242,7 @@ const ClientDashboard: React.FC = () => {
           setReviewForm({ rating: 5, comment: '' });
       } catch (error) {
           // Toast handled in context
+          console.error(error);
       }
   };
   
@@ -323,7 +348,7 @@ const ClientDashboard: React.FC = () => {
                     // Use extended data from fetch or fallback to context lookup
                     const trip = booking._trip || getTripById(booking.tripId);
                     if (!trip) return null;
-                    const tripLink = isMicrositeMode ? `/${agencySlug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`;
+                    
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
                     
                     return (
@@ -340,7 +365,7 @@ const ClientDashboard: React.FC = () => {
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
                                <button onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
-                                    <Star size={16} /> Avaliar Agência
+                                    <Star size={16} /> Avaliar Experiência
                                </button>
                            </div>
                         </div>
@@ -490,7 +515,7 @@ const ClientDashboard: React.FC = () => {
                     <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
                 </div>
                 <div className="p-8 text-center">
-                    {/* Dynamic QR Code */}
+                    {/* QR Code - using booking code as content */}
                     <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl">
                         <img 
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} 
@@ -540,7 +565,7 @@ const ClientDashboard: React.FC = () => {
 
                   <form onSubmit={handleReviewSubmit}>
                       <div className="mb-6 text-center">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Sua Nota</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
                           <div className="flex justify-center gap-2">
                               {[1, 2, 3, 4, 5].map((star) => (
                                   <button
