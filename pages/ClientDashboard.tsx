@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 
 const ClientDashboard: React.FC = () => {
@@ -237,6 +237,8 @@ const ClientDashboard: React.FC = () => {
                  myBookings.map(booking => {
                     const trip = getTripById(booking.tripId);
                     if (!trip) return null;
+                    const tripLink = isMicrositeMode ? `/${agencySlug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`;
+                    
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
                         <img src={trip.images[0]} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
@@ -246,9 +248,14 @@ const ClientDashboard: React.FC = () => {
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
                              <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {new Date(trip.startDate).toLocaleDateString()}</div>
                            </div>
-                           <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700">
-                                <QrCode size={16} /> Abrir Voucher
-                           </button>
+                           <div className="flex gap-2">
+                               <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
+                                    <QrCode size={16} /> Abrir Voucher
+                               </button>
+                               <Link to={tripLink} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
+                                    <Star size={16} /> Avaliar
+                               </Link>
+                           </div>
                         </div>
                       </div>
                     );

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Lock, Search } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Lock, Search, Ticket, ArrowRight, Download, QrCode } from 'lucide-react';
 
 export const NotFound: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
@@ -31,27 +31,68 @@ export const Unauthorized: React.FC = () => (
 
 export const CheckoutSuccess: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>();
+  const linkDashboard = agencySlug ? `/${agencySlug}/client/dashboard` : '/client/dashboard';
+  const linkTrips = agencySlug ? `/${agencySlug}/trips` : '/trips';
 
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 animate-[fadeIn_0.5s]">
-      <div className="bg-green-100 p-6 rounded-full mb-6">
-        <CheckCircle size={64} className="text-green-600" />
+    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 py-12 bg-gray-50 animate-[fadeIn_0.5s]">
+      
+      {/* Ticket Visual */}
+      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+          {/* Top Section (Green) */}
+          <div className="bg-green-600 p-8 text-white relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+              <div className="relative z-10 flex flex-col items-center">
+                  <div className="bg-white/20 p-3 rounded-full mb-4 backdrop-blur-sm">
+                      <CheckCircle size={48} className="text-white" />
+                  </div>
+                  <h1 className="text-2xl font-bold mb-1">Reserva Confirmada!</h1>
+                  <p className="text-green-100 text-sm">Sua aventura está garantida.</p>
+              </div>
+          </div>
+
+          {/* Ticket Body */}
+          <div className="p-8 bg-white relative">
+              {/* Perforated Line Effect */}
+              <div className="absolute -top-3 left-0 w-full flex justify-between px-2">
+                  {[...Array(12)].map((_,i) => <div key={i} className="w-4 h-4 bg-gray-50 rounded-full -mt-2"></div>)}
+              </div>
+
+              <div className="space-y-6 mt-4">
+                  <div className="flex justify-between items-center border-b border-dashed border-gray-200 pb-4">
+                      <div className="text-left">
+                          <p className="text-xs text-gray-400 uppercase font-bold">Código da Reserva</p>
+                          <p className="text-xl font-mono font-bold text-gray-900">#VS-{Math.floor(Math.random()*10000)}</p>
+                      </div>
+                      <div className="text-right">
+                          <p className="text-xs text-gray-400 uppercase font-bold">Data</p>
+                          <p className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString()}</p>
+                      </div>
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-4">
+                      <QrCode size={64} className="text-gray-800" />
+                      <div className="text-left">
+                          <p className="text-xs text-gray-500 leading-tight mb-1">Apresente este código ou acesse seu voucher digital no painel.</p>
+                          <p className="text-xs font-bold text-primary-600 flex items-center"><Ticket size={12} className="mr-1"/> Voucher Digital</p>
+                      </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                      <Link to={linkDashboard} className="block w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex justify-center items-center gap-2 group">
+                          Ver Minhas Viagens <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/>
+                      </Link>
+                      <Link to={linkTrips} className="block w-full text-gray-500 py-3 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
+                          Continuar Explorando
+                      </Link>
+                  </div>
+              </div>
+          </div>
       </div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Compra Realizada com Sucesso!</h1>
-      <p className="text-gray-500 mb-8 max-w-lg">
-        Sua viagem está confirmada. Enviamos os detalhes para seu e-mail e o voucher já está disponível no seu painel.
+      
+      <p className="text-gray-400 text-xs mt-8 max-w-xs mx-auto leading-relaxed">
+          Enviamos um e-mail com todos os detalhes do seu pedido. Em caso de dúvidas, entre em contato com a agência.
       </p>
-      <div className="flex gap-4">
-        <Link to="/client/dashboard" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
-          Ver Minhas Viagens
-        </Link>
-        <Link 
-          to={agencySlug ? `/${agencySlug}/trips` : "/trips"} 
-          className="border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-        >
-          Continuar Explorando
-        </Link>
-      </div>
     </div>
   );
 };

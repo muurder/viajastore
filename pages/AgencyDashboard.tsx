@@ -568,7 +568,7 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients } = useData();
   const { showToast } = useToast();
   
   // URL STATE MANAGEMENT - SOURCE OF TRUTH
@@ -661,6 +661,15 @@ const AgencyDashboard: React.FC = () => {
   const isActive = myAgency.subscriptionStatus === 'ACTIVE';
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
+
+  // Recent Bookings Logic
+  const recentBookings = bookings
+    .filter(b => {
+        const trip = trips.find(t => t.id === b.tripId);
+        return trip && trip.agencyId === user.id;
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
 
   const filteredTrips = myTrips.filter(t => t.title.toLowerCase().includes(tripSearch.toLowerCase()));
   
@@ -906,22 +915,59 @@ const AgencyDashboard: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
-                         <div className="grid grid-cols-2 gap-4">
-                             <button onClick={() => handleOpenCreate()} className="p-4 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all text-left group">
-                                 <div className="bg-primary-100 text-primary-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Plus size={20}/></div>
-                                 <span className="font-bold block">Criar Novo Pacote</span>
-                                 <span className="text-xs text-gray-500">Adicione uma nova viagem ao catálogo.</span>
-                             </button>
-                             <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
-                                 <div className="bg-gray-100 text-gray-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Settings size={20}/></div>
-                                 <span className="font-bold block">Editar Perfil</span>
-                                 <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
-                             </button>
-                         </div>
+                    <div className="lg:col-span-2 space-y-8">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => handleOpenCreate()} className="p-4 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all text-left group">
+                                    <div className="bg-primary-100 text-primary-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Plus size={20}/></div>
+                                    <span className="font-bold block">Criar Novo Pacote</span>
+                                    <span className="text-xs text-gray-500">Adicione uma nova viagem ao catálogo.</span>
+                                </button>
+                                <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
+                                    <div className="bg-gray-100 text-gray-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Settings size={20}/></div>
+                                    <span className="font-bold block">Editar Perfil</span>
+                                    <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* VENDAS RECENTES WIDGET */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>
+                            {recentBookings.length > 0 ? (
+                                <div className="space-y-3">
+                                    {recentBookings.map(booking => {
+                                        const trip = trips.find(t => t.id === booking.tripId);
+                                        const client = clients.find(c => c.id === booking.clientId);
+                                        return (
+                                            <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold">
+                                                        {client?.name.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-900">{client?.name || 'Cliente'}</p>
+                                                        <p className="text-xs text-gray-500 line-clamp-1">{trip?.title || 'Pacote desconhecido'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-bold text-green-600">+ R$ {booking.totalPrice.toLocaleString()}</p>
+                                                    <p className="text-[10px] text-gray-400">{new Date(booking.date).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400 text-sm">
+                                    Nenhuma venda registrada recentemente.
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <div className="bg-primary-600 rounded-2xl shadow-lg shadow-primary-500/30 p-6 text-white relative overflow-hidden">
+
+                    <div className="bg-primary-600 rounded-2xl shadow-lg shadow-primary-500/30 p-6 text-white relative overflow-hidden h-fit">
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold mb-2">Dica do Dia</h3>
                             <p className="text-primary-100 text-sm mb-4 leading-relaxed">Pacotes com mais de 5 fotos de alta qualidade têm 40% mais chances de venda. Capriche na galeria!</p>
