@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send, X, ChevronDown, ChevronUp, Lock, Tag, Users, Heart, Search, ArrowLeft, Share2, CreditCard } from 'lucide-react';
+import { MapPin, Calendar, Check, Clock, ShieldCheck, MessageCircle, X, ChevronDown, ChevronUp, Tag, Share2, CreditCard, Heart, Search, ArrowLeft } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
@@ -12,7 +12,7 @@ const TripDetails: React.FC = () => {
   
   const activeTripSlug = tripSlug || slug;
 
-  const { getTripBySlug, addBooking, agencies, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
+  const { getTripBySlug, addBooking, agencies, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -103,6 +103,8 @@ const TripDetails: React.FC = () => {
     }
     
     const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
+    // Use UUID explicitly if needed, but addBooking in DataContext now handles randomUUID generation if not provided
+    // We can generate here to be sure
     const bookingId = crypto.randomUUID();
     
     addBooking({

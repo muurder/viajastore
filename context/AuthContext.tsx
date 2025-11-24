@@ -121,7 +121,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initializeAuth = async () => {
       setLoading(true);
       
-      const { data: { session } } = await supabase.auth.getSession();
+      // Fix: Cast auth to any
+      const { data: { session } } = await (supabase.auth as any).getSession();
       
       if (session?.user) {
         await fetchUserData(session.user.id, session.user.email!);
@@ -130,7 +131,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setLoading(false);
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Fix: Cast auth to any
+      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
         if (session?.user) {
           if (event === 'SIGNED_IN') {
              setTimeout(() => fetchUserData(session.user.id, session.user.email!), 1000);
@@ -153,7 +155,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
-    const { error } = await supabase.auth.signInWithPassword({
+    // Fix: Cast auth to any
+    const { error } = await (supabase.auth as any).signInWithPassword({
       email,
       password,
     });
@@ -170,7 +173,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? `${window.location.origin}/#${redirectPath}` 
         : `${window.location.origin}/`;
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    // Fix: Cast auth to any
+    const { error } = await (supabase.auth as any).signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectTo
@@ -180,12 +184,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Fix: Cast auth to any
+    await (supabase.auth as any).signOut();
     setUser(null);
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Fix: Cast auth to any
+    const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -249,7 +255,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // 1. Update Auth Email if changed
       if (userData.email && userData.email !== user.email) {
-          const { error } = await supabase.auth.updateUser({ email: userData.email });
+          // Fix: Cast auth to any
+          const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
       }
 
@@ -304,7 +311,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updatePassword = async (password: string) => {
-      const { error } = await supabase.auth.updateUser({ password });
+      // Fix: Cast auth to any
+      const { error } = await (supabase.auth as any).updateUser({ password });
       if (error) return { success: false, error: error.message };
       return { success: true };
   };
@@ -339,7 +347,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { error } = await supabase.from('profiles').delete().eq('id', user.id);
           if (error) throw error;
       }
-      await supabase.auth.signOut();
+      // Fix: Cast auth to any
+      await (supabase.auth as any).signOut();
       setUser(null);
       return { success: true };
 

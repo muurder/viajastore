@@ -1,4 +1,5 @@
 
+
 import { supabase } from './supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
 
@@ -23,7 +24,8 @@ export const migrateData = async () => {
       log(`Processando agência: ${agency.name}`);
       
       // A. Criar Usuário de Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Fix: Cast auth to any
+      const { data: authData, error: authError } = await (supabase.auth as any).signUp({
         email: agency.email,
         password: 'password123', 
         options: {
@@ -39,7 +41,8 @@ export const migrateData = async () => {
       if (authError) {
         log(`⚠️ Info Auth para ${agency.email}: ${authError.message}`);
         if (authError.message.includes('already registered')) {
-             const { data: loginData } = await supabase.auth.signInWithPassword({
+             // Fix: Cast auth to any
+             const { data: loginData } = await (supabase.auth as any).signInWithPassword({
                  email: agency.email,
                  password: 'password123'
              });

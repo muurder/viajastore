@@ -14,6 +14,7 @@ const AgencyProfile: React.FC = () => {
   if (!agency) return <div className="text-center py-20">Agência não encontrada.</div>;
 
   const trips = getAgencyPublicTrips(agency.id);
+  // Correctly fetch Agency Reviews now
   const reviews = getReviewsByAgencyId(agency.id);
   
   const avgRating = reviews.length > 0 

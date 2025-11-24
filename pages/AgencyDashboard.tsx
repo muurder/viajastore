@@ -317,6 +317,8 @@ const AgencyDashboard: React.FC = () => {
   const isActive = myAgency.subscriptionStatus === 'ACTIVE';
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
+  
+  // Updated: Get Agency Reviews, not trip reviews
   const myReviews = getReviewsByAgencyId(user.id);
 
   const agencyBookings = bookings.filter(b => { const trip = trips.find(t => t.id === b.tripId); return trip && trip.agencyId === user.id; }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -325,6 +327,7 @@ const AgencyDashboard: React.FC = () => {
 
   const handleClearNotifications = () => { const now = Date.now(); setLastReadTime(now); localStorage.setItem('agency_last_read_sales', String(now)); showToast('Notificações marcadas como lidas.', 'success'); };
 
+  // Grouped Sales Logic
   const salesByTrip = agencyBookings.reduce((acc, booking) => {
       const trip = trips.find(t => t.id === booking.tripId);
       if (!trip) return acc;

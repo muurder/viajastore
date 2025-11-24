@@ -149,7 +149,7 @@ const ClientDashboard: React.FC = () => {
   const generatePDF = () => {
       if (!selectedBooking) return;
       const trip = selectedBooking._trip;
-      const agency = selectedBooking._agency;
+      const agency = selectedBooking._agency; // Fetched from _agency prop in booking
 
       if (!trip) {
           alert('Não foi possível carregar todos os dados para o voucher. Tente novamente.');

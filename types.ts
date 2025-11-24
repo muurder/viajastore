@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -129,8 +128,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   active: boolean; // Controlled by agency
-  rating: number; // Keeping for legacy compatibility, but UI uses Agency Rating
-  totalReviews: number;
+  rating: number; // DEPRECATED on Trip, but kept for compatibility with older code if needed
+  totalReviews: number; // DEPRECATED on Trip
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats
@@ -156,7 +155,7 @@ export interface Booking {
   _agency?: any; // Expanded agency data
 }
 
-// Legacy Trip Review (Deprecated in UI)
+// Legacy Trip Review (Deprecated - Use AgencyReview)
 export interface Review {
   id: string;
   tripId: string;
