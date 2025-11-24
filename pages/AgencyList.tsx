@@ -3,16 +3,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
 import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Agency, TripCategory } from '../types';
+import { TripCategory } from '../types';
 
 const ITEMS_PER_PAGE = 9;
-
-// FIX: Define an interface for the enriched agency data to help TypeScript's type inference.
-interface EnrichedAgency extends Agency {
-  tripCount: number;
-  avgRating: number;
-  specialties: string[];
-}
 
 const AgencyList: React.FC = () => {
   const { agencies, getAgencyPublicTrips } = useData();
@@ -24,7 +17,7 @@ const AgencyList: React.FC = () => {
   const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE');
 
   // Calculate dynamic data for each agency (Specialties, Rating, Trip Count)
-  const enrichedAgencies: EnrichedAgency[] = useMemo(() => {
+  const enrichedAgencies = useMemo(() => {
     return activeAgencies.map(agency => {
       const trips = getAgencyPublicTrips(agency.id);
       
@@ -46,7 +39,7 @@ const AgencyList: React.FC = () => {
   }, [activeAgencies, getAgencyPublicTrips]);
 
   // Get all available specialties for the filter sidebar
-  const allSpecialties: string[] = useMemo(() => {
+  const allSpecialties = useMemo(() => {
     const specs = new Set<string>();
     enrichedAgencies.forEach(a => a.specialties.forEach(s => specs.add(s)));
     return Array.from(specs).sort();
@@ -58,7 +51,7 @@ const AgencyList: React.FC = () => {
                           agency.description.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesSpecialty = selectedSpecialty 
-        ? agency.specialties.includes(selectedSpecialty)
+        ? agency.specialties.includes(selectedSpecialty as TripCategory)
         : true;
 
     return matchesSearch && matchesSpecialty;
@@ -118,7 +111,7 @@ const AgencyList: React.FC = () => {
                   >
                     Todas as Agências
                   </button>
-                  {allSpecialties.map((spec: string) => (
+                  {allSpecialties.map(spec => (
                     <button 
                       key={spec}
                       onClick={() => setSelectedSpecialty(spec)}
@@ -150,7 +143,7 @@ const AgencyList: React.FC = () => {
              >
                Todos
              </button>
-             {allSpecialties.map((spec: string) => (
+             {allSpecialties.map(spec => (
                 <button 
                   key={spec}
                   onClick={() => setSelectedSpecialty(spec)}
@@ -200,7 +193,7 @@ const AgencyList: React.FC = () => {
 
                      {/* Specialties Tags */}
                      <div className="flex flex-wrap gap-2 mb-6">
-                        {agency.specialties.slice(0, 3).map((spec: string) => (
+                        {agency.specialties.slice(0, 3).map(spec => (
                            <span key={spec} className="px-2 py-1 bg-gray-50 text-gray-600 text-xs rounded-md font-medium capitalize border border-gray-100">
                               {spec.toLowerCase().replace('_', ' ')}
                            </span>

@@ -47,10 +47,9 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  // FIX: Added currentStatus parameter to match function signature
-  const handleToggleTrip = (tripId: string, currentStatus: boolean) => {
+  const handleToggleTrip = (tripId: string) => {
       // Quick toggle, toast feedback
-      toggleTripStatus(tripId, currentStatus);
+      toggleTripStatus(tripId);
       showToast('Status da viagem alterado.', 'info');
   };
 
@@ -522,7 +521,7 @@ const AdminDashboard: React.FC = () => {
                                 </span>
                              </td>
                              <td className="px-6 py-4 text-right">
-                                <button onClick={() => handleToggleTrip(trip.id, trip.active)} className="text-gray-400 hover:text-primary-600">
+                                <button onClick={() => handleToggleTrip(trip.id)} className="text-gray-400 hover:text-primary-600">
                                     {trip.active ? <ToggleRight size={24} className="text-green-500"/> : <ToggleLeft size={24}/>}
                                 </button>
                              </td>

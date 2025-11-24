@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,12 +9,12 @@ import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
   // Capture params. If agencySlug exists, we are in agency mode.
-  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string; }>();
+  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   
   // Handle both global (/viagem/:slug) and nested (/:agencySlug/viagem/:tripSlug) routes
   const activeTripSlug = tripSlug || slug;
 
-  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug, incrementTripViews } = useData();
+  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -22,7 +22,6 @@ const TripDetails: React.FC = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<string | null>('included');
-  const viewIncrementedRef = useRef(false);
   
   // Review State
   const [rating, setRating] = useState(5);
@@ -34,16 +33,10 @@ const TripDetails: React.FC = () => {
   const contextAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.id);
 
-  // SEO / Metadata Update & View Increment
+  // SEO / Metadata Update
   useEffect(() => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
-          
-          // Only increment views once per mount
-          if (!viewIncrementedRef.current) {
-              incrementTripViews(trip.id);
-              viewIncrementedRef.current = true;
-          }
       }
       
       // Cleanup title on unmount
@@ -115,7 +108,7 @@ const TripDetails: React.FC = () => {
 
   const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
 
-  const handleBooking = async () => {
+  const handleBooking = () => {
     if (!user) {
       navigate('/#login');
       return;
@@ -125,26 +118,27 @@ const TripDetails: React.FC = () => {
       return;
     }
     
-    // FIX: Removed id, date, and voucherCode from the object to match the expected type.
-    // The addBooking function returns a promise that resolves to a boolean.
-    const success = await addBooking({
+    const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
+    
+    addBooking({
+      id: `b${Date.now()}`,
       tripId: trip.id,
       clientId: user.id,
+      date: new Date().toISOString(),
       status: 'CONFIRMED',
       totalPrice,
       passengers,
+      voucherCode,
       paymentMethod: 'CREDIT_CARD'
     });
 
     setIsBookingModalOpen(false);
     
-    if (success) {
-      // Navigate to Scoped Success Page if in microsite, else global
-      if (agencySlug) {
-          navigate(`/${agencySlug}/checkout/success`);
-      } else {
-          navigate('/checkout/success');
-      }
+    // Navigate to Scoped Success Page if in microsite, else global
+    if (agencySlug) {
+        navigate(`/${agencySlug}/checkout/success`);
+    } else {
+        navigate('/checkout/success');
     }
   };
 
@@ -152,13 +146,14 @@ const TripDetails: React.FC = () => {
     e.preventDefault();
     if (!user) return;
     
-    // FIX: Removed id, clientName, and date from the object to match the expected type.
     addReview({
+      id: `r${Date.now()}`,
       tripId: trip.id,
-      agencyId: trip.agencyId,
       clientId: user.id,
+      clientName: user.name,
       rating,
       comment,
+      date: new Date().toISOString()
     });
     setComment('');
     showToast('Avaliação enviada com sucesso!', 'success');

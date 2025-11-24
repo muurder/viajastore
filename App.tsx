@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -15,7 +16,7 @@ import AgencyLandingPage from './pages/AgencyLandingPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
-import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword, VoucherPage } from './pages/UtilityPages';
+import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
 const App: React.FC = () => {
   return (
@@ -32,10 +33,7 @@ const App: React.FC = () => {
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
-                  <Route path="agency/:id" element={<AgencyProfile />} />
-
-                  {/* Voucher Public Page */}
-                  <Route path="voucher/:bookingId" element={<VoucherPage />} />
+                  <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
@@ -58,6 +56,7 @@ const App: React.FC = () => {
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 
                   {/* --- AGENCY MODE ROUTES --- */}
+                  {/* Captura /:agencySlug e suas sub-rotas */}
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
                   <Route path=":agencySlug/trips" element={<TripList />} />
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
