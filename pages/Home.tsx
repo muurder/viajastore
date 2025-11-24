@@ -26,7 +26,7 @@ const normalizeText = (text: string) => {
 };
 
 const Home: React.FC = () => {
-  const { getPublicTrips, agencies, loading } = useData();
+  const { trips, agencies, loading } = useData();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   
@@ -36,14 +36,16 @@ const Home: React.FC = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  const allTrips = getPublicTrips();
-  const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5);
+  // Stabilize the active trips list to prevent re-shuffling on re-renders
+  const activeTrips = useMemo(() => trips.filter(t => t.active), [trips]);
+  const activeAgencies = useMemo(() => agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5), [agencies]);
 
   // --- HERO LOGIC (INDEPENDENT) ---
   // Select a random sample of up to 5 trips from the entire catalog for the Hero
+  // We use useMemo to ensure this list doesn't change on every render (e.g. slider updates)
   const heroTrips = useMemo(() => 
-    allTrips.length > 0 ? allTrips.sort(() => 0.5 - Math.random()).slice(0, 5) : [], 
-  [allTrips]);
+    activeTrips.length > 0 ? [...activeTrips].sort(() => 0.5 - Math.random()).slice(0, 5) : [], 
+  [activeTrips]);
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const timerRef = useRef<number | null>(null);
@@ -120,11 +122,11 @@ const Home: React.FC = () => {
   const featuredGridTrips = useMemo(() => {
     if (selectedInterests.length === 0) {
         // Default View: Sort by Rating or Sales, ensuring high quality first
-        return [...allTrips].sort((a, b) => b.rating - a.rating).slice(0, 9);
+        return [...activeTrips].sort((a, b) => b.rating - a.rating).slice(0, 9);
     }
 
     // Filtered View
-    return allTrips.filter(t => {
+    return activeTrips.filter(t => {
         return selectedInterests.some(interest => {
             const cleanInterest = normalizeText(interest);
             const cleanCategory = normalizeText(t.category);
@@ -139,7 +141,7 @@ const Home: React.FC = () => {
             });
         });
     }).slice(0, 9);
-  }, [allTrips, selectedInterests]);
+  }, [activeTrips, selectedInterests]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,30 +151,30 @@ const Home: React.FC = () => {
   return (
     <div className="space-y-12 pb-12">
       {/* HERO SECTION */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[500px] md:min-h-[580px] flex items-center group bg-gray-900 transition-all duration-500">
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[500px] md:min-h-[580px] flex items-center group bg-gray-900">
         
         {/* DYNAMIC BACKGROUND LAYER (Z-0) */}
         {heroTrips.length > 0 ? (
             heroTrips.map((trip, index) => (
                 <div 
                     key={trip.id} 
-                    className={`absolute inset-0 transition-all duration-[2000ms] ease-in-out ${
+                    className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
                         index === currentSlide 
-                            ? 'opacity-100 scale-100' 
-                            : 'opacity-0 scale-105'
+                            ? 'opacity-100 z-10' 
+                            : 'opacity-0 z-0' 
                     }`}
                 >
                     <img 
                         src={trip.images?.[0] || DEFAULT_HERO_IMG}
                         alt="" 
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
                         onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
                     />
                 </div>
             ))
         ) : (
             // Fallback Background
-            <div className="absolute inset-0">
+            <div className="absolute inset-0 z-0">
                 <img 
                     src={DEFAULT_HERO_IMG}
                     alt="Hero background" 
@@ -181,29 +183,29 @@ const Home: React.FC = () => {
             </div>
         )}
 
-        {/* STATIC OVERLAY LAYER (Z-10) */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/20 z-10 pointer-events-none"></div>
+        {/* STATIC OVERLAY LAYER (Z-10) - Adjusted Gradient as requested */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-20 pointer-events-none"></div>
         
-        {/* CONTENT LAYER (Z-20) */}
-        <div className="relative z-20 w-full max-w-7xl mx-auto px-6 md:px-12">
+        {/* CONTENT LAYER (Z-30) */}
+        <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left Side: Static Text and Search */}
+            {/* Left Side: Text and Search */}
             <div className="text-center lg:text-left">
               
+              {/* Static Headline - Fixed Text */}
               <div className="animate-[fadeInUp_0.8s_ease-out]">
-                  <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4 drop-shadow-lg">
+                  <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-6 drop-shadow-xl">
                     Encontre sua <br/>
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-400">
-                        próxima viagem.
-                    </span>
+                    próxima viagem.
                   </h1>
-                  <p className="text-lg text-gray-300 mb-8 max-w-lg mx-auto lg:mx-0 font-light leading-relaxed">
-                    Compare pacotes das melhores agências e compre com segurança.
+                  <p className="text-lg text-gray-200 mb-10 max-w-lg mx-auto lg:mx-0 font-light leading-relaxed drop-shadow-md">
+                    Compare pacotes das melhores agências e compre com segurança e facilidade.
                   </p>
               </div>
 
+              {/* Static Search Bar */}
               <div className="animate-[fadeInUp_1.1s]">
-                <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto lg:mx-0">
+                <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto lg:mx-0 transform transition-transform hover:scale-[1.01]">
                   <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
                     <MapPin className="text-primary-500 mr-3" />
                     <input 
@@ -211,7 +213,7 @@ const Home: React.FC = () => {
                       placeholder="Para onde você quer ir?" 
                       className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
                       value={search}
-                      onChange={(e) => setSearch(e.target.value)}
+                      onChange={(e) => setSearch.call(null, e.target.value)}
                     />
                   </div>
                   <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
@@ -221,78 +223,72 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Side: Featured Trip Card (Reverted to the "Pretty" Dark Design) */}
+            {/* Right Side: Featured Trip Carousel */}
             <div className="hidden lg:flex justify-center items-center h-full relative">
               {loading ? (
-                 <div className="w-full max-w-sm h-80 bg-gray-800/80 rounded-2xl animate-pulse"></div>
+                 <div className="w-full max-w-sm h-96 bg-gray-800/50 backdrop-blur-sm rounded-3xl animate-pulse border border-white/10"></div>
               ) : currentHeroTrip ? (
-                /* Card Container with Animation Key on Change */
-                <div key={currentHeroTrip.id} className="animate-[fadeIn_0.5s_ease-out]">
-                    <Link 
-                    to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
-                    className="block w-[380px] bg-gray-900 border border-gray-700 rounded-3xl overflow-hidden shadow-2xl hover:shadow-primary-500/20 hover:border-gray-600 hover:-translate-y-1 transition-all duration-300 group/card"
-                    >
-                        {/* Image Section */}
-                        <div className="relative h-48 w-full overflow-hidden">
-                            <img 
-                                src={currentHeroTrip.images[0]} 
-                                alt={currentHeroTrip.title} 
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-105" 
-                            />
-                            <div className="absolute top-4 left-4">
-                                <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-lg uppercase tracking-wider border border-white/10">
-                                    {currentHeroTrip.category.replace('_', ' ')}
-                                </span>
+                /* Glassmorphism Card Style - Adjusted to be lighter and more translucent */
+                <Link 
+                  to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
+                  key={currentHeroTrip.id} 
+                  className="block w-full max-w-sm bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-black/40 hover:border-white/30 hover:scale-[1.02] transition-all duration-300 animate-[fadeIn_0.5s_ease-out] group/card relative z-10"
+                  aria-live="polite"
+                >
+                    <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-md">
+                        <img src={currentHeroTrip.images[0]} alt={currentHeroTrip.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" />
+                        <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10">
+                            {currentHeroTrip.category.replace('_', ' ')}
+                        </div>
+                    </div>
+                    <h3 className="font-bold text-white text-2xl leading-tight line-clamp-2 min-h-[3.5rem] mb-3 group-hover/card:text-primary-400 transition-colors drop-shadow-sm">
+                        {currentHeroTrip.title}
+                    </h3>
+                    
+                    <div className="flex items-center text-sm text-gray-300 mb-6 pb-4 border-b border-white/10">
+                        <MapPin size={14} className="mr-1.5 text-gray-400" />
+                        <span className="truncate max-w-[150px] font-medium">{currentHeroTrip.destination}</span>
+                        <span className="mx-2 opacity-30">|</span>
+                        <Clock size={14} className="mr-1.5 text-gray-400" />
+                        <span className="font-medium">{currentHeroTrip.durationDays} dias</span>
+                    </div>
+
+                    <div className="flex justify-between items-end">
+                        <div className="flex flex-col">
+                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5 tracking-wider">A partir de</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-xs font-semibold text-gray-400">R$</span>
+                                <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
                             </div>
                         </div>
-
-                        {/* Content Section */}
-                        <div className="p-6">
-                            <h3 className="text-xl font-bold text-white mb-1 line-clamp-1 group-hover/card:text-primary-400 transition-colors">
-                                {currentHeroTrip.title}
-                            </h3>
-                            
-                            <div className="flex items-center text-sm text-gray-400 mb-6 font-medium">
-                                <MapPin size={14} className="mr-1.5 text-gray-500" />
-                                <span className="truncate max-w-[150px]">{currentHeroTrip.destination}</span>
-                                <span className="mx-2 text-gray-600">•</span>
-                                <Clock size={14} className="mr-1.5 text-gray-500" />
-                                <span>{currentHeroTrip.durationDays} dias</span>
-                            </div>
-
-                            <div className="h-px bg-gray-800 w-full mb-5"></div>
-
-                            <div className="flex items-end justify-between">
-                                <div>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-0.5">A partir de</p>
-                                    <div className="flex items-baseline gap-0.5">
-                                        <span className="text-xs text-gray-400 font-semibold">R$</span>
-                                        <span className="text-2xl font-extrabold text-white">{currentHeroTrip.price.toLocaleString('pt-BR')}</span>
-                                    </div>
-                                </div>
-                                <div className="bg-primary-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors flex items-center shadow-lg shadow-primary-900/20">
-                                    Ver Pacote <ArrowRight size={14} className="ml-1.5"/>
-                                </div>
-                            </div>
+                        <div className="px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-bold flex items-center group-hover/card:bg-primary-500 transition-colors shadow-lg shadow-primary-900/20">
+                            Ver Pacote <ArrowRight size={16} className="ml-2 group-hover/card:translate-x-1 transition-transform" />
                         </div>
-                    </Link>
-                </div>
+                    </div>
+                </Link>
               ) : (
-                 <div className="w-full max-w-sm text-center bg-gray-900/80 rounded-2xl p-8 border border-gray-700">
-                    <p className="text-gray-400 font-medium">Nenhum pacote em destaque.</p>
+                 <div className="w-full max-w-sm text-center bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-10 shadow-xl">
+                    <p className="text-gray-300 font-medium">Nenhum pacote em destaque no momento.</p>
                  </div>
               )}
 
               {heroTrips.length > 1 && (
-                <div className="absolute -bottom-10 flex gap-2">
-                    {heroTrips.map((_, idx) => (
-                        <button 
-                        key={idx} 
-                        onClick={() => { setCurrentSlide(idx); resetTimer(); }} 
-                        className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentSlide ? 'bg-white w-8' : 'bg-gray-600 w-2 hover:bg-gray-400'}`} 
-                        />
-                    ))}
-                </div>
+                <>
+                  <button onClick={prevSlide} aria-label="Anterior" className="absolute -left-16 top-1/2 -translate-y-1/2 z-30 text-white/50 hover:text-white hover:scale-110 transition-all p-3 rounded-full hover:bg-white/10"><ChevronLeft size={48}/></button>
+                  <button onClick={nextSlide} aria-label="Próximo" className="absolute -right-16 top-1/2 -translate-y-1/2 z-30 text-white/50 hover:text-white hover:scale-110 transition-all p-3 rounded-full hover:bg-white/10"><ChevronRight size={48}/></button>
+                  
+                  {/* Progress Indicators */}
+                  <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex gap-3 z-30">
+                      {heroTrips.map((_, idx) => (
+                          <button 
+                            key={idx} 
+                            aria-label={`Ir para o slide ${idx + 1}`} 
+                            onClick={() => { setCurrentSlide(idx); resetTimer(); }} 
+                            className={`h-1.5 rounded-full transition-all duration-500 ease-out ${idx === currentSlide ? 'bg-white w-12 shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'bg-white/20 w-2 hover:bg-white/40'}`} 
+                          />
+                      ))}
+                  </div>
+                </>
               )}
             </div>
           </div>
