@@ -24,7 +24,7 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
-  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByTripId, loading } = useData();
+  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading } = useData();
   
   const [activeTab, setActiveTab] = useState<'PACKAGES' | 'ABOUT' | 'REVIEWS'>('PACKAGES');
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,19 +55,15 @@ const AgencyLandingPage: React.FC = () => {
   // Fetch trips for this agency
   const allTrips = getAgencyPublicTrips(agency.id);
 
-  // --- AGGREGATED DATA ---
-  const agencyReviews = useMemo(() => {
-      return allTrips.flatMap(trip => {
-          const tripReviews = getReviewsByTripId(trip.id);
-          return tripReviews.map(r => ({ ...r, tripTitle: trip.title }));
-      });
-  }, [allTrips, getReviewsByTripId]);
+  // --- REVIEWS DATA (NEW SYSTEM) ---
+  // Fetch reviews specifically for this agency using the new hook
+  const agencyReviews = getReviewsByAgencyId(agency.id);
 
   const agencyStats = useMemo(() => {
       const totalReviews = agencyReviews.length;
       const averageRating = totalReviews > 0 
           ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
-          : 0; // New agencies might default to 5.0 or 0 depending on preference, 0 forces "New" label
+          : 0; 
       
       const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
 
@@ -470,11 +466,11 @@ const AgencyLandingPage: React.FC = () => {
                             <div className="flex justify-between items-start mb-3">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">
-                                        {review.clientName.charAt(0)}
+                                        {review.clientName ? review.clientName.charAt(0) : 'A'}
                                     </div>
                                     <div>
-                                        <p className="font-bold text-gray-900 text-sm">{review.clientName}</p>
-                                        <p className="text-xs text-gray-400">{new Date(review.date).toLocaleDateString()} • Viajou para <strong>{review.tripTitle}</strong></p>
+                                        <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
+                                        <p className="text-xs text-gray-400">{new Date(review.createdAt).toLocaleDateString()} • Compra Verificada</p>
                                     </div>
                                 </div>
                                 <div className="flex text-amber-400">
