@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -571,7 +571,7 @@ const AgencyDashboard: React.FC = () => {
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients } = useData();
   const { showToast } = useToast();
   
-  // URL STATE MANAGEMENT - SOURCE OF TRUTH
+  // URL STATE MANAGEMENT
   const [searchParams, setSearchParams] = useSearchParams();
   
   const activeTab = (searchParams.get('tab') as 'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS') || 'OVERVIEW';
@@ -582,6 +582,9 @@ const AgencyDashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tripSearch, setTripSearch] = useState('');
   
+  // NOTIFICATIONS STATE (New Sales)
+  const [lastReadTime, setLastReadTime] = useState(Number(localStorage.getItem('agency_last_read_sales') || 0));
+
   const [selectedPlan, setSelectedPlan] = useState<'BASIC' | 'PREMIUM' | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -603,19 +606,13 @@ const AgencyDashboard: React.FC = () => {
               ...myAgency, 
               heroMode: myAgency.heroMode || 'TRIPS' 
           });
-          if (myAgency.subscriptionStatus !== 'ACTIVE' && activeTab !== 'SUBSCRIPTION') {
-             // Optional: Redirect to Subscription if inactive
-             // setSearchParams({ tab: 'SUBSCRIPTION' });
-          }
       }
   }, [myAgency]);
 
-  // --- PERSISTENCE LOGIC FOR NEW PACKAGE DRAFT ---
-  // Load draft or existing trip on mode change
+  // --- PERSISTENCE LOGIC ---
   useEffect(() => {
     if (viewMode === 'FORM') {
         if (editingTripId) {
-            // Edit Mode: Load Trip
             const tripToEdit = trips.find(t => t.id === editingTripId);
             if (tripToEdit) {
                 setTripForm({
@@ -627,7 +624,6 @@ const AgencyDashboard: React.FC = () => {
                 setSlugTouched(true);
             }
         } else {
-            // Create Mode: Try load draft from LocalStorage
             const savedDraft = localStorage.getItem('trip_draft');
             if (savedDraft) {
                 try {
@@ -643,17 +639,14 @@ const AgencyDashboard: React.FC = () => {
     }
   }, [viewMode, editingTripId, trips]);
 
-  // Save draft to LocalStorage when changing form in Create Mode
   useEffect(() => {
       if (viewMode === 'FORM' && !editingTripId) {
           const timeout = setTimeout(() => {
             localStorage.setItem('trip_draft', JSON.stringify(tripForm));
-          }, 500); // Debounce save
+          }, 500); 
           return () => clearTimeout(timeout);
       }
   }, [tripForm, viewMode, editingTripId]);
-
-  // Clear draft on successful submit (handled in handleSubmit)
 
   if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
   if (!myAgency) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin text-primary-600" /></div>;
@@ -662,14 +655,44 @@ const AgencyDashboard: React.FC = () => {
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
 
-  // Recent Bookings Logic
-  const recentBookings = bookings
+  // RECENT BOOKINGS LOGIC
+  // Filter bookings for this agency
+  const agencyBookings = bookings
     .filter(b => {
         const trip = trips.find(t => t.id === b.tripId);
         return trip && trip.agencyId === user.id;
     })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const recentBookings = agencyBookings.slice(0, 5);
+  
+  // Notification Logic
+  const newSalesCount = recentBookings.filter(b => new Date(b.date).getTime() > lastReadTime).length;
+
+  const handleClearNotifications = () => {
+      const now = Date.now();
+      setLastReadTime(now);
+      localStorage.setItem('agency_last_read_sales', String(now));
+      showToast('Notificações marcadas como lidas.', 'success');
+  };
+
+  // Grouped Sales by Trip
+  const salesByTrip = agencyBookings.reduce((acc, booking) => {
+      const trip = trips.find(t => t.id === booking.tripId);
+      if (!trip) return acc;
+      
+      if (!acc[trip.id]) {
+          acc[trip.id] = { 
+              title: trip.title, 
+              count: 0, 
+              total: 0, 
+              image: trip.images?.[0] 
+          };
+      }
+      acc[trip.id].count += 1;
+      acc[trip.id].total += booking.totalPrice;
+      return acc;
+  }, {} as Record<string, { title: string, count: number, total: number, image?: string }>);
 
   const filteredTrips = myTrips.filter(t => t.title.toLowerCase().includes(tripSearch.toLowerCase()));
   
@@ -733,7 +756,6 @@ const AgencyDashboard: React.FC = () => {
     setIsSubmitting(true);
     const tripData = { ...tripForm, agencyId: user.id } as Trip;
     
-    // --- PERSIST CUSTOM PILLS LOGIC ---
     const newSettings = { ...customSettings };
     let settingsChanged = false;
 
@@ -763,7 +785,6 @@ const AgencyDashboard: React.FC = () => {
         } else {
             await createTrip({ ...tripData, active: true } as Trip);
             showToast('Viagem criada!', 'success');
-            // Clear draft on success
             localStorage.removeItem('trip_draft');
         }
         handleBackToList();
@@ -833,10 +854,16 @@ const AgencyDashboard: React.FC = () => {
   const NavButton: React.FC<{tabId: string, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => (
     <button 
       onClick={() => handleTabChange(tabId)} 
-      className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+      className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
     >
       <Icon size={16} />
       {label}
+      {tabId === 'OVERVIEW' && newSalesCount > 0 && (
+          <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+          </span>
+      )}
     </button>
   );
 
@@ -880,6 +907,24 @@ const AgencyDashboard: React.FC = () => {
           {/* --- OVERVIEW HUB --- */}
           {activeTab === 'OVERVIEW' && isActive && (
             <div className="space-y-8">
+                
+                {/* Mini Site Banner (Compact) */}
+                <div className="bg-gray-900 rounded-xl p-5 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden border border-gray-800">
+                    <div className="absolute -right-10 -top-10 w-40 h-40 bg-primary-600/20 rounded-full blur-3xl"></div>
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="bg-white/10 p-2.5 rounded-full text-primary-400"><Globe size={20}/></div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg flex items-center gap-2">Seu Mini Site está no ar! <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-green-500/30">Online</span></h3>
+                            <p className="text-gray-400 text-xs max-w-md mt-0.5">Divulgue seus pacotes diretamente: <span className="text-white font-mono bg-black/30 px-1.5 py-0.5 rounded">{fullAgencyLink}</span></p>
+                        </div>
+                    </div>
+                    <div className="flex gap-3 relative z-10">
+                        <button onClick={() => { navigator.clipboard.writeText(fullAgencyLink); showToast('Link copiado!', 'success'); }} className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2"><Copy size={14}/> Copiar Link</button>
+                        <a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><ExternalLink size={14}/> Acessar</a>
+                    </div>
+                </div>
+
+                {/* Metrics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
                         <div className="flex justify-between items-start mb-4">
@@ -897,9 +942,10 @@ const AgencyDashboard: React.FC = () => {
                         <p className="text-sm text-gray-500 font-medium">Pacotes Publicados</p>
                         <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.active).length}</h3>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors">
+                    <div className={`bg-white p-6 rounded-2xl border shadow-sm group transition-all ${newSalesCount > 0 ? 'border-primary-300 ring-2 ring-primary-100' : 'border-gray-100 hover:border-primary-200'}`}>
                         <div className="flex justify-between items-start mb-4">
                            <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:bg-purple-100 transition-colors"><ShoppingBag size={24}/></div>
+                           {newSalesCount > 0 && <span className="text-xs font-bold text-white bg-red-500 px-2 py-1 rounded-full animate-pulse">+{newSalesCount} NOVO</span>}
                         </div>
                         <p className="text-sm text-gray-500 font-medium">Total de Vendas</p>
                         <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3>
@@ -916,38 +962,35 @@ const AgencyDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-8">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => handleOpenCreate()} className="p-4 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all text-left group">
-                                    <div className="bg-primary-100 text-primary-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Plus size={20}/></div>
-                                    <span className="font-bold block">Criar Novo Pacote</span>
-                                    <span className="text-xs text-gray-500">Adicione uma nova viagem ao catálogo.</span>
-                                </button>
-                                <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-left group">
-                                    <div className="bg-gray-100 text-gray-600 w-10 h-10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><Settings size={20}/></div>
-                                    <span className="font-bold block">Editar Perfil</span>
-                                    <span className="text-xs text-gray-500">Atualize logo, contatos e descrição.</span>
-                                </button>
-                            </div>
-                        </div>
-
                         {/* VENDAS RECENTES WIDGET */}
                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>
+                                {newSalesCount > 0 && (
+                                    <button onClick={handleClearNotifications} className="text-xs font-bold text-gray-400 hover:text-primary-600 flex items-center gap-1 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-primary-200 transition-colors">
+                                        <Bell size={12}/> Marcar como lidas
+                                    </button>
+                                )}
+                            </div>
+                            
                             {recentBookings.length > 0 ? (
                                 <div className="space-y-3">
                                     {recentBookings.map(booking => {
                                         const trip = trips.find(t => t.id === booking.tripId);
                                         const client = clients.find(c => c.id === booking.clientId);
+                                        const isNew = new Date(booking.date).getTime() > lastReadTime;
+
                                         return (
-                                            <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <div key={booking.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isNew ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold">
+                                                    <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center font-bold text-gray-600 text-sm">
                                                         {client?.name.charAt(0) || 'U'}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-bold text-gray-900">{client?.name || 'Cliente'}</p>
+                                                        <p className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                                            {client?.name || 'Cliente'}
+                                                            {isNew && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">NOVO</span>}
+                                                        </p>
                                                         <p className="text-xs text-gray-500 line-clamp-1">{trip?.title || 'Pacote desconhecido'}</p>
                                                     </div>
                                                 </div>
@@ -965,16 +1008,62 @@ const AgencyDashboard: React.FC = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* SALES BY PACKAGE */}
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><BarChart2 className="mr-2 text-blue-600" size={20}/> Vendas por Pacote</h3>
+                            {Object.keys(salesByTrip).length > 0 ? (
+                                <div className="space-y-4">
+                                    {Object.entries(salesByTrip).map(([id, data]) => (
+                                        <div key={id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-shadow">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
+                                                    {data.image && <img src={data.image} className="w-full h-full object-cover" alt="" />}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-sm text-gray-900 line-clamp-1">{data.title}</p>
+                                                    <p className="text-xs text-gray-500">{data.count} vendas</p>
+                                                </div>
+                                            </div>
+                                            <p className="font-bold text-sm text-gray-700">R$ {data.total.toLocaleString()}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400 text-sm">Sem dados de vendas.</div>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="bg-primary-600 rounded-2xl shadow-lg shadow-primary-500/30 p-6 text-white relative overflow-hidden h-fit">
-                        <div className="relative z-10">
-                            <h3 className="text-xl font-bold mb-2">Dica do Dia</h3>
-                            <p className="text-primary-100 text-sm mb-4 leading-relaxed">Pacotes com mais de 5 fotos de alta qualidade têm 40% mais chances de venda. Capriche na galeria!</p>
-                            <button onClick={() => handleTabChange('TRIPS')} className="bg-white text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-50 transition-colors">Gerenciar Fotos</button>
+                    {/* Quick Actions & Tips */}
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
+                            <div className="space-y-3">
+                                <button onClick={() => handleOpenCreate()} className="w-full p-3 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all flex items-center gap-3 group">
+                                    <div className="bg-primary-100 text-primary-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><Plus size={18}/></div>
+                                    <div className="text-left">
+                                        <span className="font-bold block text-sm">Criar Novo Pacote</span>
+                                    </div>
+                                </button>
+                                <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="w-full p-3 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-3 group">
+                                    <div className="bg-gray-100 text-gray-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><Settings size={18}/></div>
+                                    <div className="text-left">
+                                        <span className="font-bold block text-sm">Editar Perfil</span>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
-                        <div className="absolute -right-6 -bottom-6 text-primary-700 opacity-50">
-                            <Star size={120} />
+
+                        <div className="bg-primary-600 rounded-2xl shadow-lg shadow-primary-500/30 p-6 text-white relative overflow-hidden">
+                            <div className="relative z-10">
+                                <h3 className="text-lg font-bold mb-2">Dica do Dia</h3>
+                                <p className="text-primary-100 text-xs mb-4 leading-relaxed">Pacotes com mais de 5 fotos de alta qualidade têm 40% mais chances de venda. Capriche na galeria!</p>
+                                <button onClick={() => handleTabChange('TRIPS')} className="bg-white text-primary-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-primary-50 transition-colors">Gerenciar Fotos</button>
+                            </div>
+                            <div className="absolute -right-6 -bottom-6 text-primary-700 opacity-50">
+                                <Star size={100} />
+                            </div>
                         </div>
                     </div>
                 </div>

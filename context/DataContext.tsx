@@ -144,6 +144,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
 
+        // Custom Settings
+        customSettings: a.custom_settings || {},
+
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
         subscriptionExpiresAt: a.subscription_expires_at,
@@ -249,23 +252,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return;
 
     try {
-        let query = supabase.from('bookings').select('*');
-
-        if (user.role === UserRole.CLIENT) {
-          query = query.eq('client_id', user.id);
-        } 
-        else if (user.role === UserRole.AGENCY) {
-          const { data: myTrips } = await supabase.from('trips').select('id').eq('agency_id', user.id);
-          const myTripIds = myTrips?.map(t => t.id) || [];
-          if(myTripIds.length > 0) {
-              query = query.in('trip_id', myTripIds);
-          } else {
-              setBookings([]);
-              return;
-          }
-        }
-        
-        const { data, error } = await query;
+        // Simplified query relying on RLS Policies in Supabase
+        // We ask for everything, and the database filters what the user is allowed to see
+        const { data, error } = await supabase
+            .from('bookings')
+            .select('*, trips(id, title, agency_id)'); // Join with trips to get extra info if needed
 
         if (error) throw error;
 
@@ -403,8 +394,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error('Error adding review:', error);
     }
-    // No need to call refreshData, the trigger will update trips and realtime will update UI.
-    // However, to see the new review in the list immediately, we still need to fetch it.
     await fetchReviews();
   };
 
