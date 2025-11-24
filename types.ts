@@ -129,7 +129,7 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   active: boolean; // Controlled by agency
-  rating: number;
+  rating: number; // Keeping for legacy compatibility, but UI uses Agency Rating
   totalReviews: number;
   included: string[];
   notIncluded?: string[];
@@ -153,9 +153,10 @@ export interface Booking {
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   _trip?: any;
-  _agency?: any;
+  _agency?: any; // Expanded agency data
 }
 
+// Legacy Trip Review (Deprecated in UI)
 export interface Review {
   id: string;
   tripId: string;
@@ -165,6 +166,21 @@ export interface Review {
   date: string;
   clientName: string;
   response?: string; // Agency response
+}
+
+// New Agency Review Table
+export interface AgencyReview {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  bookingId?: string;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: string;
+  clientName?: string; // Joined
+  agencyName?: string; // Joined for client view
+  agencyLogo?: string; // Joined for client view
+  response?: string;
 }
 
 export interface Plan {

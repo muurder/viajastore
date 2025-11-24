@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, Client, UserRole, AuditLog } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -18,15 +18,18 @@ interface DataContextType {
   trips: Trip[];
   agencies: Agency[];
   bookings: Booking[];
-  reviews: Review[];
+  reviews: Review[]; // Legacy Trip Reviews
+  agencyReviews: AgencyReview[]; // New Agency Reviews
   clients: Client[];
   auditLogs: AuditLog[];
   loading: boolean;
   
   addBooking: (booking: Booking) => Promise<void>;
-  addReview: (review: Review) => Promise<void>;
-  addAgencyReview: (review: any) => Promise<void>;
-  deleteReview: (reviewId: string) => Promise<void>;
+  addReview: (review: Review) => Promise<void>; // Legacy
+  addAgencyReview: (review: Partial<AgencyReview>) => Promise<void>; // New
+  deleteReview: (reviewId: string) => Promise<void>; // Legacy
+  deleteAgencyReview: (reviewId: string) => Promise<void>; // New
+  
   toggleFavorite: (tripId: string, clientId: string) => Promise<void>;
   updateClientProfile: (clientId: string, data: Partial<Client>) => Promise<void>;
   
@@ -47,6 +50,8 @@ interface DataContextType {
   getTripBySlug: (slug: string) => Trip | undefined; 
   getAgencyBySlug: (slug: string) => Agency | undefined;
   getReviewsByTripId: (tripId: string) => Review[];
+  getReviewsByAgencyId: (agencyId: string) => AgencyReview[]; // New
+  getReviewsByClientId: (clientId: string) => AgencyReview[]; // New
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
   getAgencyStats: (agencyId: string) => DashboardStats;
   refreshData: () => Promise<void>;
@@ -62,6 +67,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [agencyReviews, setAgencyReviews] = useState<AgencyReview[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +116,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             views: t.views_count || 0,
             sales: t.sales_count || 0,
             featured: t.featured || false,
-            featuredInHero: t.featured_in_hero || false, // New Field
+            featuredInHero: t.featured_in_hero || false, 
             popularNearSP: t.popular_near_sp || false
           }));
 
@@ -191,6 +197,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchReviews = async () => {
      try {
+         // Legacy Trip Reviews
          const { data, error } = await supabase.from('reviews').select('*, profiles(full_name)');
          if (error) throw error;
 
@@ -207,9 +214,42 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             })));
          }
      } catch (err) {
-         console.warn("Supabase unavailable, using MOCK_REVIEWS.", err);
+         // Fallback
          setReviews(MOCK_REVIEWS);
      }
+  };
+
+  const fetchAgencyReviews = async () => {
+      try {
+          // New Agency Reviews Table
+          const { data, error } = await supabase
+            .from('agency_reviews')
+            .select(`
+                *, 
+                profiles:client_id (full_name),
+                agencies:agency_id (name, logo_url)
+            `);
+            
+          if (error && error.code !== '42P01') throw error; // Ignore if table missing during dev
+
+          if (data) {
+              setAgencyReviews(data.map((r: any) => ({
+                  id: r.id,
+                  agencyId: r.agency_id,
+                  clientId: r.client_id,
+                  bookingId: r.booking_id,
+                  rating: r.rating,
+                  comment: r.comment,
+                  createdAt: r.created_at,
+                  clientName: r.profiles?.full_name || 'Viajante',
+                  agencyName: r.agencies?.name || 'Agência',
+                  agencyLogo: r.agencies?.logo_url,
+                  response: r.response
+              })));
+          }
+      } catch (err) {
+          console.warn("Agency reviews table might not exist yet.");
+      }
   };
 
   // FETCH FAVORITES FOR CURRENT USER
@@ -223,15 +263,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if(data) {
                const favIds = data.map(f => f.trip_id);
                
-               // Update clients state to reflect current user favorites
                setClients(prev => {
                    const existing = prev.find(c => c.id === user.id);
-                   
                    if(existing) {
                        return prev.map(c => c.id === user.id ? { ...c, favorites: favIds} : c);
                    }
-                   
-                   // If user not in client list yet (race condition), add them properly
                    const me: Client = {
                        id: user.id,
                        name: user.name,
@@ -253,8 +289,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return;
 
     try {
-        // Optimized query to fetch necessary nested data for Voucher/Dashboard
-        // Fixed: Join trip_images properly instead of nonexistent 'images' column
+        // Fixed Query: Using trip_images relationship and agencies join
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -269,6 +304,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 trip_images(image_url),
                 agencies (
                   name,
+                  slug,
                   whatsapp,
                   logo_url
                 )
@@ -279,10 +315,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (data) {
           const formattedBookings: Booking[] = data.map((b: any) => {
-            // Normalize images from nested join
             const images = b.trips?.trip_images?.map((img: any) => img.image_url) || [];
-            
-            // Normalize trip object for frontend usage
             const tripData = b.trips ? {
                ...b.trips,
                images: images,
@@ -301,9 +334,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               passengers: b.passengers,
               voucherCode: b.voucher_code,
               paymentMethod: b.payment_method,
-              // Inject expanded data for quick access in UI without extra fetches
               _trip: tripData,
-              _agency: b.trips?.agencies
+              _agency: b.trips?.agencies // Now contains slug and logo
             };
           });
           setBookings(formattedBookings);
@@ -331,7 +363,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
       } catch (err) {
           const mockLogs: AuditLog[] = [
-             { id: '1', adminEmail: 'juannicolas1@gmail.com', action: 'SYSTEM_INIT', details: 'Sistema inicializado (Modo Offline/Mock)', createdAt: new Date().toISOString() }
+             { id: '1', adminEmail: 'system', action: 'INIT', details: 'Sistema inicializado', createdAt: new Date().toISOString() }
           ];
           setAuditLogs(mockLogs);
       }
@@ -343,6 +375,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchTrips(), 
         fetchAgencies(), 
         fetchReviews(), 
+        fetchAgencyReviews(),
         fetchBookings()
       ];
       
@@ -369,7 +402,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
     const isCurrentlyFavorite = currentClient.favorites.includes(tripId);
     
-    // Optimistic Update
     const updatedFavorites = isCurrentlyFavorite 
       ? currentClient.favorites.filter(id => id !== tripId)
       : [...currentClient.favorites, tripId];
@@ -378,12 +410,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
         if (isCurrentlyFavorite) {
-            // Remove from DB
             const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
             if (error) throw error;
             showToast('Removido dos favoritos', 'info');
         } else {
-            // Add to DB
             const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
             if (error) throw error;
             showToast('Adicionado aos favoritos', 'success');
@@ -396,7 +426,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addBooking = async (booking: Booking) => {
-    // Ensure ID is a valid UUID if not provided or invalid
+    // Correct: Generate valid UUID if not provided
     const bookingId = booking.id && booking.id.length > 30 ? booking.id : crypto.randomUUID();
 
     const { error } = await supabase.from('bookings').insert({
@@ -420,6 +450,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addReview = async (review: Review) => {
+    // Legacy function for trip reviews
     const { error } = await supabase.from('reviews').insert({
       trip_id: review.tripId,
       user_id: review.clientId, 
@@ -429,43 +460,47 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       response: review.response
     });
     if (error) {
-      console.error('Error adding review:', error);
       showToast('Erro ao enviar avaliação', 'error');
     }
     await fetchReviews();
   };
 
-  const addAgencyReview = async (review: { agencyId: string, clientId: string, rating: number, comment: string, bookingId?: string }) => {
+  const addAgencyReview = async (review: Partial<AgencyReview>) => {
       const { error } = await supabase.from('agency_reviews').insert({
           agency_id: review.agencyId,
           client_id: review.clientId,
+          booking_id: review.bookingId, // Optional linking
           rating: review.rating,
-          comment: review.comment,
-          booking_id: review.bookingId
+          comment: review.comment
       });
       
       if (error) {
           console.error('Error adding agency review:', error);
           showToast('Erro ao avaliar agência', 'error');
-          throw error;
       } else {
           showToast('Avaliação da agência enviada!', 'success');
+          await fetchAgencyReviews();
       }
   };
 
   const deleteReview = async (reviewId: string) => {
     const { error } = await supabase.from('reviews').delete().eq('id', reviewId);
-    if (error) {
-      console.error('Error deleting review:', error);
-    }
-    await fetchReviews();
+    if (!error) await fetchReviews();
+  };
+
+  const deleteAgencyReview = async (reviewId: string) => {
+      const { error } = await supabase.from('agency_reviews').delete().eq('id', reviewId);
+      if (error) {
+          showToast('Erro ao excluir avaliação', 'error');
+      } else {
+          showToast('Avaliação excluída', 'success');
+          await fetchAgencyReviews();
+      }
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
     const { error } = await supabase.from('profiles').update(data).eq('id', clientId);
-    if (error) {
-      console.error('Error updating client profile:', error);
-    }
+    if (error) console.error('Error updating client profile:', error);
     await refreshData();
   };
 
@@ -475,10 +510,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_plan: plan,
       subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
     }).eq('id', agencyId);
-    if (error) {
-      console.error('Error updating agency subscription:', error);
-    }
-    await refreshData();
+    if (!error) await refreshData();
   };
 
   const createTrip = async (trip: Trip) => {
@@ -506,26 +538,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         popular_near_sp: trip.popularNearSP ?? false,
     };
 
-    if (tripSlug) {
-        dbTrip.slug = tripSlug;
-    }
+    if (tripSlug) dbTrip.slug = tripSlug;
 
     const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
 
-    if (error) {
-      console.error('Error creating trip:', error);
-      throw error;
-    }
+    if (error) throw error;
 
     if (newTrip && trip.images && trip.images.length > 0) {
       const imageInserts = trip.images.map(url => ({
         trip_id: newTrip.id,
         image_url: url
       }));
-      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
-      if (imageError) {
-        console.error('Error inserting trip images:', imageError);
-      }
+      await supabase.from('trip_images').insert(imageInserts);
     }
     await refreshData();
   };
@@ -556,44 +580,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const { error } = await supabase.from('trips').update(dbTrip).eq('id', id);
+    if (error) throw error;
 
-    if (error) {
-      console.error('Error updating trip:', error);
-      throw error;
-    }
-
-    // Handle images: delete old ones and insert new ones
     await supabase.from('trip_images').delete().eq('trip_id', id);
     if (images && images.length > 0) {
       const imageInserts = images.map(url => ({
         trip_id: id,
         image_url: url
       }));
-      const { error: imageError } = await supabase.from('trip_images').insert(imageInserts);
-      if (imageError) console.error('Error updating trip images:', imageError);
+      await supabase.from('trip_images').insert(imageInserts);
     }
     await refreshData();
   };
 
   const deleteTrip = async (tripId: string) => {
-    const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
-    if (imagesError) console.error('Error deleting trip images:', imagesError);
-
-    const { error: tripError } = await supabase.from('trips').delete().eq('id', tripId);
-    if (tripError) {
-      console.error('Error deleting trip:', tripError);
-      throw tripError;
-    }
+    await supabase.from('trip_images').delete().eq('trip_id', tripId);
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) throw error;
     await refreshData();
   };
 
   const toggleTripStatus = async (tripId: string) => {
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
-    const { error } = await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
-    if (error) {
-      console.error('Error toggling trip status:', error);
-    }
+    await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
     await refreshData();
   };
 
@@ -611,24 +621,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await supabase.from('bookings').delete().eq('client_id', userId);
       await supabase.from('reviews').delete().eq('user_id', userId);
     }
-    
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
-    if (authDeleteError) console.error('Error deleting auth user:', authDeleteError);
-    
+    await supabase.auth.admin.deleteUser(userId);
     await refreshData();
   };
 
   const logAuditAction = async (action: string, details: string) => {
-    if (!user || user.role !== UserRole.ADMIN) {
-        return;
-    }
-    const { error } = await supabase.from('audit_logs').insert({
+    if (!user || user.role !== UserRole.ADMIN) return;
+    await supabase.from('audit_logs').insert({
       admin_email: user.email,
       action: action,
       details: details,
       created_at: new Date().toISOString()
     });
-    if (error) console.error('Error logging audit action:', error);
     await refreshData();
   };
 
@@ -645,6 +649,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
+  const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
+  const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
+
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
 
   const getAgencyStats = (agencyId: string) => {
@@ -662,11 +669,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <DataContext.Provider value={{ 
-      trips, agencies, bookings, reviews, clients, auditLogs, loading,
-      addBooking, addReview, addAgencyReview, deleteReview, toggleFavorite, updateClientProfile,
+      trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
+      addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       deleteUser, logAuditAction,
-      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId,
+      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, refreshData
     }}>
       {!loading && children}

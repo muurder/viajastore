@@ -8,13 +8,11 @@ import { MapPin, Calendar, Star, Check, Clock, ShieldCheck, MessageCircle, Send,
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
-  // Capture params. If agencySlug exists, we are in agency mode.
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   
-  // Handle both global (/viagem/:slug) and nested (/:agencySlug/viagem/:tripSlug) routes
   const activeTripSlug = tripSlug || slug;
 
-  const { getTripBySlug, addBooking, agencies, getReviewsByTripId, addReview, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
+  const { getTripBySlug, addBooking, agencies, hasUserPurchasedTrip, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -23,23 +21,14 @@ const TripDetails: React.FC = () => {
   const [passengers, setPassengers] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<string | null>('included');
   
-  // Review State
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState('');
-
   const trip = activeTripSlug ? getTripBySlug(activeTripSlug) : undefined;
-  
-  // Verify consistency: If in agency mode, the trip MUST belong to that agency
   const contextAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.id);
 
-  // SEO / Metadata Update
   useEffect(() => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
       }
-      
-      // Cleanup title on unmount
       return () => {
           document.title = 'ViajaStore | O maior marketplace de viagens';
       };
@@ -62,12 +51,8 @@ const TripDetails: React.FC = () => {
 
   const agency = agencies.find(a => a.id === trip.agencyId);
   const totalPrice = trip.price * passengers;
-  const reviews = getReviewsByTripId(trip.id);
   const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
   
-  const canReview = user?.role === 'CLIENT' && hasUserPurchasedTrip(user.id, trip.id);
-
-  // Favorite Logic
   const isFavorite = user?.role === 'CLIENT' && (clients.find(c => c.id === user.id)?.favorites.includes(trip.id));
 
   const handleFavorite = () => {
@@ -79,7 +64,6 @@ const TripDetails: React.FC = () => {
       showToast('Apenas viajantes podem favoritar.', 'warning');
       return;
     }
-    
     toggleFavorite(trip.id, user.id);
   };
 
@@ -119,7 +103,6 @@ const TripDetails: React.FC = () => {
     }
     
     const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
-    // Ensure ID is UUID
     const bookingId = crypto.randomUUID();
     
     addBooking({
@@ -136,7 +119,6 @@ const TripDetails: React.FC = () => {
 
     setIsBookingModalOpen(false);
     
-    // Navigate to Scoped Success Page if in microsite, else global
     if (agencySlug) {
         navigate(`/${agencySlug}/checkout/success`);
     } else {
@@ -144,42 +126,8 @@ const TripDetails: React.FC = () => {
     }
   };
 
-  const handleSubmitReview = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    
-    addReview({
-      id: `r${Date.now()}`, // Review ID can still be text based or handled by DB, but let's keep it simple for now
-      tripId: trip.id,
-      clientId: user.id,
-      clientName: user.name,
-      rating,
-      comment,
-      date: new Date().toISOString()
-    });
-    setComment('');
-    showToast('Avaliação enviada com sucesso!', 'success');
-  };
-
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
-  };
-
-  const getDynamicHeadline = () => {
-    const city = trip.destination.split(',')[0].trim();
-    const duration = `${trip.durationDays} Dias`;
-    
-    switch (trip.category) {
-        case 'PRAIA': return `🌞 Sol e Mar: ${duration} relaxando em ${city}`;
-        case 'AVENTURA': return `⚡ Aventura Pura: ${duration} explorando ${city}`;
-        case 'ROMANTICO': return `❤️ Escapada Romântica: ${duration} inesquecíveis em ${city}`;
-        case 'FAMILIA': return `👨‍👩‍👧‍👦 Diversão em Família: ${duration} em ${city}`;
-        case 'NATUREZA': return `🍃 Imersão na Natureza: ${duration} em ${city}`;
-        case 'GASTRONOMICO': return `🍷 Sabores de ${city}: Roteiro de ${duration}`;
-        case 'URBANO': return `🏙️ City Tour: ${duration} descobrindo ${city}`;
-        case 'VIDA_NOTURNA': return `🎉 Agito e Diversão: ${duration} em ${city}`;
-        default: return `✨ Experiência Exclusiva: ${duration} em ${city}`;
-    }
   };
 
   const renderDescription = (desc: string) => {
@@ -200,7 +148,6 @@ const TripDetails: React.FC = () => {
     ? trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4)
     : [mainImage, mainImage, mainImage, mainImage];
 
-  // Breadcrumb Links
   const homeLink = agencySlug ? `/${agencySlug}` : '/';
   const homeLabel = agencySlug ? (agency?.name || 'Agência') : 'Home';
   const tripsLink = agencySlug ? `/${agencySlug}/trips` : '/trips';
@@ -208,7 +155,7 @@ const TripDetails: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto pb-12 relative">
-      {/* Floating WhatsApp Button (Mobile Only) */}
+      {/* Floating WhatsApp */}
       {whatsappLink && (
         <a 
             href={whatsappLink}
@@ -221,7 +168,6 @@ const TripDetails: React.FC = () => {
         </a>
       )}
 
-      {/* Breadcrumb */}
       <div className="flex items-center text-sm text-gray-500 mb-6">
           <Link to={homeLink} className="hover:text-primary-600 flex items-center"><ArrowLeft size={12} className="mr-1"/> {homeLabel}</Link> 
           <span className="mx-2">/</span>
@@ -230,34 +176,22 @@ const TripDetails: React.FC = () => {
           <span className="text-gray-900 font-medium truncate max-w-[200px]">{trip.title}</span>
       </div>
 
-      {/* Images Grid */}
+      {/* Images */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[400px] md:h-[500px] shadow-lg">
         <div className="md:col-span-2 h-full relative group">
-           <img 
-            src={mainImage} 
-            alt={trip.title} 
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
-            onError={handleImageError}
-           />
+           <img src={mainImage} alt={trip.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={handleImageError} />
         </div>
         <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
           {galleryImages.map((img, idx) => (
             <div key={idx} className="relative group overflow-hidden">
-                <img 
-                    src={img} 
-                    alt={`Gallery ${idx}`} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                    onError={handleImageError}
-                />
+                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={handleImageError} />
             </div>
           ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Main Content */}
         <div className="lg:col-span-2 space-y-10">
-          {/* Header Info */}
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category.replace('_', ' ')}</span>
@@ -269,47 +203,33 @@ const TripDetails: React.FC = () => {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title}</h1>
                 
-                {/* Action Buttons: Share, Favorite, WhatsApp */}
                 <div className="flex items-center gap-3">
                   {whatsappLink && (
                       <a 
                         href={whatsappLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Falar com a agência"
                         className="hidden md:flex p-3 rounded-full border bg-green-50 border-green-200 text-green-600 hover:bg-green-100 transition-all shadow-sm flex-shrink-0 items-center gap-2 font-bold text-sm"
                       >
                           <MessageCircle size={20} />
                           <span>WhatsApp</span>
                       </a>
                   )}
-                  <button
-                      onClick={handleShare}
-                      title="Compartilhar"
-                      className="p-3 rounded-full border bg-white border-gray-200 text-gray-400 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm flex-shrink-0"
-                  >
+                  <button onClick={handleShare} className="p-3 rounded-full border bg-white border-gray-200 text-gray-400 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm flex-shrink-0">
                       <Share2 size={24} />
                   </button>
                   <button
                       onClick={handleFavorite}
-                      title={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                      className={`p-3 rounded-full border transition-all shadow-sm flex-shrink-0 ${
-                          isFavorite
-                              ? 'bg-red-50 border-red-100 text-red-500'
-                              : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'
-                      }`}
+                      className={`p-3 rounded-full border transition-all shadow-sm flex-shrink-0 ${isFavorite ? 'bg-red-50 border-red-100 text-red-500' : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'}`}
                   >
                       <Heart size={24} className={isFavorite ? "fill-current animate-[pulse_0.3s]" : ""} />
                   </button>
                 </div>
             </div>
 
-            <p className="text-lg md:text-xl font-medium text-primary-600 mb-5">{getDynamicHeadline()}</p>
-            
-            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 mt-4">
                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination}</div>
                <div className="flex items-center"><Clock className="text-primary-500 mr-2" size={18}/> {trip.durationDays} Dias de Duração</div>
-               <div className="flex items-center font-medium"><Star className="text-amber-400 fill-current mr-2" size={18}/> {trip.rating.toFixed(1)} <span className="text-gray-400 font-normal ml-1">({trip.totalReviews} avaliações)</span></div>
             </div>
 
             <div className="flex flex-wrap gap-4 mt-6">
@@ -328,13 +248,11 @@ const TripDetails: React.FC = () => {
 
           <div className="h-px bg-gray-200"></div>
 
-          {/* Description */}
           <div className="text-gray-600">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
             {renderDescription(trip.description)}
           </div>
 
-          {/* Agency Card (Show only if NOT in agency mode, to avoid redundancy) */}
           {agency && !agencySlug && (
              <div className="bg-gray-50 border border-gray-200 p-6 rounded-2xl flex items-center gap-6 hover:shadow-md transition-shadow">
                 <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-sm" />
@@ -349,7 +267,6 @@ const TripDetails: React.FC = () => {
              </div>
           )}
 
-          {/* Accordions */}
           <div className="space-y-4">
              <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <button onClick={() => toggleAccordion('included')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
@@ -381,80 +298,9 @@ const TripDetails: React.FC = () => {
                 </div>
              )}
           </div>
-
-          {/* Reviews Section */}
-          <div className="pt-10 mt-10 border-t border-gray-200">
-             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 flex items-center">
-                   <MessageCircle className="mr-3" /> Avaliações ({reviews.length})
-                </h3>
-                {trip.rating > 0 && (
-                    <div className="flex items-center bg-amber-50 px-4 py-2 rounded-lg border border-amber-100">
-                        <Star className="text-amber-400 fill-current mr-2" size={24} />
-                        <span className="text-2xl font-bold text-amber-900">{trip.rating.toFixed(1)}</span>
-                        <span className="text-amber-700 text-sm ml-2 font-medium">/ 5.0</span>
-                    </div>
-                )}
-             </div>
-             
-             {canReview && (
-               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 mb-10">
-                 <h4 className="font-bold text-gray-900 mb-3">Como foi sua experiência?</h4>
-                 <form onSubmit={handleSubmitReview}>
-                    <div className="flex items-center gap-2 mb-4">
-                        {[1,2,3,4,5].map(star => (
-                            <button type="button" key={star} onClick={() => setRating(star)} className="transition-transform hover:scale-110 focus:outline-none">
-                                <Star size={28} className={`${star <= rating ? 'text-amber-400 fill-current' : 'text-gray-300'}`} />
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex gap-3">
-                        <input 
-                            className="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500" 
-                            placeholder="Conte detalhes da sua viagem..."
-                            value={comment}
-                            onChange={e => setComment(e.target.value)}
-                            required
-                        />
-                        <button type="submit" className="bg-primary-600 text-white px-6 rounded-xl hover:bg-primary-700 font-bold transition-colors flex items-center">
-                            Enviar <Send size={16} className="ml-2" />
-                        </button>
-                    </div>
-                 </form>
-               </div>
-             )}
-
-             <div className="space-y-6">
-               {reviews.length > 0 ? reviews.map(review => (
-                 <div key={review.id} className="border-b border-gray-100 pb-6 last:border-0">
-                    <div className="flex justify-between items-start mb-2">
-                       <div className="flex items-center">
-                           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-500 mr-3">
-                              {review.clientName.charAt(0)}
-                           </div>
-                           <div>
-                               <p className="font-bold text-gray-900">{review.clientName}</p>
-                               <div className="flex text-amber-400 text-xs">
-                                    {[...Array(5)].map((_, i) => (
-                                        <Star key={i} size={10} className={i < review.rating ? "fill-current" : "text-gray-200"} />
-                                    ))}
-                                </div>
-                           </div>
-                       </div>
-                       <span className="text-xs text-gray-400">{new Date(review.date).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-gray-600 text-sm pl-14 leading-relaxed">{review.comment}</p>
-                 </div>
-               )) : (
-                 <div className="text-center py-10">
-                    <p className="text-gray-500 italic">Seja o primeiro a avaliar esta viagem!</p>
-                 </div>
-               )}
-             </div>
-          </div>
         </div>
 
-        {/* Sidebar / Booking Card */}
+        {/* Sidebar */}
         <div className="lg:col-span-1 relative">
           <div className="sticky top-24 bg-white rounded-2xl shadow-xl border border-gray-100 p-6 z-10">
             <div className="mb-6">
@@ -476,11 +322,7 @@ const TripDetails: React.FC = () => {
               
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                 <div className="text-xs font-bold text-gray-500 uppercase mb-1">Viajantes</div>
-                <select 
-                  value={passengers}
-                  onChange={(e) => setPassengers(Number(e.target.value))}
-                  className="w-full bg-transparent outline-none font-bold text-gray-800 cursor-pointer"
-                >
+                <select value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} className="w-full bg-transparent outline-none font-bold text-gray-800 cursor-pointer">
                   {[1,2,3,4,5,6,7,8,9,10].map(num => <option key={num} value={num}>{num} {num === 1 ? 'Pessoa' : 'Pessoas'}</option>)}
                 </select>
               </div>
@@ -503,36 +345,23 @@ const TripDetails: React.FC = () => {
             </div>
 
             {whatsappLink && (
-               <a 
-                 href={whatsappLink} 
-                 target="_blank" 
-                 rel="noopener noreferrer" 
-                 className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3"
-               >
+               <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3">
                  <MessageCircle size={20} /> Falar com a agência
                </a>
             )}
 
             {user?.role === 'AGENCY' || user?.role === 'ADMIN' ? (
-                <button 
-                    disabled
-                    className="w-full bg-gray-200 text-gray-500 font-bold py-4 rounded-xl cursor-not-allowed text-center"
-                >
+                <button disabled className="w-full bg-gray-200 text-gray-500 font-bold py-4 rounded-xl cursor-not-allowed text-center">
                     Reserva indisponível para {user.role === 'ADMIN' ? 'Admins' : 'Agências'}
                 </button>
             ) : (
-                <button 
-                onClick={() => setIsBookingModalOpen(true)}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary-500/30 active:scale-95"
-                >
+                <button onClick={() => setIsBookingModalOpen(true)} className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary-500/30 active:scale-95">
                 Reservar Agora
                 </button>
             )}
             
             <div className="mt-4 text-center space-y-2">
-               <div className="flex items-center justify-center text-xs text-gray-500 font-medium gap-1">
-                  <ShieldCheck size={14} className="text-green-500" /> Garantia de Melhor Preço
-               </div>
+               <div className="flex items-center justify-center text-xs text-gray-500 font-medium gap-1"><ShieldCheck size={14} className="text-green-500" /> Garantia de Melhor Preço</div>
                <p className="text-gray-400 text-xs">Não cobramos taxas de reserva.</p>
             </div>
           </div>
@@ -566,10 +395,7 @@ const TripDetails: React.FC = () => {
               </div>
             </div>
 
-            <button 
-              onClick={handleBooking}
-              className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg"
-            >
+            <button onClick={handleBooking} className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg">
               Pagar e Confirmar Reserva
             </button>
           </div>

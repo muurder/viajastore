@@ -4,14 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview } = useData();
-  const [selectedBooking, setSelectedBooking] = useState<any | null>(null); // Relax type to access extended properties
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview } = useData();
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
@@ -54,6 +54,7 @@ const ClientDashboard: React.FC = () => {
   }
 
   const myBookings = bookings.filter(b => b.clientId === user.id);
+  const myReviews = getReviewsByClientId(user.id);
   
   const favoriteIds = dataContextClient?.favorites || [];
   const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined);
@@ -139,7 +140,11 @@ const ClientDashboard: React.FC = () => {
       }
   };
 
-  // --- FUNCTIONALITIES ---
+  const handleDeleteReview = async (id: string) => {
+      if(window.confirm('Excluir sua avaliação?')) {
+          await deleteAgencyReview(id);
+      }
+  };
 
   const generatePDF = () => {
       if (!selectedBooking) return;
@@ -195,13 +200,11 @@ const ClientDashboard: React.FC = () => {
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
         if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
 
-        // Separator
         y += 10;
         doc.setDrawColor(200, 200, 200);
         doc.line(20, y, 190, y);
         y += 20;
 
-        // Instructions
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Instruções', 20, y);
@@ -214,7 +217,6 @@ const ClientDashboard: React.FC = () => {
         y += 6;
         doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
 
-        // Footer
         y = 280;
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
@@ -232,8 +234,9 @@ const ClientDashboard: React.FC = () => {
       
       const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
       const tripTitle = selectedBooking._trip?.title || 'Pacote';
+      const agencyName = selectedBooking._agency?.name || 'Agência';
       
-      const msg = `Olá! Comprei o pacote ${tripTitle} pela ViajaStore e gostaria de tirar algumas dúvidas.`;
+      const msg = `Olá ${agencyName}! Comprei o pacote *${tripTitle}* pela ViajaStore e gostaria de tirar algumas dúvidas.`;
       
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -244,7 +247,6 @@ const ClientDashboard: React.FC = () => {
       
       try {
           await addAgencyReview({
-              // Handle potential casing diff from Supabase join
               agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
               clientId: user.id,
               bookingId: selectedBooking.id,
@@ -255,7 +257,6 @@ const ClientDashboard: React.FC = () => {
           setSelectedBooking(null);
           setReviewForm({ rating: 5, comment: '' });
       } catch (error) {
-          // Toast handled in context
           console.error(error);
       }
   };
@@ -287,6 +288,7 @@ const ClientDashboard: React.FC = () => {
             {[
                 { id: 'PROFILE', icon: User, label: 'Meu Perfil' },
                 { id: 'BOOKINGS', icon: ShoppingBag, label: 'Minhas Viagens' },
+                { id: 'REVIEWS', icon: Star, label: 'Minhas Avaliações' },
                 { id: 'FAVORITES', icon: Heart, label: 'Favoritos' },
                 { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço' },
                 { id: 'SECURITY', icon: Shield, label: 'Segurança' }
@@ -333,12 +335,6 @@ const ClientDashboard: React.FC = () => {
                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Telefone</label>
                    <p className="text-gray-900 font-medium">{currentClient?.phone || '---'}</p>
                  </div>
-                 {currentClient?.address?.city && (
-                     <div className="bg-gray-50 p-4 rounded-xl md:col-span-2">
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Endereço Principal</label>
-                        <p className="text-gray-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p>
-                     </div>
-                 )}
                </div>
 
                <div className="mt-10 grid grid-cols-3 gap-4">
@@ -359,18 +355,23 @@ const ClientDashboard: React.FC = () => {
                <h2 className="text-2xl font-bold text-gray-900 mb-4">Minhas Viagens</h2>
                {myBookings.length > 0 ? (
                  myBookings.map(booking => {
-                    // Use extended data from fetch or fallback to context lookup
                     const trip = booking._trip || getTripById(booking.tripId);
+                    const agency = booking._agency; 
                     if (!trip) return null;
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-                    const startDate = trip.startDate || trip.start_date; // Handle normalized vs raw
+                    const startDate = trip.startDate || trip.start_date;
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
                         <img src={imgUrl} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
                         <div className="flex-1">
-                           <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-2">{trip.title}</h3>
+                           <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{trip.title}</h3>
+                           {agency && (
+                               <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block">
+                                   Organizado por {agency.name}
+                               </Link>
+                           )}
                            <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
                              <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
@@ -396,6 +397,44 @@ const ClientDashboard: React.FC = () => {
              </div>
            )}
 
+           {activeTab === 'REVIEWS' && (
+               <div className="space-y-6 animate-[fadeIn_0.3s]">
+                   <h2 className="text-2xl font-bold text-gray-900 mb-4">Minhas Avaliações</h2>
+                   {myReviews.length > 0 ? (
+                       <div className="space-y-4">
+                           {myReviews.map(review => (
+                               <div key={review.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                                   <div className="flex justify-between items-start mb-3">
+                                       <div className="flex items-center gap-4">
+                                           <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+                                               {review.agencyLogo ? <img src={review.agencyLogo} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-gray-200"/>}
+                                           </div>
+                                           <div>
+                                               <h4 className="font-bold text-gray-900">{review.agencyName}</h4>
+                                               <div className="flex text-amber-400 text-sm">
+                                                   {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)}
+                                               </div>
+                                           </div>
+                                       </div>
+                                       <button onClick={() => handleDeleteReview(review.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={16}/></button>
+                                   </div>
+                                   <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-xl italic">"{review.comment}"</p>
+                                   <div className="mt-4 flex justify-end">
+                                      <Link to={`/${review.agencyName ? review.agencyName.toLowerCase().replace(/\s+/g, '-') : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   ) : (
+                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
+                           <Star size={32} className="text-gray-300 mx-auto mb-4" />
+                           <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3>
+                           <p className="text-gray-500 mt-1">Você ainda não avaliou nenhuma agência.</p>
+                       </div>
+                   )}
+               </div>
+           )}
+
            {activeTab === 'FAVORITES' && (
              <div className="animate-[fadeIn_0.3s]">
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
@@ -417,7 +456,6 @@ const ClientDashboard: React.FC = () => {
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Dados Pessoais & Endereço</h2>
                <form onSubmit={handleSaveProfile} className="space-y-8">
-                  {/* Dados Pessoais */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="md:col-span-2">
                         <label className="block text-sm font-bold text-gray-700 mb-2">Nome Completo</label>
@@ -442,12 +480,7 @@ const ClientDashboard: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           <div className="md:col-span-1 relative">
                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label>
-                             <input 
-                               value={addressForm.zipCode} 
-                               onChange={handleCepChange} 
-                               className="w-full border border-gray-300 rounded-lg p-2" 
-                               placeholder="00000-000" 
-                             />
+                             <input value={addressForm.zipCode} onChange={handleCepChange} className="w-full border border-gray-300 rounded-lg p-2" placeholder="00000-000" />
                              {loadingCep && <div className="absolute right-3 top-8"><Loader size={14} className="animate-spin text-primary-600"/></div>}
                           </div>
                           <div className="md:col-span-3">
@@ -476,10 +509,7 @@ const ClientDashboard: React.FC = () => {
                           </div>
                       </div>
                   </div>
-                  
-                  <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2">
-                      <Save size={18} /> Salvar Alterações
-                  </button>
+                  <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2"><Save size={18} /> Salvar Alterações</button>
                </form>
              </div>
            )}
@@ -504,14 +534,11 @@ const ClientDashboard: React.FC = () => {
                       </div>
                       <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
                   </form>
-
                   <div className="mt-12 pt-8 border-t border-gray-100">
                     <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
                     <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                         <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p>
-                        <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors">
-                            <Trash2 size={16} className="mr-2" /> Excluir minha conta
-                        </button>
+                        <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors"><Trash2 size={16} className="mr-2" /> Excluir minha conta</button>
                     </div>
                   </div>
               </div>
@@ -519,7 +546,6 @@ const ClientDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* VOUCHER MODAL */}
       {selectedBooking && !showReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -530,28 +556,17 @@ const ClientDashboard: React.FC = () => {
                     <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
                 </div>
                 <div className="p-8 text-center">
-                    {/* QR Code - using booking code as content */}
                     <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl">
-                        <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} 
-                            alt="QR Code" 
-                            className="w-full h-full object-contain mix-blend-multiply"
-                        />
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/>
                     </div>
-                    
                     <p className="font-bold text-gray-900 text-lg">{user.name}</p>
                     <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     
                     <div className="space-y-3">
-                        <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg">
-                            <Download size={18}/> Baixar PDF
-                        </button>
-                        
+                        <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
                         {selectedBooking._agency?.whatsapp && (
-                            <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg">
-                                <MessageCircle size={18}/> Falar com a Agência
-                            </button>
+                            <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>
                         )}
                     </div>
                 </div>
@@ -559,7 +574,6 @@ const ClientDashboard: React.FC = () => {
          </div>
       )}
 
-      {/* AGENCY REVIEW MODAL */}
       {showReviewModal && selectedBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }}>
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -583,32 +597,17 @@ const ClientDashboard: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
                           <div className="flex justify-center gap-2">
                               {[1, 2, 3, 4, 5].map((star) => (
-                                  <button
-                                      type="button"
-                                      key={star}
-                                      onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                                      className="focus:outline-none transition-transform hover:scale-110"
-                                  >
+                                  <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110">
                                       <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
                                   </button>
                               ))}
                           </div>
                       </div>
-                      
                       <div className="mb-6">
                           <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
-                          <textarea 
-                              className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none"
-                              placeholder="Conte como foi sua experiência com a agência..."
-                              value={reviewForm.comment}
-                              onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })}
-                              required
-                          />
+                          <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
                       </div>
-
-                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2">
-                          <Send size={18}/> Enviar Avaliação
-                      </button>
+                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2"><Send size={18}/> Enviar Avaliação</button>
                   </form>
               </div>
           </div>
