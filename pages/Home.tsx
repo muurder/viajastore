@@ -104,7 +104,8 @@ const Home: React.FC = () => {
     return () => window.removeEventListener('resize', checkScroll);
   }, []);
 
-  const toggleInterest = (label: string, elementId: string) => {
+  const handleInterestClick = (label: string, id: string, e: React.MouseEvent<HTMLButtonElement>) => {
+     // 1. Toggle Logic
      if (label === 'Todos') {
          setSelectedInterests([]);
      } else {
@@ -116,6 +117,13 @@ const Home: React.FC = () => {
              }
          });
      }
+
+     // 2. Scroll Logic (UX Improvement)
+     e.currentTarget.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+     });
   };
 
   // Explicitly separate the grid trips logic from the hero logic
@@ -299,23 +307,26 @@ const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2 text-gray-400">
-                 <Filter size={14} />
+              <div className="flex items-center gap-2 text-gray-500">
+                 <Filter size={16} />
                  <span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span>
               </div>
            </div>
            
-           <div className="relative group/scroll">
+           <div className="relative group/scroll bg-white/60 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl py-3">
              {canScrollLeft && (
-               <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex hover:bg-white text-gray-700"><ChevronLeft size={18} /></button>
-             )}
-             <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`}></div>
-             <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${canScrollRight ? 'opacity-100' : 'opacity-0'}`}></div>
-             {canScrollRight && (
-               <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-md hidden md:flex hover:bg-white text-gray-700"><ChevronRight size={18} /></button>
+               <button onClick={() => scroll('left')} className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50 text-gray-700 transition-all active:scale-95"><ChevronLeft size={18} /></button>
              )}
              
-             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-2 overflow-x-auto pb-4 pt-1 px-1 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
+             {/* Fades Laterais ajustados ao container */}
+             <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none transition-opacity duration-300 rounded-l-xl ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`}></div>
+             <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none transition-opacity duration-300 rounded-r-xl ${canScrollRight ? 'opacity-100' : 'opacity-0'}`}></div>
+             
+             {canScrollRight && (
+               <button onClick={() => scroll('right')} className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50 text-gray-700 transition-all active:scale-95"><ChevronRight size={18} /></button>
+             )}
+             
+             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-3 overflow-x-auto px-4 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
                 {INTEREST_CHIPS.map(({label, icon: Icon, id}) => {
                    const isAll = label === 'Todos';
                    const isActive = isAll ? selectedInterests.length === 0 : selectedInterests.includes(label);
@@ -324,10 +335,14 @@ const Home: React.FC = () => {
                      <button
                         key={label}
                         id={id}
-                        onClick={() => toggleInterest(label, id)}
-                        className={`snap-start flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-lg transform scale-105' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
+                        onClick={(e) => handleInterestClick(label, id, e)}
+                        className={`snap-center flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 border select-none 
+                        ${isActive 
+                           ? 'bg-gray-900 text-white border-gray-900 shadow-md ring-2 ring-primary-500/30 transform scale-105' 
+                           : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm'
+                        }`}
                      >
-                        <Icon size={14} /> {label}
+                        <Icon size={14} fill={isActive ? "currentColor" : "none"} /> {label}
                      </button>
                    );
                 })}
