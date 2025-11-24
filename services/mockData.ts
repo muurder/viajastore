@@ -321,5 +321,6 @@ export const MOCK_BOOKINGS: Booking[] = [
 
 // --- REVIEWS (Exemplos) ---
 export const MOCK_REVIEWS: Review[] = [
-  { id: 'r1', tripId: 't1', clientId: 'c1', rating: 5, comment: 'Viagem incrível! O guia era muito experiente e as cataratas são de tirar o fôlego. Recomendo!', date: '2024-07-20T10:00:00Z', clientName: 'João Viajante' }
+  // FIX: Added agencyId to match the Review type. The review for trip t1 belongs to agency ag_1.
+  { id: 'r1', tripId: 't1', agencyId: 'ag_1', clientId: 'c1', rating: 5, comment: 'Viagem incrível! O guia era muito experiente e as cataratas são de tirar o fôlego. Recomendo!', date: '2024-07-20T10:00:00Z', clientName: 'João Viajante' }
 ];

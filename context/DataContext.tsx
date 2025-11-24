@@ -127,7 +127,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripBySlug = (slug: string | undefined) => slug ? trips.find(t => t.slug === slug) : undefined;
-  // FIX: Added getAgencyBySlug function definition
   const getAgencyBySlug = (slug: string | undefined) => slug ? agencies.find(a => a.slug === slug) : undefined;
   const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
@@ -175,7 +174,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             paymentMethod: data.payment_method,
         };
         setBookings(prev => [...prev, fullNewBooking]);
-        // Also update trip sales count optimistically
         setTrips(prev => prev.map(t => t.id === booking.tripId ? { ...t, sales: (t.sales || 0) + 1 } : t));
     }
     return true;
