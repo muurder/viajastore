@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -19,6 +19,109 @@ const SUGGESTED_TRAVELERS = ['SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO'
 const SUGGESTED_PAYMENTS = ['Pix', 'Cartão de Crédito (até 12x)', 'Boleto Bancário', 'Transferência', 'Dinheiro'];
 const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
 const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
+
+// --- NEW ACTIONS MENU COMPONENT ---
+interface ActionsMenuProps {
+  trip: Trip;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onToggleStatus: () => void;
+  fullAgencyLink: string;
+}
+
+const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Determine Status Context
+  const isPublished = trip.active;
+  
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <div className="flex items-center gap-2 justify-end">
+        {/* Main Action Button */}
+        <button
+          onClick={onEdit}
+          className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${
+            isPublished 
+              ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' 
+              : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'
+          }`}
+        >
+          {isPublished ? 'Gerenciar' : 'Editar'}
+        </button>
+
+        {/* Context Menu Button */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+        >
+          <MoreHorizontal size={20} />
+        </button>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
+          <div className="py-1">
+            <div className="px-4 py-2 border-b border-gray-50">
+                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p>
+            </div>
+
+            {isPublished ? (
+               /* Actions for PUBLISHED items */
+               <>
+                 <a 
+                   href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors"
+                   onClick={() => setIsOpen(false)}
+                 >
+                   <Eye size={16} className="mr-3 text-gray-400"/> Ver público
+                 </a>
+                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors">
+                   <PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas
+                 </button>
+               </>
+            ) : (
+               /* Actions for DRAFT/PAUSED items */
+               <>
+                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors">
+                   <PlayCircle size={16} className="mr-3 text-green-500"/> {trip.active === false ? 'Publicar' : 'Retomar vendas'}
+                 </button>
+                 <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors">
+                    <Edit size={16} className="mr-3 text-gray-400"/> Editar
+                 </button>
+               </>
+            )}
+
+            <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+               <Copy size={16} className="mr-3 text-gray-400"/> Duplicar
+            </button>
+
+            <div className="border-t border-gray-100 mt-1 pt-1">
+                <button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                   <Trash2 size={16} className="mr-3"/> Excluir
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Pill Input Component Enhanced
 const PillInput: React.FC<{ 
@@ -465,7 +568,7 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, agencies, getAgencyStats, trips } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips } = useData();
   const { showToast } = useToast();
   
   // URL STATE MANAGEMENT - SOURCE OF TRUTH
@@ -892,23 +995,15 @@ const AgencyDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex gap-1 justify-end opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {trip.slug && (
-                                            <a href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors" title="Ver Página Pública">
-                                                <ExternalLink size={16}/>
-                                            </a>
-                                        )}
-                                        <button onClick={() => handleDuplicateTrip(trip)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Duplicar">
-                                            <Copy size={16}/>
-                                        </button>
-                                        <button onClick={() => handleOpenEdit(trip)} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Editar">
-                                            <Edit size={16}/>
-                                        </button>
-                                        <button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
-                                            <Trash2 size={16}/>
-                                        </button>
-                                    </div>
+                                <td className="px-6 py-4 text-right">
+                                    <ActionsMenu 
+                                        trip={trip} 
+                                        onEdit={() => handleOpenEdit(trip)}
+                                        onDuplicate={() => handleDuplicateTrip(trip)}
+                                        onDelete={() => handleDeleteTrip(trip.id)}
+                                        onToggleStatus={() => toggleTripStatus(trip.id)}
+                                        fullAgencyLink={fullAgencyLink}
+                                    />
                                 </td>
                             </tr>
                         ))}
