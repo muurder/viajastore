@@ -119,9 +119,11 @@ const TripDetails: React.FC = () => {
     }
     
     const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
+    // Ensure ID is UUID
+    const bookingId = crypto.randomUUID();
     
     addBooking({
-      id: `b${Date.now()}`,
+      id: bookingId,
       tripId: trip.id,
       clientId: user.id,
       date: new Date().toISOString(),
@@ -147,7 +149,7 @@ const TripDetails: React.FC = () => {
     if (!user) return;
     
     addReview({
-      id: `r${Date.now()}`,
+      id: `r${Date.now()}`, // Review ID can still be text based or handled by DB, but let's keep it simple for now
       tripId: trip.id,
       clientId: user.id,
       clientName: user.name,

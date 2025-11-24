@@ -254,7 +254,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
         // Optimized query to fetch necessary nested data for Voucher/Dashboard
-        // NOTE: This query requires RLS policies to be set up for agencies and clients
+        // Fixed: Join trip_images properly instead of nonexistent 'images' column
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -266,7 +266,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 destination,
                 start_date,
                 duration_days,
-                images,
+                trip_images(image_url),
                 agencies (
                   name,
                   whatsapp,
@@ -278,20 +278,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
 
         if (data) {
-          const formattedBookings: Booking[] = data.map((b: any) => ({
-            id: b.id,
-            tripId: b.trip_id,
-            clientId: b.client_id,
-            date: b.created_at,
-            status: b.status,
-            totalPrice: b.total_price,
-            passengers: b.passengers,
-            voucherCode: b.voucher_code,
-            paymentMethod: b.payment_method,
-            // Inject expanded data for quick access in UI without extra fetches
-            _trip: b.trips,
-            _agency: b.trips?.agencies
-          }));
+          const formattedBookings: Booking[] = data.map((b: any) => {
+            // Normalize images from nested join
+            const images = b.trips?.trip_images?.map((img: any) => img.image_url) || [];
+            
+            // Normalize trip object for frontend usage
+            const tripData = b.trips ? {
+               ...b.trips,
+               images: images,
+               agencyId: b.trips.agency_id,
+               startDate: b.trips.start_date,
+               durationDays: b.trips.duration_days
+            } : undefined;
+
+            return {
+              id: b.id,
+              tripId: b.trip_id,
+              clientId: b.client_id,
+              date: b.created_at,
+              status: b.status,
+              totalPrice: b.total_price,
+              passengers: b.passengers,
+              voucherCode: b.voucher_code,
+              paymentMethod: b.payment_method,
+              // Inject expanded data for quick access in UI without extra fetches
+              _trip: tripData,
+              _agency: b.trips?.agencies
+            };
+          });
           setBookings(formattedBookings);
         }
     } catch (err) {
@@ -382,8 +396,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addBooking = async (booking: Booking) => {
+    // Ensure ID is a valid UUID if not provided or invalid
+    const bookingId = booking.id && booking.id.length > 30 ? booking.id : crypto.randomUUID();
+
     const { error } = await supabase.from('bookings').insert({
-      id: booking.id, // Assuming ID is generated on client or handled by DB
+      id: bookingId,
       trip_id: booking.tripId,
       client_id: booking.clientId,
       created_at: booking.date,

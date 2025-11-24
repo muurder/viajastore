@@ -146,7 +146,7 @@ const ClientDashboard: React.FC = () => {
       const trip = selectedBooking._trip;
       const agency = selectedBooking._agency;
 
-      if (!trip || !agency) {
+      if (!trip) {
           alert('Não foi possível carregar todos os dados para o voucher. Tente novamente.');
           return;
       }
@@ -183,12 +183,13 @@ const ClientDashboard: React.FC = () => {
         addField('Passageiro Principal:', user.name);
         addField('CPF:', currentClient?.cpf || 'Não informado');
         y += 5;
-        addField('Pacote:', trip?.title || '---');
-        addField('Destino:', trip?.destination || '---');
-        // Handle Supabase snake_case vs camelCase if mixed
-        const dateStr = trip.start_date || trip.startDate;
+        addField('Pacote:', trip.title || '---');
+        addField('Destino:', trip.destination || '---');
+        
+        const dateStr = trip.startDate || trip.start_date;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        const duration = trip.duration_days || trip.durationDays;
+        
+        const duration = trip.durationDays || trip.duration_days;
         addField('Duração:', `${duration} Dias`);
         y += 5;
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
@@ -232,7 +233,6 @@ const ClientDashboard: React.FC = () => {
       const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
       const tripTitle = selectedBooking._trip?.title || 'Pacote';
       
-      // Exact format requested
       const msg = `Olá! Comprei o pacote ${tripTitle} pela ViajaStore e gostaria de tirar algumas dúvidas.`;
       
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -245,7 +245,7 @@ const ClientDashboard: React.FC = () => {
       try {
           await addAgencyReview({
               // Handle potential casing diff from Supabase join
-              agencyId: selectedBooking._trip.agency_id || selectedBooking._trip.agencyId, 
+              agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
@@ -364,7 +364,7 @@ const ClientDashboard: React.FC = () => {
                     if (!trip) return null;
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-                    const startDate = trip.start_date || trip.startDate; // Handle snake_case from DB vs camelCase from Mock
+                    const startDate = trip.startDate || trip.start_date; // Handle normalized vs raw
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
@@ -380,7 +380,7 @@ const ClientDashboard: React.FC = () => {
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
                                <button onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
-                                    <Star size={16} /> Avaliar Experiência
+                                    <Star size={16} /> Avaliar Agência
                                </button>
                            </div>
                         </div>

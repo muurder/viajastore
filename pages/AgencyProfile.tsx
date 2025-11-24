@@ -1,8 +1,9 @@
+
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, ExternalLink } from 'lucide-react';
 
 const AgencyProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +34,14 @@ const AgencyProfile: React.FC = () => {
                 <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 shadow-sm flex items-center">
                    <Mail size={18} className="mr-2" /> Contato
                 </button>
+                {agency.slug && (
+                    <Link 
+                        to={`/${agency.slug}`}
+                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 shadow-sm flex items-center"
+                    >
+                        <ExternalLink size={18} className="mr-2" /> Ver Site
+                    </Link>
+                )}
               </div>
            </div>
            
