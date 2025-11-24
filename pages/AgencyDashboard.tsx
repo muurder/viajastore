@@ -82,7 +82,6 @@ const AgencyDashboard: React.FC = () => {
                                 </div>
                                 <a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-primary-300 hover:text-white transition-colors flex items-center gap-1.5">
                                     Acessar Página Pública <ExternalLink size={14}/>
-                                Acessar Página Pública <ExternalLink size={14}/>
                                 </a>
                             </div>
                         </div>

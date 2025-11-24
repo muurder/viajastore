@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { UserRole, Booking, Address, Trip } from '../types';
+import { UserRole, Booking, Address, Trip, Agency } from '../types';
 import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, ChevronRight, MessageCircle, Send } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 
 // Helper to build WhatsApp link for the agency
-const buildAgencyWhatsAppLink = (agency: any, booking: Booking, trip: Trip) => {
+const buildAgencyWhatsAppLink = (agency: Agency, booking: Booking, trip: Trip) => {
     if (!agency?.whatsapp) return '#';
     const message = `Olá, ${agency.name}! Tenho uma dúvida sobre minha reserva na ViajaStore:
     
@@ -148,6 +148,10 @@ const ClientDashboard: React.FC = () => {
         left: 0;
         top: 0;
         width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+        box-shadow: none;
       }
       @page {
         size: A4;
@@ -237,22 +241,26 @@ const ClientDashboard: React.FC = () => {
           
           return (
              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setSelectedBooking(null)}>
-                <div id="voucher-to-print" className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                    <div className="bg-primary-600 p-6 text-white text-center">
-                        <h3 className="text-2xl font-bold">Voucher de Viagem</h3>
-                        <p className="text-primary-100 text-sm">{selectedBooking.voucherCode}</p>
-                    </div>
-                    <div className="p-8">
-                        <div className="text-center mb-6">
-                            <img src={qrCodeUrl} alt="QR Code do Voucher" className="mx-auto mb-4 border-4 border-gray-100 rounded-lg"/>
-                            <p className="font-bold text-gray-900">{user.name}</p>
-                            <p className="text-sm text-gray-500 mb-4">{trip.title}</p>
-                            <div className="grid grid-cols-2 gap-4 text-left text-sm bg-gray-50 p-4 rounded-lg">
-                                <div><p className="text-xs text-gray-400">Data da Viagem</p><p className="font-bold">{new Date(trip.startDate).toLocaleDateString()}</p></div>
-                                <div><p className="text-xs text-gray-400">Passageiros</p><p className="font-bold">{selectedBooking.passengers}</p></div>
+                <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                    <div id="voucher-to-print">
+                        <div className="bg-primary-600 p-6 text-white text-center">
+                            <h3 className="text-2xl font-bold">Voucher de Viagem</h3>
+                            <p className="text-primary-100 text-sm">{selectedBooking.voucherCode}</p>
+                        </div>
+                        <div className="p-8">
+                            <div className="text-center mb-6">
+                                <img src={qrCodeUrl} alt="QR Code do Voucher" className="mx-auto mb-4 border-4 border-gray-100 rounded-lg"/>
+                                <p className="font-bold text-gray-900">{user.name}</p>
+                                <p className="text-sm text-gray-500 mb-4">{trip.title}</p>
+                                <div className="grid grid-cols-2 gap-4 text-left text-sm bg-gray-50 p-4 rounded-lg">
+                                    <div><p className="text-xs text-gray-400">Data da Viagem</p><p className="font-bold">{new Date(trip.startDate).toLocaleDateString()}</p></div>
+                                    <div><p className="text-xs text-gray-400">Passageiros</p><p className="font-bold">{selectedBooking.passengers}</p></div>
+                                </div>
                             </div>
                         </div>
-                        <div className="space-y-3">
+                    </div>
+                    <div className="p-8 pt-0">
+                         <div className="space-y-3">
                             <a href={buildAgencyWhatsAppLink(agency, selectedBooking, trip)} target="_blank" rel="noopener noreferrer" className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors">
                                 <MessageCircle size={18}/> Falar com a Agência
                             </a>

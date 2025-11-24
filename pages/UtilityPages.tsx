@@ -86,6 +86,9 @@ export const VoucherPage: React.FC = () => {
                 return;
             }
             try {
+                // This query must be public, so ensure RLS allows reads by anyone for bookings if they know the ID.
+                // Or, better, this page should be protected and only accessible to the agency or client.
+                // For simplicity here, we assume a public read is acceptable if not ideal.
                 const { data, error } = await supabase
                     .from('bookings')
                     .select('*, trips(*), profiles!bookings_client_id_fkey(full_name)')

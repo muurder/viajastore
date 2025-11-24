@@ -61,7 +61,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('agencies').select('*'),
         supabase.from('profiles').select('*'),
         supabase.from('reviews').select('*, profiles(full_name, avatar_url)'),
-        user ? supabase.from('bookings').select('*') : Promise.resolve({ data: [], error: null }),
+        user ? supabase.from('bookings').select('*, trips(*), profiles!bookings_client_id_fkey(full_name, avatar_url, phone)') : Promise.resolve({ data: [], error: null }),
         user?.role === 'CLIENT' ? supabase.from('favorites').select('trip_id').eq('user_id', user.id) : Promise.resolve({ data: [], error: null }),
         user?.role === 'ADMIN' ? supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: [], error: null })
       ]);
@@ -310,6 +310,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, clients, loading, auditLogs,
       // ... provide all necessary functions
       getTripById: (id) => id ? trips.find(t => t.id === id) : undefined,
+      // FIX: Add missing 'getTripBySlug' property to match the DataContextType interface.
+      getTripBySlug,
       getAgencyBySlug: (slug) => slug ? agencies.find(a => a.slug === slug) : undefined,
       addReview,
       addBooking,
