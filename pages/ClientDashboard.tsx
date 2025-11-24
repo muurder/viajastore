@@ -146,71 +146,84 @@ const ClientDashboard: React.FC = () => {
       const trip = selectedBooking._trip;
       const agency = selectedBooking._agency;
 
-      const doc = new jsPDF();
-      
-      // Header Background
-      doc.setFillColor(59, 130, 246); // Primary Blue
-      doc.rect(0, 0, 210, 40, 'F');
-      
-      // Title
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
+      if (!trip || !agency) {
+          alert('Não foi possível carregar todos os dados para o voucher. Tente novamente.');
+          return;
+      }
 
-      // Reset Text
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(12);
-      
-      // Section 1: Details
-      let y = 60;
-      
-      const addField = (label: string, value: string) => {
-          doc.setFont('helvetica', 'bold');
-          doc.text(label, 20, y);
-          doc.setFont('helvetica', 'normal');
-          doc.text(value, 70, y);
-          y += 10;
-      };
+      try {
+        const doc = new jsPDF();
+        
+        // Header Background
+        doc.setFillColor(59, 130, 246); // Primary Blue
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        // Title
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
 
-      addField('Código da Reserva:', selectedBooking.voucherCode);
-      addField('Passageiro Principal:', user.name);
-      addField('CPF:', currentClient?.cpf || 'Não informado');
-      y += 5;
-      addField('Pacote:', trip?.title || '---');
-      addField('Destino:', trip?.destination || '---');
-      addField('Data da Viagem:', new Date(trip?.start_date || trip?.startDate).toLocaleDateString());
-      addField('Duração:', `${trip?.duration_days || trip?.durationDays} Dias`);
-      y += 5;
-      addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
-      if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
+        // Reset Text
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        
+        // Section 1: Details
+        let y = 60;
+        
+        const addField = (label: string, value: string) => {
+            doc.setFont('helvetica', 'bold');
+            doc.text(label, 20, y);
+            doc.setFont('helvetica', 'normal');
+            doc.text(value, 70, y);
+            y += 10;
+        };
 
-      // Separator
-      y += 10;
-      doc.setDrawColor(200, 200, 200);
-      doc.line(20, y, 190, y);
-      y += 20;
+        addField('Código da Reserva:', selectedBooking.voucherCode);
+        addField('Passageiro Principal:', user.name);
+        addField('CPF:', currentClient?.cpf || 'Não informado');
+        y += 5;
+        addField('Pacote:', trip?.title || '---');
+        addField('Destino:', trip?.destination || '---');
+        // Handle Supabase snake_case vs camelCase if mixed
+        const dateStr = trip.start_date || trip.startDate;
+        addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
+        const duration = trip.duration_days || trip.durationDays;
+        addField('Duração:', `${duration} Dias`);
+        y += 5;
+        addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
+        if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
 
-      // Instructions
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Instruções', 20, y);
-      y += 10;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
-      y += 6;
-      doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
-      y += 6;
-      doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
+        // Separator
+        y += 10;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, y, 190, y);
+        y += 20;
 
-      // Footer
-      y = 280;
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
+        // Instructions
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Instruções', 20, y);
+        y += 10;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
+        y += 6;
+        doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
+        y += 6;
+        doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
 
-      doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
+        // Footer
+        y = 280;
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
+
+        doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
+      } catch (error) {
+          console.error('Erro ao gerar PDF:', error);
+          alert('Ocorreu um erro ao gerar o PDF. Tente novamente.');
+      }
   };
 
   const openWhatsApp = () => {
@@ -231,7 +244,8 @@ const ClientDashboard: React.FC = () => {
       
       try {
           await addAgencyReview({
-              agencyId: selectedBooking._trip.agency_id || selectedBooking._trip.agencyId, // Handle potential casing diff
+              // Handle potential casing diff from Supabase join
+              agencyId: selectedBooking._trip.agency_id || selectedBooking._trip.agencyId, 
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
@@ -350,7 +364,8 @@ const ClientDashboard: React.FC = () => {
                     if (!trip) return null;
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-                    
+                    const startDate = trip.start_date || trip.startDate; // Handle snake_case from DB vs camelCase from Mock
+
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
                         <img src={imgUrl} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
@@ -358,7 +373,7 @@ const ClientDashboard: React.FC = () => {
                            <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-2">{trip.title}</h3>
                            <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
-                             <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {new Date(trip.start_date || trip.startDate).toLocaleDateString()}</div>
+                             <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
                            </div>
                            <div className="flex gap-2 flex-wrap">
                                <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
