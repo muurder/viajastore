@@ -196,7 +196,19 @@ const Layout: React.FC = () => {
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!showAgencyHeader ? (
                     <>
-                      <Plane className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform" />
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform"
+                      >
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                      </svg>
                       <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
                     </>
                   ) : (
@@ -323,7 +335,19 @@ const Layout: React.FC = () => {
                     <div className="flex items-center gap-2">
                          {!showAgencyHeader ? (
                             <>
-                                <Plane className="h-6 w-6 text-primary-600" />
+                                <svg 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  strokeWidth="2" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round" 
+                                  className="h-6 w-6 text-primary-600"
+                                >
+                                  <line x1="22" y1="2" x2="11" y2="13" />
+                                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
                                 <span className="font-bold text-lg text-gray-900">Menu</span>
                             </>
                          ) : currentAgency ? (
@@ -468,87 +492,51 @@ const Layout: React.FC = () => {
             // Default Footer (Global or Public Microsite)
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-                <div className="col-span-1 md:col-span-1">
-                  <div className="flex items-center mb-4">
-                    {showAgencyHeader && currentAgency ? (
-                      <>
-                        {currentAgency.logo && <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2 border border-gray-100" alt="Logo" />}
-                        <span className="font-bold text-xl text-gray-800 line-clamp-1">{currentAgency.name}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plane className="h-6 w-6 text-primary-600 mr-2" />
-                        <span className="font-bold text-xl text-gray-800">ViajaStore</span>
-                      </>
-                    )}
+                <div className="col-span-1 md:col-span-2">
+                  {currentAgency ? (
+                    <div className="mb-4">
+                       <span className="text-xl font-bold text-gray-900">{currentAgency.name}</span>
+                       <p className="text-gray-500 text-sm mt-2 max-w-sm">{currentAgency.description}</p>
+                    </div>
+                  ) : (
+                    <div className="mb-4">
+                       <span className="text-xl font-bold text-gray-900">ViajaStore</span>
+                       <p className="text-gray-500 text-sm mt-2 max-w-sm">Conectando você às melhores experiências de viagem do Brasil.</p>
+                    </div>
+                  )}
+                  <div className="flex space-x-4">
+                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Instagram size={20} /></a>
+                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Facebook size={20} /></a>
+                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Twitter size={20} /></a>
                   </div>
-                  <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                    {showAgencyHeader && currentAgency
-                    ? `${currentAgency.description || 'Conheça nossos pacotes e viaje com segurança.'}` 
-                    : 'O maior marketplace de turismo do Brasil. Segurança, variedade e os melhores preços para sua próxima aventura.'}
-                  </p>
                 </div>
                 
-                {!showAgencyHeader && (
-                    <>
-                    <div>
-                    <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Empresa</h3>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                        <li><Link to="/about" className="hover:text-primary-600 transition-colors">Quem somos</Link></li>
-                        <li><Link to="/careers" className="hover:text-primary-600 transition-colors">Carreiras</Link></li>
-                        <li><Link to="/press" className="hover:text-primary-600 transition-colors">Imprensa</Link></li>
-                        <li><Link to="/blog" className="hover:text-primary-600 transition-colors">Blog</Link></li>
-                    </ul>
-                    </div>
-
-                    <div>
-                    <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Suporte</h3>
-                    <ul className="space-y-2 text-sm text-gray-600">
-                        <li><Link to="/help" className="hover:text-primary-600 transition-colors">Central de Ajuda</Link></li>
-                        <li><Link to="/terms" className="hover:text-primary-600 transition-colors">Termos de Uso</Link></li>
-                        <li><Link to="/privacy" className="hover:text-primary-600 transition-colors">Política de Privacidade</Link></li>
-                        <li><Link to="/contact" className="hover:text-primary-600 transition-colors">Fale Conosco</Link></li>
-                    </ul>
-                    </div>
-                    </>
-                )}
-                
-                {showAgencyHeader && !isMicrositeClientArea && (
-                  <div className="md:col-span-2">
-                      <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato</h3>
-                      {currentAgency && (
-                          <ul className="space-y-2 text-sm text-gray-600">
-                              {currentAgency.whatsapp && (
-                                <li className="flex items-center gap-2">
-                                    <Smartphone size={14} /> <a href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="hover:underline hover:text-green-600">WhatsApp: {currentAgency.whatsapp}</a>
-                                </li>
-                              )}
-                              {currentAgency.phone && !currentAgency.whatsapp && <li>Telefone: {currentAgency.phone}</li>}
-                              {currentAgency.email && <li className="flex items-center gap-2"><Mail size={14}/> {currentAgency.email}</li>}
-                              {currentAgency.address && <li className="flex items-center gap-2"><Map size={14} /> {currentAgency.address.city}, {currentAgency.address.state}</li>}
-                          </ul>
-                      )}
-                  </div>
-                )}
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Navegação</h3>
+                  <ul className="space-y-2">
+                    <li><Link to="/trips" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Viagens</Link></li>
+                    <li><Link to="/agencies" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Agências</Link></li>
+                    <li><Link to="/blog" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Blog</Link></li>
+                  </ul>
+                </div>
 
                 <div>
-                  <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Social</h3>
-                  <div className="flex space-x-4">
-                    <a href="#" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-pink-100 hover:text-pink-600 transition-all"><Instagram size={20} /></a>
-                    <a href="#" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-blue-100 hover:text-blue-600 transition-all"><Facebook size={20} /></a>
-                    <a href="#" className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-blue-50 hover:text-blue-400 transition-all"><Twitter size={20} /></a>
-                  </div>
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Institucional</h3>
+                  <ul className="space-y-2">
+                    <li><Link to="/about" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Sobre Nós</Link></li>
+                    <li><Link to="/contact" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Contato</Link></li>
+                    <li><Link to="/terms" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Termos de Uso</Link></li>
+                    <li><Link to="/privacy" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Privacidade</Link></li>
+                  </ul>
                 </div>
               </div>
-
-              <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center">
-                <p className="text-sm text-gray-400 mb-4 md:mb-0">
-                  © {new Date().getFullYear()} {showAgencyHeader && currentAgency ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
-                  {showAgencyHeader && <span className="block text-xs mt-1 opacity-60">Powered by ViajaStore Platform</span>}
+              <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center">
+                <p className="text-sm text-gray-400">
+                  &copy; {new Date().getFullYear()} ViajaStore. Todos os direitos reservados.
                 </p>
-                <div className="flex space-x-6 text-sm text-gray-400">
-                  <Link to={activeSlug ? `/${activeSlug}/privacy` : "/privacy"} className="hover:text-gray-600">Privacidade</Link>
-                  <Link to={activeSlug ? `/${activeSlug}/terms` : "/terms"} className="hover:text-gray-600">Termos</Link>
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
+                   <span className="text-[10px] text-gray-400 uppercase font-bold">Powered by</span>
+                   <span className="text-xs font-extrabold text-gray-600">ViajaStore</span>
                 </div>
               </div>
             </div>

@@ -199,7 +199,7 @@ const AgencyLandingPage: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
                   {/* Left Side: Text Content */}
-                  <div className="text-white animate-[fadeInUp_0.8s_ease-out]">
+                  <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24">
                       {currentHeroTrip ? (
                           <>
                              <div className="flex flex-wrap items-center gap-3 mb-4">
