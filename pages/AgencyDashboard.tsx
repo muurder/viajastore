@@ -7,7 +7,7 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket } from 'lucide-react';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -390,7 +390,48 @@ const AgencyDashboard: React.FC = () => {
           <div className="animate-[fadeIn_0.3s]">
           {activeTab === 'OVERVIEW' && isActive && (
             <div className="space-y-8">
-                <div className="bg-gray-900 rounded-xl p-5 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden border border-gray-800"><div className="absolute -right-10 -top-10 w-40 h-40 bg-primary-600/20 rounded-full blur-3xl"></div><div className="flex items-center gap-4 relative z-10"><div className="bg-white/10 p-2.5 rounded-full text-primary-400"><Globe size={20}/></div><div><h3 className="text-white font-bold text-lg flex items-center gap-2">Seu Mini Site está no ar! <span className="bg-green-500/20 text-green-400 text-[10px] px-2 py-0.5 rounded uppercase tracking-wider border border-green-500/30">Online</span></h3><p className="text-gray-400 text-xs max-w-md mt-0.5">Divulgue seus pacotes diretamente: <span className="text-white font-mono bg-black/30 px-1.5 py-0.5 rounded">{fullAgencyLink}</span></p></div></div><div className="flex gap-3 relative z-10"><button onClick={() => { navigator.clipboard.writeText(fullAgencyLink); showToast('Link copiado!', 'success'); }} className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2"><Copy size={14}/> Copiar Link</button><a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg"><ExternalLink size={14}/> Acessar</a></div></div>
+                {/* REDESIGNED MINI SITE BANNER */}
+                <div className="bg-white rounded-2xl shadow-md border-l-8 border-primary-600 p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group hover:shadow-lg transition-all">
+                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-primary-50 to-transparent opacity-50 pointer-events-none"></div>
+                    
+                    <div className="flex items-center gap-5 relative z-10">
+                        <div className="bg-primary-50 p-4 rounded-full text-primary-600 shadow-sm ring-1 ring-primary-100">
+                            <Rocket size={28}/>
+                        </div>
+                        <div>
+                            <h3 className="text-gray-900 font-bold text-lg flex items-center gap-2">
+                                Seu Mini Site está no ar! 
+                                <span className="bg-green-100 text-green-700 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border border-green-200 flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> Online
+                                </span>
+                            </h3>
+                            <p className="text-gray-500 text-sm mt-1 max-w-md">
+                                Divulgue seus pacotes com seu link exclusivo.
+                            </p>
+                            <div className="mt-2 inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
+                                <Globe size={12} className="text-gray-400"/>
+                                <span className="text-xs font-mono text-gray-600 select-all">{fullAgencyLink}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 relative z-10 w-full md:w-auto">
+                        <button 
+                            onClick={() => { navigator.clipboard.writeText(fullAgencyLink); showToast('Link copiado!', 'success'); }} 
+                            className="flex-1 md:flex-initial bg-white border border-gray-200 text-gray-600 hover:text-primary-600 hover:border-primary-200 hover:bg-primary-50 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Copy size={16}/> Copiar Link
+                        </button>
+                        <a 
+                            href={fullAgencyLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex-1 md:flex-initial bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-primary-600/20 hover:shadow-primary-600/30 active:scale-95"
+                        >
+                            <ExternalLink size={16}/> Acessar Agora
+                        </a>
+                    </div>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:bg-green-100 transition-colors"><DollarSign size={24}/></div><span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full">Total</span></div><p className="text-sm text-gray-500 font-medium">Receita Total</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
