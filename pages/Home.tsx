@@ -431,8 +431,7 @@ const Home: React.FC = () => {
                     Limpar todos os filtros
                   </button>
                 </div>
-            )
-          )}
+            )}
         </div>
       </div>
       
