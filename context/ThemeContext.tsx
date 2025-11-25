@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { ThemePalette } from '../types';
+import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
 
 // Helper to convert Hex to RGB Array [r, g, b]
@@ -44,8 +44,12 @@ interface ThemeContextType {
   setTheme: (themeId: string) => Promise<void>;
   addTheme: (theme: Partial<ThemePalette>) => Promise<string | null>; // Returns ID
   deleteTheme: (themeId: string) => Promise<void>;
-  previewTheme: (theme: ThemePalette) => void; // Temporarily apply without saving
+  previewTheme: (theme: ThemePalette) => void; // Temporarily apply without saving (admin preview)
   resetPreview: () => void;
+  
+  // Agency Theme Logic
+  setAgencyTheme: (colors: ThemeColors) => void;
+  resetAgencyTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -54,6 +58,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [themes, setThemes] = useState<ThemePalette[]>([FALLBACK_THEME]);
   const [activeTheme, setActiveTheme] = useState<ThemePalette>(FALLBACK_THEME);
   const [previewMode, setPreviewMode] = useState<ThemePalette | null>(null);
+  const [overrideTheme, setOverrideTheme] = useState<ThemePalette | null>(null); // Used for Agency microsites
   const [loading, setLoading] = useState(true);
 
   // Fetch Themes from Supabase
@@ -91,9 +96,6 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       fetchThemes();
 
       // --- REALTIME SUBSCRIPTION ---
-      // This listens to ANY change in the 'themes' table.
-      // When the admin sets 'is_active' to true, ALL clients will receive this event
-      // and re-fetch the themes, automatically applying the new active theme.
       const channel = supabase
         .channel('public:themes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
@@ -109,7 +111,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Apply CSS Variables to :root
   useEffect(() => {
-    const theme = previewMode || activeTheme;
+    // Hierarchy: Preview Mode (Admin) > Override (Agency) > Active (Global)
+    const theme = previewMode || overrideTheme || activeTheme;
     const root = document.documentElement;
 
     if (!theme?.colors?.primary) return; // Safety check
@@ -129,25 +132,16 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     root.style.setProperty('--color-secondary-500', rgbString(secondary));
     root.style.setProperty('--color-secondary-600', shade(secondary, 0.1));
 
-  }, [activeTheme, previewMode]);
+  }, [activeTheme, previewMode, overrideTheme]);
 
   const setTheme = async (themeId: string) => {
-      // Optimistic UI update (instant feedback for the user who clicked)
       const targetTheme = themes.find(t => t.id === themeId);
       if (targetTheme) setActiveTheme(targetTheme);
 
       try {
-          // Transaction-like behavior:
-          // 1. Set all to inactive
           await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); 
-          
-          // 2. Set target to active
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
-          
           if (error) throw error;
-          
-          // We don't necessarily need to fetchThemes() here because the Realtime subscription
-          // will trigger it, but calling it ensures local consistency if realtime is slow.
           await fetchThemes();
       } catch (error) {
           console.error("Error setting theme:", error);
@@ -160,15 +154,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const { data, error } = await supabase.from('themes').insert({
               name: theme.name,
               colors: theme.colors,
-              is_active: false, // Default to false, must apply explicitly
+              is_active: false,
               is_default: false
           }).select().single();
 
           if (error) throw error;
-          
-          // Force refresh to get the new ID into the list
           await fetchThemes(); 
-          
           return data ? data.id : null;
       } catch (error) {
           console.error("Error adding theme:", error);
@@ -194,8 +185,26 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setPreviewMode(null);
   };
 
+  // Agency Theme Functions
+  const setAgencyTheme = (colors: ThemeColors) => {
+      setOverrideTheme({
+          id: 'agency-override',
+          name: 'Agency Theme',
+          colors: colors,
+          isActive: true,
+          isDefault: false
+      });
+  };
+
+  const resetAgencyTheme = () => {
+      setOverrideTheme(null);
+  };
+
   return (
-    <ThemeContext.Provider value={{ themes, activeTheme, loading, setTheme, addTheme, deleteTheme, previewTheme, resetPreview }}>
+    <ThemeContext.Provider value={{ 
+        themes, activeTheme, loading, setTheme, addTheme, deleteTheme, previewTheme, resetPreview,
+        setAgencyTheme, resetAgencyTheme
+    }}>
       {children}
     </ThemeContext.Provider>
   );

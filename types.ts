@@ -191,17 +191,25 @@ export interface Plan {
 
 // --- NEW MASTER ADMIN TYPES ---
 
+export interface ThemeColors {
+  primary: string; // Hex Code
+  secondary: string; // Hex Code
+  background: string;
+  text: string;
+}
+
 export interface ThemePalette {
   id: string;
   name: string;
-  colors: {
-    primary: string; // Hex Code
-    secondary: string; // Hex Code
-    background: string;
-    text: string;
-  };
+  colors: ThemeColors;
   isActive: boolean;
   isDefault: boolean;
+}
+
+export interface AgencyTheme {
+  agencyId: string;
+  colors: ThemeColors;
+  updatedAt?: string;
 }
 
 export interface AuditLog {

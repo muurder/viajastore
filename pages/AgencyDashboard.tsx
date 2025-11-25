@@ -3,11 +3,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -270,7 +271,8 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme } = useData();
+  const { setAgencyTheme } = useTheme(); // For previewing
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -278,7 +280,7 @@ const AgencyDashboard: React.FC = () => {
   const viewMode = (searchParams.get('view') as 'LIST' | 'FORM') || 'LIST';
   const editingTripId = searchParams.get('editId');
 
-  const [settingsSection, setSettingsSection] = useState<'PROFILE' | 'PAGE'>('PROFILE');
+  const [settingsSection, setSettingsSection] = useState<'PROFILE' | 'PAGE' | 'THEME'>('PROFILE');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tripSearch, setTripSearch] = useState('');
   const [lastReadTime, setLastReadTime] = useState(Number(localStorage.getItem('agency_last_read_sales') || 0));
@@ -292,9 +294,35 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>(defaultTripForm);
   const [slugTouched, setSlugTouched] = useState(false);
 
+  // Theme State
+  const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' });
+  const [loadingTheme, setLoadingTheme] = useState(false);
+
   const customSettings = myAgency?.customSettings || { tags: [], included: [], notIncluded: [], paymentMethods: [] };
 
   useEffect(() => { if(myAgency) { setAgencyForm({ ...myAgency, heroMode: myAgency.heroMode || 'TRIPS' }); } }, [myAgency]);
+
+  // Fetch Theme on Settings Open
+  useEffect(() => {
+      const loadTheme = async () => {
+          if (user && settingsSection === 'THEME') {
+              setLoadingTheme(true);
+              const theme = await getAgencyTheme(user.id);
+              if (theme) {
+                  setThemeForm(theme.colors);
+              }
+              setLoadingTheme(false);
+          }
+      };
+      loadTheme();
+  }, [settingsSection, user]);
+
+  // Live Preview of Theme
+  useEffect(() => {
+      if (settingsSection === 'THEME') {
+          setAgencyTheme(themeForm);
+      }
+  }, [themeForm, settingsSection]);
 
   useEffect(() => {
     if (viewMode === 'FORM') {
@@ -368,6 +396,15 @@ const AgencyDashboard: React.FC = () => {
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploadingBanner(true); try { const url = await uploadImage(e.target.files[0], 'trip-images'); if (url) { setAgencyForm({ ...agencyForm, heroBannerUrl: url }); showToast('Banner enviado!', 'success'); } } catch(e) { showToast('Erro no upload do banner', 'error'); } finally { setUploadingBanner(false); } };
   const handleConfirmPayment = async () => { if (selectedPlan) { await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan); showToast('Assinatura ativada!', 'success'); setShowPayment(false); handleTabChange('OVERVIEW'); } };
   const handleSlugChange = (val: string) => { setAgencyForm({...agencyForm, slug: slugify(val)}); };
+
+  const handleSaveTheme = async () => {
+      if (!user) return;
+      setIsSubmitting(true);
+      const success = await saveAgencyTheme(user.id, themeForm);
+      if (success) showToast('Tema salvo com sucesso!', 'success');
+      else showToast('Erro ao salvar tema.', 'error');
+      setIsSubmitting(false);
+  };
 
   const NavButton: React.FC<{tabId: string, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => ( <button onClick={() => handleTabChange(tabId)} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}> <Icon size={16} /> {label} {tabId === 'OVERVIEW' && newSalesCount > 0 && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} </button> );
 
@@ -516,12 +553,61 @@ const AgencyDashboard: React.FC = () => {
 
           {activeTab === 'SETTINGS' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row min-h-[600px]">
-                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl"><h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu de Ajustes</h3><nav className="space-y-2"><button onClick={() => setSettingsSection('PROFILE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Users size={16}/> Perfil & Contato</button><button onClick={() => setSettingsSection('PAGE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Layout size={16}/> Página Pública (Hero)</button></nav></div>
+                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl"><h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu de Ajustes</h3>
+                    <nav className="space-y-2">
+                        <button onClick={() => setSettingsSection('PROFILE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Users size={16}/> Perfil & Contato</button>
+                        <button onClick={() => setSettingsSection('PAGE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Layout size={16}/> Página Pública (Hero)</button>
+                        <button onClick={() => setSettingsSection('THEME')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'THEME' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Palette size={16}/> Identidade Visual</button>
+                    </nav>
+                </div>
                 <div className="flex-1 p-8">
                     <form onSubmit={handleAgencyUpdate} className="space-y-8 max-w-2xl">
                     {settingsSection === 'PROFILE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Identidade & Contato</h2><p className="text-sm text-gray-500 mt-1">Essas informações serão exibidas na sua página pública.</p></div><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label><LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Nome da Agência</label><input value={agencyForm.name || ''} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">WhatsApp (Apenas números)</label><div className="relative"><Smartphone className="absolute left-3 top-3 text-gray-400" size={18} /><input value={agencyForm.whatsapp || ''} onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="5511999999999"/></div></div></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Descrição</label><textarea rows={3} value={agencyForm.description || ''} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="Sobre a agência..." /></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Slug (Endereço Personalizado)</label><div className="relative"><input value={agencyForm.slug || ''} onChange={e => handleSlugChange(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48 focus:bg-white outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /><span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{`${window.location.host}/#/`}</span></div>{cleanSlug && (<a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-2 font-medium"><ExternalLink size={10} /> {fullAgencyLink}</a>)}</div></section>)}
                     {settingsSection === 'PAGE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Banner Principal (Hero)</h2><p className="text-sm text-gray-500 mt-1">Escolha como o topo do seu site será exibido para os visitantes.</p></div><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Modo de Exibição</label><div className="flex gap-4"><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'TRIPS' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'TRIPS' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Layout size={16}/> Carrossel de Viagens</div><p className="text-xs text-gray-500">Exibe suas viagens ativas e destacadas rotativamente.</p></button><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'STATIC' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'STATIC' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><ImageIcon size={16}/> Banner Estático</div><p className="text-xs text-gray-500">Exibe uma imagem fixa com título e subtítulo.</p></button></div></div>{agencyForm.heroMode === 'STATIC' && (<div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4 animate-[fadeIn_0.3s]"><div><label className="block text-xs font-bold mb-1 text-gray-700">Imagem do Banner</label><div className="flex items-center gap-4"><div className="w-32 h-16 bg-gray-200 rounded-lg overflow-hidden relative border border-gray-300 shadow-sm">{agencyForm.heroBannerUrl ? (<img src={agencyForm.heroBannerUrl} className="w-full h-full object-cover" alt="Banner" />) : (<div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem imagem</div>)}{uploadingBanner && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}</div><label className="cursor-pointer bg-white border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm"><input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner}/>Enviar Imagem</label></div></div><div><label className="block text-xs font-bold mb-1 text-gray-700">Título do Hero</label><input value={agencyForm.heroTitle || ''} onChange={e => setAgencyForm({...agencyForm, heroTitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: Explore o Mundo Conosco"/></div><div><label className="block text-xs font-bold mb-1 text-gray-700">Subtítulo do Hero</label><input value={agencyForm.heroSubtitle || ''} onChange={e => setAgencyForm({...agencyForm, heroSubtitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: As melhores experiências para você."/></div></div>)}</section>)}
-                    <div className="pt-6 border-t border-gray-100"><button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all flex items-center justify-center gap-2"><Save size={18}/> Salvar Alterações</button></div></form></div>
+                    
+                    {settingsSection === 'THEME' && (
+                        <section className="space-y-6 animate-[fadeIn_0.2s]">
+                            <div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Personalização Visual</h2><p className="text-sm text-gray-500 mt-1">Escolha as cores que representam sua marca no seu mini site.</p></div>
+                            {loadingTheme ? <Loader className="animate-spin"/> : (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Primária</label>
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
+                                                    <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"/>
+                                                </div>
+                                                <input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-full border border-gray-300 rounded-xl py-3 px-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"/>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Secundária</label>
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
+                                                    <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"/>
+                                                </div>
+                                                <input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-full border border-gray-300 rounded-xl py-3 px-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                        <p className="text-xs font-bold text-gray-400 uppercase mb-3">Preview</p>
+                                        <div className="flex gap-4 items-center">
+                                            <button type="button" className="px-6 py-2 rounded-lg text-white font-bold shadow-lg" style={{backgroundColor: themeForm.primary}}>Botão Principal</button>
+                                            <span className="font-bold" style={{color: themeForm.secondary}}>Texto Destaque</span>
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={handleSaveTheme} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><Save size={18}/> Salvar Tema</button>
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {settingsSection !== 'THEME' && (
+                        <div className="pt-6 border-t border-gray-100"><button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all flex items-center justify-center gap-2"><Save size={18}/> Salvar Alterações</button></div>
+                    )}
+                    </form>
+                </div>
              </div>
           )}
           </div>

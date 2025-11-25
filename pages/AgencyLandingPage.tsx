@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 import TripCard from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 
@@ -24,7 +25,8 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
-  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading } = useData();
+  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme } = useData();
+  const { setAgencyTheme } = useTheme();
   
   const [activeTab, setActiveTab] = useState<'PACKAGES' | 'ABOUT' | 'REVIEWS'>('PACKAGES');
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,12 +36,23 @@ const AgencyLandingPage: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const timerRef = useRef<number | null>(null);
 
+  const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+
+  // Force refresh theme on mount (Double check for Layout fallback)
+  useEffect(() => {
+      const loadTheme = async () => {
+          if (agency) {
+              const theme = await getAgencyTheme(agency.id);
+              if (theme) setAgencyTheme(theme.colors);
+          }
+      };
+      loadTheme();
+  }, [agency]);
+
   // Wait for data loading
   if (loading) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
-
-  const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
   if (!agency) {
       return (

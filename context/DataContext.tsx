@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -54,6 +54,11 @@ interface DataContextType {
   getReviewsByClientId: (clientId: string) => AgencyReview[]; // New
   hasUserPurchasedTrip: (userId: string, tripId: string) => boolean;
   getAgencyStats: (agencyId: string) => DashboardStats;
+  
+  // Agency Theme
+  getAgencyTheme: (agencyId: string) => Promise<AgencyTheme | null>;
+  saveAgencyTheme: (agencyId: string, colors: ThemeColors) => Promise<boolean>;
+
   refreshData: () => Promise<void>;
 }
 
@@ -625,6 +630,51 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { totalRevenue, totalViews, totalSales, conversionRate };
   };
 
+  // --- AGENCY THEME FUNCTIONS ---
+  const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
+      try {
+          const { data, error } = await supabase
+              .from('agency_themes')
+              .select('*')
+              .eq('agency_id', agencyId)
+              .single();
+          
+          if (error && error.code !== 'PGRST116') { // PGRST116 is "row not found", which is fine
+              console.error("Error fetching theme:", error);
+              return null;
+          }
+
+          if (data) {
+              return {
+                  agencyId: data.agency_id,
+                  colors: data.colors,
+                  updatedAt: data.updated_at
+              };
+          }
+          return null;
+      } catch (err) {
+          return null;
+      }
+  };
+
+  const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
+      try {
+          const { error } = await supabase
+              .from('agency_themes')
+              .upsert({
+                  agency_id: agencyId,
+                  colors: colors,
+                  updated_at: new Date().toISOString()
+              }, { onConflict: 'agency_id' });
+
+          if (error) throw error;
+          return true;
+      } catch (err) {
+          console.error("Error saving theme:", err);
+          return false;
+      }
+  };
+
   return (
     <DataContext.Provider value={{ 
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
@@ -632,7 +682,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
       deleteUser, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
-      hasUserPurchasedTrip, getAgencyStats, refreshData
+      hasUserPurchasedTrip, getAgencyStats, 
+      getAgencyTheme, saveAgencyTheme,
+      refreshData
     }}>
       {!loading && children}
     </DataContext.Provider>

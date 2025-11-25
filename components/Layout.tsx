@@ -1,21 +1,23 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus } from 'lucide-react';
 import AuthModal from './AuthModal';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
-  const { getAgencyBySlug, loading: dataLoading } = useData();
+  const { getAgencyBySlug, getAgencyTheme, loading: dataLoading } = useData();
+  const { setAgencyTheme, resetAgencyTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
   // Scroll Lock when Menu is Open
-  React.useEffect(() => {
+  useEffect(() => {
     if (isMenuOpen) {
       document.body.style.overflow = 'hidden';
     } else {
@@ -25,7 +27,7 @@ const Layout: React.FC = () => {
   }, [isMenuOpen]);
 
   // Close menu on route change
-  React.useEffect(() => {
+  useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
@@ -58,8 +60,26 @@ const Layout: React.FC = () => {
   const activeSlug = matchMicrositeClient?.params.agencySlug || (isAgencyMode ? potentialSlug : null);
   const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
 
+  // --- THEME APPLICATION LOGIC ---
+  useEffect(() => {
+      const applyTheme = async () => {
+          if (activeSlug && currentAgency) {
+              const theme = await getAgencyTheme(currentAgency.id);
+              if (theme) {
+                  setAgencyTheme(theme.colors);
+              } else {
+                  resetAgencyTheme();
+              }
+          } else {
+              // Not in agency mode, reset to global
+              resetAgencyTheme();
+          }
+      };
+      applyTheme();
+  }, [activeSlug, currentAgency]);
+
   // --- PAGE TITLE MANAGEMENT ---
-  React.useEffect(() => {
+  useEffect(() => {
     // If we are NOT on a detail page (which sets its own title), reset the title
     // Detail pages usually contain '/viagem/' in the path
     if (!location.pathname.includes('/viagem/')) {
@@ -97,7 +117,7 @@ const Layout: React.FC = () => {
       : (isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE');
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
+    <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300">
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
