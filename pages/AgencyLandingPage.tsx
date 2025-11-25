@@ -78,28 +78,34 @@ const AgencyLandingPage: React.FC = () => {
       const active = allTrips.filter(t => t.active);
       const featured = active.filter(t => t.featuredInHero);
       
+      // If explicitly featured exist, use them. Otherwise use generic active trips.
       if (featured.length > 0) return featured.slice(0, 5);
       return active.slice(0, 5);
   }, [allTrips]);
 
-  useEffect(() => {
+  // Reset Timer Logic
+  const resetTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (heroTrips.length > 1) {
         timerRef.current = window.setInterval(() => {
             setCurrentSlide(prev => (prev + 1) % heroTrips.length);
         }, 7000);
     }
+  };
+
+  useEffect(() => {
+    resetTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [heroTrips.length, currentSlide]); // Added currentSlide to dep to allow manual override reset
+  }, [heroTrips.length]); 
 
   const nextSlide = () => {
       setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-      if (timerRef.current) clearInterval(timerRef.current); // Stop auto for a bit
+      resetTimer();
   };
 
   const prevSlide = () => {
       setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
-      if (timerRef.current) clearInterval(timerRef.current);
+      resetTimer();
   };
 
   // --- REVIEWS DATA (NEW SYSTEM) ---
@@ -182,19 +188,25 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  // Use agency configured static banner if explicit, otherwise fallback to trip or default
+  // Determine display mode
+  // If agency has configured STATIC, obey it.
+  // Otherwise, default to TRIPS (Carousel) if there are trips available.
   const currentHeroTrip = heroTrips[currentSlide];
-  const heroBgImage = agency.heroMode === 'TRIPS' && currentHeroTrip
-      ? (currentHeroTrip.images?.[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop")
-      : (agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop");
-
   const isTripsMode = agency.heroMode !== 'STATIC' && heroTrips.length > 0;
+
+  const heroBgImage = !isTripsMode 
+      ? (agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop")
+      : "";
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
       {/* --- BRAND HERO SECTION --- */}
-      <div className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4">
+      {/* KEY PROP ADDED HERE: Forces React to remount this section when agency changes */}
+      <div 
+        key={agency.id}
+        className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
+      >
           
           {/* Background Image Layer */}
           {isTripsMode ? (
