@@ -82,6 +82,17 @@ const AgencyLandingPage: React.FC = () => {
       return active[randomIndex];
   }, [allTrips]);
 
+  // --- GRID LOGIC: RANDOM ORDER ON REFRESH ---
+  const shuffledTrips = useMemo(() => {
+      const trips = [...allTrips];
+      // Fisher-Yates Shuffle
+      for (let i = trips.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [trips[i], trips[j]] = [trips[j], trips[i]];
+      }
+      return trips;
+  }, [allTrips]);
+
   // Fallback Image
   const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
@@ -100,8 +111,8 @@ const AgencyLandingPage: React.FC = () => {
   }, [agencyReviews, allTrips]);
 
   
-  // Filtering Logic
-  const filteredTrips = allTrips.filter(t => {
+  // Filtering Logic (Using shuffledTrips as base)
+  const filteredTrips = shuffledTrips.filter(t => {
     if (t.agencyId !== agency.id) return false;
 
     const matchesSearch = 

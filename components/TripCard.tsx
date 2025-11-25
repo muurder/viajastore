@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
@@ -149,8 +150,8 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
                       <MessageCircle size={18} />
                   </button>
               )}
-              <div className="mb-1 opacity-0 group-hover:opacity-100 transition-opacity transform translate-x-2 group-hover:translate-x-0 duration-300">
-                 <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full">
+              <div className="mb-1">
+                 <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full hover:bg-primary-100 transition-colors">
                    Detalhes &rarr;
                  </span>
               </div>
