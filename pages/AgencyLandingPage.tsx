@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ChevronLeft, ChevronRight, MessageCircle, ArrowRight } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight } from 'lucide-react';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -32,13 +32,9 @@ const AgencyLandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
-  // Carousel State
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const timerRef = useRef<number | null>(null);
-
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
-  // Force refresh theme on mount (Double check for Layout fallback)
+  // Force refresh theme on mount
   useEffect(() => {
       const loadTheme = async () => {
           if (agency) {
@@ -72,60 +68,24 @@ const AgencyLandingPage: React.FC = () => {
   // Fetch trips for this agency
   const allTrips = getAgencyPublicTrips(agency.id);
 
-  // --- HERO TRIPS CAROUSEL LOGIC ---
-  const heroTrips = useMemo(() => {
-      // 1. Get all active trips
+  // --- HERO LOGIC: RANDOM TRIP ON REFRESH ---
+  const currentHeroTrip = useMemo(() => {
+      // 1. Get active trips
       const active = allTrips.filter(t => t.active);
       
-      // 2. Separate featured from others
-      const featured = active.filter(t => t.featuredInHero);
-      const others = active.filter(t => !t.featuredInHero);
-      
-      // 3. Combine: Featured first, then fill with others up to 5
-      // This ensures the carousel works even if only 1 trip is 'featured' but there are others active.
-      const combined = [...featured, ...others];
-      
-      return combined.slice(0, 5);
+      if (active.length === 0) return null;
+
+      // 2. Select ONE random trip
+      // Using Math.random() inside useMemo with [active] dependency means it runs once when data loads
+      // This effectively gives "Random trip on page load/refresh"
+      const randomIndex = Math.floor(Math.random() * active.length);
+      return active[randomIndex];
   }, [allTrips]);
 
-  const resetTimer = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (heroTrips.length > 1) {
-      timerRef.current = window.setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-      }, 7000);
-    }
-  };
+  // Fallback Image
+  const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
-  useEffect(() => {
-    resetTimer();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [heroTrips.length]);
-  
-  const nextSlide = () => {
-    setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-    resetTimer();
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
-    resetTimer();
-  };
-
-  const currentHeroTrip = heroTrips[currentSlide];
-  
-  // Determine display mode. If explicitly static, use static. 
-  // If trips exist, default to TRIPS mode (Carousel) to match main page behavior.
-  const isTripsMode = agency.heroMode !== 'STATIC' && heroTrips.length > 0;
-
-  // Fallback for Static Image
-  const heroBgImage = !isTripsMode 
-      ? (agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop")
-      : "";
-
-  // --- REVIEWS DATA (NEW SYSTEM) ---
+  // --- REVIEWS DATA ---
   const agencyReviews = getReviewsByAgencyId(agency.id);
 
   const agencyStats = useMemo(() => {
@@ -136,17 +96,7 @@ const AgencyLandingPage: React.FC = () => {
       
       const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
 
-      // Calculate top specialties based on trip categories
-      const catCounts: Record<string, number> = {};
-      allTrips.forEach(t => {
-          catCounts[t.category] = (catCounts[t.category] || 0) + 1;
-      });
-      const specialties = Object.entries(catCounts)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 3)
-          .map(([cat]) => cat);
-
-      return { totalReviews, averageRating, totalClients, specialties };
+      return { totalReviews, averageRating, totalClients };
   }, [agencyReviews, allTrips]);
 
   
@@ -208,158 +158,142 @@ const AgencyLandingPage: React.FC = () => {
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
-      {/* --- BRAND HERO SECTION --- */}
-      {/* KEY PROP ADDED HERE: Forces React to remount this section when agency changes */}
+      {/* --- HERO SECTION (REDESIGNED) --- */}
       <div 
         key={agency.id}
-        className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
+        className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] md:min-h-[580px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
       >
-          
-          {/* Background Image Layer - Using Z-Index stacking matching Home.tsx */}
-          {isTripsMode ? (
-              heroTrips.map((trip, index) => (
-                <div 
-                    key={trip.id} 
-                    className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
-                        index === currentSlide 
-                            ? 'opacity-100 z-10' 
-                            : 'opacity-0 z-0' 
-                    }`}
-                >
-                    <img 
-                        src={trip.images?.[0]} 
-                        className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`} 
-                        alt={trip.title} 
-                    />
-                </div>
-              ))
-          ) : (
-              <div className="absolute inset-0 z-0">
-                  <img 
-                    src={heroBgImage} 
-                    className="w-full h-full object-cover opacity-90 transition-transform duration-[10s] ease-linear group-hover:scale-105" 
-                    alt="Cover" 
-                  />
-              </div>
-          )}
+          {/* Background Image Layer */}
+          <div className="absolute inset-0 z-0">
+              <img 
+                src={heroBgImage} 
+                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
+                alt="Cover" 
+              />
+          </div>
 
-          {/* Static Overlay Layer (Z-20) */}
+          {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-20 pointer-events-none"></div>
 
-          {/* Content Container (Z-30) */}
-          <div className="relative z-30 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
-              {/* Top Left Badge - Agency Identity (Always Visible) */}
-              <div className="absolute top-0 left-6 md:left-12 -mt-32 md:-mt-24 flex items-center gap-3">
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl border-2 border-white/20 bg-white shadow-2xl overflow-hidden">
-                      <img 
-                        src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                        className="w-full h-full object-cover" 
-                        alt="Logo"
-                      />
-                  </div>
-                  <div>
-                      <h2 className="text-white font-bold text-lg shadow-black drop-shadow-md leading-tight">{agency.name}</h2>
-                      {agency.subscriptionStatus === 'ACTIVE' && (
-                          <span className="text-green-400 text-xs font-bold flex items-center gap-1 drop-shadow-md">
-                              <ShieldCheck size={12} fill="currentColor" /> Verificado
-                          </span>
-                      )}
-                  </div>
+          {/* Agency Identity Badge (Absolute Top Left) */}
+          <div className="absolute top-6 left-6 md:top-10 md:left-12 z-40 flex items-center gap-4 animate-[fadeInDown_0.5s]">
+              <div className="w-16 h-16 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-md shadow-xl overflow-hidden">
+                  <img 
+                    src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
+                    className="w-full h-full object-cover" 
+                    alt="Logo"
+                  />
               </div>
+              <div>
+                  <h2 className="text-white font-bold text-lg shadow-black drop-shadow-md leading-tight">{agency.name}</h2>
+                  {agency.subscriptionStatus === 'ACTIVE' && (
+                      <span className="text-green-400 text-xs font-bold flex items-center gap-1 drop-shadow-md bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10 w-fit mt-1">
+                          <ShieldCheck size={12} fill="currentColor" /> Verificado
+                      </span>
+                  )}
+              </div>
+          </div>
 
-              <div className="flex flex-col md:flex-row items-end gap-6 md:gap-8 mt-16">
+          {/* Main Content Grid */}
+          <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
-                  {/* Text Info - Dynamic based on Mode */}
-                  <div className="flex-1 text-white">
-                      {isTripsMode && currentHeroTrip ? (
-                          <div key={currentHeroTrip.id}>
-                              <div className="animate-[fadeInUp_0.8s_ease-out]">
-                                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                                      <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-sm">
-                                          {currentHeroTrip.category.replace('_', ' ')}
-                                      </span>
-                                      <div className="flex items-center text-gray-300 text-xs font-medium">
-                                          <Clock size={14} className="mr-1"/> {currentHeroTrip.durationDays} Dias
-                                      </div>
-                                  </div>
-
-                                  <h1 className="text-3xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-lg line-clamp-2 leading-tight">
-                                      {currentHeroTrip.title}
-                                  </h1>
-                                  
-                                  <div className="flex items-center text-gray-200 text-base md:text-lg font-medium mb-6 drop-shadow-md">
-                                      <MapPin size={20} className="mr-2 text-primary-400"/> 
-                                      {currentHeroTrip.destination}
-                                  </div>
+                  {/* Left Side: Text Content */}
+                  <div className="text-white animate-[fadeInUp_0.8s_ease-out]">
+                      {currentHeroTrip ? (
+                          <>
+                             <div className="flex flex-wrap items-center gap-3 mb-4">
+                                  <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
+                                      {currentHeroTrip.category.replace('_', ' ')}
+                                  </span>
+                                  <span className="flex items-center text-gray-300 text-xs font-bold bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                                      <Clock size={12} className="mr-1.5 text-primary-400"/> {currentHeroTrip.durationDays} Dias
+                                  </span>
                               </div>
-                          </div>
-                      ) : (
-                          // Static Mode Content
-                          <div className="animate-[fadeInUp_0.8s_ease-out]">
-                              <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 text-white drop-shadow-md">
-                                  {agency.heroTitle || agency.name}
+
+                              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 text-white drop-shadow-xl leading-[1.1]">
+                                  {currentHeroTrip.title}
                               </h1>
-                              <p className="text-gray-200 text-lg md:text-xl font-light max-w-2xl leading-relaxed mb-6 drop-shadow-sm">
-                                  {agency.heroSubtitle || agency.description}
-                              </p>
-                          </div>
-                      )}
-                  </div>
-
-                  {/* CTAs & Navigation */}
-                  <div className="flex flex-col items-end gap-4 w-full md:w-auto">
-                      {isTripsMode && currentHeroTrip ? (
-                          <div className="flex flex-col items-end animate-[fadeInUp_1s_ease-out]" key={currentHeroTrip.id}>
-                              <p className="text-xs uppercase font-bold text-gray-400 mb-1">A partir de</p>
-                              <div className="text-4xl font-extrabold text-white mb-4 drop-shadow-md">
-                                  <span className="text-lg align-top mr-1 text-gray-300 font-medium">R$</span>
-                                  {currentHeroTrip.price.toLocaleString('pt-BR')}
+                              
+                              <div className="flex items-center text-gray-200 text-lg font-medium mb-8 drop-shadow-md">
+                                  <MapPin size={20} className="mr-2 text-primary-400"/> 
+                                  {currentHeroTrip.destination}
                               </div>
-                              <div className="flex gap-3 w-full md:w-auto">
+
+                              <div className="flex flex-wrap gap-4">
                                   <Link 
                                     to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                                    className="bg-primary-600 hover:bg-primary-500 text-white px-8 py-3.5 rounded-xl font-bold shadow-xl shadow-primary-900/30 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                    className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-xl font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                                   >
-                                      Ver Detalhes <ArrowRight size={18} className="ml-2"/>
+                                      Ver Detalhes <ArrowRight size={18}/>
                                   </Link>
+                                  {agency.whatsapp && (
+                                      <button 
+                                        onClick={handleContact}
+                                        className="bg-green-600 hover:bg-green-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-green-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+                                      >
+                                          <MessageCircle size={20} /> WhatsApp
+                                      </button>
+                                  )}
                               </div>
-                          </div>
+                          </>
                       ) : (
-                          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto animate-[fadeInUp_1s_ease-out]">
-                              {agency.whatsapp && (
-                                  <button 
-                                    onClick={handleContact}
-                                    className="flex-1 md:flex-none bg-green-600 hover:bg-green-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-green-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
-                                  >
-                                      <Smartphone size={20} /> WhatsApp
-                                  </button>
-                              )}
+                          // Fallback for 0 trips
+                          <>
+                              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
+                                  {agency.heroTitle || `Bem-vindo à ${agency.name}`}
+                              </h1>
+                              <p className="text-gray-200 text-lg md:text-xl font-light max-w-2xl leading-relaxed mb-8 drop-shadow-md">
+                                  {agency.heroSubtitle || agency.description || "As melhores experiências de viagem você encontra aqui."}
+                              </p>
                               <button 
                                 onClick={scrollToPackages}
-                                className="flex-1 md:flex-none bg-white/10 hover:bg-white/20 border border-white/30 text-white px-6 py-3.5 rounded-xl font-bold backdrop-blur-md flex items-center justify-center gap-2 transition-all active:scale-95"
+                                className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-xl font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                               >
                                   Ver Pacotes <ArrowDown size={18}/>
                               </button>
-                          </div>
-                      )}
-
-                      {/* Carousel Navigation */}
-                      {isTripsMode && heroTrips.length > 1 && (
-                          <div className="flex items-center gap-4 mt-4 md:mt-0 bg-black/30 backdrop-blur-sm p-2 rounded-full border border-white/10">
-                              <button onClick={prevSlide} className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"><ChevronLeft size={20}/></button>
-                              <div className="flex gap-1.5">
-                                  {heroTrips.map((_, idx) => (
-                                      <button 
-                                        key={idx} 
-                                        onClick={() => setCurrentSlide(idx)}
-                                        className={`h-1.5 rounded-full transition-all duration-500 ease-out ${idx === currentSlide ? 'w-6 bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'w-1.5 bg-white/40 hover:bg-white/60'}`}
-                                      />
-                                  ))}
-                              </div>
-                              <button onClick={nextSlide} className="p-2 rounded-full text-white hover:bg-white/20 transition-colors"><ChevronRight size={20}/></button>
-                          </div>
+                          </>
                       )}
                   </div>
+
+                  {/* Right Side: Glassmorphism Card (Only if there is a trip) */}
+                  <div className="hidden lg:flex justify-end animate-[fadeIn_1s_ease-out]">
+                      {currentHeroTrip && (
+                          <Link 
+                            to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
+                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
+                          >
+                              <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
+                                  <img 
+                                    src={currentHeroTrip.images[0]} 
+                                    alt={currentHeroTrip.title} 
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" 
+                                  />
+                                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10">
+                                      Destaque
+                                  </div>
+                              </div>
+                              
+                              <h3 className="font-bold text-white text-xl leading-tight line-clamp-2 mb-4 group-hover/card:text-primary-200 transition-colors drop-shadow-sm">
+                                  {currentHeroTrip.title}
+                              </h3>
+                              
+                              <div className="flex justify-between items-end pt-2 border-t border-white/10">
+                                  <div className="flex flex-col">
+                                      <p className="text-[10px] uppercase font-bold text-gray-300 mb-0.5 tracking-wider">A partir de</p>
+                                      <div className="flex items-baseline gap-1">
+                                          <span className="text-xs font-semibold text-gray-400">R$</span>
+                                          <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
+                                      </div>
+                                  </div>
+                                  <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover/card:bg-primary-500 transition-colors">
+                                      <ArrowRight size={20} className="-rotate-45 group-hover/card:rotate-0 transition-transform duration-300"/>
+                                  </div>
+                              </div>
+                          </Link>
+                      )}
+                  </div>
+
               </div>
           </div>
       </div>
