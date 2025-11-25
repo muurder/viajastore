@@ -44,9 +44,16 @@ const Home: React.FC = () => {
   // --- HERO LOGIC (INDEPENDENT) ---
   // Select a random sample of up to 5 trips from the entire catalog for the Hero
   // We use useMemo to ensure this list doesn't change on every render (e.g. slider updates)
-  const heroTrips = useMemo(() => 
-    activeTrips.length > 0 ? [...activeTrips].sort(() => 0.5 - Math.random()).slice(0, 5) : [], 
-  [activeTrips]);
+  const heroTrips = useMemo(() => {
+    if (activeTrips.length === 0) return [];
+    // Fisher-Yates Shuffle for true randomness
+    const shuffled = [...activeTrips];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, 5);
+  }, [activeTrips]);
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const timerRef = useRef<number | null>(null);
@@ -141,8 +148,13 @@ const Home: React.FC = () => {
   const featuredGridTrips = useMemo(() => {
     if (selectedInterests.length === 0) {
         // Default View: Randomize order to give fair visibility to all agencies on every refresh
-        // Using Math.random() - 0.5 as a simple shuffle method client-side
-        return [...activeTrips].sort(() => Math.random() - 0.5).slice(0, 9);
+        // Using Fisher-Yates shuffle method client-side for uniform distribution
+        const shuffled = [...activeTrips];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, 9);
     }
 
     // Filtered View
@@ -166,6 +178,11 @@ const Home: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     navigate(`/trips?q=${search}`);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedInterests([]);
   };
 
   const handleWhatsAppClick = (e: React.MouseEvent) => {
@@ -404,12 +421,18 @@ const Home: React.FC = () => {
                     {featuredGridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <Search className="text-gray-400 mx-auto mb-4" size={32}/>
-                    <p className="text-gray-500 text-lg font-medium">Nenhuma viagem encontrada para os filtros selecionados.</p>
-                    <button onClick={() => setSelectedInterests([])} className="text-primary-600 font-bold mt-2 hover:underline">Limpar filtros</button>
+                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                  <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Search className="text-gray-300" size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
+                  <p className="text-gray-500 mb-6 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
+                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">
+                    Limpar todos os filtros
+                  </button>
                 </div>
-            )}
+            )
+          )}
         </div>
       </div>
       

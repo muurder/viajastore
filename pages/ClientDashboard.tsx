@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address } from '../types';
@@ -9,7 +9,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 
 const ClientDashboard: React.FC = () => {
-  const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword } = useAuth();
+  const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
   const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview } = useData();
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -48,9 +48,18 @@ const ClientDashboard: React.FC = () => {
      confirmPassword: ''
   });
 
-  if (!user || user.role !== UserRole.CLIENT) {
-    navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized');
-    return null;
+  // Fix: Move navigation to useEffect to avoid render-phase side effects
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user || user.role !== UserRole.CLIENT) {
+        navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
+      }
+    }
+  }, [user, authLoading, isMicrositeMode, agencySlug, navigate]);
+
+  // Show loader while checking auth to prevent flashing/redirect loops
+  if (authLoading || !user || user.role !== UserRole.CLIENT) {
+    return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
   }
 
   const myBookings = bookings.filter(b => b.clientId === user.id);
@@ -135,8 +144,12 @@ const ClientDashboard: React.FC = () => {
       const confirm = window.confirm("Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.");
       if (confirm) {
           const result = await deleteAccount();
-          if (result.success) window.location.href = "/";
-          else alert("Erro ao excluir conta: " + result.error);
+          if (result.success) {
+              // Fix: Use navigate for SPA behavior instead of window.location
+              navigate('/');
+          } else {
+              alert("Erro ao excluir conta: " + result.error);
+          }
       }
   };
 
