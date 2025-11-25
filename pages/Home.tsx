@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -139,8 +140,9 @@ const Home: React.FC = () => {
   // Explicitly separate the grid trips logic from the hero logic
   const featuredGridTrips = useMemo(() => {
     if (selectedInterests.length === 0) {
-        // Default View: Sort by Rating or Sales, ensuring high quality first
-        return [...activeTrips].sort((a, b) => b.rating - a.rating).slice(0, 9);
+        // Default View: Randomize order to give fair visibility to all agencies on every refresh
+        // Using Math.random() - 0.5 as a simple shuffle method client-side
+        return [...activeTrips].sort(() => Math.random() - 0.5).slice(0, 9);
     }
 
     // Filtered View
@@ -238,7 +240,7 @@ const Home: React.FC = () => {
                       placeholder="Para onde você quer ir?" 
                       className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium"
                       value={search}
-                      onChange={(e) => setSearch.call(null, e.target.value)}
+                      onChange={(e) => setSearch(e.target.value)}
                     />
                   </div>
                   <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
