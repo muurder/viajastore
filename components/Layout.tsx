@@ -54,8 +54,10 @@ const Layout: React.FC = () => {
   const matchMicrositeClient = useMatch('/:agencySlug/client/:tab?');
   const isMicrositeClientArea = !!matchMicrositeClient;
   
-  // Check if we are in the Agency Dashboard to force Agency Header
-  const isAgencyDashboard = location.pathname.startsWith('/agency/dashboard') && user?.role === 'AGENCY';
+  // Robust check for Agency Dashboard
+  const isAgencyUser = user?.role === 'AGENCY';
+  const isAgencyDashboardRoute = location.pathname.includes('/agency/dashboard');
+  const isAgencyDashboard = isAgencyDashboardRoute && isAgencyUser;
 
   if (isMicrositeClientArea) {
       isAgencyMode = true; // Force agency mode for client dashboard context

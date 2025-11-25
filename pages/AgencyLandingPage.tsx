@@ -73,18 +73,19 @@ const AgencyLandingPage: React.FC = () => {
   const allTrips = getAgencyPublicTrips(agency.id);
 
   // --- HERO TRIPS CAROUSEL LOGIC ---
-  // Logic adapted to match Home.tsx exactly for robustness
   const heroTrips = useMemo(() => {
-      // Filter active trips
+      // 1. Get all active trips
       const active = allTrips.filter(t => t.active);
       
-      // Priority: Featured in Hero > Active
+      // 2. Separate featured from others
       const featured = active.filter(t => t.featuredInHero);
+      const others = active.filter(t => !t.featuredInHero);
       
-      if (featured.length > 0) return featured.slice(0, 5);
+      // 3. Combine: Featured first, then fill with others up to 5
+      // This ensures the carousel works even if only 1 trip is 'featured' but there are others active.
+      const combined = [...featured, ...others];
       
-      // Fallback to any active trips if no featured ones
-      return active.slice(0, 5);
+      return combined.slice(0, 5);
   }, [allTrips]);
 
   const resetTimer = () => {
