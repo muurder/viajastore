@@ -488,7 +488,7 @@ const AgencyDashboard: React.FC = () => {
                             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><BarChart2 className="mr-2 text-blue-600" size={20}/> Vendas por Pacote</h3>
                             {Object.keys(salesByTrip).length > 0 ? (
                                 <div className="space-y-4">
-                                    {Object.entries(salesByTrip).map(([id, data]) => (
+                                    {Object.entries(salesByTrip).map(([id, data]: [string, any]) => (
                                         <div key={id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-shadow">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">{data.image && <img src={data.image} className="w-full h-full object-cover" alt="" />}</div>

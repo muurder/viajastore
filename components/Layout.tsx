@@ -116,6 +116,26 @@ const Layout: React.FC = () => {
       ? '/agency/dashboard?tab=SETTINGS' 
       : (isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE');
 
+  // Centralized Dashboard Route Logic
+  const getDashboardRoute = () => {
+    if (!user) return '/#login';
+    
+    switch (user.role) {
+      case 'AGENCY':
+        return '/agency/dashboard';
+      case 'ADMIN':
+        return '/admin/dashboard';
+      case 'CLIENT':
+        // Preserve microsite context for clients if applicable
+        if (isAgencyMode && activeSlug) {
+            return `/${activeSlug}/client/BOOKINGS`;
+        }
+        return '/client/dashboard/BOOKINGS';
+      default:
+        return '/';
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300">
       {/* Auth Modal */}
@@ -227,11 +247,14 @@ const Layout: React.FC = () => {
 
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
-                    {user.role === 'AGENCY' && (
-                      <Link to="/agency/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Painel</Link>
-                    )}
-                    {user.role === 'ADMIN' && (
-                      <Link to="/admin/dashboard" className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium">Admin</Link>
+                    {/* Unified Dashboard Link Logic */}
+                    {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
+                      <Link 
+                        to={getDashboardRoute()} 
+                        className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium"
+                      >
+                        {user.role === 'ADMIN' ? 'Admin' : 'Painel'}
+                      </Link>
                     )}
                     
                     <div className="relative flex items-center gap-3 bg-gray-50 py-1 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
@@ -384,9 +407,9 @@ const Layout: React.FC = () => {
                                 <Link to={userProfileLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
                                     Minha Conta
                                 </Link>
-                                {user.role === 'AGENCY' && (
-                                    <Link to="/agency/dashboard" className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700">
-                                        Painel
+                                {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
+                                    <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700">
+                                        {user.role === 'ADMIN' ? 'Admin' : 'Painel'}
                                     </Link>
                                 )}
                             </div>
