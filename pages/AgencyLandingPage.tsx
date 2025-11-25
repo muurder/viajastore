@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, ChevronLeft, ChevronRight, MessageCircle, ArrowRight } from 'lucide-react';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -73,40 +73,56 @@ const AgencyLandingPage: React.FC = () => {
   const allTrips = getAgencyPublicTrips(agency.id);
 
   // --- HERO TRIPS CAROUSEL LOGIC ---
+  // Logic adapted to match Home.tsx exactly for robustness
   const heroTrips = useMemo(() => {
-      // Use active trips, prefer 'featuredInHero' but fallback to any active trips (max 5)
+      // Filter active trips
       const active = allTrips.filter(t => t.active);
+      
+      // Priority: Featured in Hero > Active
       const featured = active.filter(t => t.featuredInHero);
       
-      // If explicitly featured exist, use them. Otherwise use generic active trips.
       if (featured.length > 0) return featured.slice(0, 5);
+      
+      // Fallback to any active trips if no featured ones
       return active.slice(0, 5);
   }, [allTrips]);
 
-  // Reset Timer Logic
   const resetTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (heroTrips.length > 1) {
-        timerRef.current = window.setInterval(() => {
-            setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-        }, 7000);
+      timerRef.current = window.setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+      }, 7000);
     }
   };
 
   useEffect(() => {
     resetTimer();
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [heroTrips.length]); 
-
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [heroTrips.length]);
+  
   const nextSlide = () => {
-      setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-      resetTimer();
+    setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+    resetTimer();
   };
 
   const prevSlide = () => {
-      setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
-      resetTimer();
+    setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
+    resetTimer();
   };
+
+  const currentHeroTrip = heroTrips[currentSlide];
+  
+  // Determine display mode. If explicitly static, use static. 
+  // If trips exist, default to TRIPS mode (Carousel) to match main page behavior.
+  const isTripsMode = agency.heroMode !== 'STATIC' && heroTrips.length > 0;
+
+  // Fallback for Static Image
+  const heroBgImage = !isTripsMode 
+      ? (agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop")
+      : "";
 
   // --- REVIEWS DATA (NEW SYSTEM) ---
   const agencyReviews = getReviewsByAgencyId(agency.id);
@@ -188,16 +204,6 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  // Determine display mode
-  // If agency has configured STATIC, obey it.
-  // Otherwise, default to TRIPS (Carousel) if there are trips available.
-  const currentHeroTrip = heroTrips[currentSlide];
-  const isTripsMode = agency.heroMode !== 'STATIC' && heroTrips.length > 0;
-
-  const heroBgImage = !isTripsMode 
-      ? (agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop")
-      : "";
-
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
@@ -205,22 +211,25 @@ const AgencyLandingPage: React.FC = () => {
       {/* KEY PROP ADDED HERE: Forces React to remount this section when agency changes */}
       <div 
         key={agency.id}
-        className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] flex items-end group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
+        className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
       >
           
-          {/* Background Image Layer */}
+          {/* Background Image Layer - Using Z-Index stacking matching Home.tsx */}
           {isTripsMode ? (
               heroTrips.map((trip, index) => (
                 <div 
                     key={trip.id} 
-                    className={`absolute inset-0 z-0 transition-opacity duration-[1000ms] ease-in-out ${index === currentSlide ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${
+                        index === currentSlide 
+                            ? 'opacity-100 z-10' 
+                            : 'opacity-0 z-0' 
+                    }`}
                 >
                     <img 
                         src={trip.images?.[0]} 
                         className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`} 
                         alt={trip.title} 
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20"></div>
                 </div>
               ))
           ) : (
@@ -230,13 +239,14 @@ const AgencyLandingPage: React.FC = () => {
                     className="w-full h-full object-cover opacity-90 transition-transform duration-[10s] ease-linear group-hover:scale-105" 
                     alt="Cover" 
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10"></div>
-                  <div className="absolute inset-0 bg-black/20 mix-blend-multiply"></div>
               </div>
           )}
 
-          {/* Content Container */}
-          <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
+          {/* Static Overlay Layer (Z-20) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-20 pointer-events-none"></div>
+
+          {/* Content Container (Z-30) */}
+          <div className="relative z-30 w-full max-w-7xl mx-auto px-6 py-10 md:py-12">
               {/* Top Left Badge - Agency Identity (Always Visible) */}
               <div className="absolute top-0 left-6 md:left-12 -mt-32 md:-mt-24 flex items-center gap-3">
                   <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl border-2 border-white/20 bg-white shadow-2xl overflow-hidden">
@@ -261,28 +271,30 @@ const AgencyLandingPage: React.FC = () => {
                   {/* Text Info - Dynamic based on Mode */}
                   <div className="flex-1 text-white">
                       {isTripsMode && currentHeroTrip ? (
-                          <div className="animate-[fadeInUp_0.5s]">
-                              <div className="flex flex-wrap items-center gap-3 mb-3">
-                                  <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-sm">
-                                      {currentHeroTrip.category.replace('_', ' ')}
-                                  </span>
-                                  <div className="flex items-center text-gray-300 text-xs font-medium">
-                                      <Clock size={14} className="mr-1"/> {currentHeroTrip.durationDays} Dias
+                          <div key={currentHeroTrip.id}>
+                              <div className="animate-[fadeInUp_0.8s_ease-out]">
+                                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                                      <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-sm">
+                                          {currentHeroTrip.category.replace('_', ' ')}
+                                      </span>
+                                      <div className="flex items-center text-gray-300 text-xs font-medium">
+                                          <Clock size={14} className="mr-1"/> {currentHeroTrip.durationDays} Dias
+                                      </div>
                                   </div>
-                              </div>
 
-                              <h1 className="text-3xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-lg line-clamp-2 leading-tight">
-                                  {currentHeroTrip.title}
-                              </h1>
-                              
-                              <div className="flex items-center text-gray-200 text-base md:text-lg font-medium mb-6 drop-shadow-md">
-                                  <MapPin size={20} className="mr-2 text-primary-400"/> 
-                                  {currentHeroTrip.destination}
+                                  <h1 className="text-3xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-lg line-clamp-2 leading-tight">
+                                      {currentHeroTrip.title}
+                                  </h1>
+                                  
+                                  <div className="flex items-center text-gray-200 text-base md:text-lg font-medium mb-6 drop-shadow-md">
+                                      <MapPin size={20} className="mr-2 text-primary-400"/> 
+                                      {currentHeroTrip.destination}
+                                  </div>
                               </div>
                           </div>
                       ) : (
                           // Static Mode Content
-                          <div>
+                          <div className="animate-[fadeInUp_0.8s_ease-out]">
                               <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 text-white drop-shadow-md">
                                   {agency.heroTitle || agency.name}
                               </h1>
@@ -296,7 +308,7 @@ const AgencyLandingPage: React.FC = () => {
                   {/* CTAs & Navigation */}
                   <div className="flex flex-col items-end gap-4 w-full md:w-auto">
                       {isTripsMode && currentHeroTrip ? (
-                          <div className="flex flex-col items-end animate-[fadeIn_0.5s]">
+                          <div className="flex flex-col items-end animate-[fadeInUp_1s_ease-out]" key={currentHeroTrip.id}>
                               <p className="text-xs uppercase font-bold text-gray-400 mb-1">A partir de</p>
                               <div className="text-4xl font-extrabold text-white mb-4 drop-shadow-md">
                                   <span className="text-lg align-top mr-1 text-gray-300 font-medium">R$</span>
@@ -307,12 +319,12 @@ const AgencyLandingPage: React.FC = () => {
                                     to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
                                     className="bg-primary-600 hover:bg-primary-500 text-white px-8 py-3.5 rounded-xl font-bold shadow-xl shadow-primary-900/30 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                                   >
-                                      Ver Detalhes <ArrowDown size={18} className="-rotate-90"/>
+                                      Ver Detalhes <ArrowRight size={18} className="ml-2"/>
                                   </Link>
                               </div>
                           </div>
                       ) : (
-                          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto animate-[fadeInUp_1s_ease-out]">
                               {agency.whatsapp && (
                                   <button 
                                     onClick={handleContact}
@@ -339,7 +351,7 @@ const AgencyLandingPage: React.FC = () => {
                                       <button 
                                         key={idx} 
                                         onClick={() => setCurrentSlide(idx)}
-                                        className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-6 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/60'}`}
+                                        className={`h-1.5 rounded-full transition-all duration-500 ease-out ${idx === currentSlide ? 'w-6 bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'w-1.5 bg-white/40 hover:bg-white/60'}`}
                                       />
                                   ))}
                               </div>

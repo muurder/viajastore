@@ -6,6 +6,7 @@ import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus } from 'lucide-react';
 import AuthModal from './AuthModal';
+import { Agency } from '../types';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -53,17 +54,30 @@ const Layout: React.FC = () => {
   const matchMicrositeClient = useMatch('/:agencySlug/client/:tab?');
   const isMicrositeClientArea = !!matchMicrositeClient;
   
+  // Check if we are in the Agency Dashboard to force Agency Header
+  const isAgencyDashboard = location.pathname.startsWith('/agency/dashboard') && user?.role === 'AGENCY';
+
   if (isMicrositeClientArea) {
       isAgencyMode = true; // Force agency mode for client dashboard context
   }
 
   const activeSlug = matchMicrositeClient?.params.agencySlug || (isAgencyMode ? potentialSlug : null);
-  const currentAgency = activeSlug ? getAgencyBySlug(activeSlug) : undefined;
+  
+  // Resolve the agency to display in the header
+  // 1. If in dashboard, use the logged-in user (casted as Agency)
+  // 2. If in microsite, fetch by slug
+  let currentAgency: Agency | undefined = undefined;
+  
+  if (isAgencyDashboard) {
+      currentAgency = user as Agency;
+  } else if (activeSlug) {
+      currentAgency = getAgencyBySlug(activeSlug);
+  }
 
   // --- THEME APPLICATION LOGIC ---
   useEffect(() => {
       const applyTheme = async () => {
-          if (activeSlug && currentAgency) {
+          if (currentAgency) {
               const theme = await getAgencyTheme(currentAgency.id);
               if (theme) {
                   setAgencyTheme(theme.colors);
@@ -76,20 +90,19 @@ const Layout: React.FC = () => {
           }
       };
       applyTheme();
-  }, [activeSlug, currentAgency]);
+  }, [currentAgency?.id]); // Dependency changed to ID to support dashboard switch
 
   // --- PAGE TITLE MANAGEMENT ---
   useEffect(() => {
     // If we are NOT on a detail page (which sets its own title), reset the title
-    // Detail pages usually contain '/viagem/' in the path
     if (!location.pathname.includes('/viagem/')) {
-        if (isAgencyMode && currentAgency) {
+        if ((isAgencyMode || isAgencyDashboard) && currentAgency) {
             document.title = `${currentAgency.name} | ViajaStore`;
         } else {
             document.title = 'ViajaStore | O maior marketplace de viagens';
         }
     }
-  }, [location.pathname, isAgencyMode, currentAgency]);
+  }, [location.pathname, isAgencyMode, isAgencyDashboard, currentAgency]);
   
   const handleLogout = async () => {
     await logout();
@@ -107,11 +120,10 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  const homeLink = isAgencyMode && activeSlug ? `/${activeSlug}` : '/';
+  // Logic for links
+  const homeLink = (isAgencyMode || isAgencyDashboard) && currentAgency?.slug ? `/${currentAgency.slug}` : '/';
   
   // Logic for the "User Pill" link in header
-  // If Agency: Go to Agency Dashboard Settings
-  // If Client: Go to Client Dashboard
   const userProfileLink = user?.role === 'AGENCY' 
       ? '/agency/dashboard?tab=SETTINGS' 
       : (isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE');
@@ -135,6 +147,9 @@ const Layout: React.FC = () => {
         return '/';
     }
   };
+
+  // Helper to decide if we show Agency Header or Global Header
+  const showAgencyHeader = isAgencyMode || isAgencyDashboard;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300">
@@ -173,11 +188,11 @@ const Layout: React.FC = () => {
               </div>
             </div>
           ) : (
-            // Default Header (Global or Public Microsite)
+            // Default Header (Global, Public Microsite OR Agency Dashboard)
             <div className="flex justify-between h-16">
               <div className="flex items-center">
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
-                  {!isAgencyMode ? (
+                  {!showAgencyHeader ? (
                     <>
                       <Plane className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform" />
                       <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
@@ -192,7 +207,7 @@ const Layout: React.FC = () => {
                           <div className="flex flex-col">
                               <span className="font-bold text-gray-900 text-lg leading-tight line-clamp-1 break-all max-w-[180px] md:max-w-[200px]">{currentAgency.name}</span>
                               <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center">
-                                Parceiro Verificado <ShieldCheck size={10} className="ml-1 text-green-500"/>
+                                {isAgencyDashboard ? 'Painel Gerencial' : 'Parceiro Verificado'} <ShieldCheck size={10} className="ml-1 text-green-500"/>
                               </span>
                           </div>
                         </>
@@ -213,18 +228,18 @@ const Layout: React.FC = () => {
                 </Link>
 
                 <div className="hidden md:ml-8 md:flex md:space-x-8">
-                  {!isAgencyMode ? (
+                  {!showAgencyHeader ? (
                       <>
                           <Link to="/trips" className={getLinkClasses('/trips')}>Explorar Viagens</Link>
                           <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
                           <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                       </>
-                  ) : activeSlug && (
+                  ) : currentAgency && (
                         <>
-                          <Link to={`/${activeSlug}`} className={getLinkClasses(`/${activeSlug}`)}>
+                          <Link to={`/${currentAgency.slug}`} className={getLinkClasses(`/${currentAgency.slug}`)}>
                               <HomeIcon size={16} className="mr-1"/> Início
                           </Link>
-                          <Link to={`/${activeSlug}/trips`} className={getLinkClasses(`/${activeSlug}/trips`)}>
+                          <Link to={`/${currentAgency.slug}/trips`} className={getLinkClasses(`/${currentAgency.slug}/trips`)}>
                               <Map size={16} className="mr-1"/> Pacotes
                           </Link>
                         </>
@@ -234,7 +249,7 @@ const Layout: React.FC = () => {
 
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
-                {isAgencyMode && currentAgency && currentAgency.whatsapp && (
+                {showAgencyHeader && currentAgency && currentAgency.whatsapp && !isAgencyDashboard && (
                   <a 
                     href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
                     target="_blank"
@@ -251,7 +266,7 @@ const Layout: React.FC = () => {
                     {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
                       <Link 
                         to={getDashboardRoute()} 
-                        className="text-gray-500 hover:text-primary-600 mr-4 text-sm font-medium"
+                        className={`mr-4 text-sm font-medium transition-colors ${location.pathname.includes('/dashboard') ? 'text-primary-600 font-bold' : 'text-gray-500 hover:text-primary-600'}`}
                       >
                         {user.role === 'ADMIN' ? 'Admin' : 'Painel'}
                       </Link>
@@ -304,7 +319,7 @@ const Layout: React.FC = () => {
                 {/* Mobile Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2">
-                         {!isAgencyMode ? (
+                         {!showAgencyHeader ? (
                             <>
                                 <Plane className="h-6 w-6 text-primary-600" />
                                 <span className="font-bold text-lg text-gray-900">Menu</span>
@@ -345,13 +360,13 @@ const Layout: React.FC = () => {
                         )}
 
                         {/* Agency Public Links */}
-                        {isAgencyMode && !isMicrositeClientArea && activeSlug && (
+                        {showAgencyHeader && !isMicrositeClientArea && currentAgency?.slug && (
                             <>
-                                <Link to={`/${activeSlug}`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                <Link to={`/${currentAgency.slug}`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
                                     <div className="flex items-center"><HomeIcon size={20} className="mr-3 text-gray-400"/> Início</div>
                                     <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
-                                <Link to={`/${activeSlug}/trips`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                <Link to={`/${currentAgency.slug}/trips`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
                                     <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
                                     <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
@@ -370,7 +385,7 @@ const Layout: React.FC = () => {
                         )}
 
                         {/* Global Links */}
-                        {!isAgencyMode && (
+                        {!showAgencyHeader && (
                             <>
                                 <Link to="/trips" className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
                                     <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Explorar Viagens</div>
@@ -453,7 +468,7 @@ const Layout: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                 <div className="col-span-1 md:col-span-1">
                   <div className="flex items-center mb-4">
-                    {isAgencyMode && currentAgency ? (
+                    {showAgencyHeader && currentAgency ? (
                       <>
                         {currentAgency.logo && <img src={currentAgency.logo} className="w-8 h-8 rounded-full mr-2 border border-gray-100" alt="Logo" />}
                         <span className="font-bold text-xl text-gray-800 line-clamp-1">{currentAgency.name}</span>
@@ -466,13 +481,13 @@ const Layout: React.FC = () => {
                     )}
                   </div>
                   <p className="text-gray-500 text-sm leading-relaxed mb-4">
-                    {isAgencyMode && currentAgency
+                    {showAgencyHeader && currentAgency
                     ? `${currentAgency.description || 'Conheça nossos pacotes e viaje com segurança.'}` 
                     : 'O maior marketplace de turismo do Brasil. Segurança, variedade e os melhores preços para sua próxima aventura.'}
                   </p>
                 </div>
                 
-                {!isAgencyMode && (
+                {!showAgencyHeader && (
                     <>
                     <div>
                     <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Empresa</h3>
@@ -496,7 +511,7 @@ const Layout: React.FC = () => {
                     </>
                 )}
                 
-                {isAgencyMode && !isMicrositeClientArea && (
+                {showAgencyHeader && !isMicrositeClientArea && (
                   <div className="md:col-span-2">
                       <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider">Contato</h3>
                       {currentAgency && (
@@ -526,8 +541,8 @@ const Layout: React.FC = () => {
 
               <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center">
                 <p className="text-sm text-gray-400 mb-4 md:mb-0">
-                  © {new Date().getFullYear()} {isAgencyMode && currentAgency ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
-                  {isAgencyMode && <span className="block text-xs mt-1 opacity-60">Powered by ViajaStore Platform</span>}
+                  © {new Date().getFullYear()} {showAgencyHeader && currentAgency ? currentAgency.name : 'ViajaStore'}. Todos os direitos reservados.
+                  {showAgencyHeader && <span className="block text-xs mt-1 opacity-60">Powered by ViajaStore Platform</span>}
                 </p>
                 <div className="flex space-x-6 text-sm text-gray-400">
                   <Link to={activeSlug ? `/${activeSlug}/privacy` : "/privacy"} className="hover:text-gray-600">Privacidade</Link>
