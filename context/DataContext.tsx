@@ -565,26 +565,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const toggleAgencyStatus = async (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
-    if (!agency) return;
-
-    const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-
-    const { error } = await supabase
-      .from('agencies')
-      .update({ subscription_status: newStatus })
-      .eq('id', agencyId);
-
-    if (error) {
-      console.error('Error toggling agency status:', error);
-      showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
-      throw error;
+    if (!agency) {
+        showToast('Agência não encontrada.', 'error');
+        return;
     }
 
-    setAgencies(prevAgencies =>
-      prevAgencies.map(a =>
+    const originalAgencies = [...agencies];
+    const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    // Optimistic UI update
+    setAgencies(prev => prev.map(a => 
         a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
-      )
-    );
+    ));
+
+    const { error } = await supabase
+        .from('agencies')
+        .update({ subscription_status: newStatus })
+        .eq('id', agencyId);
+
+    if (error) {
+        console.error('Error toggling agency status:', error);
+        showToast(`Erro ao alterar status: ${error.message}`, 'error');
+        // Revert UI on failure
+        setAgencies(originalAgencies);
+        return;
+    }
 
     showToast(`Agência ${newStatus === 'ACTIVE' ? 'reativada' : 'suspensa'}.`, 'success');
   };
