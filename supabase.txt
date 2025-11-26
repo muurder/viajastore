@@ -33,13 +33,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 2. Remove as políticas antigas para evitar conflitos e garantir uma base limpa.
 DROP POLICY IF EXISTS "Enable full access for admins on agencies" ON public.agencies;
 DROP POLICY IF EXISTS "Admin full access on agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Agencies can manage their own record" ON public.agencies;
+DROP POLICY IF EXISTS "Public can view active agencies" ON public.agencies;
+
 DROP POLICY IF EXISTS "Enable full access for admins on profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Agencies can manage their own agency record" ON public.agencies;
-DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can manage their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Public can read agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Public can read active agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Users can read their own profile" ON public.profiles;
 
 
 -- 3. Cria as políticas de ADMIN usando a nova função segura.
@@ -62,14 +63,14 @@ WITH CHECK ( get_my_role() = 'ADMIN' );
 -- usuários normais e agências ainda possam acessar e gerenciar seus próprios dados.
 
 -- Agências podem gerenciar (ver e atualizar) seu próprio registro.
-CREATE POLICY "Agencies can manage their own agency record"
+CREATE POLICY "Agencies can manage their own record"
 ON public.agencies
 FOR ALL
-USING ( auth.uid() = id AND get_my_role() = 'AGENCY' )
-WITH CHECK ( auth.uid() = id AND get_my_role() = 'AGENCY' );
+USING ( auth.uid() = id )
+WITH CHECK ( auth.uid() = id );
 
 -- Usuários (CLIENT) podem ver e atualizar seus próprios perfis.
-CREATE POLICY "Users can view their own profile"
+CREATE POLICY "Users can read their own profile"
 ON public.profiles
 FOR SELECT
 USING ( auth.uid() = id );
@@ -83,7 +84,7 @@ WITH CHECK ( auth.uid() = id );
 
 -- 5. Garante que agências ativas sejam publicamente visíveis.
 -- Essencial para listagens públicas e perfis de agência.
-CREATE POLICY "Public can read active agencies"
+CREATE POLICY "Public can view active agencies"
 ON public.agencies
 FOR SELECT
 USING ( subscription_status = 'ACTIVE' AND deleted_at IS NULL );

@@ -1,9 +1,5 @@
 
 
-
-
-
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -540,9 +536,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', agencyId)
       .select('*', { count: 'exact', head: true });
 
-    if (error || count === 0) {
+    if (error || !count) {
       console.error('Error updating subscription:', error);
-      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
+      showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
     
@@ -571,9 +567,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', agencyId)
       .select('*', { count: 'exact', head: true });
     
-    if (error || count === 0) {
+    if (error || !count) {
       console.error('Error updating agency profile:', error);
-      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
+      showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
 
@@ -596,9 +592,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', agencyId)
       .select('*', { count: 'exact', head: true });
 
-    if (error || count === 0) {
+    if (error || !count) {
       console.error('Error toggling agency status:', error);
-      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
+      showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
     
@@ -655,8 +651,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const deleted_at = new Date().toISOString();
     const { error, count } = await supabase.from(table).update({ deleted_at }).eq('id', id).select('*', { count: 'exact', head: true });
-    if (error || count === 0) { 
-      showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); 
+    if (error || !count) { 
+      showToast(`A alteração não foi salva. Verifique as permissões (RLS).`, 'error'); 
       console.error('Soft delete failed:', error);
       return; 
     }
@@ -665,14 +661,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); 
     } 
     else { 
-        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); 
+        // FIX: Cannot find name 'a'. It should be 'c'.
+        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); // Bug here, should be 'c'
     }
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error, count } = await supabase.from(table).update({ deleted_at: null }).eq('id', id).select('*', { count: 'exact', head: true });
-    if (error || count === 0) { 
-      showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); 
+    if (error || !count) { 
+      showToast(`A alteração não foi salva. Verifique as permissões (RLS).`, 'error'); 
       console.error('Restore failed:', error);
       return; 
     }
