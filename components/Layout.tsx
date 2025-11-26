@@ -4,7 +4,7 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus } from 'lucide-react';
+import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { Agency } from '../types';
 
@@ -66,8 +66,6 @@ const Layout: React.FC = () => {
   const activeSlug = matchMicrositeClient?.params.agencySlug || (isAgencyMode ? potentialSlug : null);
   
   // Resolve the agency to display in the header
-  // 1. If in dashboard, use the logged-in user (casted as Agency)
-  // 2. If in microsite, fetch by slug
   let currentAgency: Agency | undefined = undefined;
   
   if (isAgencyDashboard) {
@@ -87,16 +85,14 @@ const Layout: React.FC = () => {
                   resetAgencyTheme();
               }
           } else {
-              // Not in agency mode, reset to global
               resetAgencyTheme();
           }
       };
       applyTheme();
-  }, [currentAgency?.id]); // Dependency changed to ID to support dashboard switch
+  }, [currentAgency?.id]); 
 
   // --- PAGE TITLE MANAGEMENT ---
   useEffect(() => {
-    // If we are NOT on a detail page (which sets its own title), reset the title
     if (!location.pathname.includes('/viagem/')) {
         if ((isAgencyMode || isAgencyDashboard) && currentAgency) {
             document.title = `${currentAgency.name} | ViajaStore`;
@@ -122,13 +118,19 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  // Logic for links
   const homeLink = (isAgencyMode || isAgencyDashboard) && currentAgency?.slug ? `/${currentAgency.slug}` : '/';
   
   // Logic for the "User Pill" link in header
-  const userProfileLink = user?.role === 'AGENCY' 
-      ? '/agency/dashboard?tab=SETTINGS' 
-      : (isAgencyMode && activeSlug ? `/${activeSlug}/client/PROFILE` : '/client/dashboard/PROFILE');
+  const getUserProfileLink = () => {
+      if (!user) return '#';
+      if (user.role === 'AGENCY') return '/agency/dashboard?tab=SETTINGS';
+      if (user.role === 'ADMIN') return '/admin/dashboard';
+      // Client
+      if (isAgencyMode && activeSlug) return `/${activeSlug}/client/PROFILE`;
+      return '/client/dashboard/PROFILE';
+  };
+
+  const userProfileLink = getUserProfileLink();
 
   // Centralized Dashboard Route Logic
   const getDashboardRoute = () => {
@@ -140,7 +142,6 @@ const Layout: React.FC = () => {
       case 'ADMIN':
         return '/admin/dashboard';
       case 'CLIENT':
-        // Preserve microsite context for clients if applicable
         if (isAgencyMode && activeSlug) {
             return `/${activeSlug}/client/BOOKINGS`;
         }
@@ -150,7 +151,6 @@ const Layout: React.FC = () => {
     }
   };
 
-  // Helper to decide if we show Agency Header or Global Header
   const showAgencyHeader = isAgencyMode || isAgencyDashboard;
 
   return (
@@ -276,31 +276,33 @@ const Layout: React.FC = () => {
 
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
-                    {/* Unified Dashboard Link Logic */}
+                    {/* Only show direct Dashboard link if user is Admin or Agency */}
                     {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
-                      <Link 
-                        to={getDashboardRoute()} 
-                        className={`mr-4 text-sm font-medium transition-colors ${location.pathname.includes('/dashboard') ? 'text-primary-600 font-bold' : 'text-gray-500 hover:text-primary-600'}`}
-                      >
-                        {user.role === 'ADMIN' ? 'Admin' : 'Painel'}
-                      </Link>
+                        <Link 
+                            to={getDashboardRoute()}
+                            className={`mr-4 flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${location.pathname.includes('/dashboard') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50 hover:text-primary-600'}`}
+                        >
+                            <LayoutDashboard size={16}/> {user.role === 'ADMIN' ? 'Painel Master' : 'Meu Painel'}
+                        </Link>
                     )}
                     
-                    <div className="relative flex items-center gap-3 bg-gray-50 py-1 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
+                    <div className="relative flex items-center gap-3 bg-gray-50 py-1.5 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
                       <Link to={userProfileLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
-                        <User size={16} className="mr-2" />
+                        <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-bold mr-2">
+                            {user.name.charAt(0).toUpperCase()}
+                        </div>
                         <span className="max-w-[100px] truncate">{user.name}</span>
                       </Link>
                       <div className="h-4 w-px bg-gray-300 mx-1"></div>
                       <button onClick={handleLogout} className="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors" title="Sair">
-                        <LogOut size={16} className="mr-1" /> Sair
+                        <LogOut size={16} className="mr-1" />
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Link to="#login" className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
-                    <Link to="#signup" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
+                    <Link to={{ hash: 'login' }} className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
+                    <Link to={{ hash: 'signup' }} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
                   </div>
                 )}
               </div>
@@ -322,15 +324,12 @@ const Layout: React.FC = () => {
         {/* Mobile Menu (Off-canvas) */}
         {isMenuOpen && (
           <div className="fixed inset-0 z-[100] md:hidden">
-            {/* Overlay Backdrop */}
             <div 
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-[fadeIn_0.2s]" 
                 onClick={() => setIsMenuOpen(false)}
             />
             
-            {/* Menu Panel */}
             <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-white shadow-2xl transform transition-transform duration-300 ease-out flex flex-col h-full animate-slideIn">
-                {/* Mobile Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2">
                          {!showAgencyHeader ? (
@@ -367,7 +366,6 @@ const Layout: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto py-4 px-2">
                     <div className="space-y-1 px-2">
                         {/* Client Microsite Links */}
@@ -450,7 +448,7 @@ const Layout: React.FC = () => {
                                 </Link>
                                 {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
                                     <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700">
-                                        {user.role === 'ADMIN' ? 'Admin' : 'Painel'}
+                                        {user.role === 'ADMIN' ? 'Painel' : 'Painel'}
                                     </Link>
                                 )}
                             </div>
@@ -460,10 +458,10 @@ const Layout: React.FC = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 gap-4">
-                            <Link to="#login" className="flex items-center justify-center px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors">
+                            <Link to={{ hash: 'login' }} className="flex items-center justify-center px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors">
                                 <LogIn size={18} className="mr-2"/> Entrar
                             </Link>
-                            <Link to="#signup" className="flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">
+                            <Link to={{ hash: 'signup' }} className="flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">
                                 <UserPlus size={18} className="mr-2"/> Criar Conta
                             </Link>
                         </div>
@@ -482,14 +480,12 @@ const Layout: React.FC = () => {
       {/* Footer */}
       <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
          {isMicrositeClientArea ? (
-            // Microsite Client Dashboard Footer
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                <Link to="/" className="inline-flex items-center gap-2 text-xs text-gray-500 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
                   <Globe size={12}/> Voltar para o Marketplace ViajaStore
                </Link>
             </div>
          ) : (
-            // Default Footer (Global or Public Microsite)
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                 <div className="col-span-1 md:col-span-2">
