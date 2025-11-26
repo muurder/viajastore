@@ -390,7 +390,18 @@ const AgencyDashboard: React.FC = () => {
   };
 
   const handleDeleteCustomSuggestion = async (type: keyof typeof customSettings, item: string) => { const currentList = customSettings[type] || []; const newList = currentList.filter(i => i !== item); const newSettings = { ...customSettings, [type]: newList }; await updateUser({ customSettings: newSettings }); showToast('Sugestão removida.', 'success'); };
-  const handleDeleteTrip = async (tripId: string) => { if (window.confirm('Tem certeza que deseja excluir este pacote?')) { try { await deleteTrip(tripId); showToast('Pacote excluído.', 'success'); } catch (err: any) { showToast('Erro ao excluir.', 'error'); } } };
+  
+  const handleDeleteTrip = async (tripId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este pacote? A ação não pode ser desfeita.')) {
+      try {
+        await deleteTrip(tripId);
+        showToast('Pacote excluído com sucesso.', 'success');
+      } catch (err: any) {
+        showToast('Erro ao excluir o pacote: ' + (err.message || 'Erro desconhecido'), 'error');
+      }
+    }
+  };
+
   const handleAgencyUpdate = async (e: React.FormEvent) => { e.preventDefault(); const res = await updateUser(agencyForm); if(res.success) showToast('Configurações salvas!', 'success'); else showToast('Erro: ' + res.error, 'error'); };
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploadingBanner(true); try { const url = await uploadImage(e.target.files[0], 'trip-images'); if (url) { setAgencyForm({ ...agencyForm, heroBannerUrl: url }); showToast('Banner enviado!', 'success'); } } catch(e) { showToast('Erro no upload do banner', 'error'); } finally { setUploadingBanner(false); } };
   const handleConfirmPayment = async () => { if (selectedPlan) { await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan); showToast('Assinatura ativada!', 'success'); setShowPayment(false); handleTabChange('OVERVIEW'); } };

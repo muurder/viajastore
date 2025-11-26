@@ -48,6 +48,7 @@ interface DataContextType {
   deleteMultipleUsers: (userIds: string[]) => Promise<void>;
   getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
   updateMultipleUsersStatus: (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => Promise<void>;
+  updateMultipleAgenciesStatus: (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => Promise<void>;
   logAuditAction: (action: string, details: string) => Promise<void>;
 
   getPublicTrips: () => Trip[]; 
@@ -624,13 +625,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error("Viagem não encontrada para exclusão.");
     }
   
-    // 1. Deletar imagens do Storage
+    // 1. Deletar imagens do Storage (se houver)
     if (tripToDelete.images && tripToDelete.images.length > 0) {
       const filePaths = tripToDelete.images.map(url => {
         // Extrai o caminho do arquivo da URL pública do Supabase
-        const urlParts = url.split('/trip-images/');
-        return urlParts.length > 1 ? urlParts[1] : null;
-      }).filter(Boolean) as string[];
+        try {
+            const urlParts = new URL(url);
+            const pathParts = urlParts.pathname.split('/');
+            // O caminho do arquivo é a última parte depois do nome do bucket
+            return pathParts.slice(pathParts.indexOf('trip-images') + 1).join('/');
+        } catch (e) {
+            return null; // URL inválida, não pode extrair caminho
+        }
+      }).filter((p): p is string => p !== null && p !== '');
   
       if (filePaths.length > 0) {
         const { error: storageError } = await supabase.storage
@@ -639,13 +646,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (storageError) {
           console.error("Erro ao deletar imagens do storage:", storageError);
-          // Pode optar por continuar ou parar a exclusão aqui
+          // Opcional: não bloquear a exclusão do DB se a do storage falhar, mas logar o erro.
         }
       }
     }
   
     // 2. Deletar a viagem do banco de dados
-    // A exclusão em cascata (ON DELETE CASCADE) deve cuidar da tabela 'trip_images'.
+    // A exclusão em cascata (ON DELETE CASCADE) na tabela `trip_images` cuidará dos registros de imagem.
     const { error: dbError } = await supabase.from('trips').delete().eq('id', tripId);
     if (dbError) throw dbError;
   
@@ -723,6 +730,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     if (error) {
         console.error('Error updating multiple users status via RPC:', error);
+        throw error;
+    }
+    await refreshData();
+  };
+
+  const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {
+    const { error } = await supabase.rpc('update_multiple_agencies_status_by_admin', {
+        agency_ids_to_update: agencyIds,
+        new_status: status
+    });
+    if (error) {
+        console.error('Error updating multiple agencies status via RPC:', error);
         throw error;
     }
     await refreshData();
@@ -822,7 +841,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-      deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, logAuditAction,
+      deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
       getAgencyTheme, saveAgencyTheme,
