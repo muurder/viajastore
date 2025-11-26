@@ -465,15 +465,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { data: updatedData, error } = await supabase
+    const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId)
-      .select();
+      .eq('id', reviewId);
       
-    if (error || !updatedData || updatedData.length === 0) {
-        showToast('Erro ao atualizar avaliação.', 'error');
-        throw error || new Error("No data returned");
+    if (error) {
+        showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
+        throw error;
     }
 
     setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
@@ -512,6 +511,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (error) {
       console.error('Error updating client profile:', error);
+      showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
       throw error;
     }
     
@@ -530,18 +530,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_expires_at: expiresAt
     };
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(updates)
-      .eq('id', agencyId)
-      .select();
+      .eq('id', agencyId);
 
     if (error) {
-      showToast('Erro ao atualizar assinatura: ' + error.message, 'error');
-      return;
-    }
-
-    if (!data || data.length === 0) {
       showToast('A alteração da assinatura não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
@@ -563,20 +557,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.cnpj) dbUpdates.cnpj = data.cnpj;
     if (data.phone) dbUpdates.phone = data.phone;
 
-    const { data: updatedData, error } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(dbUpdates)
-      .eq('id', agencyId)
-      .select();
+      .eq('id', agencyId);
     
     if (error) {
-      showToast('Erro ao atualizar agência: ' + error.message, 'error');
+      showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
       return;
-    }
-
-    if (!updatedData || updatedData.length === 0) {
-        showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
-        return;
     }
 
     setAgencies(prev => prev.map(a => a.id === agencyId ? { ...a, ...data } : a));
@@ -592,20 +580,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
-      .eq('id', agencyId)
-      .select();
+      .eq('id', agencyId);
 
     if (error) {
       console.error('Error toggling agency status:', error);
-      showToast(`Erro ao alterar status: ${error.message}`, 'error');
-      return;
-    }
-    
-    if (!data || data.length === 0) {
-      console.error('Update succeeded but no data returned. Check RLS policies.');
       showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
       return;
     }
