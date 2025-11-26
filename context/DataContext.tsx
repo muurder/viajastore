@@ -1,7 +1,7 @@
 
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -45,6 +45,8 @@ interface DataContextType {
   
   // Master Admin Functions
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
+  deleteMultipleUsers: (userIds: string[]) => Promise<void>;
+  getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
   logAuditAction: (action: string, details: string) => Promise<void>;
 
   getPublicTrips: () => Trip[]; 
@@ -214,7 +216,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .select(`
                 *, 
                 profiles (full_name),
-                agencies (name, logo_url)
+                agencies (name, logo_url, slug)
             `);
             
           if (error) {
@@ -688,6 +690,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
+  const deleteMultipleUsers = async (userIds: string[]) => {
+    const { error } = await supabase.rpc('delete_multiple_users_by_admin', {
+        user_ids_to_delete: userIds
+    });
+
+    if (error) {
+        console.error('Error deleting multiple users via RPC:', error);
+        throw error;
+    }
+    await refreshData();
+  };
+  
+  const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => {
+    const { data, error } = await supabase.rpc('get_users_stats', {
+        user_ids_to_query: userIds
+    });
+
+    if (error) {
+        console.error('Error getting user stats via RPC:', error);
+        // Fallback to client-side calculation on error
+        console.warn("Calculating user stats on client due to RPC error.");
+        return userIds.map(id => {
+            const userBookings = bookings.filter(b => b.clientId === id);
+            const userReviews = agencyReviews.filter(r => r.clientId === id);
+            const totalSpent = userBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+            const userName = clients.find(c => c.id === id)?.name || 'N/A';
+            
+            return { userId: id, userName, totalSpent, totalBookings: userBookings.length, totalReviews: userReviews.length };
+        });
+    }
+    return data || [];
+  };
+
   const logAuditAction = async (action: string, details: string) => {
     if (!user || user.role !== UserRole.ADMIN) return;
     await supabase.from('audit_logs').insert({
@@ -782,7 +817,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-      deleteUser, logAuditAction,
+      deleteUser, deleteMultipleUsers, getUsersStats, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
       getAgencyTheme, saveAgencyTheme,

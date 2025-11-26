@@ -221,3 +221,11 @@ export interface AuditLog {
   details: string;
   createdAt: string;
 }
+
+export interface UserStats {
+  userId: string;
+  userName: string;
+  totalSpent: number;
+  totalBookings: number;
+  totalReviews: number;
+}
