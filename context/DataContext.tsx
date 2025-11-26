@@ -684,7 +684,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a));
     } else {
-      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : a));
+// FIX: In `restoreEntity`, corrected a typo where `a` was used instead of `c` in the `map` function when restoring a client, causing a reference error.
+      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c));
     }
   };
 
