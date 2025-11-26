@@ -125,10 +125,24 @@ const AdminDashboard: React.FC = () => {
   const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
   const [userStats, setUserStats] = useState<UserStats[]>([]);
 
-  const [agencyView, setAgencyView] = useState<'cards' | 'list'>('cards');
-  const [userView, setUserView] = useState<'cards' | 'list'>('cards');
+  const [agencyView, setAgencyView] = useState<'cards' | 'list'>(
+    () => (localStorage.getItem('adminAgencyView') as 'cards' | 'list') || 'cards'
+  );
+  const [userView, setUserView] = useState<'cards' | 'list'>(
+    () => (localStorage.getItem('adminUserView') as 'cards' | 'list') || 'cards'
+  );
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
+
+  const handleSetAgencyView = (view: 'cards' | 'list') => {
+    setAgencyView(view);
+    localStorage.setItem('adminAgencyView', view);
+  };
+
+  const handleSetUserView = (view: 'cards' | 'list') => {
+    setUserView(view);
+    localStorage.setItem('adminUserView', view);
+  };
 
   const activeAgencies = useMemo(() => agencies.filter(a => !a.deleted_at), [agencies]);
   const deletedAgencies = useMemo(() => agencies.filter(a => !!a.deleted_at), [agencies]);
@@ -463,7 +477,19 @@ const AdminDashboard: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
               <div className="relative flex-1 max-w-lg w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
               <div className="flex items-center gap-2">
-                  <div className="p-1 bg-gray-100 rounded-lg flex items-center"><button onClick={() => activeTab === 'USERS' ? setUserView('cards') : setAgencyView('cards')} className={`p-2 rounded-md transition-colors ${(activeTab === 'USERS' && userView === 'cards') || (activeTab === 'AGENCIES' && agencyView === 'cards') ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18}/></button><button onClick={() => activeTab === 'USERS' ? setUserView('list') : setAgencyView('list')} className={`p-2 rounded-md transition-colors ${(activeTab === 'USERS' && userView === 'list') || (activeTab === 'AGENCIES' && agencyView === 'list') ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><List size={18}/></button></div>
+                  <div className="p-1 bg-gray-100 rounded-lg flex items-center">
+                    {activeTab === 'USERS' ? (
+                        <>
+                        <button onClick={() => handleSetUserView('cards')} className={`p-2 rounded-md transition-colors ${userView === 'cards' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18}/></button>
+                        <button onClick={() => handleSetUserView('list')} className={`p-2 rounded-md transition-colors ${userView === 'list' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><List size={18}/></button>
+                        </>
+                    ) : (
+                        <>
+                        <button onClick={() => handleSetAgencyView('cards')} className={`p-2 rounded-md transition-colors ${agencyView === 'cards' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18}/></button>
+                        <button onClick={() => handleSetAgencyView('list')} className={`p-2 rounded-md transition-colors ${agencyView === 'list' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><List size={18}/></button>
+                        </>
+                    )}
+                  </div>
                   <button onClick={() => activeTab === 'USERS' ? setShowUserTrash(!showUserTrash) : setShowAgencyTrash(!showAgencyTrash)} className={`px-4 py-2.5 text-sm font-bold rounded-lg flex items-center gap-2 transition-colors border ${(activeTab === 'USERS' && showUserTrash) || (activeTab === 'AGENCIES' && showAgencyTrash) ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}><Archive size={16}/> Lixeira</button>
               </div>
           </div>
