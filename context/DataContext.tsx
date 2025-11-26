@@ -523,18 +523,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
     const expiresAt = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString();
     
+    // 1. Attempt DB update
     const { error } = await supabase.from('agencies').update({
       subscription_status: status,
       subscription_plan: plan,
       subscription_expires_at: expiresAt
     }).eq('id', agencyId);
     
+    // 2. Handle failure
     if (error) {
       showToast('Erro ao atualizar assinatura: ' + error.message, 'error');
       throw error;
     }
     
-    // On success, update local state
+    // 3. On success, update local state
     setAgencies(prev => prev.map(a => 
         a.id === agencyId 
         ? { ...a, subscriptionStatus: status, subscriptionPlan: plan, subscriptionExpiresAt: expiresAt } 
@@ -571,18 +573,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
+    // 1. Attempt DB update
     const { error } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
       .eq('id', agencyId);
 
+    // 2. Handle failure
     if (error) {
       console.error('Error toggling agency status:', error);
       showToast(`Erro ao alterar status: ${error.message}`, 'error');
-      return; // Stop if DB operation fails
+      throw error; // Throw error to prevent UI update if persistence fails
     }
     
-    // Only update UI on success
+    // 3. Only update UI on success
     setAgencies(prev => prev.map(a => 
       a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
     ));
