@@ -447,13 +447,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', reviewId);
       
-    if (error || !count) {
+    if (error) {
         console.error('Error updating review:', error);
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
         return;
@@ -485,13 +484,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (Object.keys(dbUpdates).length === 0) return; 
 
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('id', clientId)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', clientId);
 
-    if (error || !count) {
+    if (error) {
       console.error('Error updating client profile:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -511,13 +509,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_expires_at: expiresAt
     };
 
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(updates)
-      .eq('id', agencyId)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', agencyId);
 
-    if (error || !count) {
+    if (error) {
       console.error('Error updating subscription:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -542,13 +539,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (Object.keys(dbUpdates).length === 0) return;
 
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(dbUpdates)
-      .eq('id', agencyId)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', agencyId);
     
-    if (error || !count) {
+    if (error) {
       console.error('Error updating agency profile:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -567,13 +563,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
-      .eq('id', agencyId)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', agencyId);
 
-    if (error || !count) {
+    if (error) {
       console.error('Error toggling agency status:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -600,8 +595,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       description: trip.description,
       price: trip.price,
     };
-    const { error, count } = await supabase.from('trips').update(updates).eq('id', trip.id).select('*', { count: 'exact', head: true });
-    if (error || !count) {
+    const { error } = await supabase.from('trips').update(updates).eq('id', trip.id);
+    if (error) {
        console.error('Error updating trip:', error);
        showToast('Erro ao atualizar viagem.', 'error');
        throw new Error(error?.message || 'Update failed');
@@ -613,8 +608,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
     if (imagesError) { console.error('Error deleting trip images:', imagesError); }
     
-    const { error, count } = await supabase.from('trips').delete().eq('id', tripId).select('*', { count: 'exact', head: true });
-    if (error || !count) {
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) {
         showToast('Erro ao excluir viagem. Verifique permissões.', 'error');
         throw new Error(error?.message || 'Delete failed');
     }
@@ -625,8 +620,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.active;
-    const { error, count } = await supabase.from('trips').update({ active: newStatus }).eq('id', tripId).select('*', { count: 'exact', head: true });
-    if (error || !count) {
+    const { error } = await supabase.from('trips').update({ active: newStatus }).eq('id', tripId);
+    if (error) {
         showToast('Erro ao alterar status da viagem.', 'error');
         return;
     }
@@ -638,8 +633,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.featured;
-    const { error, count } = await supabase.from('trips').update({ featured: newStatus }).eq('id', tripId).select('*', { count: 'exact', head: true });
-    if (error || !count) {
+    const { error } = await supabase.from('trips').update({ featured: newStatus }).eq('id', tripId);
+    if (error) {
         showToast('Erro ao alterar destaque da viagem.', 'error');
         return;
     }
@@ -649,13 +644,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // --- MASTER ADMIN ACTIONS ---
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from(table)
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', id);
     
-    if (error || !count) {
+    if (error) {
         console.error(`Error soft deleting from ${table}:`, error);
         showToast('Erro ao mover para a lixeira. Verifique RLS.', 'error');
         return;
@@ -669,13 +663,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from(table)
       .update({ deleted_at: null })
-      .eq('id', id)
-      .select('*', { count: 'exact', head: true });
+      .eq('id', id);
 
-    if (error || !count) {
+    if (error) {
         console.error(`Error restoring from ${table}:`, error);
         showToast('Erro ao restaurar. Verifique RLS.', 'error');
         return;
@@ -684,7 +677,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a));
     } else {
-// FIX: In `restoreEntity`, corrected a typo where `a` was used instead of `c` in the `map` function when restoring a client, causing a reference error.
       setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c));
     }
   };
@@ -700,8 +692,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logAuditAction = async (action: string, details: string) => {};
 
   const sendPasswordReset = async (email: string) => {
-    // FIX: Removed `as any` cast as it might be causing issues with type inference in some environments.
-    // The Supabase client should have correct typings for this method.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/#/forgot-password`,
     });
@@ -722,13 +712,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
           
-          const { error: dbError, count } = await supabase
+          const { error: dbError } = await supabase
               .from('profiles')
               .update({ avatar_url: data.publicUrl })
-              .eq('id', userId)
-              .select('*', { count: 'exact', head: true });
+              .eq('id', userId);
 
-          if (dbError || !count) {
+          if (dbError) {
               console.error("DB error updating avatar URL:", dbError);
               throw new Error("Não foi possível salvar o novo avatar no perfil do usuário.");
           }
