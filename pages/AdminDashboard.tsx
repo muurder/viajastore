@@ -470,7 +470,51 @@ const AdminDashboard: React.FC = () => {
           </div>
         );
       case 'TRIPS':
-        return ( <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]"> <table className="min-w-full divide-y divide-gray-100"> <thead className="bg-gray-50/50"> <tr> <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Viagem</th> <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th> <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th> <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th> </tr> </thead> <tbody className="divide-y divide-gray-100 bg-white"> {filteredTrips.map(trip => ( <tr key={trip.id} className="hover:bg-gray-50 transition-colors"> <td className="px-6 py-4"><p className="font-bold text-gray-900 text-sm flex items-center gap-2">{trip.title}{trip.featured && <span title="Destaque Global"><Sparkles size={16} className="text-amber-400 fill-amber-400" /></span>}</p><p className="text-xs text-gray-500">{trip.destination}</p></td> <td className="px-6 py-4 text-gray-600 text-sm">{agencies.find(a => a.id === trip.agencyId)?.name}</td> <td className="px-6 py-4"><Badge color={trip.active ? 'green' : 'gray'}>{trip.active ? 'Ativo' : 'Pausado'}</Badge></td> <td className="px-6 py-4 text-right"><ActionMenu actions={[ { label: 'Excluir Viagem', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger'}, { label: 'Editar Viagem', icon: Edit3, onClick: () => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }}, { label: trip.active ? 'Pausar Viagem' : 'Ativar Viagem', icon: trip.active ? Ban : CheckCircle, onClick: async () => { await toggleTripStatus(trip.id); } }, { label: trip.featured ? 'Remover Destaque' : 'Destacar Viagem', icon: Sparkles, onClick: async () => { await toggleTripFeatureStatus(trip.id); } }, { label: 'Ver Página', icon: Eye, onClick: () => window.open(`/#/viagem/${trip.slug}`, '_blank') }]} /></td> </tr> ))} </tbody> </table> </div> );
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Viagem</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredTrips.map(trip => (
+                  <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="font-bold text-gray-900 text-sm flex items-center gap-2">{trip.title}{trip.featured && <span title="Destaque Global"><Sparkles size={16} className="text-amber-400 fill-amber-400" /></span>}</p>
+                      <p className="text-xs text-gray-500">{trip.destination}</p>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 text-sm">{agencies.find(a => a.id === trip.agencyId)?.name}</td>
+                    <td className="px-6 py-4"><Badge color={trip.active ? 'green' : 'gray'}>{trip.active ? 'Ativo' : 'Pausado'}</Badge></td>
+                    <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                            <button title="Excluir Viagem" onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                <Trash2 size={18} />
+                            </button>
+                            <button title="Editar Viagem" onClick={() => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                <Edit3 size={18} />
+                            </button>
+                            <button title={trip.active ? 'Pausar Viagem' : 'Ativar Viagem'} onClick={() => toggleTripStatus(trip.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                                {trip.active ? <Ban size={18} /> : <CheckCircle size={18} />}
+                            </button>
+                            <button title={trip.featured ? 'Remover Destaque' : 'Destacar Viagem'} onClick={() => toggleTripFeatureStatus(trip.id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                <Sparkles size={18} className={trip.featured ? 'text-amber-500 fill-amber-400' : ''} />
+                            </button>
+                             <a href={`/#/viagem/${trip.slug}`} target="_blank" rel="noopener noreferrer" title="Ver Página" className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                                <Eye size={18} />
+                            </a>
+                        </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
       case 'REVIEWS':
         return ( <div className="space-y-4 animate-[fadeIn_0.3s]"> {filteredReviews.map(review => ( <div key={review.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-start gap-6"> <img src={review.agencyLogo || `https://ui-avatars.com/api/?name=${review.agencyName || 'A'}`} className="w-10 h-10 rounded-full" alt="" /> <div className="flex-1"> <div className="flex justify-between items-start"> <div> <p className="font-bold text-gray-900">{review.clientName || 'Anônimo'}</p> <a href={`/#/${slugify(review.agencyName || '')}`} target="_blank" className="text-xs text-gray-400 hover:text-primary-600">em <span className="font-medium text-gray-600 hover:underline">{review.agencyName}</span> • {new Date(review.createdAt).toLocaleDateString()}</a> </div> <div className="flex items-center gap-1 font-bold text-amber-500 text-lg"> <Star size={18} className="fill-current"/> {review.rating.toFixed(1)} </div> </div> <blockquote className="mt-4 text-gray-600 text-sm italic border-l-4 border-gray-100 pl-4 py-2 bg-gray-50/50 rounded-r-lg">"{review.comment}"</blockquote> </div> <ActionMenu actions={[{ label: 'Editar Conteúdo', icon: Edit3, onClick: () => { setSelectedItem(review); setEditFormData({ comment: review.comment, rating: review.rating }); setModalType('EDIT_REVIEW'); } }, { label: 'Excluir Definitivamente', icon: Trash2, onClick: async () => { if(window.confirm('Excluir esta avaliação?')) await deleteAgencyReview(review.id) }, variant: 'danger' }]} /> </div> ))} </div> );
       case 'THEMES':
