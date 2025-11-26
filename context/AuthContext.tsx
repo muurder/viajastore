@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
 
-      // 1. Check if Agency
+      // 1. Check if Agency (Primary Check)
       const { data: agencyData } = await supabase
         .from('agencies')
         .select('*')
@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // 2. Check if Profile (Client/Admin)
+      // 2. Check if Profile (Client/Admin/Or an Agency that failed the first check)
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -86,6 +86,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
+        // *** START OF FIX ***
+        // Correctly handle the 'AGENCY' role if it's found in the profiles table.
+        // This fixes the bug where an agency user was being mapped as a client.
+        if (profileData.role === 'AGENCY') {
+          console.warn(`AuthContext: User ${authId} has role 'AGENCY' but wasn't found in 'agencies' table on first pass. Refetching...`);
+          // The user is an agency, so we must fetch their specific data from the 'agencies' table.
+          const { data: agencyDataRetry, error: agencyRetryError } = await supabase
+            .from('agencies')
+            .select('*')
+            .eq('id', authId)
+            .single(); // It must exist if the profile says so.
+
+          if (agencyRetryError || !agencyDataRetry) {
+            console.error("CRITICAL: Data inconsistency. Profile is AGENCY but no record in agencies table.", agencyRetryError);
+            setUser(null); // Prevent login with incomplete data
+            return;
+          }
+
+          const agencyUser: Agency = {
+            id: agencyDataRetry.id,
+            name: agencyDataRetry.name,
+            email: email,
+            role: UserRole.AGENCY,
+            slug: agencyDataRetry.slug || slugify(agencyDataRetry.name),
+            cnpj: agencyDataRetry.cnpj || '',
+            description: agencyDataRetry.description || '',
+            logo: agencyDataRetry.logo_url || '',
+            whatsapp: agencyDataRetry.whatsapp,
+            heroMode: agencyDataRetry.hero_mode || 'TRIPS',
+            heroBannerUrl: agencyDataRetry.hero_banner_url,
+            heroTitle: agencyDataRetry.hero_title,
+            heroSubtitle: agencyDataRetry.hero_subtitle,
+            customSettings: agencyDataRetry.custom_settings || {},
+            subscriptionStatus: agencyDataRetry.subscription_status || 'INACTIVE',
+            subscriptionPlan: agencyDataRetry.subscription_plan || 'BASIC',
+            subscriptionExpiresAt: agencyDataRetry.subscription_expires_at || new Date().toISOString(),
+            website: agencyDataRetry.website,
+            phone: agencyDataRetry.phone,
+            address: agencyDataRetry.address || {},
+            bankInfo: agencyDataRetry.bank_info || {}
+          };
+          setUser(agencyUser);
+          return;
+        }
+        // *** END OF FIX ***
+
+        // Original logic for Client/Admin is correct.
         const role = profileData.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT;
         
         const clientUser: Client | Admin = {
@@ -106,8 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // 3. Fallback (User exists in Auth but no table record found yet)
-      // This usually happens if ensureUserRecord failed or hasn't run yet.
-      console.log("User authenticated but no profile found.");
+      console.log("User authenticated but no profile/agency found.");
       setUser(null); 
 
     } catch (error) {
@@ -117,7 +163,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Helper to ensure the record exists after Google Login
-  // Uses UPSERT to handle race conditions and ensures required fields have defaults
   const ensureUserRecord = async (authUser: any, role: string) => {
       const userId = authUser.id;
       const userEmail = authUser.email;
@@ -127,46 +172,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log(`Ensuring record for ${role}:`, userId);
 
       try {
+          // ALWAYS create a profile record first for role management
+          const { error: profileError } = await supabase.from('profiles').upsert({
+              id: userId,
+              full_name: userName,
+              email: userEmail,
+              role: role, // Use the passed role
+              avatar_url: userAvatar,
+          }, { onConflict: 'id' });
+
+          if (profileError) {
+              console.error("Failed to upsert profile record:", profileError.message);
+              throw profileError;
+          }
+
           if (role === UserRole.AGENCY) {
               // Generate a guaranteed slug
               const baseSlug = slugify(userName);
               const uniqueSuffix = Math.floor(Math.random() * 10000);
               const generatedSlug = `${baseSlug}-${uniqueSuffix}`;
               
-              // Use UPSERT (Insert or Update if exists)
-              const { error } = await supabase.from('agencies').upsert({
+              const { error: agencyError } = await supabase.from('agencies').upsert({
                   id: userId,
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
                   slug: generatedSlug,
-                  // Optional fields sent as null/empty to pass DB constraints if any
-                  cnpj: null, 
-                  phone: null,
                   hero_mode: 'TRIPS',
                   subscription_status: 'INACTIVE',
                   subscription_plan: 'BASIC'
               }, { onConflict: 'id' });
 
-              if (error) {
-                  console.error("Failed to upsert agency record:", error.message);
-                  throw error;
-              }
-          } else {
-              // Client (Profile)
-              const { error } = await supabase.from('profiles').upsert({
-                  id: userId,
-                  full_name: userName,
-                  email: userEmail,
-                  role: 'CLIENT',
-                  avatar_url: userAvatar,
-                  cpf: null,
-                  phone: null
-              }, { onConflict: 'id' });
-
-              if (error) {
-                  console.error("Failed to upsert client record:", error.message);
-                  throw error;
+              if (agencyError) {
+                  console.error("Failed to upsert agency record:", agencyError.message);
+                  throw agencyError;
               }
           }
           return true;
@@ -183,7 +222,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: { session } } = await (supabase.auth as any).getSession();
       
       if (session?.user) {
-        // Check for pending role on initial load too (in case of redirect return)
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
             console.log("Found pending role on init:", pendingRole);
@@ -201,7 +239,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (session?.user) {
           if (event === 'SIGNED_IN') {
-             // 1. Check local storage for role
              const pendingRole = localStorage.getItem('viajastore_pending_role');
              if (pendingRole) {
                  console.log("Found pending role after sign in:", pendingRole);
@@ -211,10 +248,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                  }
              }
              
-             // 2. Fetch data immediately
              await fetchUserData(session.user.id, session.user.email!);
-          } else if (event === 'TOKEN_REFRESHED') {
-             // Silent refresh, maybe update user data if needed
           } else if (event === 'USER_UPDATED') {
              await fetchUserData(session.user.id, session.user.email!);
           }
@@ -253,7 +287,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log("Setting pending role for Google Signup:", role);
         localStorage.setItem('viajastore_pending_role', role);
     } else {
-        // Login flow, clear any stale state to avoid overwriting existing role
         localStorage.removeItem('viajastore_pending_role');
     }
 
@@ -299,6 +332,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!userId) return { success: false, error: 'Erro ao criar usuário.' };
 
     try {
+      // Create profile for ALL roles
+      const { error: profileError } = await supabase.from('profiles').upsert({
+          id: userId,
+          full_name: data.name,
+          email: data.email,
+          cpf: role === UserRole.CLIENT ? data.cpf : null,
+          phone: data.phone,
+          role: role,
+          avatar_url: `https://ui-avatars.com/api/?name=${data.name}`
+      }, { onConflict: 'id' });
+      if (profileError) throw profileError;
+
       if (role === UserRole.AGENCY) {
         const baseSlug = slugify(data.name);
         const uniqueSuffix = Math.floor(Math.random() * 1000);
@@ -307,32 +352,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userId,
           name: data.name,
           email: data.email,
-          cnpj: data.cnpj, // Can be null now
+          cnpj: data.cnpj,
           phone: data.phone,
           description: data.description || '',
-          logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
+          logo_url: `https://ui-avatars.com/api/?name=${data.name}`,
           slug: `${baseSlug}-${uniqueSuffix}`,
           subscription_status: 'INACTIVE',
           subscription_plan: 'BASIC'
         }, { onConflict: 'id' });
         
         if (agencyError) throw agencyError;
-      } else {
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: userId,
-          full_name: data.name,
-          email: data.email, 
-          cpf: data.cpf, // Can be null now
-          phone: data.phone,
-          role: 'CLIENT',
-          avatar_url: `https://ui-avatars.com/api/?name=${data.name}`
-        }, { onConflict: 'id' });
-        
-        if (profileError) throw profileError;
       }
     } catch (dbError: any) {
       console.error("DB Upsert Error:", dbError);
-      return { success: true }; // User created in Auth, DB might fail but we allow login
+      // Even if DB upsert fails, auth user was created. This is a temporary state.
+      // The user will be prompted to verify email.
     }
 
     return { success: true };
@@ -419,13 +453,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: "Usuário não autenticado" };
 
     try {
-      if (user.role === UserRole.AGENCY) {
-          const { error } = await supabase.from('agencies').delete().eq('id', user.id);
-          if (error) throw error;
-      } else {
-          const { error } = await supabase.from('profiles').delete().eq('id', user.id);
-          if (error) throw error;
-      }
+      // Both agencies and clients have a profile, so we always delete from there.
+      // RLS and DB triggers should handle cascading deletes if necessary.
+      const { error } = await supabase.from('profiles').delete().eq('id', user.id);
+      if (error) throw error;
       
       await (supabase.auth as any).signOut();
       setUser(null);

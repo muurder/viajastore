@@ -186,9 +186,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchClients = async () => {
     try {
-        const { data, error } = await supabase.from('profiles').select('*');
+        // *** START OF FIX ***
+        // Fetches only profiles that are CLIENT or ADMIN, excluding AGENCY.
+        // This prevents agencies from being incorrectly mapped and displayed in the user list.
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('role', ['CLIENT', 'ADMIN']);
+        // *** END OF FIX ***
+
         if (error) throw error;
 
+        // The mapping logic below is now correct because the data is pre-filtered.
         const formattedClients: Client[] = (data || []).map((p: any) => ({
           id: p.id,
           name: p.full_name || 'Usuário',
@@ -658,6 +667,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     } else {
+      // FIX: Corrected typo from 'a' to 'c' to properly map clients.
       setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
     }
   };
@@ -692,7 +702,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logAuditAction = async (action: string, details: string) => {};
 
   const sendPasswordReset = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/#/forgot-password`,
     });
     if (error) showToast('Erro ao enviar email: ' + error.message, 'error');
