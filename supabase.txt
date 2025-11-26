@@ -39,6 +39,7 @@ DROP POLICY IF EXISTS "Agencies can manage their own agency record" ON public.ag
 DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Public can read agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Public can read active agencies" ON public.agencies;
 
 
 -- 3. Cria as políticas de ADMIN usando a nova função segura.
@@ -71,13 +72,13 @@ WITH CHECK ( auth.uid() = id AND get_my_role() = 'AGENCY' );
 CREATE POLICY "Users can view their own profile"
 ON public.profiles
 FOR SELECT
-USING ( auth.uid() = id AND get_my_role() = 'CLIENT' );
+USING ( auth.uid() = id );
 
 CREATE POLICY "Users can update their own profile"
 ON public.profiles
 FOR UPDATE
-USING ( auth.uid() = id AND get_my_role() = 'CLIENT' )
-WITH CHECK ( auth.uid() = id AND get_my_role() = 'CLIENT' );
+USING ( auth.uid() = id )
+WITH CHECK ( auth.uid() = id );
 
 
 -- 5. Garante que agências ativas sejam publicamente visíveis.

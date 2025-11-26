@@ -3,6 +3,7 @@
 
 
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -654,7 +655,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const deleted_at = new Date().toISOString();
     const { error, count } = await supabase.from(table).update({ deleted_at }).eq('id', id).select('*', { count: 'exact', head: true });
-    if (error || count === 0) { showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); throw error; }
+    if (error || count === 0) { 
+      showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); 
+      console.error('Soft delete failed:', error);
+      return; 
+    }
     
     if (table === 'agencies') { 
         setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); 
@@ -666,9 +671,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error, count } = await supabase.from(table).update({ deleted_at: null }).eq('id', id).select('*', { count: 'exact', head: true });
-    if (error || count === 0) { showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); throw error; }
-    if (table === 'agencies') { setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a)); } 
-    else { setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c)); }
+    if (error || count === 0) { 
+      showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); 
+      console.error('Restore failed:', error);
+      return; 
+    }
+    if (table === 'agencies') { 
+      setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a)); 
+    } 
+    else { 
+      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c)); 
+    }
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
