@@ -168,51 +168,49 @@ const AdminDashboard: React.FC = () => {
   };
   
   const handleSoftDelete = async (id: string, type: 'user' | 'agency') => {
-      const name = type === 'user' ? clients.find(c => c.id === id)?.name : agencies.find(a => a.id === id)?.name;
-      if (window.confirm(`Mover "${name}" para a lixeira?`)) {
-          setIsProcessing(true);
-          try {
-              await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
-              await refreshData();
-              showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
-              if (type === 'user') {
-                  setShowUserTrash(true);
-              } else {
-                  setShowAgencyTrash(true);
-              }
-          } catch (error) {
-              showToast('Erro ao mover para a lixeira.', 'error');
-          } finally {
-              setIsProcessing(false);
-          }
-      }
+    const name = type === 'user' ? clients.find(c => c.id === id)?.name : agencies.find(a => a.id === id)?.name;
+    if (window.confirm(`Mover "${name}" para a lixeira?`)) {
+        setIsProcessing(true);
+        try {
+            await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
+            showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
+            if (type === 'user') {
+                setShowUserTrash(true);
+            } else {
+                setShowAgencyTrash(true);
+            }
+        } catch (error) {
+            // Error toast is handled in context
+        } finally {
+            setIsProcessing(false);
+        }
+    }
   };
 
   const handleRestore = async (id: string, type: 'user' | 'agency') => {
     setIsProcessing(true);
     try {
         await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
-        await refreshData();
         showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
     } catch (error) {
-        showToast('Erro ao restaurar.', 'error');
+        // Error toast is handled in context
     } finally {
         setIsProcessing(false);
     }
   };
 
   const handlePermanentDelete = async (id: string, role: UserRole) => {
-      if (window.confirm('Excluir permanentemente? Esta ação não pode ser desfeita.')) {
-          setIsProcessing(true);
-          try {
-              await deleteUser(id, role);
-              showToast('Excluído permanentemente.', 'success');
-          } catch (error) {
-              showToast('Erro ao excluir permanentemente.', 'error');
-          } finally {
-              setIsProcessing(false);
-          }
-      }
+    if (window.confirm('Excluir permanentemente? Esta ação não pode ser desfeita.')) {
+        setIsProcessing(true);
+        try {
+            await deleteUser(id, role);
+            showToast('Excluído permanentemente.', 'success');
+        } catch (error) {
+            showToast('Erro ao excluir permanentemente.', 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    }
   };
   
   const handleEmptyTrash = async (type: 'user' | 'agency') => {

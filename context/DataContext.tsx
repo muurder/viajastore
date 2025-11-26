@@ -701,12 +701,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error } = await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
-    if (error) throw error;
+    if (error) {
+        showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
+        throw error;
+    }
+
+    if (table === 'agencies') {
+        setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
+    } else {
+        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
+    }
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
-    if (error) throw error;
+    if (error) {
+        showToast(`Erro ao restaurar: ${error.message}`, 'error');
+        throw error;
+    }
+    if (table === 'agencies') {
+        setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a));
+    } else {
+        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c));
+    }
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
@@ -719,7 +736,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw error;
     }
 
-    await refreshData();
+    if (role === UserRole.AGENCY) {
+        setAgencies(prev => prev.filter(a => a.id !== userId));
+    } else {
+        setClients(prev => prev.filter(c => c.id !== userId));
+    }
   };
 
   const deleteMultipleUsers = async (userIds: string[]) => {
@@ -731,7 +752,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Error deleting multiple users via RPC:', error);
         throw error;
     }
-    await refreshData();
+    setClients(prev => prev.filter(c => !userIds.includes(c.id)));
+    setAgencies(prev => prev.filter(a => !userIds.includes(a.id)));
   };
   
   const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => {
