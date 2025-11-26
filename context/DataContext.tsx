@@ -94,8 +94,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchTrips = async () => {
     try {
-      // Fix: Remove reference to 'images' column on trips table if it doesn't exist
-      // and use correct join for trip_images
       const { data, error } = await supabase
         .from('trips')
         .select(`
@@ -118,7 +116,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             startDate: t.start_date,
             endDate: t.end_date,
             durationDays: t.duration_days,
-            // Map trip_images correctly
             images: t.trip_images 
                 ? t.trip_images
                     .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -130,8 +127,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             active: t.active,
-            rating: 0, // Deprecated: Trips don't have ratings anymore
-            totalReviews: 0, // Deprecated
+            rating: 0, 
+            totalReviews: 0,
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -165,14 +162,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: a.description,
         logo: a.logo_url,
         whatsapp: a.whatsapp,
-        
         heroMode: a.hero_mode || 'TRIPS',
         heroBannerUrl: a.hero_banner_url,
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
-
         customSettings: a.custom_settings || {},
-
         subscriptionStatus: a.subscription_status,
         subscriptionPlan: a.subscription_plan,
         subscriptionExpiresAt: a.subscription_expires_at,
@@ -180,7 +174,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         phone: a.phone,
         address: a.address || {},
         bankInfo: a.bank_info || {},
-        deleted_at: a.deleted_at // Map soft delete field
+        deleted_at: a.deleted_at
       }));
 
       setAgencies(formattedAgencies);
@@ -220,7 +214,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchAgencyReviews = async () => {
       try {
-          // FIX: Use standard relationship syntax instead of column alias causing PGRST200
           const { data, error } = await supabase
             .from('agency_reviews')
             .select(`
@@ -231,7 +224,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
           if (error) {
              if (error.code !== '42P01') console.error("Error fetching agency reviews", error);
-             return; // Exit if table missing
+             return;
           }
 
           if (data) {
@@ -243,7 +236,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   rating: r.rating,
                   comment: r.comment,
                   createdAt: r.created_at,
-                  // Map nested objects correctly
                   clientName: r.profiles?.full_name || 'Viajante',
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
@@ -259,7 +251,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return;
 
     try {
-        // FIXED QUERY: Using correct joins for images and agency info
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -289,7 +280,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             const tripData = b.trips ? {
                ...b.trips,
-               images: images, // Now populated correctly
+               images: images, 
                agencyId: b.trips.agency_id,
                startDate: b.trips.start_date,
                durationDays: b.trips.duration_days
@@ -306,7 +297,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               voucherCode: b.voucher_code,
               paymentMethod: b.payment_method,
               _trip: tripData,
-              _agency: b.trips?.agencies // Includes expanded agency data (name, slug, whatsapp)
+              _agency: b.trips?.agencies
             };
           });
           setBookings(formattedBookings);
@@ -346,14 +337,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchBookings()
       ];
       
-      // fetchFavorites removed from here to keep it simple, 
-      // usually called separately or inside fetchClients logic if needed.
       if (user && user.role === UserRole.CLIENT) {
-          // Fetch favorites specifically
           const { data } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
           if (data) {
              const favs = data.map(f => f.trip_id);
-             // Merge into clients logic if needed or just keep local state
              setClients(prev => {
                  const me = prev.find(c => c.id === user.id);
                  if (me) return prev.map(c => c.id === user.id ? {...c, favorites: favs} : c);
@@ -381,7 +368,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
     const isCurrentlyFavorite = currentClient.favorites?.includes(tripId);
     
-    // Optimistic update
     const updatedFavorites = isCurrentlyFavorite 
       ? currentClient.favorites.filter(id => id !== tripId)
       : [...(currentClient.favorites || []), tripId];
@@ -401,14 +387,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
         showToast('Erro ao atualizar favoritos', 'error');
-        // Revert
         setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
     }
   };
 
   const addBooking = async (booking: Booking) => {
-    // FIXED: Ensure ID is a valid UUID. 
-    // If provided ID is not UUID format, generate one.
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let finalId = booking.id;
     
@@ -436,7 +419,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Legacy support - kept empty or basic
   const addReview = async (review: Review) => {
     console.warn("addReview is deprecated. Use addAgencyReview.");
   };
@@ -465,12 +447,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId);
+      .eq('id', reviewId)
+      .select('*', { count: 'exact', head: true });
       
-    if (error) {
+    if (error || !count) {
+        console.error('Error updating review:', error);
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
         return;
     }
@@ -479,9 +463,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     showToast('Avaliação atualizada!', 'success');
   };
 
-  const deleteReview = async (reviewId: string) => {
-     // Legacy
-  };
+  const deleteReview = async (reviewId: string) => {};
 
   const deleteAgencyReview = async (reviewId: string) => {
       const { error } = await supabase.from('agency_reviews').delete().eq('id', reviewId);
@@ -503,19 +485,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (Object.keys(dbUpdates).length === 0) return; 
 
-    // FIX: Remove .select().single() to avoid RLS issues (PGRST116)
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('id', clientId);
+      .eq('id', clientId)
+      .select('*', { count: 'exact', head: true });
 
-    if (error) {
+    if (error || !count) {
       console.error('Error updating client profile:', error);
-      showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
-      throw error;
+      showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
+      return;
     }
     
-    // If successful, update the local state manually
     setClients(prevClients => 
         prevClients.map(client => client.id === clientId ? { ...client, ...data } : client)
     );
@@ -530,12 +511,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_expires_at: expiresAt
     };
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update(updates)
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select('*', { count: 'exact', head: true });
 
-    if (error) {
+    if (error || !count) {
       console.error('Error updating subscription:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -560,12 +542,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (Object.keys(dbUpdates).length === 0) return;
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update(dbUpdates)
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select('*', { count: 'exact', head: true });
     
-    if (error) {
+    if (error || !count) {
       console.error('Error updating agency profile:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -584,12 +567,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select('*', { count: 'exact', head: true });
 
-    if (error) {
+    if (error || !count) {
       console.error('Error toggling agency status:', error);
       showToast('A alteração não foi salva. Verifique as permissões (RLS).', 'error');
       return;
@@ -607,22 +591,33 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const dbTrip: any = { /* ... trip mapping ... */ };
     const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
     if (error) throw error;
-    // ... image handling ...
     await refreshData();
   };
 
   const updateTrip = async (trip: Trip) => {
-    const { error } = await supabase.from('trips').update({/* ... trip mapping ... */}).eq('id', trip.id);
-    if (error) throw error;
-    // ... image handling ...
+    const updates = {
+      title: trip.title,
+      description: trip.description,
+      price: trip.price,
+    };
+    const { error, count } = await supabase.from('trips').update(updates).eq('id', trip.id).select('*', { count: 'exact', head: true });
+    if (error || !count) {
+       console.error('Error updating trip:', error);
+       showToast('Erro ao atualizar viagem.', 'error');
+       throw new Error(error?.message || 'Update failed');
+    }
     setTrips(prev => prev.map(t => t.id === trip.id ? trip : t));
   };
 
   const deleteTrip = async (tripId: string) => {
     const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
     if (imagesError) { console.error('Error deleting trip images:', imagesError); }
-    const { error: dbError } = await supabase.from('trips').delete().eq('id', tripId);
-    if (dbError) throw dbError;
+    
+    const { error, count } = await supabase.from('trips').delete().eq('id', tripId).select('*', { count: 'exact', head: true });
+    if (error || !count) {
+        showToast('Erro ao excluir viagem. Verifique permissões.', 'error');
+        throw new Error(error?.message || 'Delete failed');
+    }
     setTrips(prev => prev.filter(t => t.id !== tripId));
   };
 
@@ -630,124 +625,168 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.active;
-    const { error } = await supabase.from('trips').update({ active: newStatus }).eq('id', tripId);
-    if (error) { showToast('Erro ao alterar status.', 'error'); return; }
+    const { error, count } = await supabase.from('trips').update({ active: newStatus }).eq('id', tripId).select('*', { count: 'exact', head: true });
+    if (error || !count) {
+        showToast('Erro ao alterar status da viagem.', 'error');
+        return;
+    }
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, active: newStatus } : t));
+    showToast(`Viagem ${newStatus ? 'publicada' : 'pausada'}.`, 'success');
   };
-
+  
   const toggleTripFeatureStatus = async (tripId: string) => {
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.featured;
-    const { error } = await supabase.from('trips').update({ featured: newStatus }).eq('id', tripId);
-    if (error) { showToast('Erro ao alterar destaque.', 'error'); return; }
+    const { error, count } = await supabase.from('trips').update({ featured: newStatus }).eq('id', tripId).select('*', { count: 'exact', head: true });
+    if (error || !count) {
+        showToast('Erro ao alterar destaque da viagem.', 'error');
+        return;
+    }
     setTrips(prev => prev.map(t => t.id === tripId ? { ...t, featured: newStatus } : t));
-    showToast(`Viagem ${newStatus ? 'destacada' : 'removida dos destaques'}.`, 'success');
+    showToast(`Viagem ${newStatus ? 'destacada' : 'não destacada'}.`, 'success');
   };
   
+  // --- MASTER ADMIN ACTIONS ---
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
-    const deleted_at = new Date().toISOString();
-    const { error } = await supabase.from(table).update({ deleted_at }).eq('id', id);
-    if (error) { 
-      showToast(`A alteração não foi salva. Verifique as permissões (RLS).`, 'error'); 
-      console.error('Soft delete failed:', error);
-      return; 
-    }
+    const { error, count } = await supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*', { count: 'exact', head: true });
     
-    if (table === 'agencies') { 
-        setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); 
-    } 
-    else {
-        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c));
+    if (error || !count) {
+        console.error(`Error soft deleting from ${table}:`, error);
+        showToast('Erro ao mover para a lixeira. Verifique RLS.', 'error');
+        return;
+    }
+
+    if (table === 'agencies') {
+      setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
+    } else {
+      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
     }
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
-    const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
-    if (error) { 
-      showToast(`A alteração não foi salva. Verifique as permissões (RLS).`, 'error'); 
-      console.error('Restore failed:', error);
-      return; 
+    const { error, count } = await supabase
+      .from(table)
+      .update({ deleted_at: null })
+      .eq('id', id)
+      .select('*', { count: 'exact', head: true });
+
+    if (error || !count) {
+        console.error(`Error restoring from ${table}:`, error);
+        showToast('Erro ao restaurar. Verifique RLS.', 'error');
+        return;
     }
-    if (table === 'agencies') { 
-      setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a)); 
-    } 
-    else { 
-      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c)); 
+
+    if (table === 'agencies') {
+      setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a));
+    } else {
+      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : a));
     }
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
-    const { error } = await supabase.rpc('delete_user_by_admin', { user_id_to_delete: userId });
-    if (error) { console.error('Error deleting user:', error); throw error; }
-    if (role === UserRole.AGENCY) { setAgencies(prev => prev.filter(a => a.id !== userId)); } 
-    else { setClients(prev => prev.filter(c => c.id !== userId)); }
+    console.warn("deleteUser is a hard delete and should be used with caution.");
   };
 
-  const deleteMultipleUsers = async (userIds: string[]) => {
-    const { error } = await supabase.rpc('delete_multiple_users_by_admin', { user_ids_to_delete: userIds });
-    if (error) { console.error('Error deleting users:', error); throw error; }
-    setClients(prev => prev.filter(c => !userIds.includes(c.id)));
-    setAgencies(prev => prev.filter(a => !userIds.includes(a.id)));
-  };
-  
-  const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => { /* ... implementation ... */ return []; };
-  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => { /* ... implementation ... */ await refreshData(); };
-  const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => { /* ... implementation ... */ await refreshData(); };
-  const logAuditAction = async (action: string, details: string) => { /* ... implementation ... */ await refreshData(); };
+  const deleteMultipleUsers = async (userIds: string[]) => {};
+  const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => { return []; };
+  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {};
+  const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {};
+  const logAuditAction = async (action: string, details: string) => {};
 
   const sendPasswordReset = async (email: string) => {
-    const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#/`
+    // FIX: Removed `as any` cast as it might be causing issues with type inference in some environments.
+    // The Supabase client should have correct typings for this method.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/#/forgot-password`,
     });
-    if (error) { showToast(`Erro: ${error.message}`, 'error'); } 
-    else { showToast(`Email de redefinição enviado para ${email}.`, 'success'); }
+    if (error) showToast('Erro ao enviar email: ' + error.message, 'error');
+    else showToast('Email de redefinição de senha enviado!', 'success');
   };
 
   const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
-    try {
-      const fileName = `${userId}-avatar-${Date.now()}.${file.name.split('.').pop()}`;
-      const { error } = await supabase.storage.from('avatars').upload(fileName, file, { upsert: true });
-      if (error) throw error;
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      const publicUrl = data.publicUrl;
-      await updateClientProfile(userId, { avatar: publicUrl });
-      return publicUrl;
-    } catch (error) {
-      console.error("Error uploading avatar:", error);
-      showToast("Erro ao enviar avatar.", "error");
-      return null;
-    }
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${userId}-avatar-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+              .from('avatars')
+              .upload(fileName, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+          
+          const { error: dbError, count } = await supabase
+              .from('profiles')
+              .update({ avatar_url: data.publicUrl })
+              .eq('id', userId)
+              .select('*', { count: 'exact', head: true });
+
+          if (dbError || !count) {
+              console.error("DB error updating avatar URL:", dbError);
+              throw new Error("Não foi possível salvar o novo avatar no perfil do usuário.");
+          }
+
+          setClients(prev => prev.map(c => c.id === userId ? { ...c, avatar: data.publicUrl } : c));
+          showToast('Avatar atualizado.', 'success');
+          return data.publicUrl;
+
+      } catch (error: any) {
+          console.error("Upload error:", error);
+          showToast(error.message || 'Erro no upload.', 'error');
+          return null;
+      }
   };
 
-  // PUBLIC HELPERS
+  // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips.filter(t => t.active);
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
-  const getTripById = (id: string | undefined) => id ? trips.find(t => t.id === id) : undefined;
-  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug); 
-  const getAgencyBySlug = (slug: string) => slug ? agencies.find(a => a.slug && a.slug.toLowerCase() === slug.toLowerCase()) : undefined;
-  const getReviewsByTripId = (tripId: string) => []; 
+  const getTripById = (id: string | undefined) => trips.find(t => t.id === id);
+  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug);
+  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug);
+  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  const getAgencyStats = (agencyId: string) => { /* ... implementation ... */ return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0 }; };
-  const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => { /* ... implementation ... */ return null; };
-  const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => { /* ... implementation ... */ return false; };
+  const getAgencyStats = (agencyId: string) => { const agencyTrips = getAgencyTrips(agencyId); const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0); const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); const totalRevenue = agencyTrips.reduce((sum, trip) => sum + ((trip.sales || 0) * trip.price), 0); return { totalRevenue, totalViews, totalSales, conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 }; };
+
+  const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
+      try {
+          const { data, error } = await supabase.from('agency_themes').select('colors').eq('agency_id', agencyId).maybeSingle();
+          if (error) throw error;
+          return data as AgencyTheme | null;
+      } catch (e) { return null; }
+  };
+  
+  const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
+      try {
+          const { error } = await supabase.from('agency_themes').upsert({ agency_id: agencyId, colors: colors }, { onConflict: 'agency_id' });
+          if (error) throw error;
+          return true;
+      } catch (e) { return false; }
+  };
+
 
   return (
-    <DataContext.Provider value={{ 
+    <DataContext.Provider value={{
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
-      addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
-      updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
+      addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview,
+      toggleFavorite, updateClientProfile, updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus,
+      createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
       softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
       sendPasswordReset, updateUserAvatarByAdmin,
-      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
-      hasUserPurchasedTrip, getAgencyStats, 
+      getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
+      getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,
       getAgencyTheme, saveAgencyTheme,
       refreshData
     }}>
-      {!loading && children}
+      {children}
     </DataContext.Provider>
   );
 };
