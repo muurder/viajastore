@@ -1,6 +1,7 @@
 
 
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -466,13 +467,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId)
-      .select(undefined, { count: 'exact', head: true });
+      .eq('id', reviewId);
       
-    if (error || count === 0) {
+    if (error) {
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
         return;
     }
@@ -652,7 +652,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from(table).update({ deleted_at }).eq('id', id);
     if (error) { showToast(`Erro: ${error.message}`, 'error'); throw error; }
     if (table === 'agencies') { setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); } 
-    // FIX: Changed 'a' to 'c' to correctly reference the client object being mapped.
     else { setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); }
   };
 

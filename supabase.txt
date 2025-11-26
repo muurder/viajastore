@@ -1,0 +1,102 @@
+-- =============================================================================
+-- SCRIPT DE CORREÇÃO PARA PERSISTÊNCIA DE DADOS (RLS) - VIAJASTORE ADMIN
+-- =============================================================================
+-- Problema: Ações no painel admin (ex: suspender agência) falham devido a um erro
+-- de "recursão infinita" nas políticas de segurança (RLS) do Supabase.
+--
+-- Solução: Criar uma função `get_my_role()` com `SECURITY DEFINER` para ler o
+-- papel do usuário de forma segura, sem disparar a RLS da tabela 'profiles' sobre
+-- si mesma. Em seguida, atualizar as políticas para usar esta função.
+-- =============================================================================
+
+-- 1. Cria uma função segura para obter o 'role' do usuário atual.
+-- A cláusula "SECURITY DEFINER" é crucial. Ela permite que a função leia a tabela
+-- 'profiles' sem disparar as políticas de RLS da própria tabela, quebrando o ciclo
+-- de recursão.
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS TEXT AS $$
+DECLARE
+  user_role TEXT;
+BEGIN
+  SELECT role INTO user_role
+  FROM public.profiles
+  WHERE id = auth.uid()
+  LIMIT 1;
+  RETURN user_role;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 2. Remove as políticas antigas para evitar conflitos.
+-- É uma boa prática remover antes de criar para garantir que a versão mais recente
+-- seja aplicada sem erros.
+DROP POLICY IF EXISTS "Enable full access for admins on agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Admin full access on agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Enable full access for admins on profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
+
+
+-- 3. Recria a política para a tabela 'agencies' usando a nova função.
+-- Agora, a verificação `get_my_role() = 'ADMIN'` é segura e não causa recursão.
+-- Esta política concede permissão total (SELECT, INSERT, UPDATE, DELETE) para
+-- administradores na tabela de agências.
+CREATE POLICY "Admin full access on agencies"
+ON public.agencies
+FOR ALL
+USING (
+  get_my_role() = 'ADMIN'
+)
+WITH CHECK (
+  get_my_role() = 'ADMIN'
+);
+
+
+-- 4. Recria a política para a tabela 'profiles' usando a mesma função.
+-- Isso também previne a recursão ao gerenciar usuários e é vital para que a
+-- política de 'agencies' funcione (pois ela precisa ler o 'role' do admin).
+CREATE POLICY "Admin full access on profiles"
+ON public.profiles
+FOR ALL
+USING (
+  get_my_role() = 'ADMIN'
+)
+WITH CHECK (
+  get_my_role() = 'ADMIN'
+);
+
+-- 5. Garante que outras políticas importantes coexistam.
+-- As políticas de ADMIN acima são muito restritivas. É preciso garantir que os
+-- usuários normais e agências ainda possam acessar seus próprios dados.
+
+-- Agências podem gerenciar seu próprio registro.
+DROP POLICY IF EXISTS "Agencies can manage their own agency record" ON public.agencies;
+CREATE POLICY "Agencies can manage their own agency record"
+ON public.agencies
+FOR ALL
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+
+-- Usuários podem ver e atualizar seus próprios perfis.
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+CREATE POLICY "Users can view their own profile"
+ON public.profiles
+FOR SELECT
+USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+CREATE POLICY "Users can update their own profile"
+ON public.profiles
+FOR UPDATE
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+
+
+-- 6. Habilita RLS nas tabelas (se ainda não estiver habilitado).
+-- Execute estes comandos se a RLS estiver desativada para as tabelas.
+-- Se já estiver ativa, o comando não fará nada.
+ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================================
+-- FIM DO SCRIPT
+-- =============================================================================
