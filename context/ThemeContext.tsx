@@ -84,8 +84,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               const currentActive = formattedThemes.find(t => t.isActive);
               if (currentActive) setActiveTheme(currentActive);
           }
-      } catch (error) {
-          console.error("Error fetching themes:", error);
+      } catch (error: any) {
+          console.error("Error fetching themes:", error.message || error);
           // Keep fallback
       } finally {
           setLoading(false);

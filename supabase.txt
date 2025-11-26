@@ -1,14 +1,13 @@
 -- =============================================================================
--- SCRIPT DEFINITIVO DE POLÍTICAS DE SEGURANÇA (RLS) - VIAJASTORE
+-- SCRIPT DEFINITIVO DE POLÍTICAS DE SEGURANÇA (RLS) - VIAJASTORE V2
 -- =============================================================================
 -- Este script corrige erros de "recursão infinita" e garante as permissões corretas
--- para ADMINS, AGENCIES, e CLIENTS. É seguro executar este script múltiplas vezes,
--- pois ele remove as políticas antigas antes de recriá-las.
+-- para ADMINS, AGENCIES, e CLIENTS em todas as tabelas relevantes.
+-- É seguro executar este script múltiplas vezes, pois ele remove as políticas 
+-- antigas antes de recriá-las.
 -- =============================================================================
 
 -- 1. FUNÇÃO SEGURA PARA VERIFICAR O PAPEL DO USUÁRIO
--- Cria uma função `get_my_role()` que lê o papel do usuário atual sem disparar
--- a RLS da tabela 'profiles', quebrando o ciclo de recursão.
 CREATE OR REPLACE FUNCTION get_my_role()
 RETURNS TEXT AS $$
 DECLARE
@@ -25,63 +24,59 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- 2. LIMPEZA DE POLÍTICAS ANTIGAS (PARA GARANTIR UMA BASE LIMPA)
-DROP POLICY IF EXISTS "Enable full access for admins on agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Admin full access on agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Agencies can manage their own record" ON public.agencies;
+DROP POLICY IF EXISTS "Admin full access" ON public.agencies;
+DROP POLICY IF EXISTS "Agencies can manage own record" ON public.agencies;
 DROP POLICY IF EXISTS "Public can view active agencies" ON public.agencies;
 
-DROP POLICY IF EXISTS "Enable full access for admins on profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Users can manage their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can read their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admin full access" ON public.profiles;
+DROP POLICY IF EXISTS "Users can manage own profile" ON public.profiles;
+
+DROP POLICY IF EXISTS "Admin full access" ON public.trips;
+DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
+DROP POLICY IF EXISTS "Public can view active trips" ON public.trips;
+
+DROP POLICY IF EXISTS "Admin full access" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Public can view reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Users can manage own reviews" ON public.agency_reviews;
+
+DROP POLICY IF EXISTS "Admin full access" ON public.themes;
+DROP POLICY IF EXISTS "Authenticated users can view themes" ON public.themes;
 
 
--- 3. POLÍTICAS PARA ADMINISTRADORES (ADMIN)
--- Concede permissão total (SELECT, INSERT, UPDATE, DELETE) para usuários com
--- o papel 'ADMIN' nas tabelas 'agencies' e 'profiles'.
-CREATE POLICY "Admin full access on agencies"
-ON public.agencies
-FOR ALL USING ( get_my_role() = 'ADMIN' )
-WITH CHECK ( get_my_role() = 'ADMIN' );
-
-CREATE POLICY "Admin full access on profiles"
-ON public.profiles
-FOR ALL USING ( get_my_role() = 'ADMIN' )
-WITH CHECK ( get_my_role() = 'ADMIN' );
+-- 3. POLÍTICAS PARA A TABELA 'agencies'
+CREATE POLICY "Admin full access" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Agencies can manage own record" ON public.agencies FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (subscription_status = 'ACTIVE' AND deleted_at IS NULL);
 
 
--- 4. POLÍTICAS PARA AGÊNCIAS (AGENCY)
--- Permite que uma agência autenticada leia e atualize seu próprio registro.
-CREATE POLICY "Agencies can manage their own record"
-ON public.agencies
-FOR ALL USING ( auth.uid() = id )
-WITH CHECK ( auth.uid() = id );
+-- 4. POLÍTICAS PARA A TABELA 'profiles'
+CREATE POLICY "Admin full access" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Users can manage own profile" ON public.profiles FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 
--- 5. POLÍTICAS PARA USUÁRIOS (CLIENT)
--- Permite que um usuário autenticado leia e atualize seu próprio perfil.
-CREATE POLICY "Users can read their own profile"
-ON public.profiles
-FOR SELECT USING ( auth.uid() = id );
-
-CREATE POLICY "Users can update their own profile"
-ON public.profiles
-FOR UPDATE USING ( auth.uid() = id )
-WITH CHECK ( auth.uid() = id );
+-- 5. POLÍTICAS PARA A TABELA 'trips'
+CREATE POLICY "Admin full access" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (active = true);
 
 
--- 6. POLÍTICAS PÚBLICAS (PARA VISITANTES NÃO LOGADOS)
--- Permite que qualquer pessoa veja agências que estão ativas e não foram deletadas.
-CREATE POLICY "Public can view active agencies"
-ON public.agencies
-FOR SELECT USING ( subscription_status = 'ACTIVE' AND deleted_at IS NULL );
+-- 6. POLÍTICAS PARA A TABELA 'agency_reviews'
+CREATE POLICY "Admin full access" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
+CREATE POLICY "Users can manage own reviews" ON public.agency_reviews FOR ALL USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
 
 
--- 7. HABILITA A SEGURANÇA (RLS) NAS TABELAS
--- Garante que as políticas acima sejam aplicadas.
+-- 7. POLÍTICAS PARA A TABELA 'themes'
+CREATE POLICY "Admin full access" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Authenticated users can view themes" ON public.themes FOR SELECT USING (auth.role() = 'authenticated');
+
+
+-- 8. HABILITA A SEGURANÇA (RLS) NAS TABELAS
 ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agency_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.themes ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
 -- FIM DO SCRIPT

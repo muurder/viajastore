@@ -223,7 +223,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             `);
             
           if (error) {
-             if (error.code !== '42P01') console.error("Error fetching agency reviews", error);
+             console.error("Error fetching agency reviews:", error.message || error);
              return;
           }
 
@@ -242,8 +242,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   response: r.response
               })));
           }
-      } catch (err) {
-          console.warn("Agency reviews table might not exist yet.");
+      } catch (err: any) {
+          console.warn("Agency reviews table might not exist yet.", err.message || err);
       }
   };
 
