@@ -510,36 +510,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return; 
     }
 
-    const { data: updatedProfile, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .update(dbUpdates)
-      .eq('id', clientId)
-      .select()
-      .single();
+      .eq('id', clientId);
 
     if (error) {
       console.error('Error updating client profile:', error);
       throw error;
     }
     
-    if (updatedProfile) {
-        setClients(prevClients => 
-            prevClients.map(client => {
-                if (client.id === clientId) {
-                    const updatedClient: Client = {
-                        ...client,
-                        name: updatedProfile.full_name,
-                        cpf: updatedProfile.cpf,
-                        phone: updatedProfile.phone,
-                        status: updatedProfile.status,
-                        avatar: updatedProfile.avatar_url,
-                    };
-                    return updatedClient;
-                }
-                return client;
-            })
-        );
-    }
+    // If successful, update the local state manually
+    setClients(prevClients => 
+        prevClients.map(client => {
+            if (client.id === clientId) {
+                return { ...client, ...data };
+            }
+            return client;
+        })
+    );
   };
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
