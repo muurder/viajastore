@@ -465,12 +465,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
       .eq('id', reviewId);
       
-    if (error || !count) {
+    if (error) {
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
         return;
     }
@@ -530,12 +530,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_expires_at: expiresAt
     };
 
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(updates)
       .eq('id', agencyId);
 
-    if (error || !count) {
+    if (error) {
       showToast('A alteração da assinatura não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
@@ -557,12 +557,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.cnpj) dbUpdates.cnpj = data.cnpj;
     if (data.phone) dbUpdates.phone = data.phone;
 
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update(dbUpdates)
       .eq('id', agencyId);
     
-    if (error || !count) {
+    if (error) {
       showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
@@ -580,12 +580,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
       .eq('id', agencyId);
 
-    if (error || !count) {
+    if (error) {
       console.error('Error toggling agency status:', error);
       showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
       return;
