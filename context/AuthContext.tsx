@@ -106,9 +106,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // 3. Fallback (User exists in Auth but no table record found yet)
-      // We do NOT set user(null) here immediately if we are in a signup flow
-      // handled by ensureUserRecord logic below.
-      console.log("User authenticated but no profile found. Waiting for creation...");
+      // This usually happens if ensureUserRecord failed or hasn't run yet.
+      console.log("User authenticated but no profile found.");
       setUser(null); 
 
     } catch (error) {
@@ -128,7 +127,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log(`Ensuring record for ${role}:`, userId);
 
       try {
-          if (role === 'AGENCY') {
+          if (role === UserRole.AGENCY) {
               // Generate a guaranteed slug
               const baseSlug = slugify(userName);
               const uniqueSuffix = Math.floor(Math.random() * 10000);
@@ -143,6 +142,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   slug: generatedSlug,
                   // Optional fields sent as null/empty to pass DB constraints if any
                   cnpj: null, 
+                  phone: null,
                   hero_mode: 'TRIPS',
                   subscription_status: 'INACTIVE',
                   subscription_plan: 'BASIC'
@@ -159,7 +159,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   full_name: userName,
                   email: userEmail,
                   role: 'CLIENT',
-                  avatar_url: userAvatar
+                  avatar_url: userAvatar,
+                  cpf: null,
+                  phone: null
               }, { onConflict: 'id' });
 
               if (error) {
@@ -184,6 +186,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Check for pending role on initial load too (in case of redirect return)
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
+            console.log("Found pending role on init:", pendingRole);
             await ensureUserRecord(session.user, pendingRole);
             localStorage.removeItem('viajastore_pending_role');
         }
@@ -198,20 +201,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         if (session?.user) {
           if (event === 'SIGNED_IN') {
+             // 1. Check local storage for role
              const pendingRole = localStorage.getItem('viajastore_pending_role');
              if (pendingRole) {
-                 console.log("Found pending role:", pendingRole);
+                 console.log("Found pending role after sign in:", pendingRole);
                  const success = await ensureUserRecord(session.user, pendingRole);
                  if (success) {
                     localStorage.removeItem('viajastore_pending_role');
                  }
              }
-             // Fetch data immediately after potential creation
+             
+             // 2. Fetch data immediately
              await fetchUserData(session.user.id, session.user.email!);
           } else if (event === 'TOKEN_REFRESHED') {
-             // Silent refresh
-          } else {
-             fetchUserData(session.user.id, session.user.email!);
+             // Silent refresh, maybe update user data if needed
+          } else if (event === 'USER_UPDATED') {
+             await fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
@@ -248,7 +253,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log("Setting pending role for Google Signup:", role);
         localStorage.setItem('viajastore_pending_role', role);
     } else {
-        // Login flow, clear any stale state
+        // Login flow, clear any stale state to avoid overwriting existing role
         localStorage.removeItem('viajastore_pending_role');
     }
 
@@ -268,6 +273,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     await (supabase.auth as any).signOut();
     setUser(null);
+    localStorage.removeItem('viajastore_pending_role');
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
@@ -294,14 +300,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
+        const baseSlug = slugify(data.name);
+        const uniqueSuffix = Math.floor(Math.random() * 1000);
+        
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
           email: data.email,
-          cnpj: data.cnpj,
+          cnpj: data.cnpj, // Can be null now
           phone: data.phone,
-          description: data.description,
+          description: data.description || '',
           logo_url: data.logo || `https://ui-avatars.com/api/?name=${data.name}`,
+          slug: `${baseSlug}-${uniqueSuffix}`,
           subscription_status: 'INACTIVE',
           subscription_plan: 'BASIC'
         }, { onConflict: 'id' });
@@ -312,7 +322,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: userId,
           full_name: data.name,
           email: data.email, 
-          cpf: data.cpf,
+          cpf: data.cpf, // Can be null now
           phone: data.phone,
           role: 'CLIENT',
           avatar_url: `https://ui-avatars.com/api/?name=${data.name}`
@@ -322,7 +332,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (dbError: any) {
       console.error("DB Upsert Error:", dbError);
-      return { success: true }; 
+      return { success: true }; // User created in Auth, DB might fail but we allow login
     }
 
     return { success: true };
