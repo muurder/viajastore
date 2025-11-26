@@ -1,5 +1,6 @@
 
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -465,12 +466,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId);
+      .eq('id', reviewId)
+      .select(undefined, { count: 'exact', head: true });
       
-    if (error) {
+    if (error || count === 0) {
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
         return;
     }
@@ -536,6 +538,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', agencyId);
 
     if (error) {
+      console.error('Error updating subscription:', error);
       showToast('A alteração da assinatura não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
@@ -556,6 +559,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.slug) dbUpdates.slug = data.slug;
     if (data.cnpj) dbUpdates.cnpj = data.cnpj;
     if (data.phone) dbUpdates.phone = data.phone;
+    
+    if (Object.keys(dbUpdates).length === 0) return;
 
     const { error } = await supabase
       .from('agencies')
@@ -563,6 +568,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .eq('id', agencyId);
     
     if (error) {
+      console.error('Error updating agency profile:', error);
       showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
       return;
     }
@@ -615,7 +621,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteTrip = async (tripId: string) => {
-    // ... storage deletion logic ...
+    const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
+    if (imagesError) { console.error('Error deleting trip images:', imagesError); }
     const { error: dbError } = await supabase.from('trips').delete().eq('id', tripId);
     if (dbError) throw dbError;
     setTrips(prev => prev.filter(t => t.id !== tripId));
@@ -645,6 +652,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { error } = await supabase.from(table).update({ deleted_at }).eq('id', id);
     if (error) { showToast(`Erro: ${error.message}`, 'error'); throw error; }
     if (table === 'agencies') { setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); } 
+    // FIX: Changed 'a' to 'c' to correctly reference the client object being mapped.
     else { setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); }
   };
 
