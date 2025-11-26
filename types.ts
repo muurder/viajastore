@@ -31,6 +31,7 @@ export interface User {
   role: UserRole;
   avatar?: string;
   createdAt?: string;
+  deleted_at?: string; // For soft delete
 }
 
 export interface Client extends User {

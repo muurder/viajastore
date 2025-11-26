@@ -44,6 +44,8 @@ interface DataContextType {
   toggleTripFeatureStatus: (tripId: string) => Promise<void>;
   
   // Master Admin Functions
+  softDeleteEntity: (id: string, table: 'profiles' | 'agencies') => Promise<void>;
+  restoreEntity: (id: string, table: 'profiles' | 'agencies') => Promise<void>;
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
   deleteMultipleUsers: (userIds: string[]) => Promise<void>;
   getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
@@ -174,7 +176,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         website: a.website,
         phone: a.phone,
         address: a.address || {},
-        bankInfo: a.bank_info || {}
+        bankInfo: a.bank_info || {},
+        deleted_at: a.deleted_at // Map soft delete field
       }));
 
       setAgencies(formattedAgencies);
@@ -200,7 +203,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           favorites: [], 
           createdAt: p.created_at,
           address: p.address || {},
-          status: p.status || 'ACTIVE'
+          status: p.status || 'ACTIVE',
+          deleted_at: p.deleted_at
         } as Client));
 
         setClients(formattedClients);
@@ -458,6 +462,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
+    // Optimistic update
+    setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
+
     const { error } = await supabase
       .from('agency_reviews')
       .update({
@@ -465,12 +472,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         rating: data.rating,
       })
       .eq('id', reviewId);
+      
     if (error) {
-      showToast('Erro ao atualizar avaliação: ' + error.message, 'error');
-      throw error;
+        showToast('Erro ao atualizar avaliação.', 'error');
+        await fetchAgencyReviews(); // Revert on error
+        throw error;
     }
-    showToast('Avaliação atualizada com sucesso.', 'success');
-    await fetchAgencyReviews(); // Refresh data
+    showToast('Avaliação atualizada!', 'success');
   };
 
   const deleteReview = async (reviewId: string) => {
@@ -503,12 +511,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+    // Optimistic update for instant UI feedback
+    setAgencies(prev => prev.map(a => 
+        a.id === agencyId 
+        ? { ...a, subscriptionStatus: status, subscriptionPlan: plan } 
+        : a
+    ));
+
     const { error } = await supabase.from('agencies').update({
       subscription_status: status,
       subscription_plan: plan,
       subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
     }).eq('id', agencyId);
-    if (!error) await refreshData();
+    
+    if (error) {
+      showToast('Erro ao atualizar assinatura.', 'error');
+      await fetchAgencies(); // Revert UI on failure
+      throw error;
+    }
+    showToast('Assinatura atualizada com sucesso!', 'success');
   };
 
   const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
@@ -677,6 +698,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await refreshData();
     }
   };
+  
+  const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    const { error } = await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    await refreshData();
+  };
+
+  const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
+    if (error) throw error;
+    await refreshData();
+  };
 
   const deleteUser = async (userId: string, role: UserRole) => {
     const { error } = await supabase.rpc('delete_user_by_admin', {
@@ -841,7 +874,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-      deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
+      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
       getAgencyTheme, saveAgencyTheme,
