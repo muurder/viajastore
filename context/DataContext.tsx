@@ -465,9 +465,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const originalReviews = [...agencyReviews];
-    setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
-
     const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
@@ -475,9 +472,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
     if (error) {
         showToast('Erro ao atualizar avaliação.', 'error');
-        setAgencyReviews(originalReviews); 
         throw error;
     }
+
+    setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
     showToast('Avaliação atualizada!', 'success');
   };
 
@@ -523,24 +521,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
-    const originalAgencies = [...agencies];
-    setAgencies(prev => prev.map(a => 
-        a.id === agencyId 
-        ? { ...a, subscriptionStatus: status, subscriptionPlan: plan, subscriptionExpiresAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString() } 
-        : a
-    ));
-
+    const expiresAt = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString();
+    
     const { error } = await supabase.from('agencies').update({
       subscription_status: status,
       subscription_plan: plan,
-      subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+      subscription_expires_at: expiresAt
     }).eq('id', agencyId);
     
     if (error) {
-      showToast('Erro ao atualizar assinatura.', 'error');
-      setAgencies(originalAgencies);
+      showToast('Erro ao atualizar assinatura: ' + error.message, 'error');
       throw error;
     }
+    
+    // On success, update local state
+    setAgencies(prev => prev.map(a => 
+        a.id === agencyId 
+        ? { ...a, subscriptionStatus: status, subscriptionPlan: plan, subscriptionExpiresAt: expiresAt } 
+        : a
+    ));
     showToast('Assinatura atualizada com sucesso!', 'success');
   };
 
@@ -570,13 +569,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
     }
 
-    const originalAgencies = [...agencies];
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-
-    // Optimistic UI update
-    setAgencies(prev => prev.map(a => 
-        a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
-    ));
 
     const { error } = await supabase
         .from('agencies')
@@ -586,11 +579,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
         console.error('Error toggling agency status:', error);
         showToast(`Erro ao alterar status: ${error.message}`, 'error');
-        // Revert UI on failure
-        setAgencies(originalAgencies);
-        return;
+        return; // Do not update UI if DB fails
     }
-
+    
+    // On success, update local state
+    setAgencies(prev => prev.map(a => 
+        a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
+    ));
     showToast(`Agência ${newStatus === 'ACTIVE' ? 'reativada' : 'suspensa'}.`, 'success');
   };
 
