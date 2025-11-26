@@ -81,6 +81,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             <h2 className="text-2xl font-bold text-center text-gray-900">Bem-vindo de volta!</h2>
             <p className="text-center text-sm text-gray-500 mt-2 mb-6">Faça login para continuar.</p>
             
+            {/* Login View: Generic Google Login (checks existing account) */}
             <GoogleButton label="Entrar com Google" onClick={() => loginWithGoogle()} />
 
             <div className="relative my-6">
@@ -118,7 +119,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 
 // --- SIGNUP VIEW ---
 const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
-    const { register } = useAuth();
+    const { register, loginWithGoogle } = useAuth();
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
     const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '' });
     const [error, setError] = useState('');
@@ -145,21 +146,30 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         }
     };
     
+    // Handler for Google Signup: Passes the specific role based on the active tab
+    const handleGoogleSignup = () => {
+        loginWithGoogle(activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
+    };
+    
     return (
         <div className="p-8 md:p-10 max-h-[90vh] overflow-y-auto scrollbar-thin">
             <h2 className="text-2xl font-bold text-center text-gray-900">Crie sua conta</h2>
             <p className="text-center text-sm text-gray-500 mt-2 mb-6">É rápido e fácil.</p>
             
-            <GoogleButton label="Cadastrar com Google" onClick={() => {}} />
+            <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
+              <button onClick={() => setActiveTab('CLIENT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><User size={16}/> Sou Viajante</button>
+              <button onClick={() => setActiveTab('AGENCY')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><Building size={16}/> Sou Agência</button>
+            </div>
+
+            {/* Pass the handler that knows the active tab */}
+            <GoogleButton 
+                label={activeTab === 'CLIENT' ? 'Cadastrar Viajante com Google' : 'Cadastrar Agência com Google'} 
+                onClick={handleGoogleSignup} 
+            />
 
             <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
                 <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">ou com email</span></div>
-            </div>
-
-            <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
-              <button onClick={() => setActiveTab('CLIENT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><User size={16}/> Sou Viajante</button>
-              <button onClick={() => setActiveTab('AGENCY')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><Building size={16}/> Sou Agência</button>
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-4">

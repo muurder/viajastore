@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -9,7 +8,7 @@ interface AuthContextType {
   user: User | Client | Agency | Admin | null;
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: (redirectPath?: string) => Promise<void>;
+  loginWithGoogle: (role?: UserRole, redirectPath?: string) => Promise<void>;
   logout: () => Promise<void>;
   register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
@@ -46,7 +45,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('agencies')
         .select('*')
         .eq('id', authId)
-        .single();
+        .maybeSingle();
 
       if (agencyData) {
         const agencyUser: Agency = {
@@ -57,16 +56,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           slug: agencyData.slug || slugify(agencyData.name),
           cnpj: agencyData.cnpj || '',
           description: agencyData.description || '',
-          logo: agencyData.logo_url || '', // Ensure logo maps to logo_url
-          whatsapp: agencyData.whatsapp, // New field mapped
+          logo: agencyData.logo_url || '', 
+          whatsapp: agencyData.whatsapp,
           
-          // Hero Configuration
           heroMode: agencyData.hero_mode || 'TRIPS',
           heroBannerUrl: agencyData.hero_banner_url,
           heroTitle: agencyData.hero_title,
           heroSubtitle: agencyData.hero_subtitle,
           
-          // Custom Settings (Pills)
           customSettings: agencyData.custom_settings || {},
 
           subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
@@ -86,7 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('profiles')
         .select('*')
         .eq('id', authId)
-        .single();
+        .maybeSingle();
 
       if (profileData) {
         const role = profileData.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT;
@@ -108,13 +105,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
       
-      // 3. Fallback
-      setUser({ id: authId, email, name: email.split('@')[0], role: UserRole.CLIENT });
+      // 3. Fallback (User exists in Auth but no table record found yet)
+      // This might happen briefly during creation
+      setUser(null); 
 
     } catch (error) {
       console.error("Error fetching user details:", error);
       setUser(null);
     }
+  };
+
+  // Helper to ensure the record exists after Google Login
+  const ensureUserRecord = async (authUser: any, role: string) => {
+      const userId = authUser.id;
+      const userEmail = authUser.email;
+      const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
+      const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
+
+      try {
+          if (role === 'AGENCY') {
+              // Check if exists first to avoid overwriting data
+              const { data } = await supabase.from('agencies').select('id').eq('id', userId).maybeSingle();
+              if (!data) {
+                  await supabase.from('agencies').insert({
+                      id: userId,
+                      name: userName,
+                      email: userEmail,
+                      logo_url: userAvatar,
+                      subscription_status: 'INACTIVE', // Default for new agencies
+                      subscription_plan: 'BASIC'
+                  });
+              }
+          } else {
+              // Client (Profile)
+              const { data } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+              if (!data) {
+                  await supabase.from('profiles').insert({
+                      id: userId,
+                      full_name: userName,
+                      email: userEmail,
+                      role: 'CLIENT',
+                      avatar_url: userAvatar
+                  });
+              }
+          }
+      } catch (err) {
+          console.error("Error ensuring user record:", err);
+      }
   };
 
   useEffect(() => {
@@ -135,7 +172,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
         if (session?.user) {
           if (event === 'SIGNED_IN') {
-             setTimeout(() => fetchUserData(session.user.id, session.user.email!), 1000);
+             // --- GOOGLE SIGNUP HANDLER ---
+             // Check if there is a pending role from localStorage
+             const pendingRole = localStorage.getItem('viajastore_pending_role');
+             if (pendingRole) {
+                 await ensureUserRecord(session.user, pendingRole);
+                 localStorage.removeItem('viajastore_pending_role');
+             }
+             // -----------------------------
+             
+             setTimeout(() => fetchUserData(session.user.id, session.user.email!), 500);
           } else if (event === 'TOKEN_REFRESHED') {
              // Optional: refresh user data silently
           } else {
@@ -168,16 +214,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { success: true };
   };
 
-  const loginWithGoogle = async (redirectPath?: string) => {
+  const loginWithGoogle = async (role?: UserRole, redirectPath?: string) => {
     const redirectTo = redirectPath 
         ? `${window.location.origin}/#${redirectPath}` 
         : `${window.location.origin}/`;
+
+    // If a role is specified (Signup flow), store it
+    if (role) {
+        localStorage.setItem('viajastore_pending_role', role);
+    } else {
+        // Login flow, clear any stale state
+        localStorage.removeItem('viajastore_pending_role');
+    }
 
     // Fix: Cast auth to any
     const { error } = await (supabase.auth as any).signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectTo
+        redirectTo: redirectTo,
+        queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+        }
       }
     });
     if (error) console.error("Google login error:", error);
@@ -347,7 +405,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { error } = await supabase.from('profiles').delete().eq('id', user.id);
           if (error) throw error;
       }
+      
       // Fix: Cast auth to any
+      // Use state update instead of page reload for clean SPA experience
       await (supabase.auth as any).signOut();
       setUser(null);
       return { success: true };
