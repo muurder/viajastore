@@ -42,6 +42,7 @@ export interface Client extends User {
   notificationsEnabled?: boolean;
   address?: Address;
   status?: 'ACTIVE' | 'SUSPENDED';
+  last_sign_in_at?: string;
 }
 
 export interface Agency extends User {

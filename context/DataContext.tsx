@@ -52,6 +52,8 @@ interface DataContextType {
   updateMultipleUsersStatus: (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => Promise<void>;
   updateMultipleAgenciesStatus: (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => Promise<void>;
   logAuditAction: (action: string, details: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  updateUserAvatarByAdmin: (userId: string, file: File) => Promise<string | null>;
 
   getPublicTrips: () => Trip[]; 
   getAgencyPublicTrips: (agencyId: string) => Trip[];
@@ -204,7 +206,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           createdAt: p.created_at,
           address: p.address || {},
           status: p.status || 'ACTIVE',
-          deleted_at: p.deleted_at
+          deleted_at: p.deleted_at,
+          last_sign_in_at: p.last_sign_in_at,
         } as Client));
 
         setClients(formattedClients);
@@ -501,6 +504,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if(data.cpf) dbUpdates.cpf = data.cpf;
     if(data.phone) dbUpdates.phone = data.phone;
     if(data.status) dbUpdates.status = data.status;
+    if(data.avatar) dbUpdates.avatar_url = data.avatar;
 
     const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', clientId);
     if (error) {
@@ -811,6 +815,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
+  const sendPasswordReset = async (email: string) => {
+    const { error } = await (supabase.auth as any).resetPasswordForEmail(email);
+    if (error) {
+        showToast(`Erro ao enviar email: ${error.message}`, 'error');
+    } else {
+        showToast(`Email de redefinição de senha enviado para ${email}.`, 'success');
+    }
+  };
+
+  const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}-avatar-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const publicUrl = data.publicUrl;
+      
+      await updateClientProfile(userId, { avatar: publicUrl });
+
+      return publicUrl;
+    } catch (error) {
+      console.error("Error uploading avatar for user:", error);
+      showToast("Erro ao enviar novo avatar.", "error");
+      return null;
+    }
+  };
+
   // PUBLIC HELPERS
   const getPublicTrips = () => trips.filter(t => t.active);
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
@@ -895,6 +932,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
       softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
+      sendPasswordReset, updateUserAvatarByAdmin,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
       getAgencyTheme, saveAgencyTheme,

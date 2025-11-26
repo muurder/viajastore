@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -11,7 +11,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams } from 'react-router-dom';
@@ -96,12 +96,12 @@ const ActionMenu: React.FC<{ actions: { label: string; onClick: () => void; icon
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
-      agencies, trips, agencyReviews, clients, auditLogs, 
+      agencies, trips, agencyReviews, clients, auditLogs, bookings,
       updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, 
       deleteUser, deleteMultipleUsers, getUsersStats,
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData, updateAgencyReview, updateAgencyProfileByAdmin,
-      softDeleteEntity, restoreEntity,
+      softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin
   } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview } = useTheme();
   const { showToast } = useToast();
@@ -133,6 +133,10 @@ const AdminDashboard: React.FC = () => {
   );
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
+
+  // New state for Edit User Modal
+  const [modalTab, setModalTab] = useState('PROFILE');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const handleSetAgencyView = (view: 'cards' | 'list') => {
     setAgencyView(view);
@@ -171,45 +175,30 @@ const AdminDashboard: React.FC = () => {
     const name = type === 'user' ? clients.find(c => c.id === id)?.name : agencies.find(a => a.id === id)?.name;
     if (window.confirm(`Mover "${name}" para a lixeira?`)) {
         setIsProcessing(true);
-        try {
-            await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
-            showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
-            if (type === 'user') {
-                setShowUserTrash(true);
-            } else {
-                setShowAgencyTrash(true);
-            }
-        } catch (error) {
-            // Error toast is handled in context
-        } finally {
-            setIsProcessing(false);
+        await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
+        setIsProcessing(false);
+        showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
+        if (type === 'user') {
+            setShowUserTrash(true);
+        } else {
+            setShowAgencyTrash(true);
         }
     }
   };
 
   const handleRestore = async (id: string, type: 'user' | 'agency') => {
     setIsProcessing(true);
-    try {
-        await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
-        showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
-    } catch (error) {
-        // Error toast is handled in context
-    } finally {
-        setIsProcessing(false);
-    }
+    await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
+    setIsProcessing(false);
+    showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
   };
 
   const handlePermanentDelete = async (id: string, role: UserRole) => {
     if (window.confirm('Excluir permanentemente? Esta ação não pode ser desfeita.')) {
         setIsProcessing(true);
-        try {
-            await deleteUser(id, role);
-            showToast('Excluído permanentemente.', 'success');
-        } catch (error) {
-            showToast('Erro ao excluir permanentemente.', 'error');
-        } finally {
-            setIsProcessing(false);
-        }
+        await deleteUser(id, role);
+        setIsProcessing(false);
+        showToast('Excluído permanentemente.', 'success');
     }
   };
   
@@ -260,11 +249,11 @@ const AdminDashboard: React.FC = () => {
       try {
           await updateClientProfile(selectedItem.id, editFormData);
           showToast('Usuário atualizado!', 'success');
+          setModalType(null);
       } catch (error) {
           showToast('Erro ao atualizar usuário.', 'error');
       } finally {
           setIsProcessing(false);
-          setModalType(null);
       }
   };
 
@@ -346,6 +335,19 @@ const AdminDashboard: React.FC = () => {
   const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus(selectedUsers, status); setSelectedUsers([]); showToast('Status atualizado.', 'success'); };
   const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => { await updateMultipleAgenciesStatus(selectedAgencies, status); setSelectedAgencies([]); showToast('Status atualizado.', 'success'); };
   const handleViewStats = async () => { const stats = await getUsersStats(selectedUsers); setUserStats(stats); setModalType('VIEW_STATS'); };
+  
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && selectedItem) {
+        setIsUploadingAvatar(true);
+        const newAvatarUrl = await updateUserAvatarByAdmin(selectedItem.id, e.target.files[0]);
+        if (newAvatarUrl) {
+            setEditFormData({ ...editFormData, avatar: newAvatarUrl });
+            setSelectedItem({ ...selectedItem, avatar: newAvatarUrl });
+        }
+        setIsUploadingAvatar(false);
+    }
+  };
+
 
   const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.id)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
 
@@ -361,7 +363,7 @@ const AdminDashboard: React.FC = () => {
                   {filteredUsers.map(c => (
                     <div key={c.id} className={`bg-white rounded-2xl shadow-sm border ${selectedUsers.includes(c.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
                       <input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="absolute top-4 left-4 h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
-                      <div className="absolute top-4 right-4"><ActionMenu actions={showUserTrash ? [{label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(c.id, 'user')}, {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(c.id, c.role), variant: 'danger'}] : [{ label: 'Editar Dados', icon: Edit3, onClick: () => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); } }, { label: c.status === 'ACTIVE' ? 'Suspender' : 'Reativar', icon: c.status === 'ACTIVE' ? Ban : UserCheck, onClick: () => handleUserStatusToggle(c), variant: c.status === 'ACTIVE' ? 'default' : 'default' }, { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(c.id, 'user'), variant: 'danger' }]} /></div>
+                      <div className="absolute top-4 right-4"><ActionMenu actions={showUserTrash ? [{label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(c.id, 'user')}, {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(c.id, c.role), variant: 'danger'}] : [{ label: 'Editar Dados', icon: Edit3, onClick: () => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); setModalTab('PROFILE'); } }, { label: c.status === 'ACTIVE' ? 'Suspender' : 'Reativar', icon: c.status === 'ACTIVE' ? Ban : UserCheck, onClick: () => handleUserStatusToggle(c) }, { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(c.id, 'user'), variant: 'danger' }]} /></div>
                       <div className="flex flex-col items-center text-center pt-8">
                         <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{c.name}</p>
@@ -389,8 +391,11 @@ const AdminDashboard: React.FC = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <button title="Editar" onClick={() => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                            <button title="Editar" onClick={() => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); setModalTab('PROFILE'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                                                 <Edit3 size={18} />
+                                            </button>
+                                            <button title={c.status === 'ACTIVE' ? 'Suspender' : 'Reativar'} onClick={() => handleUserStatusToggle(c)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                                                {c.status === 'ACTIVE' ? <Ban size={18}/> : <UserCheck size={18}/>}
                                             </button>
                                             <button title="Mover para Lixeira" onClick={() => handleSoftDelete(c.id, 'user')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                                 <Trash2 size={18} />
@@ -518,6 +523,12 @@ const AdminDashboard: React.FC = () => {
     return null;
   };
 
+  const closeModal = () => {
+    setModalType(null);
+    setSelectedItem(null);
+    setEditFormData({});
+  }
+
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen relative animate-[fadeIn_0.3s]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"> <div> <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2"> Painel Master {isMaster && <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full border border-purple-200 uppercase tracking-wider">Super Admin</span>} </h1> <p className="text-gray-500 mt-1">Gestão completa da plataforma ViajaStore.</p> </div> <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100"> <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold">{user.name.charAt(0)}</div> <div className="pr-4"><p className="text-xs font-bold text-gray-400 uppercase">Administrador</p><p className="font-bold text-gray-900 text-sm">{user.email}</p></div> </div> </div>
@@ -557,12 +568,75 @@ const AdminDashboard: React.FC = () => {
       {renderToolbar()}
       {renderContent()}
 
-      {modalType === 'VIEW_STATS' && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Estatísticas dos Usuários Selecionados</h3><button onClick={() => setModalType(null)} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div> <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin"> {userStats.map(stat => (<div key={stat.userId} className="grid grid-cols-4 gap-4 items-center bg-gray-50 p-3 rounded-lg border border-gray-100"><p className="font-bold col-span-1">{stat.userName}</p><p className="text-sm text-center"><span className="font-bold">{stat.totalBookings}</span> Viagens</p><p className="text-sm text-center"><span className="font-bold text-green-600">R$ {stat.totalSpent.toLocaleString()}</span> Gastos</p><p className="text-sm text-center"><span className="font-bold">{stat.totalReviews}</span> Avaliações</p></div>))} </div> </div> </div> )}
-      {modalType === 'MANAGE_SUB' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Gerenciar Assinatura</h3><button onClick={() => setModalType(null)} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div><div className="bg-gray-50 p-4 rounded-xl mb-6 flex items-center gap-4"><img src={selectedItem.logo} className="w-12 h-12 rounded-full bg-white" alt=""/><div className="truncate"><p className="font-bold text-gray-900 truncate">{selectedItem.name}</p><p className="text-xs text-gray-500 truncate">{selectedItem.email}</p></div></div> <div className="space-y-4"><p className="text-xs font-bold text-gray-400 uppercase">Plano</p><div className="grid grid-cols-2 gap-4"><button onClick={() => setEditFormData({...editFormData, plan: 'BASIC'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'BASIC' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">BASIC</p></button><button onClick={() => setEditFormData({...editFormData, plan: 'PREMIUM'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'PREMIUM' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-2 ring-purple-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">PREMIUM</p></button></div><p className="text-xs font-bold text-gray-400 uppercase mt-4">Status</p><button onClick={() => setEditFormData({...editFormData, status: editFormData.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })} className={`w-full py-3 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${editFormData.status === 'ACTIVE' ? 'border-green-200 bg-green-50 text-green-600' : 'border-red-200 bg-red-50 text-red-600'}`}>{editFormData.status === 'ACTIVE' ? <><CheckCircle size={16}/> Ativo</> : <><Ban size={16}/> Inativo</>}</button> <button onClick={handleSubscriptionUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
-      {modalType === 'EDIT_USER' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Usuário</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Email (Apenas leitura)</label><input value={editFormData.email || ''} disabled className="w-full border p-3 rounded-lg bg-gray-100 text-gray-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleUserUpdate} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">Salvar Alterações</button> </div> </div> </div> )}
-      {modalType === 'EDIT_AGENCY' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleAgencyUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
-      {modalType === 'EDIT_REVIEW' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Avaliação</h3> <form onSubmit={(e) => { e.preventDefault(); handleReviewUpdate(); }} className="space-y-4"> <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nota (1-5)</label> <div className="flex gap-1"> {[1, 2, 3, 4, 5].map(star => (<button key={star} type="button" onClick={() => setEditFormData({...editFormData, rating: star})}><Star className={`transition-colors h-8 w-8 ${editFormData.rating >= star ? 'text-amber-400 fill-current' : 'text-gray-300'}`} /></button>))} </div> </div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-3 rounded-lg h-32 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </form> </div> </div> )}
-      {modalType === 'EDIT_TRIP' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Edição Moderada de Viagem</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço (R$)</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleTripUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
+      {modalType === 'VIEW_STATS' && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Estatísticas dos Usuários Selecionados</h3><button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div> <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin"> {userStats.map(stat => (<div key={stat.userId} className="grid grid-cols-4 gap-4 items-center bg-gray-50 p-3 rounded-lg border border-gray-100"><p className="font-bold col-span-1">{stat.userName}</p><p className="text-sm text-center"><span className="font-bold">{stat.totalBookings}</span> Viagens</p><p className="text-sm text-center"><span className="font-bold text-green-600">R$ {stat.totalSpent.toLocaleString()}</span> Gastos</p><p className="text-sm text-center"><span className="font-bold">{stat.totalReviews}</span> Avaliações</p></div>))} </div> </div> </div> )}
+      {modalType === 'MANAGE_SUB' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Gerenciar Assinatura</h3><button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div><div className="bg-gray-50 p-4 rounded-xl mb-6 flex items-center gap-4"><img src={selectedItem.logo} className="w-12 h-12 rounded-full bg-white" alt=""/><div className="truncate"><p className="font-bold text-gray-900 truncate">{selectedItem.name}</p><p className="text-xs text-gray-500 truncate">{selectedItem.email}</p></div></div> <div className="space-y-4"><p className="text-xs font-bold text-gray-400 uppercase">Plano</p><div className="grid grid-cols-2 gap-4"><button onClick={() => setEditFormData({...editFormData, plan: 'BASIC'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'BASIC' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">BASIC</p></button><button onClick={() => setEditFormData({...editFormData, plan: 'PREMIUM'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'PREMIUM' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-2 ring-purple-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">PREMIUM</p></button></div><p className="text-xs font-bold text-gray-400 uppercase mt-4">Status</p><button onClick={() => setEditFormData({...editFormData, status: editFormData.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })} className={`w-full py-3 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${editFormData.status === 'ACTIVE' ? 'border-green-200 bg-green-50 text-green-600' : 'border-red-200 bg-red-50 text-red-600'}`}>{editFormData.status === 'ACTIVE' ? <><CheckCircle size={16}/> Ativo</> : <><Ban size={16}/> Inativo</>}</button> <button onClick={handleSubscriptionUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
+      {modalType === 'EDIT_USER' && selectedItem && ( 
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl animate-[scaleIn_0.2s] flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">Gerenciar Usuário</h3>
+              <button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button>
+            </div>
+            <div className="flex border-b border-gray-100">
+                <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'PROFILE' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Perfil</button>
+                <button onClick={() => setModalTab('ACTIVITY')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'ACTIVITY' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Atividade</button>
+                <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'SECURITY' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Segurança</button>
+            </div>
+            <div className="p-8 overflow-y-auto flex-1">
+              {modalTab === 'PROFILE' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} className="w-24 h-24 rounded-full object-cover border-4 border-gray-100" />
+                      <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md">
+                        <Camera size={14}/>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
+                      </label>
+                      {isUploadingAvatar && <div className="absolute inset-0 rounded-full bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg">{editFormData.name}</h4>
+                      <p className="text-sm text-gray-500">{editFormData.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
+                    <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
+                  </div>
+                </div>
+              )}
+              {modalTab === 'ACTIVITY' && (
+                <div className="space-y-6">
+                    <div><h4 className="font-bold text-gray-700 mb-2">Histórico de Viagens ({bookings.filter(b => b.clientId === selectedItem.id).length})</h4><div className="space-y-2 max-h-40 overflow-y-auto pr-2">{bookings.filter(b => b.clientId === selectedItem.id).map((b: Booking) => <div key={b.id} className="bg-gray-50 p-2 rounded-lg text-xs flex justify-between"><span>{b._trip?.title || 'Viagem desconhecida'}</span> <span className="font-mono">{new Date(b.date).toLocaleDateString()}</span></div>)}</div></div>
+                    <div><h4 className="font-bold text-gray-700 mb-2">Avaliações Feitas ({agencyReviews.filter(r => r.clientId === selectedItem.id).length})</h4><div className="space-y-2 max-h-40 overflow-y-auto pr-2">{agencyReviews.filter(r => r.clientId === selectedItem.id).map(r => <div key={r.id} className="bg-gray-50 p-2 rounded-lg text-xs"><b>{r.rating}★</b> em <i>{r.agencyName}</i>: "{r.comment}"</div>)}</div></div>
+                    <div><h4 className="font-bold text-gray-700 mb-2">Último Login</h4><p className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">{selectedItem.last_sign_in_at ? new Date(selectedItem.last_sign_in_at).toLocaleString('pt-BR') : 'Nunca'}</p></div>
+                </div>
+              )}
+              {modalTab === 'SECURITY' && (
+                  <div className="space-y-6">
+                      <div>
+                          <h4 className="font-bold text-gray-700 mb-2">Gerenciar Senha</h4>
+                          <button onClick={() => sendPasswordReset(selectedItem.email)} className="w-full bg-blue-100 text-blue-700 font-bold p-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-200 transition-colors"><Key size={16}/> Enviar Link de Redefinição de Senha</button>
+                      </div>
+                      <div>
+                          <h4 className="font-bold text-gray-700 mb-2">Status da Conta</h4>
+                          <button onClick={() => handleUserStatusToggle(selectedItem)} className={`w-full p-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${selectedItem.status === 'ACTIVE' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                              {selectedItem.status === 'ACTIVE' ? <><Ban size={16}/> Suspender Usuário</> : <><UserCheck size={16}/> Reativar Usuário</>}
+                          </button>
+                      </div>
+                  </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button onClick={handleUserUpdate} className="bg-primary-600 text-white py-2.5 px-6 rounded-lg font-bold hover:bg-primary-700">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modalType === 'EDIT_AGENCY' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleAgencyUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
+      {modalType === 'EDIT_REVIEW' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Avaliação</h3> <form onSubmit={(e) => { e.preventDefault(); handleReviewUpdate(); }} className="space-y-4"> <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nota (1-5)</label> <div className="flex gap-1"> {[1, 2, 3, 4, 5].map(star => (<button key={star} type="button" onClick={() => setEditFormData({...editFormData, rating: star})}><Star className={`transition-colors h-8 w-8 ${editFormData.rating >= star ? 'text-amber-400 fill-current' : 'text-gray-300'}`} /></button>))} </div> </div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-3 rounded-lg h-32 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </form> </div> </div> )}
+      {modalType === 'EDIT_TRIP' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Edição Moderada de Viagem</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço (R$)</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleTripUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
 
     </div>
   );
