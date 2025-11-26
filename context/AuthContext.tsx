@@ -40,45 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
 
-      // 1. Check if Agency (Primary Check)
-      const { data: agencyData } = await supabase
-        .from('agencies')
-        .select('*')
-        .eq('id', authId)
-        .maybeSingle();
-
-      if (agencyData) {
-        const agencyUser: Agency = {
-          id: agencyData.id,
-          name: agencyData.name,
-          email: email,
-          role: UserRole.AGENCY,
-          slug: agencyData.slug || slugify(agencyData.name),
-          cnpj: agencyData.cnpj || '',
-          description: agencyData.description || '',
-          logo: agencyData.logo_url || '', 
-          whatsapp: agencyData.whatsapp,
-          
-          heroMode: agencyData.hero_mode || 'TRIPS',
-          heroBannerUrl: agencyData.hero_banner_url,
-          heroTitle: agencyData.hero_title,
-          heroSubtitle: agencyData.hero_subtitle,
-          
-          customSettings: agencyData.custom_settings || {},
-
-          subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
-          subscriptionPlan: agencyData.subscription_plan || 'BASIC',
-          subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
-          website: agencyData.website,
-          phone: agencyData.phone,
-          address: agencyData.address || {},
-          bankInfo: agencyData.bank_info || {}
-        };
-        setUser(agencyUser);
-        return;
-      }
-
-      // 2. Check if Profile (Client/Admin/Or an Agency that failed the first check)
+      // 1. Check profiles table first to determine role
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -86,69 +48,71 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
-        // *** START OF FIX ***
-        // Correctly handle the 'AGENCY' role if it's found in the profiles table.
-        // This fixes the bug where an agency user was being mapped as a client.
+        // Handle AGENCY role
         if (profileData.role === 'AGENCY') {
-          console.warn(`AuthContext: User ${authId} has role 'AGENCY' but wasn't found in 'agencies' table on first pass. Refetching...`);
-          // The user is an agency, so we must fetch their specific data from the 'agencies' table.
-          const { data: agencyDataRetry, error: agencyRetryError } = await supabase
+          const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
             .select('*')
             .eq('id', authId)
-            .single(); // It must exist if the profile says so.
+            .single();
 
-          if (agencyRetryError || !agencyDataRetry) {
-            console.error("CRITICAL: Data inconsistency. Profile is AGENCY but no record in agencies table.", agencyRetryError);
-            setUser(null); // Prevent login with incomplete data
+          if (agencyError || !agencyData) {
+            console.error("CRITICAL: Data inconsistency. Profile is AGENCY but no record in agencies table.", agencyError);
+            setUser(null);
             return;
           }
 
           const agencyUser: Agency = {
-            id: agencyDataRetry.id,
-            name: agencyDataRetry.name,
+            id: agencyData.id,
+            name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,
-            slug: agencyDataRetry.slug || slugify(agencyDataRetry.name),
-            cnpj: agencyDataRetry.cnpj || '',
-            description: agencyDataRetry.description || '',
-            logo: agencyDataRetry.logo_url || '',
-            whatsapp: agencyDataRetry.whatsapp,
-            heroMode: agencyDataRetry.hero_mode || 'TRIPS',
-            heroBannerUrl: agencyDataRetry.hero_banner_url,
-            heroTitle: agencyDataRetry.hero_title,
-            heroSubtitle: agencyDataRetry.hero_subtitle,
-            customSettings: agencyDataRetry.custom_settings || {},
-            subscriptionStatus: agencyDataRetry.subscription_status || 'INACTIVE',
-            subscriptionPlan: agencyDataRetry.subscription_plan || 'BASIC',
-            subscriptionExpiresAt: agencyDataRetry.subscription_expires_at || new Date().toISOString(),
-            website: agencyDataRetry.website,
-            phone: agencyDataRetry.phone,
-            address: agencyDataRetry.address || {},
-            bankInfo: agencyDataRetry.bank_info || {}
+            slug: agencyData.slug || slugify(agencyData.name),
+            cnpj: agencyData.cnpj || '',
+            description: agencyData.description || '',
+            logo: agencyData.logo_url || '',
+            whatsapp: agencyData.whatsapp,
+            heroMode: agencyData.hero_mode || 'TRIPS',
+            heroBannerUrl: agencyData.hero_banner_url,
+            heroTitle: agencyData.hero_title,
+            heroSubtitle: agencyData.hero_subtitle,
+            customSettings: agencyData.custom_settings || {},
+            subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
+            subscriptionPlan: agencyData.subscription_plan || 'BASIC',
+            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
+            website: agencyData.website,
+            phone: agencyData.phone,
+            address: agencyData.address || {},
+            bankInfo: agencyData.bank_info || {}
           };
           setUser(agencyUser);
           return;
         }
-        // *** END OF FIX ***
 
-        // Original logic for Client/Admin is correct.
-        const role = profileData.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT;
+        // Handle ADMIN or CLIENT roles
+        let mappedRole: UserRole;
+        if (profileData.role === 'ADMIN') {
+          mappedRole = UserRole.ADMIN;
+        } else {
+          // Default to CLIENT for any other role or if role is null/undefined
+          mappedRole = UserRole.CLIENT;
+        }
         
-        const clientUser: Client | Admin = {
+        const genericUser: Client | Admin = {
           id: profileData.id,
           name: profileData.full_name || 'Usuário',
           email: email,
-          role: role,
+          role: mappedRole,
           avatar: profileData.avatar_url, 
           cpf: profileData.cpf,
           phone: profileData.phone,
-          favorites: [], 
+          favorites: [], // Favorites are loaded separately
           createdAt: profileData.created_at,
-          address: profileData.address || {}
-        } as Client;
+          address: profileData.address || {},
+          status: profileData.status || 'ACTIVE'
+        } as Client; // Cast as Client, will work for Admin too as it's a superset here
 
-        setUser(clientUser);
+        setUser(genericUser);
         return;
       }
       

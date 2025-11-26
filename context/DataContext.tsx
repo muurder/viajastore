@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -186,38 +185,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchClients = async () => {
     try {
-        // *** START OF FIX ***
-        // Fetches only profiles that are CLIENT or ADMIN, excluding AGENCY.
-        // This prevents agencies from being incorrectly mapped and displayed in the user list.
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('role', ['CLIENT', 'ADMIN']);
-        // *** END OF FIX ***
+      // Fetches only profiles that are CLIENT or ADMIN, excluding AGENCY.
+      // This prevents agencies from being incorrectly mapped and displayed in the user list.
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('role', ['CLIENT', 'ADMIN']);
 
-        if (error) throw error;
+      if (error) throw error;
 
-        // The mapping logic below is now correct because the data is pre-filtered.
-        const formattedClients: Client[] = (data || []).map((p: any) => ({
-          id: p.id,
-          name: p.full_name || 'Usuário',
-          email: p.email || '',
-          role: p.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT,
-          avatar: p.avatar_url,
-          cpf: p.cpf,
-          phone: p.phone,
-          favorites: [], 
-          createdAt: p.created_at,
-          address: p.address || {},
-          status: p.status || 'ACTIVE',
-          deleted_at: p.deleted_at,
-          last_sign_in_at: p.last_sign_in_at,
-        } as Client));
+      // The mapping logic below is now correct because the data is pre-filtered.
+      const formattedClients: Client[] = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.full_name || 'Usuário',
+        email: p.email || '',
+        role: p.role === 'ADMIN' ? UserRole.ADMIN : UserRole.CLIENT,
+        avatar: p.avatar_url,
+        cpf: p.cpf,
+        phone: p.phone,
+        favorites: [], 
+        createdAt: p.created_at,
+        address: p.address || {},
+        status: p.status || 'ACTIVE',
+        deleted_at: p.deleted_at,
+        last_sign_in_at: p.last_sign_in_at,
+      } as Client));
 
-        setClients(formattedClients);
+      setClients(formattedClients);
     } catch (err) {
-        console.warn("Supabase unavailable, using MOCK_CLIENTS.", err);
-        setClients(MOCK_CLIENTS);
+      console.warn("Supabase unavailable, using MOCK_CLIENTS.", err);
+      setClients(MOCK_CLIENTS);
     }
   };
 
@@ -667,7 +664,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     } else {
-      // FIX: Corrected typo from 'a' to 'c' to properly map clients.
       setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
     }
   };
