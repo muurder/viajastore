@@ -484,8 +484,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
-    const { error } = await supabase.from('profiles').update(data).eq('id', clientId);
-    if (error) console.error('Error updating client profile:', error);
+    const dbUpdates: any = {};
+    if(data.name) dbUpdates.full_name = data.name;
+    if(data.cpf) dbUpdates.cpf = data.cpf;
+    if(data.phone) dbUpdates.phone = data.phone;
+    if(data.status) dbUpdates.status = data.status;
+
+    const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', clientId);
+    if (error) {
+      console.error('Error updating client profile:', error);
+      throw error;
+    }
     await refreshData();
   };
 
@@ -607,9 +616,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteTrip = async (tripId: string) => {
-    await supabase.from('trip_images').delete().eq('trip_id', tripId);
-    const { error } = await supabase.from('trips').delete().eq('id', tripId);
-    if (error) throw error;
+    const tripToDelete = trips.find(t => t.id === tripId);
+    if (!tripToDelete) {
+      throw new Error("Viagem não encontrada para exclusão.");
+    }
+  
+    // 1. Deletar imagens do Storage
+    if (tripToDelete.images && tripToDelete.images.length > 0) {
+      const filePaths = tripToDelete.images.map(url => {
+        // Extrai o caminho do arquivo da URL pública do Supabase
+        const urlParts = url.split('/trip-images/');
+        return urlParts.length > 1 ? urlParts[1] : null;
+      }).filter(Boolean) as string[];
+  
+      if (filePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('trip-images')
+          .remove(filePaths);
+        
+        if (storageError) {
+          console.error("Erro ao deletar imagens do storage:", storageError);
+          // Pode optar por continuar ou parar a exclusão aqui
+        }
+      }
+    }
+  
+    // 2. Deletar a viagem do banco de dados
+    // A exclusão em cascata (ON DELETE CASCADE) deve cuidar da tabela 'trip_images'.
+    const { error: dbError } = await supabase.from('trips').delete().eq('id', tripId);
+    if (dbError) throw dbError;
+  
     await refreshData();
   };
 

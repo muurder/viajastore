@@ -1,18 +1,25 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { UserRole, Booking, Address } from '../types';
+import { UserRole, Booking, Address, AgencyReview } from '../types';
 import TripCard from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
+import { useToast } from '../context/ToastContext';
+// FIX: Import 'slugify' function
+import { slugify } from '../utils/slugify';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview } = useData();
+  const { showToast } = useToast();
+  
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showEditReviewModal, setShowEditReviewModal] = useState(false);
+  const [editingReview, setEditingReview] = useState<AgencyReview | null>(null);
+
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
@@ -56,6 +63,15 @@ const ClientDashboard: React.FC = () => {
       }
     }
   }, [user, authLoading, isMicrositeMode, agencySlug, navigate]);
+  
+  useEffect(() => {
+    if(editingReview) {
+      setReviewForm({ rating: editingReview.rating, comment: editingReview.comment });
+      setShowEditReviewModal(true);
+    } else {
+      setShowEditReviewModal(false);
+    }
+  }, [editingReview]);
 
   // Show loader while checking auth to prevent flashing/redirect loops
   if (authLoading || !user || user.role !== UserRole.CLIENT) {
@@ -121,22 +137,22 @@ const ClientDashboard: React.FC = () => {
         cpf: editForm.cpf,
         address: addressForm
     });
-    if (res.success) alert('Perfil atualizado com sucesso!');
-    else alert('Erro ao atualizar: ' + res.error);
+    if (res.success) showToast('Perfil atualizado com sucesso!', 'success');
+    else showToast('Erro ao atualizar: ' + res.error, 'error');
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
       e.preventDefault();
       if (passForm.newPassword !== passForm.confirmPassword) {
-          alert('As senhas não coincidem.');
+          showToast('As senhas não coincidem.', 'error');
           return;
       }
       const res = await updatePassword(passForm.newPassword);
       if (res.success) {
-          alert('Senha alterada com sucesso!');
+          showToast('Senha alterada com sucesso!', 'success');
           setPassForm({ newPassword: '', confirmPassword: '' });
       } else {
-          alert('Erro: ' + res.error);
+          showToast('Erro: ' + res.error, 'error');
       }
   };
 
@@ -148,7 +164,7 @@ const ClientDashboard: React.FC = () => {
               // Fix: Use navigate for SPA behavior instead of window.location
               navigate('/');
           } else {
-              alert("Erro ao excluir conta: " + result.error);
+              showToast("Erro ao excluir conta: " + result.error, 'error');
           }
       }
   };
@@ -165,7 +181,7 @@ const ClientDashboard: React.FC = () => {
       const agency = selectedBooking._agency; // Fetched from _agency prop in booking
 
       if (!trip) {
-          alert('Não foi possível carregar todos os dados para o voucher. Tente novamente.');
+          showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
           return;
       }
 
@@ -238,7 +254,7 @@ const ClientDashboard: React.FC = () => {
         doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
       } catch (error) {
           console.error('Erro ao gerar PDF:', error);
-          alert('Ocorreu um erro ao gerar o PDF. Tente novamente.');
+          showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
       }
   };
 
@@ -272,6 +288,21 @@ const ClientDashboard: React.FC = () => {
       } catch (error) {
           console.error(error);
       }
+  };
+
+  const handleEditReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReview) return;
+    try {
+        await updateAgencyReview(editingReview.id, {
+            rating: reviewForm.rating,
+            comment: reviewForm.comment,
+        });
+        setEditingReview(null);
+        setReviewForm({ rating: 5, comment: '' });
+    } catch(err) {
+        console.error(err);
+    }
   };
   
   const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard/${tab}`;
@@ -429,11 +460,14 @@ const ClientDashboard: React.FC = () => {
                                                </div>
                                            </div>
                                        </div>
-                                       <button onClick={() => handleDeleteReview(review.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={16}/></button>
+                                       <div className="flex items-center gap-2">
+                                          <button onClick={() => setEditingReview(review)} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" aria-label="Editar avaliação"><Edit size={16}/></button>
+                                          <button onClick={() => handleDeleteReview(review.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors" aria-label="Excluir avaliação"><Trash2 size={16}/></button>
+                                       </div>
                                    </div>
                                    <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-xl italic">"{review.comment}"</p>
                                    <div className="mt-4 flex justify-end">
-                                      <Link to={`/${review.agencyName ? review.agencyName.toLowerCase().replace(/\s+/g, '-') : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link>
+                                      <Link to={`/${review.agencyName ? slugify(review.agencyName) : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link>
                                    </div>
                                </div>
                            ))}
@@ -559,7 +593,7 @@ const ClientDashboard: React.FC = () => {
         </div>
       </div>
 
-      {selectedBooking && !showReviewModal && (
+      {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setSelectedBooking(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 z-10"><X size={24}/></button>
@@ -621,6 +655,19 @@ const ClientDashboard: React.FC = () => {
                           <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
                       </div>
                       <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2"><Send size={18}/> Enviar Avaliação</button>
+                  </form>
+              </div>
+          </div>
+      )}
+
+      {showEditReviewModal && editingReview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setEditingReview(null)}>
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Editar Avaliação</h3><button onClick={() => setEditingReview(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
+                  <form onSubmit={handleEditReviewSubmit}>
+                      <div className="mb-6 text-center"><label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label><div className="flex justify-center gap-2">{[1, 2, 3, 4, 5].map((star) => (<button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"><Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /></button>))}</div></div>
+                      <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label><textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/></div>
+                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2"><Save size={18}/> Salvar Alterações</button>
                   </form>
               </div>
           </div>

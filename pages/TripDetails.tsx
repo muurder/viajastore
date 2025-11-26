@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -135,10 +136,12 @@ const TripDetails: React.FC = () => {
   const renderDescription = (desc: string) => {
       const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
       if (isHTML) {
+          // Basic sanitization to prevent script injection. A proper library like DOMPurify would be better for production.
+          const sanitizedDesc = desc.replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '');
           return (
               <div 
                 className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
-                dangerouslySetInnerHTML={{ __html: desc }} 
+                dangerouslySetInnerHTML={{ __html: sanitizedDesc }} 
               />
           );
       }
