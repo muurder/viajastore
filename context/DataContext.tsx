@@ -565,26 +565,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const toggleAgencyStatus = async (agencyId: string) => {
     const agency = agencies.find(a => a.id === agencyId);
     if (!agency) {
-        showToast('Agência não encontrada.', 'error');
-        return;
+      showToast('Agência não encontrada.', 'error');
+      return;
     }
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-
+    
     const { error } = await supabase
-        .from('agencies')
-        .update({ subscription_status: newStatus })
-        .eq('id', agencyId);
+      .from('agencies')
+      .update({ subscription_status: newStatus })
+      .eq('id', agencyId);
 
     if (error) {
-        console.error('Error toggling agency status:', error);
-        showToast(`Erro ao alterar status: ${error.message}`, 'error');
-        return; // Do not update UI if DB fails
+      console.error('Error toggling agency status:', error);
+      showToast(`Erro ao alterar status: ${error.message}`, 'error');
+      return; // Stop if DB operation fails
     }
     
-    // On success, update local state
+    // Only update UI on success
     setAgencies(prev => prev.map(a => 
-        a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
+      a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
     ));
     showToast(`Agência ${newStatus === 'ACTIVE' ? 'reativada' : 'suspensa'}.`, 'success');
   };
