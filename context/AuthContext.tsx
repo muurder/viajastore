@@ -106,7 +106,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       // 3. Fallback (User exists in Auth but no table record found yet)
-      // This might happen briefly during creation
+      // We do NOT set user(null) here immediately if we are in a signup flow
+      // handled by ensureUserRecord logic below.
+      console.log("User authenticated but no profile found. Waiting for creation...");
       setUser(null); 
 
     } catch (error) {
@@ -116,56 +118,59 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Helper to ensure the record exists after Google Login
+  // Uses UPSERT to handle race conditions and ensures required fields have defaults
   const ensureUserRecord = async (authUser: any, role: string) => {
       const userId = authUser.id;
       const userEmail = authUser.email;
       const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
       const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
 
+      console.log(`Ensuring record for ${role}:`, userId);
+
       try {
           if (role === 'AGENCY') {
-              // Check if exists first to avoid overwriting data
-              const { data } = await supabase.from('agencies').select('id').eq('id', userId).maybeSingle();
+              // Generate a guaranteed slug
+              const baseSlug = slugify(userName);
+              const uniqueSuffix = Math.floor(Math.random() * 10000);
+              const generatedSlug = `${baseSlug}-${uniqueSuffix}`;
               
-              if (!data) {
-                  // Fix: Generate a slug and handle missing CNPJ
-                  const generatedSlug = slugify(userName) + '-' + Math.floor(Math.random() * 1000);
-                  
-                  const { error } = await supabase.from('agencies').insert({
-                      id: userId,
-                      name: userName,
-                      email: userEmail,
-                      logo_url: userAvatar,
-                      slug: generatedSlug,
-                      cnpj: '', // Google signup doesn't provide CNPJ initially
-                      hero_mode: 'TRIPS',
-                      subscription_status: 'INACTIVE', // Default for new agencies
-                      subscription_plan: 'BASIC'
-                  });
+              // Use UPSERT (Insert or Update if exists)
+              const { error } = await supabase.from('agencies').upsert({
+                  id: userId,
+                  name: userName,
+                  email: userEmail,
+                  logo_url: userAvatar,
+                  slug: generatedSlug,
+                  // Optional fields sent as null/empty to pass DB constraints if any
+                  cnpj: null, 
+                  hero_mode: 'TRIPS',
+                  subscription_status: 'INACTIVE',
+                  subscription_plan: 'BASIC'
+              }, { onConflict: 'id' });
 
-                  if (error) {
-                      console.error("Failed to create agency record:", error.message);
-                  }
+              if (error) {
+                  console.error("Failed to upsert agency record:", error.message);
+                  throw error;
               }
           } else {
               // Client (Profile)
-              const { data } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
-              if (!data) {
-                  const { error } = await supabase.from('profiles').insert({
-                      id: userId,
-                      full_name: userName,
-                      email: userEmail,
-                      role: 'CLIENT',
-                      avatar_url: userAvatar
-                  });
+              const { error } = await supabase.from('profiles').upsert({
+                  id: userId,
+                  full_name: userName,
+                  email: userEmail,
+                  role: 'CLIENT',
+                  avatar_url: userAvatar
+              }, { onConflict: 'id' });
 
-                  if (error) {
-                      console.error("Failed to create client record:", error.message);
-                  }
+              if (error) {
+                  console.error("Failed to upsert client record:", error.message);
+                  throw error;
               }
           }
-      } catch (err) {
-          console.error("Error ensuring user record:", err);
+          return true;
+      } catch (err: any) {
+          console.error("Error ensuring user record:", err.message);
+          return false;
       }
   };
 
@@ -173,32 +178,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initializeAuth = async () => {
       setLoading(true);
       
-      // Fix: Cast auth to any
       const { data: { session } } = await (supabase.auth as any).getSession();
       
       if (session?.user) {
+        // Check for pending role on initial load too (in case of redirect return)
+        const pendingRole = localStorage.getItem('viajastore_pending_role');
+        if (pendingRole) {
+            await ensureUserRecord(session.user, pendingRole);
+            localStorage.removeItem('viajastore_pending_role');
+        }
         await fetchUserData(session.user.id, session.user.email!);
       } else {
         setUser(null);
       }
       setLoading(false);
 
-      // Fix: Cast auth to any
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
+        console.log("Auth State Change:", event);
+        
         if (session?.user) {
           if (event === 'SIGNED_IN') {
-             // --- GOOGLE SIGNUP HANDLER ---
-             // Check if there is a pending role from localStorage
              const pendingRole = localStorage.getItem('viajastore_pending_role');
              if (pendingRole) {
-                 await ensureUserRecord(session.user, pendingRole);
-                 localStorage.removeItem('viajastore_pending_role');
+                 console.log("Found pending role:", pendingRole);
+                 const success = await ensureUserRecord(session.user, pendingRole);
+                 if (success) {
+                    localStorage.removeItem('viajastore_pending_role');
+                 }
              }
-             // -----------------------------
-             
-             setTimeout(() => fetchUserData(session.user.id, session.user.email!), 500);
+             // Fetch data immediately after potential creation
+             await fetchUserData(session.user.id, session.user.email!);
           } else if (event === 'TOKEN_REFRESHED') {
-             // Optional: refresh user data silently
+             // Silent refresh
           } else {
              fetchUserData(session.user.id, session.user.email!);
           }
@@ -216,7 +227,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
-    // Fix: Cast auth to any
     const { error } = await (supabase.auth as any).signInWithPassword({
       email,
       password,
@@ -234,15 +244,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ? `${window.location.origin}/#${redirectPath}` 
         : `${window.location.origin}/`;
 
-    // If a role is specified (Signup flow), store it
     if (role) {
+        console.log("Setting pending role for Google Signup:", role);
         localStorage.setItem('viajastore_pending_role', role);
     } else {
         // Login flow, clear any stale state
         localStorage.removeItem('viajastore_pending_role');
     }
 
-    // Fix: Cast auth to any
     const { error } = await (supabase.auth as any).signInWithOAuth({
       provider: 'google',
       options: {
@@ -257,13 +266,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    // Fix: Cast auth to any
     await (supabase.auth as any).signOut();
     setUser(null);
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
-    // Fix: Cast auth to any
     const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
       password: data.password,
@@ -287,7 +294,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       if (role === UserRole.AGENCY) {
-        // Let DB trigger handle slug generation
         const { error: agencyError } = await supabase.from('agencies').upsert({
           id: userId,
           name: data.name,
@@ -326,21 +332,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      // 1. Update Auth Email if changed
       if (userData.email && userData.email !== user.email) {
-          // Fix: Cast auth to any
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
       }
 
-      // 2. Update Table Data
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
-        
-        // Slug is auto-updated by DB trigger on name change, but we allow manual override if sent explicitly
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
-        
         if ((userData as Agency).description) updates.description = (userData as Agency).description;
         if ((userData as Agency).cnpj) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
@@ -349,13 +349,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
         if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
         
-        // Hero Fields
         if ((userData as Agency).heroMode) updates.hero_mode = (userData as Agency).heroMode;
         if ((userData as Agency).heroBannerUrl) updates.hero_banner_url = (userData as Agency).heroBannerUrl;
         if ((userData as Agency).heroTitle) updates.hero_title = (userData as Agency).heroTitle;
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
-        // Custom Suggestions
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
 
         const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
@@ -373,7 +371,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
       }
 
-      // Refresh local state
       setUser({ ...user, ...userData } as any);
       return { success: true };
 
@@ -384,7 +381,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updatePassword = async (password: string) => {
-      // Fix: Cast auth to any
       const { error } = await (supabase.auth as any).updateUser({ password });
       if (error) return { success: false, error: error.message };
       return { success: true };
@@ -421,8 +417,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (error) throw error;
       }
       
-      // Fix: Cast auth to any
-      // Use state update instead of page reload for clean SPA experience
       await (supabase.auth as any).signOut();
       setUser(null);
       return { success: true };

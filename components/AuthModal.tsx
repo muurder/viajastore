@@ -148,7 +148,9 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     
     // Handler for Google Signup: Passes the specific role based on the active tab
     const handleGoogleSignup = () => {
-        loginWithGoogle(activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
+        const role = activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY;
+        console.log("Initiating Google Signup for Role:", role);
+        loginWithGoogle(role);
     };
     
     return (
