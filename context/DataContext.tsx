@@ -532,14 +532,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription_expires_at: expiresAt
     };
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update(updates)
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select({ count: 'exact', head: true });
 
-    if (error) {
+    if (error || count === 0) {
       console.error('Error updating subscription:', error);
-      showToast('A alteração da assinatura não foi salva. Verifique as permissões (RLS).', 'error');
+      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
       return;
     }
     
@@ -562,14 +563,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (Object.keys(dbUpdates).length === 0) return;
 
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update(dbUpdates)
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select({ count: 'exact', head: true });
     
-    if (error) {
+    if (error || count === 0) {
       console.error('Error updating agency profile:', error);
-      showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
+      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
       return;
     }
 
@@ -586,14 +588,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select({ count: 'exact', head: true });
 
-    if (error) {
+    if (error || count === 0) {
       console.error('Error toggling agency status:', error);
-      showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
+      showToast('A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).', 'error');
       return;
     }
     
@@ -649,15 +652,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const deleted_at = new Date().toISOString();
-    const { error } = await supabase.from(table).update({ deleted_at }).eq('id', id);
-    if (error) { showToast(`Erro: ${error.message}`, 'error'); throw error; }
-    if (table === 'agencies') { setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); } 
-    else { setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); }
+    const { error, count } = await supabase.from(table).update({ deleted_at }).eq('id', id).select({ count: 'exact', head: true });
+    if (error || count === 0) { showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); throw error; }
+    
+    if (table === 'agencies') { 
+        setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at } : a)); 
+    } 
+    else { 
+        setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at } : c)); 
+    }
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
-    const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
-    if (error) { showToast(`Erro: ${error.message}`, 'error'); throw error; }
+    const { error, count } = await supabase.from(table).update({ deleted_at: null }).eq('id', id).select({ count: 'exact', head: true });
+    if (error || count === 0) { showToast(`A alteração não foi salva no banco (0 linhas atualizadas, verifique RLS).`, 'error'); throw error; }
     if (table === 'agencies') { setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: undefined } : a)); } 
     else { setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: undefined } : c)); }
   };
