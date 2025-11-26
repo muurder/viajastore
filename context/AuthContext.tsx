@@ -126,27 +126,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (role === 'AGENCY') {
               // Check if exists first to avoid overwriting data
               const { data } = await supabase.from('agencies').select('id').eq('id', userId).maybeSingle();
+              
               if (!data) {
-                  await supabase.from('agencies').insert({
+                  // Fix: Generate a slug and handle missing CNPJ
+                  const generatedSlug = slugify(userName) + '-' + Math.floor(Math.random() * 1000);
+                  
+                  const { error } = await supabase.from('agencies').insert({
                       id: userId,
                       name: userName,
                       email: userEmail,
                       logo_url: userAvatar,
+                      slug: generatedSlug,
+                      cnpj: '', // Google signup doesn't provide CNPJ initially
+                      hero_mode: 'TRIPS',
                       subscription_status: 'INACTIVE', // Default for new agencies
                       subscription_plan: 'BASIC'
                   });
+
+                  if (error) {
+                      console.error("Failed to create agency record:", error.message);
+                  }
               }
           } else {
               // Client (Profile)
               const { data } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
               if (!data) {
-                  await supabase.from('profiles').insert({
+                  const { error } = await supabase.from('profiles').insert({
                       id: userId,
                       full_name: userName,
                       email: userEmail,
                       role: 'CLIENT',
                       avatar_url: userAvatar
                   });
+
+                  if (error) {
+                      console.error("Failed to create client record:", error.message);
+                  }
               }
           }
       } catch (err) {
