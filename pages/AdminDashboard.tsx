@@ -173,6 +173,7 @@ const AdminDashboard: React.FC = () => {
           setIsProcessing(true);
           try {
               await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
+              await refreshData();
               showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
               if (type === 'user') {
                   setShowUserTrash(true);
@@ -191,6 +192,7 @@ const AdminDashboard: React.FC = () => {
     setIsProcessing(true);
     try {
         await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
+        await refreshData();
         showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
     } catch (error) {
         showToast('Erro ao restaurar.', 'error');

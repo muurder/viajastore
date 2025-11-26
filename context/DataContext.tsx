@@ -702,13 +702,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error } = await supabase.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
-    await refreshData();
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const { error } = await supabase.from(table).update({ deleted_at: null }).eq('id', id);
     if (error) throw error;
-    await refreshData();
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
