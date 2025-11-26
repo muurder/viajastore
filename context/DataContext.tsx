@@ -465,14 +465,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
-    const { error } = await supabase
+    const { data: updatedData, error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
-      .eq('id', reviewId);
+      .eq('id', reviewId)
+      .select();
       
-    if (error) {
+    if (error || !updatedData || updatedData.length === 0) {
         showToast('Erro ao atualizar avaliação.', 'error');
-        throw error;
+        throw error || new Error("No data returned");
     }
 
     setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
@@ -523,20 +524,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
     const expiresAt = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString();
     
-    // 1. Attempt DB update
-    const { error } = await supabase.from('agencies').update({
+    const updates = {
       subscription_status: status,
       subscription_plan: plan,
       subscription_expires_at: expiresAt
-    }).eq('id', agencyId);
-    
-    // 2. Handle failure
+    };
+
+    const { data, error } = await supabase
+      .from('agencies')
+      .update(updates)
+      .eq('id', agencyId)
+      .select();
+
     if (error) {
       showToast('Erro ao atualizar assinatura: ' + error.message, 'error');
-      throw error;
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      showToast('A alteração da assinatura não foi salva. Verifique as permissões (RLS).', 'error');
+      return;
     }
     
-    // 3. On success, update local state
     setAgencies(prev => prev.map(a => 
         a.id === agencyId 
         ? { ...a, subscriptionStatus: status, subscriptionPlan: plan, subscriptionExpiresAt: expiresAt } 
@@ -554,12 +563,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.cnpj) dbUpdates.cnpj = data.cnpj;
     if (data.phone) dbUpdates.phone = data.phone;
 
-    const { error } = await supabase.from('agencies').update(dbUpdates).eq('id', agencyId);
+    const { data: updatedData, error } = await supabase
+      .from('agencies')
+      .update(dbUpdates)
+      .eq('id', agencyId)
+      .select();
     
     if (error) {
       showToast('Erro ao atualizar agência: ' + error.message, 'error');
-      throw error;
+      return;
     }
+
+    if (!updatedData || updatedData.length === 0) {
+        showToast('A alteração da agência não foi salva. Verifique as permissões (RLS).', 'error');
+        return;
+    }
+
     setAgencies(prev => prev.map(a => a.id === agencyId ? { ...a, ...data } : a));
     showToast('Agência atualizada com sucesso.', 'success');
   };
@@ -573,20 +592,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     
-    // 1. Attempt DB update
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('agencies')
       .update({ subscription_status: newStatus })
-      .eq('id', agencyId);
+      .eq('id', agencyId)
+      .select();
 
-    // 2. Handle failure
     if (error) {
       console.error('Error toggling agency status:', error);
       showToast(`Erro ao alterar status: ${error.message}`, 'error');
-      throw error; // Throw error to prevent UI update if persistence fails
+      return;
     }
     
-    // 3. Only update UI on success
+    if (!data || data.length === 0) {
+      console.error('Update succeeded but no data returned. Check RLS policies.');
+      showToast('A alteração não foi salva. Verifique as permissões de acesso ao banco de dados (RLS).', 'error');
+      return;
+    }
+    
     setAgencies(prev => prev.map(a => 
       a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
     ));
