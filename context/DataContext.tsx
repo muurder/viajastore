@@ -47,6 +47,7 @@ interface DataContextType {
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
   deleteMultipleUsers: (userIds: string[]) => Promise<void>;
   getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
+  updateMultipleUsersStatus: (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => Promise<void>;
   logAuditAction: (action: string, details: string) => Promise<void>;
 
   getPublicTrips: () => Trip[]; 
@@ -671,20 +672,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
-    // The 'role' parameter is no longer needed as the RPC function handles any user type,
-    // but it's kept to avoid changing the function signature across the app.
-    
-    // This new implementation uses a secure database function (RPC)
-    // to properly delete the user from the authentication system (auth.users).
-    // The 'ON DELETE CASCADE' constraint in the database will automatically handle
-    // deleting the corresponding row from the 'agencies' or 'profiles' table.
     const { error } = await supabase.rpc('delete_user_by_admin', {
         user_id_to_delete: userId
     });
 
     if (error) {
         console.error('Error deleting user via RPC:', error);
-        throw error; // Throw the error to be caught by the UI component
+        throw error;
     }
 
     await refreshData();
@@ -709,7 +703,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (error) {
         console.error('Error getting user stats via RPC:', error);
-        // Fallback to client-side calculation on error
         console.warn("Calculating user stats on client due to RPC error.");
         return userIds.map(id => {
             const userBookings = bookings.filter(b => b.clientId === id);
@@ -721,6 +714,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
     }
     return data || [];
+  };
+
+  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {
+    const { error } = await supabase.rpc('update_multiple_users_status_by_admin', {
+        user_ids_to_update: userIds,
+        new_status: status
+    });
+    if (error) {
+        console.error('Error updating multiple users status via RPC:', error);
+        throw error;
+    }
+    await refreshData();
   };
 
   const logAuditAction = async (action: string, details: string) => {
@@ -817,7 +822,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
       updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-      deleteUser, deleteMultipleUsers, getUsersStats, logAuditAction,
+      deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
       getAgencyTheme, saveAgencyTheme,
