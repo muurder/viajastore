@@ -3,17 +3,19 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
   Activity, X, Search, MoreVertical, 
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
-  Sparkles, Filter, ChevronDown, MonitorPlay
+  Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
+import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
@@ -94,8 +96,8 @@ const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
       agencies, trips, agencyReviews, clients, auditLogs, 
-      updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, deleteUser, 
-      updateClientProfile, updateTrip,
+      updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, deleteUser, deleteMultipleUsers, getUsersStats,
+      updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData,
       updateAgencyReview,
       updateAgencyProfileByAdmin
@@ -113,16 +115,23 @@ const AdminDashboard: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [newThemeForm, setNewThemeForm] = useState({ name: '', primary: '#3b82f6', secondary: '#f97316' });
 
-  const [modalType, setModalType] = useState<'DELETE' | 'EDIT_USER' | 'MANAGE_SUB' | 'EDIT_REVIEW' | 'EDIT_AGENCY' | 'EDIT_TRIP' | null>(null);
+  const [modalType, setModalType] = useState<'DELETE' | 'EDIT_USER' | 'MANAGE_SUB' | 'EDIT_REVIEW' | 'EDIT_AGENCY' | 'EDIT_TRIP' | 'VIEW_STATS' | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
+  
+  // States for selection
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [userStats, setUserStats] = useState<UserStats[]>([]);
 
   const handleTabChange = (tab: string) => {
       setSearchParams({ tab });
       setSearchTerm('');
       setAgencyFilter('');
       setCategoryFilter('');
+      setSelectedUsers([]);
+      setSelectedAgencies([]);
   };
 
   const handleRefresh = async () => {
@@ -130,32 +139,20 @@ const AdminDashboard: React.FC = () => {
       await refreshData();
       setIsProcessing(false);
   };
-
-  const handleDeleteConfirm = async () => {
-      if (!selectedItem) return;
-      setIsProcessing(true);
-      try {
-          if (modalType === 'DELETE') {
-              if (selectedItem.type === 'USER') {
-                  await deleteUser(selectedItem.id, UserRole.CLIENT);
-                  logAuditAction('DELETE_USER', `Deleted user ${selectedItem.name}`);
-              } else if (selectedItem.type === 'AGENCY') {
-                  await deleteUser(selectedItem.id, UserRole.AGENCY);
-                  logAuditAction('DELETE_AGENCY', `Deleted agency ${selectedItem.name}`);
-              } else if (selectedItem.type === 'REVIEW') {
-                  await deleteAgencyReview(selectedItem.id);
-                  logAuditAction('DELETE_REVIEW', `Deleted review ${selectedItem.id}`);
-              }
-              showToast('Item excluído com sucesso.', 'success');
-          }
-      } catch (error) {
-          showToast('Erro ao excluir item.', 'error');
-      } finally {
-          setIsProcessing(false);
-          setModalType(null);
-          setSelectedItem(null);
-          handleRefresh();
-      }
+  
+  const handleDeleteTrip = async (tripId: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta viagem? A ação não pode ser desfeita.')) {
+        setIsProcessing(true);
+        try {
+            await deleteTrip(tripId);
+            showToast('Viagem excluída com sucesso.', 'success');
+            await refreshData();
+        } catch (error) {
+            showToast('Erro ao excluir viagem.', 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    }
   };
 
   const handleSubscriptionUpdate = async (status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
@@ -290,6 +287,62 @@ const AdminDashboard: React.FC = () => {
   const filteredAgencies = agencies.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchTerm.toLowerCase())));
   const filteredTrips = trips.filter(t => (t.title.toLowerCase().includes(searchTerm.toLowerCase())) && (agencyFilter ? t.agencyId === agencyFilter : true) && (categoryFilter ? t.category === categoryFilter : true));
   const filteredReviews = agencyReviews.filter(r => r.comment.toLowerCase().includes(searchTerm.toLowerCase()) || r.agencyName?.toLowerCase().includes(searchTerm.toLowerCase()));
+  
+  // --- SELECTION LOGIC ---
+  const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
+  const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length ? [] : filteredUsers.map(u => u.id));
+  const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
+  const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length ? [] : filteredAgencies.map(a => a.id));
+
+  // --- MASS ACTIONS ---
+  const handleMassDeleteUsers = async () => {
+      if (window.confirm(`Excluir ${selectedUsers.length} usuários?`)) {
+          await deleteMultipleUsers(selectedUsers);
+          setSelectedUsers([]);
+          showToast('Usuários excluídos.', 'success');
+      }
+  };
+  const handleMassDeleteAgencies = async () => {
+    if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) {
+        await deleteMultipleUsers(selectedAgencies);
+        setSelectedAgencies([]);
+        showToast('Agências excluídas.', 'success');
+    }
+  };
+  const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => {
+      await updateMultipleUsersStatus(selectedUsers, status);
+      setSelectedUsers([]);
+      showToast('Status atualizado.', 'success');
+  };
+  const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => {
+    await updateMultipleAgenciesStatus(selectedAgencies, status);
+    setSelectedAgencies([]);
+    showToast('Status atualizado.', 'success');
+  };
+  const handleViewStats = async () => {
+      const stats = await getUsersStats(selectedUsers);
+      setUserStats(stats);
+      setModalType('VIEW_STATS');
+  };
+
+  const downloadPdf = (type: 'users' | 'agencies') => {
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22);
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]];
+      const data = type === 'users' 
+          ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status])
+          : filteredAgencies.filter(a => selectedAgencies.includes(a.id)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]);
+
+      (doc as any).autoTable({
+          head: headers,
+          body: data,
+          startY: 30,
+      });
+      doc.save(`relatorio_${type}.pdf`);
+  };
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -297,56 +350,46 @@ const AdminDashboard: React.FC = () => {
     switch(activeTab) {
       case 'USERS':
         return (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
-              <table className="min-w-full divide-y divide-gray-100">
-                 <thead className="bg-gray-50/50">
-                     <tr>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                     </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-100 bg-white">
-                     {filteredUsers.map(c => (
-                         <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                             <td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full object-cover border-2 border-gray-100" alt=""/><div><p className="font-bold text-gray-900 text-sm">{c.name}</p><p className="text-xs text-gray-500">Viajante desde {new Date(c.createdAt || '').getFullYear()}</p></div></div></td>
-                             <td className="px-6 py-4"><p className="text-sm text-gray-700">{c.email}</p><p className="text-xs text-gray-500">{c.phone || 'Sem telefone'}</p></td>
-                             <td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'ACTIVE' ? <UserCheck size={12}/> : <UserX size={12}/>}{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge></td>
-                             <td className="px-6 py-4 text-right"><ActionMenu actions={[{ label: 'Editar Dados', icon: Edit3, onClick: () => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); } }, { label: c.status === 'ACTIVE' ? 'Suspender' : 'Reativar', icon: c.status === 'ACTIVE' ? Ban : UserCheck, onClick: () => handleUserStatusToggle(c), variant: c.status === 'ACTIVE' ? 'danger' : 'default' }, { label: 'Resetar Senha', icon: Key, onClick: () => showToast('Funcionalidade de reset de senha a ser implementada no backend.', 'info') }, { label: 'Excluir Usuário', icon: Trash2, onClick: () => { setSelectedItem({ id: c.id, name: c.name, type: 'USER' }); setModalType('DELETE'); }, variant: 'danger' }]} /></td>
-                         </tr>
-                     ))}
-                 </tbody>
-              </table>
+          <div className="animate-[fadeIn_0.3s]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredUsers.map(c => (
+                <div key={c.id} className={`bg-white rounded-2xl shadow-sm border ${selectedUsers.includes(c.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
+                  <input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="absolute top-4 left-4 h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
+                  <div className="absolute top-4 right-4"><ActionMenu actions={[{ label: 'Editar Dados', icon: Edit3, onClick: () => { setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); } }, { label: c.status === 'ACTIVE' ? 'Suspender' : 'Reativar', icon: c.status === 'ACTIVE' ? Ban : UserCheck, onClick: () => handleUserStatusToggle(c), variant: c.status === 'ACTIVE' ? 'danger' : 'default' }, { label: 'Resetar Senha', icon: Key, onClick: () => showToast('Funcionalidade de reset de senha a ser implementada no backend.', 'info') }, { label: 'Excluir Usuário', icon: Trash2, onClick: () => deleteUser(c.id, UserRole.CLIENT), variant: 'danger' }]} /></div>
+                  <div className="flex flex-col items-center text-center pt-8">
+                    <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
+                    <p className="font-bold text-gray-900 text-lg">{c.name}</p>
+                    <p className="text-sm text-gray-500 mb-4">{c.email}</p>
+                    <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       case 'AGENCIES':
         return (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
-             <table className="min-w-full divide-y divide-gray-100">
-                 <thead className="bg-gray-50/50">
-                     <tr>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Expira em</th>
-                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                     </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-100 bg-white">
-                     {filteredAgencies.map(agency => {
-                         const daysLeft = Math.ceil((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                         return (
-                         <tr key={agency.id} className="hover:bg-gray-50 transition-colors">
-                             <td className="px-6 py-4"><div className="flex items-center gap-3"><img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-10 h-10 rounded-full object-cover border-2 border-gray-100" alt=""/><div><p className="font-bold text-gray-900">{agency.name}</p><p className="text-xs text-gray-500 font-mono">{agency.slug ? `/${agency.slug}` : 'Sem slug'}</p></div></div></td>
-                             <td className="px-6 py-4"><Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{agency.subscriptionPlan}</Badge></td>
-                             <td className={`px-6 py-4 text-xs font-mono ${daysLeft < 30 && daysLeft > 0 ? 'text-amber-600' : 'text-gray-600'}`}>{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</td>
-                             <td className="px-6 py-4"><Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge></td>
-                             <td className="px-6 py-4 text-right"><ActionMenu actions={[{ label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }}, { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setModalType('MANAGE_SUB'); } }, { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') }, { label: 'Excluir Agência', icon: Trash2, onClick: () => { setSelectedItem({ id: agency.id, name: agency.name, type: 'AGENCY' }); setModalType('DELETE'); }, variant: 'danger' }]} /></td>
-                         </tr>
-                     )})}
-                 </tbody>
-             </table>
+          <div className="animate-[fadeIn_0.3s]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredAgencies.map(agency => {
+                const daysLeft = Math.ceil((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                return (
+                <div key={agency.id} className={`bg-white rounded-2xl shadow-sm border ${selectedAgencies.includes(agency.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
+                    <input type="checkbox" checked={selectedAgencies.includes(agency.id)} onChange={() => handleToggleAgency(agency.id)} className="absolute top-4 left-4 h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
+                    <div className="absolute top-4 right-4"><ActionMenu actions={[{ label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }}, { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setModalType('MANAGE_SUB'); } }, { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') }, { label: 'Excluir Agência', icon: Trash2, onClick: () => deleteUser(agency.id, UserRole.AGENCY), variant: 'danger' }]} /></div>
+                    <div className="flex flex-col items-center text-center pt-8">
+                        <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
+                        <p className="font-bold text-gray-900 text-lg">{agency.name}</p>
+                        <p className="text-sm text-gray-500 mb-2 font-mono">{`/${agency.slug}`}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{agency.subscriptionPlan}</Badge>
+                          <Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge>
+                        </div>
+                        <p className={`text-xs mt-3 font-mono ${daysLeft < 30 && daysLeft > 0 ? 'text-amber-600' : 'text-gray-500'}`}>{daysLeft > 0 ? `Expira em ${daysLeft} dias` : 'Expirado'}</p>
+                    </div>
+                </div>
+            )})}
+            </div>
           </div>
         );
       case 'TRIPS':
@@ -367,7 +410,7 @@ const AdminDashboard: React.FC = () => {
                              <td className="px-6 py-4"><p className="font-bold text-gray-900 text-sm flex items-center gap-2">{trip.title}{trip.featured && <span title="Destaque Global"><Sparkles size={16} className="text-amber-400 fill-amber-400" /></span>}</p><p className="text-xs text-gray-500">{trip.destination}</p></td>
                              <td className="px-6 py-4 text-gray-600 text-sm">{agencies.find(a => a.id === trip.agencyId)?.name}</td>
                              <td className="px-6 py-4"><Badge color={trip.active ? 'green' : 'gray'}>{trip.active ? 'Ativo' : 'Pausado'}</Badge></td>
-                             <td className="px-6 py-4 text-right"><ActionMenu actions={[{ label: 'Editar Viagem', icon: Edit3, onClick: () => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }}, { label: trip.active ? 'Pausar Viagem' : 'Ativar Viagem', icon: trip.active ? Ban : CheckCircle, onClick: async () => { await toggleTripStatus(trip.id); handleRefresh(); } }, { label: trip.featured ? 'Remover Destaque' : 'Destacar Viagem', icon: Sparkles, onClick: async () => { await toggleTripFeatureStatus(trip.id); handleRefresh(); } }, { label: 'Ver Página', icon: Eye, onClick: () => window.open(`/#/viagem/${trip.slug}`, '_blank') }]} /></td>
+                             <td className="px-6 py-4 text-right"><ActionMenu actions={[ { label: 'Excluir Viagem', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger'}, { label: 'Editar Viagem', icon: Edit3, onClick: () => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }}, { label: trip.active ? 'Pausar Viagem' : 'Ativar Viagem', icon: trip.active ? Ban : CheckCircle, onClick: async () => { await toggleTripStatus(trip.id); handleRefresh(); } }, { label: trip.featured ? 'Remover Destaque' : 'Destacar Viagem', icon: Sparkles, onClick: async () => { await toggleTripFeatureStatus(trip.id); handleRefresh(); } }, { label: 'Ver Página', icon: Eye, onClick: () => window.open(`/#/viagem/${trip.slug}`, '_blank') }]} /></td>
                          </tr>
                      ))}
                  </tbody>
@@ -384,7 +427,7 @@ const AdminDashboard: React.FC = () => {
                         <div className="flex justify-between items-start">
                            <div>
                                 <p className="font-bold text-gray-900">{review.clientName || 'Anônimo'}</p>
-                                <p className="text-xs text-gray-400">em <span className="font-medium text-gray-600">{review.agencyName}</span> • {new Date(review.createdAt).toLocaleDateString()}</p>
+                                <a href={`/#/${slugify(review.agencyName || '')}`} target="_blank" className="text-xs text-gray-400 hover:text-primary-600">em <span className="font-medium text-gray-600 hover:underline">{review.agencyName}</span> • {new Date(review.createdAt).toLocaleDateString()}</a>
                            </div>
                            <div className="flex items-center gap-1 font-bold text-amber-500 text-lg">
                               <Star size={18} className="fill-current"/> {review.rating.toFixed(1)}
@@ -392,7 +435,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
                         <blockquote className="mt-4 text-gray-600 text-sm italic border-l-4 border-gray-100 pl-4 py-2 bg-gray-50/50 rounded-r-lg">"{review.comment}"</blockquote>
                     </div>
-                    <ActionMenu actions={[{ label: 'Editar Conteúdo', icon: Edit3, onClick: () => { setSelectedItem(review); setEditFormData({ comment: review.comment, rating: review.rating }); setModalType('EDIT_REVIEW'); } }, { label: 'Excluir Definitivamente', icon: Trash2, onClick: () => { setSelectedItem({ id: review.id, type: 'REVIEW' }); setModalType('DELETE'); }, variant: 'danger' }]} />
+                    <ActionMenu actions={[{ label: 'Editar Conteúdo', icon: Edit3, onClick: () => { setSelectedItem(review); setEditFormData({ comment: review.comment, rating: review.rating }); setModalType('EDIT_REVIEW'); } }, { label: 'Excluir Definitivamente', icon: Trash2, onClick: () => deleteAgencyReview(review.id), variant: 'danger' }]} />
                 </div>
               ))}
           </div>
@@ -458,6 +501,37 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const renderToolbar = () => {
+    if (activeTab === 'USERS' && selectedUsers.length > 0) {
+        return (
+            <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border border-gray-200 animate-[fadeIn_0.2s]">
+                <p className="text-sm font-bold text-gray-700">{selectedUsers.length} usuários selecionados</p>
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => handleMassUpdateUserStatus('ACTIVE')} className="px-3 py-1.5 text-xs font-bold text-green-700 bg-green-100 rounded-lg hover:bg-green-200 flex items-center gap-1"><UserCheck size={14}/> Reativar</button>
+                    <button onClick={() => handleMassUpdateUserStatus('SUSPENDED')} className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 flex items-center gap-1"><Ban size={14}/> Suspender</button>
+                    <button onClick={handleViewStats} className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 flex items-center gap-1"><StatsIcon size={14}/> Ver Stats</button>
+                    <button onClick={() => downloadPdf('users')} className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-1"><Download size={14}/> Baixar PDF</button>
+                    <button onClick={handleMassDeleteUsers} className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 flex items-center gap-1"><Trash2 size={14}/> Excluir</button>
+                </div>
+            </div>
+        );
+    }
+    if (activeTab === 'AGENCIES' && selectedAgencies.length > 0) {
+        return (
+            <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border border-gray-200 animate-[fadeIn_0.2s]">
+                <p className="text-sm font-bold text-gray-700">{selectedAgencies.length} agências selecionadas</p>
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="px-3 py-1.5 text-xs font-bold text-green-700 bg-green-100 rounded-lg hover:bg-green-200 flex items-center gap-1"><CheckCircle size={14}/> Reativar</button>
+                    <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 flex items-center gap-1"><Ban size={14}/> Suspender</button>
+                    <button onClick={() => downloadPdf('agencies')} className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-1"><Download size={14}/> Baixar PDF</button>
+                    <button onClick={handleMassDeleteAgencies} className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 flex items-center gap-1"><Trash2 size={14}/> Excluir</button>
+                </div>
+            </div>
+        );
+    }
+    return null;
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen relative animate-[fadeIn_0.3s]">
       
@@ -478,12 +552,22 @@ const AdminDashboard: React.FC = () => {
           {[ {id: 'OVERVIEW', label: 'Visão Geral', icon: Activity}, {id: 'AGENCIES', label: 'Agências', icon: Briefcase}, {id: 'USERS', label: 'Usuários', icon: Users}, {id: 'TRIPS', label: 'Viagens', icon: BarChart}, {id: 'REVIEWS', label: 'Avaliações', icon: MessageCircle}, {id: 'THEMES', label: 'Temas', icon: Palette, masterOnly: true}, {id: 'AUDIT', label: 'Auditoria', icon: Lock, masterOnly: true}, {id: 'SYSTEM', label: 'Sistema', icon: Database} ].map(tab => (tab.masterOnly && !isMaster) ? null : (<button key={tab.id} onClick={() => handleTabChange(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}><tab.icon size={16} /> {tab.label}</button>))}
       </div>
 
-      {['AGENCIES', 'USERS', 'TRIPS', 'REVIEWS'].includes(activeTab) && (<div className="mb-6 relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>)}
+      {['AGENCIES', 'USERS'].includes(activeTab) && (
+          <div className="flex justify-between items-center mb-6">
+              <div className="relative flex-1 max-w-lg"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+              <div className="flex items-center gap-2 ml-4">
+                  <input type="checkbox" onChange={activeTab === 'USERS' ? handleToggleAllUsers : handleToggleAllAgencies} checked={(activeTab === 'USERS' && selectedUsers.length === filteredUsers.length && filteredUsers.length > 0) || (activeTab === 'AGENCIES' && selectedAgencies.length === filteredAgencies.length && filteredAgencies.length > 0)} className="h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500" id="select-all"/>
+                  <label htmlFor="select-all" className="text-sm font-bold text-gray-600">Selecionar Todos</label>
+              </div>
+          </div>
+      )}
+      {['TRIPS', 'REVIEWS'].includes(activeTab) && (<div className="mb-6 relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>)}
       {activeTab === 'TRIPS' && (<div className="flex flex-col md:flex-row gap-4 mb-6"><div className="relative flex-1"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm appearance-none"><option value="">Todas as Agências</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/></div><div className="relative flex-1"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm appearance-none"><option value="">Todas as Categorias</option>{tripCategories.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/></div></div>)}
 
+      {renderToolbar()}
       {renderContent()}
 
-      {modalType === 'DELETE' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="text-center mb-6"> <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 border-4 border-red-50"><Trash2 size={28}/></div> <h3 className="text-xl font-bold text-gray-900">Excluir Item?</h3> <p className="text-sm text-gray-500 mt-2">Você tem certeza que deseja excluir <strong>{selectedItem.name || 'este item'}</strong>?<br/>Essa ação é irreversível.</p> </div> <div className="flex gap-3"> <button onClick={() => setModalType(null)} className="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors text-sm">Cancelar</button> <button onClick={handleDeleteConfirm} disabled={isProcessing} className="flex-1 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 flex justify-center items-center text-sm">{isProcessing ? <Loader className="animate-spin" size={16}/> : 'Sim, Excluir'}</button> </div> </div> </div> )}
+      {modalType === 'VIEW_STATS' && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Estatísticas dos Usuários Selecionados</h3><button onClick={() => setModalType(null)} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div> <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin"> {userStats.map(stat => (<div key={stat.userId} className="grid grid-cols-4 gap-4 items-center bg-gray-50 p-3 rounded-lg border border-gray-100"><p className="font-bold col-span-1">{stat.userName}</p><p className="text-sm text-center"><span className="font-bold">{stat.totalBookings}</span> Viagens</p><p className="text-sm text-center"><span className="font-bold text-green-600">R$ {stat.totalSpent.toLocaleString()}</span> Gastos</p><p className="text-sm text-center"><span className="font-bold">{stat.totalReviews}</span> Avaliações</p></div>))} </div> </div> </div> )}
       {modalType === 'MANAGE_SUB' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Gerenciar Assinatura</h3><button onClick={() => setModalType(null)} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div><div className="bg-gray-50 p-4 rounded-xl mb-6 flex items-center gap-4"><img src={selectedItem.logo} className="w-12 h-12 rounded-full bg-white" alt=""/><div className="truncate"><p className="font-bold text-gray-900 truncate">{selectedItem.name}</p><p className="text-xs text-gray-500 truncate">{selectedItem.email}</p></div></div> <div className="space-y-4"><p className="text-xs font-bold text-gray-400 uppercase">Plano Atual</p><div className="grid grid-cols-2 gap-4"><button onClick={() => handleSubscriptionUpdate('ACTIVE', 'BASIC')} className={`p-4 rounded-xl border-2 text-center transition-all ${selectedItem.subscriptionPlan === 'BASIC' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">BASIC</p><p className="text-xs text-gray-500">R$ 99,90</p></button><button onClick={() => handleSubscriptionUpdate('ACTIVE', 'PREMIUM')} className={`p-4 rounded-xl border-2 text-center transition-all ${selectedItem.subscriptionPlan === 'PREMIUM' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">PREMIUM</p><p className="text-xs text-gray-500">R$ 199,90</p></button></div><p className="text-xs font-bold text-gray-400 uppercase mt-4">Status</p><button onClick={() => handleSubscriptionUpdate(selectedItem.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE', selectedItem.subscriptionPlan)} className={`w-full py-3 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${selectedItem.subscriptionStatus === 'ACTIVE' ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-green-600 text-white hover:bg-green-700'}`}>{selectedItem.subscriptionStatus === 'ACTIVE' ? <><Ban size={16}/> Suspender</> : <><CheckCircle size={16}/> Reativar</>}</button></div> </div> </div> )}
       {modalType === 'EDIT_USER' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Usuário</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Email (Apenas leitura)</label><input value={editFormData.email || ''} disabled className="w-full border p-3 rounded-lg bg-gray-100 text-gray-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleUserUpdate} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">Salvar Alterações</button> </div> </div> </div> )}
       {modalType === 'EDIT_AGENCY' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleAgencyUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
