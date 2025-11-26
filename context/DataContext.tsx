@@ -500,18 +500,46 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
     const dbUpdates: any = {};
-    if(data.name) dbUpdates.full_name = data.name;
-    if(data.cpf) dbUpdates.cpf = data.cpf;
-    if(data.phone) dbUpdates.phone = data.phone;
-    if(data.status) dbUpdates.status = data.status;
-    if(data.avatar) dbUpdates.avatar_url = data.avatar;
+    if (data.name !== undefined) dbUpdates.full_name = data.name;
+    if (data.cpf !== undefined) dbUpdates.cpf = data.cpf;
+    if (data.phone !== undefined) dbUpdates.phone = data.phone;
+    if (data.status !== undefined) dbUpdates.status = data.status;
+    if (data.avatar !== undefined) dbUpdates.avatar_url = data.avatar;
 
-    const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', clientId);
+    if (Object.keys(dbUpdates).length === 0) {
+        return; 
+    }
+
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(dbUpdates)
+      .eq('id', clientId)
+      .select()
+      .single();
+
     if (error) {
       console.error('Error updating client profile:', error);
       throw error;
     }
-    await refreshData();
+    
+    if (updatedProfile) {
+        setClients(prevClients => 
+            prevClients.map(client => {
+                if (client.id === clientId) {
+                    const updatedClient: Client = {
+                        ...client,
+                        name: updatedProfile.full_name,
+                        cpf: updatedProfile.cpf,
+                        phone: updatedProfile.phone,
+                        status: updatedProfile.status,
+                        avatar: updatedProfile.avatar_url,
+                    };
+                    return updatedClient;
+                }
+                return client;
+            })
+        );
+    }
   };
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
