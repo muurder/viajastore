@@ -37,6 +37,7 @@ interface DataContextType {
   
   updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => Promise<void>;
   updateAgencyProfileByAdmin: (agencyId: string, data: Partial<Agency>) => Promise<void>;
+  toggleAgencyStatus: (agencyId: string) => Promise<void>;
   createTrip: (trip: Trip) => Promise<void>;
   updateTrip: (trip: Trip) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
@@ -562,6 +563,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     showToast('Agência atualizada com sucesso.', 'success');
   };
 
+  const toggleAgencyStatus = async (agencyId: string) => {
+    const agency = agencies.find(a => a.id === agencyId);
+    if (!agency) return;
+
+    const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+
+    const { error } = await supabase
+      .from('agencies')
+      .update({ subscription_status: newStatus })
+      .eq('id', agencyId);
+
+    if (error) {
+      console.error('Error toggling agency status:', error);
+      showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
+      throw error;
+    }
+
+    setAgencies(prevAgencies =>
+      prevAgencies.map(a =>
+        a.id === agencyId ? { ...a, subscriptionStatus: newStatus } : a
+      )
+    );
+
+    showToast(`Agência ${newStatus === 'ACTIVE' ? 'reativada' : 'suspensa'}.`, 'success');
+  };
+
 
   const createTrip = async (trip: Trip) => {
     const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
@@ -682,7 +709,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <DataContext.Provider value={{ 
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
-      updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
+      updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
       softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
       sendPasswordReset, updateUserAvatarByAdmin,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,

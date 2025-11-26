@@ -101,7 +101,8 @@ const AdminDashboard: React.FC = () => {
       deleteUser, deleteMultipleUsers, getUsersStats,
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData, updateAgencyReview, updateAgencyProfileByAdmin,
-      softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin
+      softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
+      toggleAgencyStatus
   } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview } = useTheme();
   const { showToast } = useToast();
@@ -418,7 +419,20 @@ const AdminDashboard: React.FC = () => {
                 {filteredAgencies.map(agency => { const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)); return (
                 <div key={agency.id} className={`bg-white rounded-2xl shadow-sm border ${selectedAgencies.includes(agency.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
                     <input type="checkbox" checked={selectedAgencies.includes(agency.id)} onChange={() => handleToggleAgency(agency.id)} className="absolute top-4 left-4 h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
-                    <div className="absolute top-4 right-4"><ActionMenu actions={showAgencyTrash ? [{label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(agency.id, 'agency')}, {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(agency.id, agency.role), variant: 'danger'}] : [{ label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }}, { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); } }, { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') }, { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(agency.id, 'agency'), variant: 'danger' }]} /></div>
+                    <div className="absolute top-4 right-4">
+                        <ActionMenu 
+                            actions={showAgencyTrash ? [
+                                {label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(agency.id, 'agency')}, 
+                                {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(agency.id, agency.role), variant: 'danger'}
+                            ] : [
+                                { label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }},
+                                { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); } },
+                                { label: agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência', icon: agency.subscriptionStatus === 'ACTIVE' ? Ban : CheckCircle, onClick: () => toggleAgencyStatus(agency.id) },
+                                { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') },
+                                { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(agency.id, 'agency'), variant: 'danger' }
+                            ]} 
+                        />
+                    </div>
                     <div className="flex flex-col items-center text-center pt-8">
                         <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{agency.name}</p>
@@ -438,31 +452,34 @@ const AdminDashboard: React.FC = () => {
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllAgencies} checked={selectedAgencies.length === filteredAgencies.length && filteredAgencies.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Expira em</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredAgencies.map(agency => { const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)); return (<tr key={agency.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedAgencies.includes(agency.id)} onChange={() => handleToggleAgency(agency.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-10 h-10 rounded-full" alt=""/><div className="truncate"><p className="font-bold text-gray-900 text-sm truncate max-w-[200px]">{agency.name}</p><a href={`/#/${agency.slug}`} target="_blank" className="text-xs text-primary-600 hover:underline flex items-center gap-1 font-mono">{`/${agency.slug}`} <ExternalLink size={10}/></a></div></div></td><td className="px-6 py-4"><Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{agency.subscriptionPlan}</Badge></td><td className="px-6 py-4"><Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge></td><td className="px-6 py-4 text-sm text-gray-500 font-mono">{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</td><td className="px-6 py-4 text-right">
-    <div className="flex items-center justify-end gap-1">
-        {showAgencyTrash ? (
-            <>
-                <button title="Restaurar" onClick={() => handleRestore(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                    <ArchiveRestore size={18} />
-                </button>
-                <button title="Excluir Permanentemente" onClick={() => handlePermanentDelete(agency.id, agency.role)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash size={18} />
-                </button>
-            </>
-        ) : (
-            <>
-                <button title="Editar Dados" onClick={() => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                    <Edit3 size={18} />
-                </button>
-                <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                    <CreditCard size={18} />
-                </button>
-                <button title="Mover para Lixeira" onClick={() => handleSoftDelete(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={18} />
-                </button>
-            </>
-        )}
-    </div>
-</td></tr>);})}
+                                <div className="flex items-center justify-end gap-1">
+                                    {showAgencyTrash ? (
+                                        <>
+                                            <button title="Restaurar" onClick={() => handleRestore(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                                                <ArchiveRestore size={18} />
+                                            </button>
+                                            <button title="Excluir Permanentemente" onClick={() => handlePermanentDelete(agency.id, agency.role)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                <Trash size={18} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button title="Editar Dados" onClick={() => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                                <Edit3 size={18} />
+                                            </button>
+                                            <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                <CreditCard size={18} />
+                                            </button>
+                                            <button title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência'} onClick={() => toggleAgencyStatus(agency.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                                                {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={18}/> : <CheckCircle size={18}/>}
+                                            </button>
+                                            <button title="Mover para Lixeira" onClick={() => handleSoftDelete(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </td></tr>);})}
                         </tbody>
                     </table>
                 </div>
