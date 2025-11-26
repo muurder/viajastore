@@ -633,14 +633,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
-    if (role === UserRole.AGENCY) {
-      await supabase.from('agencies').delete().eq('id', userId);
-      // Cascade should handle trips/images if configured correctly in DB, 
-      // but manual cleanup is safer in code
-    } else { 
-      await supabase.from('profiles').delete().eq('id', userId);
+    // The 'role' parameter is no longer needed as the RPC function handles any user type,
+    // but it's kept to avoid changing the function signature across the app.
+    
+    // This new implementation uses a secure database function (RPC)
+    // to properly delete the user from the authentication system (auth.users).
+    // The 'ON DELETE CASCADE' constraint in the database will automatically handle
+    // deleting the corresponding row from the 'agencies' or 'profiles' table.
+    const { error } = await supabase.rpc('delete_user_by_admin', {
+        user_id_to_delete: userId
+    });
+
+    if (error) {
+        console.error('Error deleting user via RPC:', error);
+        throw error; // Throw the error to be caught by the UI component
     }
-    // Auth user deletion usually requires Service Role key in backend function
+
     await refreshData();
   };
 
