@@ -12,6 +12,32 @@ interface TripCardProps {
   trip: Trip;
 }
 
+export const TripCardSkeleton = () => (
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col animate-pulse">
+    <div className="h-48 bg-gray-200 w-full"></div>
+    <div className="p-5 flex-1 flex flex-col">
+      <div className="flex justify-between mb-3">
+        <div className="h-4 bg-gray-200 w-24 rounded"></div>
+        <div className="h-4 bg-gray-200 w-12 rounded"></div>
+      </div>
+      <div className="h-6 bg-gray-200 w-full rounded mb-2"></div>
+      <div className="h-6 bg-gray-200 w-2/3 rounded mb-4"></div>
+      
+      <div className="h-4 bg-gray-200 w-20 rounded mb-4"></div>
+      
+      <div className="flex gap-2 mb-5">
+        <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
+        <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
+      </div>
+
+      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-end">
+        <div className="h-8 bg-gray-200 w-24 rounded"></div>
+        <div className="h-8 bg-gray-200 w-24 rounded-full"></div>
+      </div>
+    </div>
+  </div>
+);
+
 const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
   const { toggleFavorite, clients, agencies } = useData();
@@ -161,31 +187,5 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     </Link>
   );
 };
-
-export const TripCardSkeleton: React.FC = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col animate-pulse">
-    <div className="h-48 w-full bg-gray-200"></div>
-    <div className="p-5 flex flex-col flex-1">
-      <div className="flex justify-between items-center mb-3">
-        <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
-        <div className="h-4 w-1/4 bg-gray-200 rounded"></div>
-      </div>
-      <div className="h-6 w-full bg-gray-300 rounded mb-2"></div>
-      <div className="h-6 w-3/4 bg-gray-300 rounded mb-4"></div>
-      <div className="h-4 w-1/2 bg-gray-200 rounded mb-5"></div>
-      <div className="flex flex-wrap gap-2 mb-5 flex-1 content-start">
-        <div className="h-5 w-12 bg-gray-100 rounded-full"></div>
-        <div className="h-5 w-16 bg-gray-100 rounded-full"></div>
-      </div>
-      <div className="flex items-end justify-between pt-4 border-t border-gray-100 mt-auto">
-        <div className="flex-1">
-          <div className="h-3 w-1/4 bg-gray-200 rounded mb-1"></div>
-          <div className="h-6 w-1/2 bg-gray-300 rounded"></div>
-        </div>
-        <div className="h-4 w-1/4 bg-gray-200 rounded"></div>
-      </div>
-    </div>
-  </div>
-);
 
 export default TripCard;
