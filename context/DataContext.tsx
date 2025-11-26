@@ -588,26 +588,106 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
   const createTrip = async (trip: Trip) => {
-    const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
-    const dbTrip: any = { /* ... trip mapping ... */ };
-    const { data: newTrip, error } = await supabase.from('trips').insert(dbTrip).select().single();
-    if (error) throw error;
+    if (!user || user.role !== UserRole.AGENCY) {
+      throw new Error("Apenas agências podem criar viagens.");
+    }
+    
+    const dbTrip = {
+      agency_id: trip.agencyId || user.id,
+      title: trip.title,
+      slug: (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : slugify(trip.title),
+      description: trip.description,
+      destination: trip.destination,
+      price: trip.price,
+      start_date: trip.startDate,
+      end_date: trip.endDate,
+      duration_days: trip.durationDays,
+      category: trip.category,
+      tags: trip.tags,
+      traveler_types: trip.travelerTypes,
+      itinerary: trip.itinerary,
+      payment_methods: trip.paymentMethods,
+      active: trip.active,
+      included: trip.included,
+      not_included: trip.notIncluded,
+      featured: trip.featured,
+      featured_in_hero: trip.featuredInHero,
+    };
+    
+    const { data: newTrip, error } = await supabase
+      .from('trips')
+      .insert(dbTrip)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating trip:", error);
+      throw error;
+    }
+    
+    if (newTrip && trip.images && trip.images.length > 0) {
+      const imagesPayload = trip.images.map(url => ({
+        trip_id: newTrip.id,
+        image_url: url,
+      }));
+      const { error: imgError } = await supabase.from('trip_images').insert(imagesPayload);
+      if (imgError) {
+        console.error("Error saving trip images:", imgError);
+        showToast('Viagem criada, mas houve um erro ao salvar as imagens.', 'warning');
+      }
+    }
+
     await refreshData();
   };
-
+  
   const updateTrip = async (trip: Trip) => {
     const updates = {
       title: trip.title,
+      slug: trip.slug,
       description: trip.description,
+      destination: trip.destination,
       price: trip.price,
+      start_date: trip.startDate,
+      end_date: trip.endDate,
+      duration_days: trip.durationDays,
+      category: trip.category,
+      tags: trip.tags,
+      traveler_types: trip.travelerTypes,
+      itinerary: trip.itinerary,
+      payment_methods: trip.paymentMethods,
+      included: trip.included,
+      not_included: trip.notIncluded,
+      featured: trip.featured,
+      featured_in_hero: trip.featuredInHero,
     };
+
     const { error } = await supabase.from('trips').update(updates).eq('id', trip.id);
+    
     if (error) {
        console.error('Error updating trip:', error);
        showToast('Erro ao atualizar viagem.', 'error');
        throw new Error(error?.message || 'Update failed');
     }
-    setTrips(prev => prev.map(t => t.id === trip.id ? trip : t));
+
+    // Handle images: delete all existing and insert new ones
+    const { error: deleteImgError } = await supabase.from('trip_images').delete().eq('trip_id', trip.id);
+    if (deleteImgError) {
+      console.error("Error clearing old images:", deleteImgError);
+    }
+
+    if (trip.images && trip.images.length > 0) {
+      const imagesPayload = trip.images.map(url => ({
+        trip_id: trip.id,
+        image_url: url,
+      }));
+      const { error: imgError } = await supabase.from('trip_images').insert(imagesPayload);
+      if (imgError) {
+        console.error("Error saving new images:", imgError);
+        showToast('Dados da viagem atualizados, mas houve um erro ao salvar as novas imagens.', 'warning');
+      }
+    }
+
+    await refreshData();
   };
 
   const deleteTrip = async (tripId: string) => {
@@ -664,7 +744,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     } else {
-      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
+      setClients(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     }
   };
 
