@@ -1,4 +1,5 @@
 
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -39,6 +40,7 @@ export interface Client extends User {
   favorites: string[]; // Trip IDs
   notificationsEnabled?: boolean;
   address?: Address;
+  status?: 'ACTIVE' | 'SUSPENDED';
 }
 
 export interface Agency extends User {

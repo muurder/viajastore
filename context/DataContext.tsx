@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors } from '../types';
 import { useAuth } from './AuthContext';
@@ -29,15 +30,18 @@ interface DataContextType {
   addAgencyReview: (review: Partial<AgencyReview>) => Promise<void>; // New
   deleteReview: (reviewId: string) => Promise<void>; // Legacy
   deleteAgencyReview: (reviewId: string) => Promise<void>; // New
+  updateAgencyReview: (reviewId: string, data: Partial<AgencyReview>) => Promise<void>;
   
   toggleFavorite: (tripId: string, clientId: string) => Promise<void>;
   updateClientProfile: (clientId: string, data: Partial<Client>) => Promise<void>;
   
   updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => Promise<void>;
+  updateAgencyProfileByAdmin: (agencyId: string, data: Partial<Agency>) => Promise<void>;
   createTrip: (trip: Trip) => Promise<void>;
   updateTrip: (trip: Trip) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
   toggleTripStatus: (tripId: string) => Promise<void>; 
+  toggleTripFeatureStatus: (tripId: string) => Promise<void>;
   
   // Master Admin Functions
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
@@ -191,7 +195,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: p.phone,
           favorites: [], 
           createdAt: p.created_at,
-          address: p.address || {}
+          address: p.address || {},
+          status: p.status || 'ACTIVE'
         } as Client));
 
         setClients(formattedClients);
@@ -448,6 +453,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
+  const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
+    const { error } = await supabase
+      .from('agency_reviews')
+      .update({
+        comment: data.comment,
+        rating: data.rating,
+      })
+      .eq('id', reviewId);
+    if (error) {
+      showToast('Erro ao atualizar avaliação: ' + error.message, 'error');
+      throw error;
+    }
+    showToast('Avaliação atualizada com sucesso.', 'success');
+    await fetchAgencyReviews(); // Refresh data
+  };
+
   const deleteReview = async (reviewId: string) => {
      // Legacy
   };
@@ -476,6 +497,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }).eq('id', agencyId);
     if (!error) await refreshData();
   };
+
+  const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
+    const dbUpdates: any = {};
+    if (data.name) dbUpdates.name = data.name;
+    if (data.description) dbUpdates.description = data.description;
+    if (data.logo) dbUpdates.logo_url = data.logo;
+    if (data.slug) dbUpdates.slug = data.slug;
+    if (data.cnpj) dbUpdates.cnpj = data.cnpj;
+    if (data.phone) dbUpdates.phone = data.phone;
+
+    const { error } = await supabase
+      .from('agencies')
+      .update(dbUpdates)
+      .eq('id', agencyId);
+    
+    if (error) {
+      showToast('Erro ao atualizar agência: ' + error.message, 'error');
+      throw error;
+    }
+    showToast('Agência atualizada com sucesso.', 'success');
+    await fetchAgencies();
+  };
+
 
   const createTrip = async (trip: Trip) => {
     const tripSlug = (trip.slug && trip.slug.trim() !== '') ? trip.slug.trim() : null;
@@ -548,14 +592,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) throw error;
 
     // Replace images
-    await supabase.from('trip_images').delete().eq('trip_id', id);
-    if (images && images.length > 0) {
-      const imageInserts = images.map((url, index) => ({
-        trip_id: id,
-        image_url: url,
-        order_index: index
-      }));
-      await supabase.from('trip_images').insert(imageInserts);
+    if (images) {
+      await supabase.from('trip_images').delete().eq('trip_id', id);
+      if (images.length > 0) {
+        const imageInserts = images.map((url, index) => ({
+          trip_id: id,
+          image_url: url,
+          order_index: index
+        }));
+        await supabase.from('trip_images').insert(imageInserts);
+      }
     }
     await refreshData();
   };
@@ -572,6 +618,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!trip) return;
     await supabase.from('trips').update({ active: !trip.active }).eq('id', tripId);
     await refreshData();
+  };
+
+  const toggleTripFeatureStatus = async (tripId: string) => {
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) return;
+    const { error } = await supabase.from('trips').update({ featured: !trip.featured }).eq('id', tripId);
+    if (error) {
+        showToast('Erro ao alterar destaque da viagem.', 'error');
+    } else {
+        showToast(`Viagem ${!trip.featured ? 'destacada' : 'removida dos destaques'}.`, 'success');
+        await refreshData();
+    }
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
@@ -678,8 +736,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <DataContext.Provider value={{ 
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
-      addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, toggleFavorite, updateClientProfile,
-      updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus,
+      addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview, toggleFavorite, updateClientProfile,
+      updateAgencySubscription, updateAgencyProfileByAdmin, createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
       deleteUser, logAuditAction,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug, getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId,
       hasUserPurchasedTrip, getAgencyStats, 
