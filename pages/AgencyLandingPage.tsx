@@ -23,7 +23,7 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
-const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0003-\u036f]/g, "");
 
 // --- Reusable Review Form Component ---
 interface ReviewFormProps {
@@ -80,6 +80,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 
 const AgencyLandingPage: React.FC = () => {
+  // --- HOOKS DECLARATION (TOP LEVEL) ---
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
@@ -94,42 +95,17 @@ const AgencyLandingPage: React.FC = () => {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isEditingReview, setIsEditingReview] = useState(false);
+  const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
+  // --- DATA FETCHING & DERIVED STATE (SAFE) ---
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   
-  // Scroll to reviews if tab is set
-  const reviewsSectionRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (initialTab === 'REVIEWS' && reviewsSectionRef.current) {
-        setTimeout(() => {
-            reviewsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300); // Delay to allow page to render
-    }
-  }, [initialTab]);
-
-  if (loading && !agency) {
-      return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
-  }
-
-  if (!agency) {
-      return (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-            <div className="bg-gray-100 p-6 rounded-full mb-6">
-              <Search size={48} className="text-gray-400" />
-            </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Agência não encontrada</h1>
-            <p className="text-gray-500 mb-8 max-w-md">O endereço <strong>/{agencySlug}</strong> não existe.</p>
-            <Link to="/agencies" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
-              Ver Lista de Agências
-            </Link>
-          </div>
-      );
-  }
+  const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.id) : [], [agency, getAgencyPublicTrips]);
   
-  const allTrips = useMemo(() => getAgencyPublicTrips(agency.id), [agency.id, getAgencyPublicTrips]);
-  const agencyReviews = useMemo(() => getReviewsByAgencyId(agency.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [agency.id, getReviewsByAgencyId]);
+  const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [], [agency, getReviewsByAgencyId]);
 
-  const hasPurchased = useMemo(() => user && bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.id && b.status === 'CONFIRMED'), [bookings, user, agency.id]);
+  const hasPurchased = useMemo(() => user && agency && bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.id && b.status === 'CONFIRMED'), [bookings, user, agency]);
+  
   const myReview = useMemo(() => user && agencyReviews.find(r => r.clientId === user.id), [agencyReviews, user]);
   
   const shuffledTrips = useMemo(() => {
@@ -157,35 +133,66 @@ const AgencyLandingPage: React.FC = () => {
       return { totalReviews, averageRating, totalClients };
   }, [agencyReviews, allTrips]);
 
-  const filteredTrips = useMemo(() => shuffledTrips.filter(t => {
-    if (t.agencyId !== agency.id) return false;
+  const filteredTrips = useMemo(() => {
+    if (!agency) return [];
+    return shuffledTrips.filter(t => {
+      const matchesSearch = 
+          t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.destination.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesSearch = 
-        t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.destination.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
+      if (selectedInterests.length === 0) return true;
 
-    if (!matchesSearch) return false;
-    if (selectedInterests.length === 0) return true;
-
-    return selectedInterests.some(interest => {
-        const cleanInterest = normalizeText(interest);
-        const cleanCategory = normalizeText(t.category);
-        if (cleanCategory === cleanInterest) return true;
-        if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
-        return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
+      return selectedInterests.some(interest => {
+          const cleanInterest = normalizeText(interest);
+          const cleanCategory = normalizeText(t.category);
+          if (cleanCategory === cleanInterest) return true;
+          if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
+          return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
+      });
     });
-  }), [shuffledTrips, searchTerm, selectedInterests, agency.id]);
+  }, [shuffledTrips, searchTerm, selectedInterests, agency]);
 
+  // --- USEEFFECT HOOKS ---
   useEffect(() => {
-      const loadTheme = async () => {
-          const theme = await getAgencyTheme(agency.id);
-          if (theme) setAgencyTheme(theme.colors);
-      };
-      loadTheme();
-  }, [agency.id, getAgencyTheme, setAgencyTheme]);
+    if (initialTab === 'REVIEWS' && reviewsSectionRef.current) {
+        setTimeout(() => {
+            reviewsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+    }
+  }, [initialTab]);
+  
+  useEffect(() => {
+      if (agency) {
+          const loadTheme = async () => {
+              const theme = await getAgencyTheme(agency.id);
+              if (theme) setAgencyTheme(theme.colors);
+          };
+          loadTheme();
+      }
+  }, [agency, getAgencyTheme, setAgencyTheme]);
+  
+  // --- EARLY RETURNS FOR LOADING/NOT FOUND ---
+  if (loading && !agency) {
+      return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
+  }
 
-  const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
+  if (!agency) {
+      return (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
+            <div className="bg-gray-100 p-6 rounded-full mb-6">
+              <Search size={48} className="text-gray-400" />
+            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Agência não encontrada</h1>
+            <p className="text-gray-500 mb-8 max-w-md">O endereço <strong>/{agencySlug}</strong> não existe.</p>
+            <Link to="/agencies" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+              Ver Lista de Agências
+            </Link>
+          </div>
+      );
+  }
 
+  // --- HANDLER FUNCTIONS ---
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
         setSelectedInterests([]);
@@ -249,6 +256,8 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
+  // --- RENDER LOGIC ---
+  const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
