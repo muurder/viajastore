@@ -435,12 +435,12 @@ const Layout: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Footer (Auth) */}
-                <div className="p-5 border-t border-gray-100 bg-gray-50">
+                {/* Footer (Auth) - Refactored for better UX */}
+                <div className="p-5 border-t border-gray-100">
                     {user ? (
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3 mb-4 px-2">
-                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="overflow-hidden">
@@ -449,19 +449,32 @@ const Layout: React.FC = () => {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-2 gap-3">
-                                <Link to={userProfileLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50">
-                                    Minha Conta
-                                </Link>
-                                {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
-                                    <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700">
-                                        {user.role === 'ADMIN' ? 'Painel' : 'Painel'}
+                            {user.role === 'CLIENT' && (
+                                <div className="space-y-2">
+                                    <Link to={userProfileLink} className="flex items-center justify-center w-full px-4 py-3 bg-gray-900 text-white rounded-lg text-sm font-bold hover:bg-black transition-colors shadow-sm">
+                                        Minha Conta
                                     </Link>
-                                )}
-                            </div>
-                            <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-bold transition-colors">
-                                <LogOut size={16} className="mr-2"/> Sair
-                            </button>
+                                    <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">
+                                        <LogOut size={16} className="mr-2"/> Sair
+                                    </button>
+                                </div>
+                            )}
+
+                            {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Link to={userProfileLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 text-center">
+                                            Minha Conta
+                                        </Link>
+                                        <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 text-center">
+                                            Painel
+                                        </Link>
+                                    </div>
+                                    <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">
+                                        <LogOut size={16} className="mr-2"/> Sair
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 gap-4">
