@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -227,7 +228,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 agencies (name, logo_url, slug)
             `);
             
-          if (error) throw error;
+          if (error) {
+             console.error("Error fetching agency reviews:", error.message || error);
+             return;
+          }
 
           if (data) {
               setAgencyReviews(data.map((r: any) => ({
@@ -245,9 +249,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               })));
           }
       } catch (err: any) {
-          console.error("Error fetching agency reviews:", err);
-          showToast('Erro ao carregar avaliações. Verifique sua conexão ou permissões (RLS).', 'error');
-          setAgencyReviews([]); // Ensure state is an empty array on error
+          console.warn("Agency reviews table might not exist yet.", err.message || err);
       }
   };
 
@@ -742,7 +744,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (table === 'agencies') {
       setAgencies(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     } else {
-      setClients(prev => prev.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString() } : c));
+      setClients(prev => prev.map(a => a.id === id ? { ...a, deleted_at: new Date().toISOString() } : a));
     }
   };
 
