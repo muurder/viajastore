@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -48,6 +47,7 @@ interface DataContextType {
   restoreEntity: (id: string, table: 'profiles' | 'agencies') => Promise<void>;
   deleteUser: (userId: string, role: UserRole) => Promise<void>;
   deleteMultipleUsers: (userIds: string[]) => Promise<void>;
+  deleteMultipleAgencies: (agencyIds: string[]) => Promise<void>;
   getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
   updateMultipleUsersStatus: (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => Promise<void>;
   updateMultipleAgenciesStatus: (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => Promise<void>;
@@ -771,7 +771,48 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.warn("deleteUser is a hard delete and should be used with caution.");
   };
 
-  const deleteMultipleUsers = async (userIds: string[]) => {};
+  const deleteMultipleUsers = async (userIds: string[]) => {
+    if (userIds.length === 0) return;
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .in('id', userIds);
+      
+    if (error) {
+      console.error('Error hard deleting users:', error);
+      showToast('Erro ao esvaziar a lixeira. Verifique as permissões (RLS).', 'error');
+      throw error;
+    }
+    
+    setClients(prev => prev.filter(c => !userIds.includes(c.id)));
+  };
+
+  const deleteMultipleAgencies = async (agencyIds: string[]) => {
+    if (agencyIds.length === 0) return;
+    
+    const { error: agencyError } = await supabase
+      .from('agencies')
+      .delete()
+      .in('id', agencyIds);
+      
+    if (agencyError) {
+      console.error('Error hard deleting from agencies table:', agencyError);
+      showToast('Erro ao esvaziar a lixeira de agências. Verifique as permissões (RLS).', 'error');
+      throw agencyError;
+    }
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .in('id', agencyIds);
+
+    if (profileError) {
+      console.warn('Warning deleting corresponding profiles for agencies:', profileError);
+    }
+    
+    setAgencies(prev => prev.filter(a => !agencyIds.includes(a.id)));
+  };
+
   const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => { return []; };
   const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {};
   const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {};
@@ -855,7 +896,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview,
       toggleFavorite, updateClientProfile, updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus,
       createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
+      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats, updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction,
       sendPasswordReset, updateUserAvatarByAdmin,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,

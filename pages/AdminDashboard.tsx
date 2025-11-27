@@ -98,7 +98,7 @@ const AdminDashboard: React.FC = () => {
   const { 
       agencies, trips, agencyReviews, clients, auditLogs, bookings,
       updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, 
-      deleteUser, deleteMultipleUsers, getUsersStats,
+      deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData, updateAgencyReview, updateAgencyProfileByAdmin,
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
@@ -208,10 +208,13 @@ const AdminDashboard: React.FC = () => {
       if (itemsToDelete.length > 0 && window.confirm(`Excluir permanentemente ${itemsToDelete.length} item(ns) da lixeira? Esta ação não pode ser desfeita.`)) {
           setIsProcessing(true);
           try {
-              await deleteMultipleUsers(itemsToDelete.map(i => i.id));
-              showToast('Lixeira esvaziada.', 'success');
-          } catch (e) {
-              showToast('Erro ao esvaziar a lixeira.', 'error');
+              if (type === 'user') {
+                  await deleteMultipleUsers(itemsToDelete.map(i => i.id));
+              } else {
+                  await deleteMultipleAgencies(itemsToDelete.map(i => i.id));
+              }
+          } catch (e: any) {
+              showToast(e.message || 'Erro ao esvaziar a lixeira.', 'error');
           } finally {
               setIsProcessing(false);
           }
@@ -332,7 +335,7 @@ const AdminDashboard: React.FC = () => {
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length ? [] : filteredAgencies.map(a => a.id));
 
   const handleMassDeleteUsers = async () => { if (window.confirm(`Excluir ${selectedUsers.length} usuários?`)) { await deleteMultipleUsers(selectedUsers); setSelectedUsers([]); showToast('Usuários excluídos.', 'success'); } };
-  const handleMassDeleteAgencies = async () => { if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) { await deleteMultipleUsers(selectedAgencies); setSelectedAgencies([]); showToast('Agências excluídas.', 'success'); } };
+  const handleMassDeleteAgencies = async () => { if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) { await deleteMultipleAgencies(selectedAgencies); setSelectedAgencies([]); showToast('Agências excluídas.', 'success'); } };
   const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus(selectedUsers, status); setSelectedUsers([]); showToast('Status atualizado.', 'success'); };
   const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => { await updateMultipleAgenciesStatus(selectedAgencies, status); setSelectedAgencies([]); showToast('Status atualizado.', 'success'); };
   const handleViewStats = async () => { const stats = await getUsersStats(selectedUsers); setUserStats(stats); setModalType('VIEW_STATS'); };
