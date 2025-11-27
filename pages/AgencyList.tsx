@@ -162,7 +162,11 @@ const AgencyList: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                {paginatedAgencies.map(agency => (
-                  <div key={agency.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col">
+                  <Link 
+                    key={agency.id}
+                    to={`/${agency.slug}`}
+                    className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col"
+                  >
                      <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-4">
                            <div className="relative">
@@ -210,14 +214,11 @@ const AgencyList: React.FC = () => {
                            <span className="font-bold text-gray-900">{agency.tripCount}</span> pacotes ativos
                         </div>
                         
-                        <Link 
-                           to={`/agency/${agency.id}`}
-                           className="text-sm font-bold text-primary-600 hover:text-primary-700 flex items-center"
-                        >
-                           Ver Perfil <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
-                        </Link>
+                        <div className="text-sm font-bold text-primary-600 group-hover:text-primary-700 flex items-center">
+                           Ver Página <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                        </div>
                      </div>
-                  </div>
+                  </Link>
                ))}
             </div>
 

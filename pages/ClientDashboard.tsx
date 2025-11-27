@@ -11,13 +11,14 @@ import { slugify } from '../utils/slugify';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState<AgencyReview | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // New state for modal submission
 
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
@@ -54,7 +55,6 @@ const ClientDashboard: React.FC = () => {
      confirmPassword: ''
   });
 
-  // FIX: Move navigation to useEffect to avoid render-phase side effects
   useEffect(() => {
     if (!authLoading) {
       if (!user || user.role !== UserRole.CLIENT) {
@@ -72,7 +72,6 @@ const ClientDashboard: React.FC = () => {
     }
   }, [editingReview]);
 
-  // Show loader while checking auth to prevent flashing/redirect loops
   if (authLoading || !user || user.role !== UserRole.CLIENT) {
     return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
   }
@@ -160,7 +159,6 @@ const ClientDashboard: React.FC = () => {
       if (confirm) {
           const result = await deleteAccount();
           if (result.success) {
-              // Fix: Use navigate for SPA behavior instead of window.location
               navigate('/');
           } else {
               showToast("Erro ao excluir conta: " + result.error, 'error');
@@ -177,7 +175,7 @@ const ClientDashboard: React.FC = () => {
   const generatePDF = () => {
       if (!selectedBooking) return;
       const trip = selectedBooking._trip;
-      const agency = selectedBooking._agency; // Fetched from _agency prop in booking
+      const agency = selectedBooking._agency; 
 
       if (!trip) {
           showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
@@ -186,53 +184,33 @@ const ClientDashboard: React.FC = () => {
 
       try {
         const doc = new jsPDF();
-        
-        // Header Background
-        doc.setFillColor(59, 130, 246); // Primary Blue
+        doc.setFillColor(59, 130, 246);
         doc.rect(0, 0, 210, 40, 'F');
-        
-        // Title
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
         doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
-
-        // Reset Text
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(12);
-        
-        // Section 1: Details
         let y = 60;
-        
-        const addField = (label: string, value: string) => {
-            doc.setFont('helvetica', 'bold');
-            doc.text(label, 20, y);
-            doc.setFont('helvetica', 'normal');
-            doc.text(value, 70, y);
-            y += 10;
-        };
-
+        const addField = (label: string, value: string) => { doc.setFont('helvetica', 'bold'); doc.text(label, 20, y); doc.setFont('helvetica', 'normal'); doc.text(value, 70, y); y += 10; };
         addField('Código da Reserva:', selectedBooking.voucherCode);
         addField('Passageiro Principal:', user.name);
         addField('CPF:', currentClient?.cpf || 'Não informado');
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
-        
         const dateStr = trip.startDate || trip.start_date;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        
         const duration = trip.durationDays || trip.duration_days;
         addField('Duração:', `${duration} Dias`);
         y += 5;
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
         if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
-
         y += 10;
         doc.setDrawColor(200, 200, 200);
         doc.line(20, y, 190, y);
         y += 20;
-
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Instruções', 20, y);
@@ -244,12 +222,10 @@ const ClientDashboard: React.FC = () => {
         doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
         y += 6;
         doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
-
         y = 280;
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
         doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
-
         doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
       } catch (error) {
           console.error('Erro ao gerar PDF:', error);
@@ -259,20 +235,17 @@ const ClientDashboard: React.FC = () => {
 
   const openWhatsApp = () => {
       if (!selectedBooking || !selectedBooking._agency?.whatsapp) return;
-      
       const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
       const tripTitle = selectedBooking._trip?.title || 'Pacote';
       const agencyName = selectedBooking._agency?.name || 'Agência';
-      
       const msg = `Olá ${agencyName}! Comprei o pacote *${tripTitle}* pela ViajaStore e gostaria de tirar algumas dúvidas.`;
-      
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!selectedBooking) return;
-      
+      if (!selectedBooking || isSubmitting) return;
+      setIsSubmitting(true);
       try {
           await addAgencyReview({
               agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
@@ -284,14 +257,18 @@ const ClientDashboard: React.FC = () => {
           setShowReviewModal(false);
           setSelectedBooking(null);
           setReviewForm({ rating: 5, comment: '' });
+          await refreshData();
       } catch (error) {
           console.error(error);
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
   const handleEditReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingReview) return;
+    if (!editingReview || isSubmitting) return;
+    setIsSubmitting(true);
     try {
         await updateAgencyReview(editingReview.id, {
             rating: reviewForm.rating,
@@ -299,8 +276,11 @@ const ClientDashboard: React.FC = () => {
         });
         setEditingReview(null);
         setReviewForm({ rating: 5, comment: '' });
+        await refreshData();
     } catch(err) {
         console.error(err);
+    } finally {
+        setIsSubmitting(false);
     }
   };
   
@@ -328,67 +308,26 @@ const ClientDashboard: React.FC = () => {
           </div>
 
           <nav className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {[
-                { id: 'PROFILE', icon: User, label: 'Meu Perfil' },
-                { id: 'BOOKINGS', icon: ShoppingBag, label: 'Minhas Viagens' },
-                { id: 'REVIEWS', icon: Star, label: 'Minhas Avaliações' },
-                { id: 'FAVORITES', icon: Heart, label: 'Favoritos' },
-                { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço' },
-                { id: 'SECURITY', icon: Shield, label: 'Segurança' }
-            ].map((item) => (
-                <Link 
-                key={item.id}
-                to={getNavLink(item.id)}
-                className={getTabClass(item.id)}
-                >
-                <item.icon size={18} className="mr-3" /> {item.label}
-                </Link>
-            ))}
+            {[ { id: 'PROFILE', icon: User, label: 'Meu Perfil' }, { id: 'BOOKINGS', icon: ShoppingBag, label: 'Minhas Viagens' }, { id: 'REVIEWS', icon: Star, label: 'Minhas Avaliações' }, { id: 'FAVORITES', icon: Heart, label: 'Favoritos' }, { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço' }, { id: 'SECURITY', icon: Shield, label: 'Segurança' } ].map((item) => ( <Link key={item.id} to={getNavLink(item.id)} className={getTabClass(item.id)}> <item.icon size={18} className="mr-3" /> {item.label} </Link> ))}
             <div className="h-px bg-gray-100 my-1"></div>
-            <button onClick={handleLogout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors">
-                <LogOut size={18} className="mr-3" /> Sair da Conta
-            </button>
+            <button onClick={handleLogout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors"> <LogOut size={18} className="mr-3" /> Sair da Conta </button>
           </nav>
         </div>
 
-        {/* Content Area */}
         <div className="lg:col-span-3">
            
            {activeTab === 'PROFILE' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-               <div className="flex justify-between items-center mb-6">
-                   <h2 className="text-2xl font-bold text-gray-900">Resumo do Perfil</h2>
-                   <Link to={getNavLink('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</Link>
-               </div>
-               
+               <div className="flex justify-between items-center mb-6"> <h2 className="text-2xl font-bold text-gray-900">Resumo do Perfil</h2> <Link to={getNavLink('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</Link> </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="bg-gray-50 p-4 rounded-xl">
-                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome</label>
-                   <p className="text-gray-900 font-medium">{user.name}</p>
-                 </div>
-                 <div className="bg-gray-50 p-4 rounded-xl">
-                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Email</label>
-                   <p className="text-gray-900 font-medium">{user.email}</p>
-                 </div>
-                 <div className="bg-gray-50 p-4 rounded-xl">
-                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">CPF</label>
-                   <p className="text-gray-900 font-medium">{currentClient?.cpf || '---'}</p>
-                 </div>
-                 <div className="bg-gray-50 p-4 rounded-xl">
-                   <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Telefone</label>
-                   <p className="text-gray-900 font-medium">{currentClient?.phone || '---'}</p>
-                 </div>
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome</label> <p className="text-gray-900 font-medium">{user.name}</p> </div>
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Email</label> <p className="text-gray-900 font-medium">{user.email}</p> </div>
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">CPF</label> <p className="text-gray-900 font-medium">{currentClient?.cpf || '---'}</p> </div>
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Telefone</label> <p className="text-gray-900 font-medium">{currentClient?.phone || '---'}</p> </div>
                </div>
-
                <div className="mt-10 grid grid-cols-3 gap-4">
-                    <div className="border border-gray-100 rounded-xl p-4 text-center">
-                        <p className="text-3xl font-bold text-primary-600">{myBookings.length}</p>
-                        <p className="text-xs text-gray-500 uppercase font-bold mt-1">Viagens</p>
-                    </div>
-                    <div className="border border-gray-100 rounded-xl p-4 text-center">
-                        <p className="text-3xl font-bold text-amber-500">{favoriteTrips.length}</p>
-                        <p className="text-xs text-gray-500 uppercase font-bold mt-1">Favoritos</p>
-                    </div>
+                    <div className="border border-gray-100 rounded-xl p-4 text-center"> <p className="text-3xl font-bold text-primary-600">{myBookings.length}</p> <p className="text-xs text-gray-500 uppercase font-bold mt-1">Viagens</p> </div>
+                    <div className="border border-gray-100 rounded-xl p-4 text-center"> <p className="text-3xl font-bold text-amber-500">{favoriteTrips.length}</p> <p className="text-xs text-gray-500 uppercase font-bold mt-1">Favoritos</p> </div>
                </div>
              </div>
            )}
@@ -404,17 +343,15 @@ const ClientDashboard: React.FC = () => {
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
                     const startDate = trip.startDate || trip.start_date;
+                    const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
+                    const agencySlugForNav = booking._agency?.slug;
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
                         <img src={imgUrl} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
                         <div className="flex-1">
                            <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{trip.title}</h3>
-                           {agency && (
-                               <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block">
-                                   Organizado por {agency.name}
-                               </Link>
-                           )}
+                           {agency && ( <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block"> Organizado por {agency.name} </Link> )}
                            <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
                              <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
                              <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
@@ -423,8 +360,18 @@ const ClientDashboard: React.FC = () => {
                                <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
-                               <button onClick={() => { setSelectedBooking(booking); setShowReviewModal(true); }} className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100">
-                                    <Star size={16} /> Avaliar Agência
+                               <button 
+                                  onClick={() => {
+                                    if (agencySlugForNav) {
+                                      navigate(`/${agencySlugForNav}?tab=REVIEWS`);
+                                    } else {
+                                      showToast('Não foi possível encontrar a página da agência.', 'error');
+                                    }
+                                  }}
+                                  disabled={!agencySlugForNav}
+                                  className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Star size={16} /> {hasReviewed ? 'Ver/Editar Avaliação' : 'Avaliar Agência'}
                                </button>
                            </div>
                         </div>
@@ -432,10 +379,7 @@ const ClientDashboard: React.FC = () => {
                     );
                  })
                ) : (
-                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
-                   <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" />
-                   <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3>
-                 </div>
+                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> </div>
                )}
              </div>
            )}
@@ -449,15 +393,8 @@ const ClientDashboard: React.FC = () => {
                                <div key={review.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                                    <div className="flex justify-between items-start mb-3">
                                        <div className="flex items-center gap-4">
-                                           <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
-                                               {review.agencyLogo ? <img src={review.agencyLogo} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-gray-200"/>}
-                                           </div>
-                                           <div>
-                                               <h4 className="font-bold text-gray-900">{review.agencyName}</h4>
-                                               <div className="flex text-amber-400 text-sm">
-                                                   {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)}
-                                               </div>
-                                           </div>
+                                           <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden border border-gray-200"> {review.agencyLogo ? <img src={review.agencyLogo} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-gray-200"/>} </div>
+                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)} </div> </div>
                                        </div>
                                        <div className="flex items-center gap-2">
                                           <button onClick={() => setEditingReview(review)} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" aria-label="Editar avaliação"><Edit size={16}/></button>
@@ -465,18 +402,12 @@ const ClientDashboard: React.FC = () => {
                                        </div>
                                    </div>
                                    <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-xl italic">"{review.comment}"</p>
-                                   <div className="mt-4 flex justify-end">
-                                      <Link to={`/${review.agencyName ? slugify(review.agencyName) : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link>
-                                   </div>
+                                   <div className="mt-4 flex justify-end"> <Link to={`/${review.agencyName ? slugify(review.agencyName) : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link> </div>
                                </div>
                            ))}
                        </div>
                    ) : (
-                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
-                           <Star size={32} className="text-gray-300 mx-auto mb-4" />
-                           <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3>
-                           <p className="text-gray-500 mt-1">Você ainda não avaliou nenhuma agência.</p>
-                       </div>
+                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Star size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3> <p className="text-gray-500 mt-1">Você ainda não avaliou nenhuma agência.</p> </div>
                    )}
                </div>
            )}
@@ -484,17 +415,7 @@ const ClientDashboard: React.FC = () => {
            {activeTab === 'FAVORITES' && (
              <div className="animate-[fadeIn_0.3s]">
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
-               {favoriteTrips.length > 0 ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))}
-                 </div>
-               ) : (
-                  <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
-                   <Heart size={32} className="text-gray-300 mx-auto mb-4" />
-                   <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3>
-                   <p className="text-gray-500 mt-2">Você ainda não favoritou nenhuma viagem.</p>
-                 </div>
-               )}
+               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Heart size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3> <p className="text-gray-500 mt-2">Você ainda não favoritou nenhuma viagem.</p> </div> )}
              </div>
            )}
 
@@ -503,56 +424,21 @@ const ClientDashboard: React.FC = () => {
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Dados Pessoais & Endereço</h2>
                <form onSubmit={handleSaveProfile} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Nome Completo</label>
-                        <input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
-                        <input type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">CPF</label>
-                        <input value={editForm.cpf} onChange={(e) => setEditForm({...editForm, cpf: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="000.000.000-00" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label>
-                        <input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" />
-                      </div>
+                      <div className="md:col-span-2"> <label className="block text-sm font-bold text-gray-700 mb-2">Nome Completo</label> <input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Email</label> <input type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">CPF</label> <input value={editForm.cpf} onChange={(e) => setEditForm({...editForm, cpf: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="000.000.000-00" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label> <input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
                   </div>
-
                   <div className="border-t pt-6">
                       <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="md:col-span-1 relative">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label>
-                             <input value={addressForm.zipCode} onChange={handleCepChange} className="w-full border border-gray-300 rounded-lg p-2" placeholder="00000-000" />
-                             {loadingCep && <div className="absolute right-3 top-8"><Loader size={14} className="animate-spin text-primary-600"/></div>}
-                          </div>
-                          <div className="md:col-span-3">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label>
-                             <input value={addressForm.street} onChange={e => setAddressForm({...addressForm, street: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                          </div>
-                          <div className="md:col-span-1">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label>
-                             <input value={addressForm.number} onChange={e => setAddressForm({...addressForm, number: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                          </div>
-                          <div className="md:col-span-1">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Comp.</label>
-                             <input value={addressForm.complement} onChange={e => setAddressForm({...addressForm, complement: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                          </div>
-                          <div className="md:col-span-2">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bairro</label>
-                             <input value={addressForm.district} onChange={e => setAddressForm({...addressForm, district: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                          </div>
-                          <div className="md:col-span-3">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label>
-                             <input value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" />
-                          </div>
-                          <div className="md:col-span-1">
-                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label>
-                             <input value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" />
-                          </div>
+                          <div className="md:col-span-1 relative"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label> <input value={addressForm.zipCode} onChange={handleCepChange} className="w-full border border-gray-300 rounded-lg p-2" placeholder="00000-000" /> {loadingCep && <div className="absolute right-3 top-8"><Loader size={14} className="animate-spin text-primary-600"/></div>} </div>
+                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label> <input value={addressForm.street} onChange={e => setAddressForm({...addressForm, street: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label> <input value={addressForm.number} onChange={e => setAddressForm({...addressForm, number: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Comp.</label> <input value={addressForm.complement} onChange={e => setAddressForm({...addressForm, complement: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-2"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bairro</label> <input value={addressForm.district} onChange={e => setAddressForm({...addressForm, district: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label> <input value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label> <input value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" /> </div>
                       </div>
                   </div>
                   <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2"><Save size={18} /> Salvar Alterações</button>
@@ -564,28 +450,13 @@ const ClientDashboard: React.FC = () => {
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Segurança</h2>
                   <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
-                            <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
-                            <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/>
-                        </div>
-                      </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
                       <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
                   </form>
                   <div className="mt-12 pt-8 border-t border-gray-100">
                     <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                        <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p>
-                        <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors"><Trash2 size={16} className="mr-2" /> Excluir minha conta</button>
-                    </div>
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-4"> <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p> <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors"><Trash2 size={16} className="mr-2" /> Excluir minha conta</button> </div>
                   </div>
               </div>
            )}
@@ -602,18 +473,13 @@ const ClientDashboard: React.FC = () => {
                     <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
                 </div>
                 <div className="p-8 text-center">
-                    <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/>
-                    </div>
+                    <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
                     <p className="font-bold text-gray-900 text-lg">{user.name}</p>
                     <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
-                    
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
-                        {selectedBooking._agency?.whatsapp && (
-                            <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>
-                        )}
+                        {selectedBooking._agency?.whatsapp && ( <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button> )}
                     </div>
                 </div>
             </div>
@@ -623,37 +489,21 @@ const ClientDashboard: React.FC = () => {
       {showReviewModal && selectedBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }}>
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                  <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3>
-                      <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-                  </div>
-                  
+                  <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3> <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> </div>
                   <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      {selectedBooking._agency?.logo_url && (
-                          <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/>
-                      )}
-                      <div>
-                          <p className="text-xs text-gray-500 uppercase font-bold">Agência</p>
-                          <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p>
-                      </div>
+                      {selectedBooking._agency?.logo_url && ( <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
+                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p> </div>
                   </div>
-
                   <form onSubmit={handleReviewSubmit}>
                       <div className="mb-6 text-center">
                           <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
-                          <div className="flex justify-center gap-2">
-                              {[1, 2, 3, 4, 5].map((star) => (
-                                  <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110">
-                                      <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
-                                  </button>
-                              ))}
-                          </div>
+                          <div className="flex justify-center gap-2"> {[1, 2, 3, 4, 5].map((star) => ( <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"> <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /> </button> ))} </div>
                       </div>
                       <div className="mb-6">
                           <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
                           <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
                       </div>
-                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2"><Send size={18}/> Enviar Avaliação</button>
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"> {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18}/>} Enviar Avaliação</button>
                   </form>
               </div>
           </div>
@@ -666,7 +516,7 @@ const ClientDashboard: React.FC = () => {
                   <form onSubmit={handleEditReviewSubmit}>
                       <div className="mb-6 text-center"><label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label><div className="flex justify-center gap-2">{[1, 2, 3, 4, 5].map((star) => (<button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"><Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /></button>))}</div></div>
                       <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label><textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/></div>
-                      <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2"><Save size={18}/> Salvar Alterações</button>
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">{isSubmitting ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Alterações</button>
                   </form>
               </div>
           </div>

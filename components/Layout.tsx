@@ -1,4 +1,5 @@
 
+
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,7 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  // FIX: Correctly destructure useState to get setIsMenuOpen
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
   // Scroll Lock when Menu is Open
@@ -27,9 +29,14 @@ const Layout: React.FC = () => {
     return () => { document.body.style.overflow = 'unset'; };
   }, [isMenuOpen]);
 
-  // Close menu on route change
+  // Close menu on route change & Scroll to top on route change
   useEffect(() => {
     setIsMenuOpen(false);
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto'
+    });
   }, [location.pathname]);
 
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -366,7 +373,7 @@ const Layout: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto py-4 px-2">
+                <div className="flex-1 min-h-0 overflow-y-auto py-4 px-2">
                     <div className="space-y-1 px-2">
                         {/* Client Microsite Links */}
                         {isMicrositeClientArea && currentAgency && (
