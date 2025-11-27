@@ -23,6 +23,8 @@ const INTEREST_CHIPS = [
 const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 const AgencyLandingPage: React.FC = () => {
+  // --- 1. HOOKS & STATE DECLARATION ---
+  // All hooks are called unconditionally at the top level.
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme } = useData();
   const { setAgencyTheme } = useTheme();
@@ -30,35 +32,14 @@ const AgencyLandingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PACKAGES' | 'ABOUT' | 'REVIEWS'>('PACKAGES');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  
-  // --- UNCONDITIONAL HOOKS & DATA FETCHING ---
-  // All hooks and data logic are now at the top level to respect the Rules of Hooks.
-  
+
+  // --- 2. DATA DERIVATION ---
+  // Primary data (`agency`) is derived first. It will be `undefined` during the initial load on refresh.
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
-
-  // This hook fetches the theme and must run on every render.
-  // It's safe because it internally checks if `agency` exists.
-  useEffect(() => {
-      const loadTheme = async () => {
-          if (agency) {
-              const theme = await getAgencyTheme(agency.id);
-              if (theme) setAgencyTheme(theme.colors);
-          }
-      };
-      loadTheme();
-  }, [agency, getAgencyTheme, setAgencyTheme]);
-
-  // These `useMemo` hooks derive data. They will run on every render but only
-  // re-calculate when their dependencies change. They are safe to call even if `agency` is initially undefined.
+  
+  // Secondary data depends on `agency`. `useMemo` hooks safely handle `agency` being undefined by returning empty arrays.
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.id) : [], [agency, getAgencyPublicTrips]);
   const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.id) : [], [agency, getReviewsByAgencyId]);
-
-  const currentHeroTrip = useMemo(() => {
-      const active = allTrips.filter(t => t.active);
-      if (active.length === 0) return null;
-      const randomIndex = Math.floor(Math.random() * active.length);
-      return active[randomIndex];
-  }, [allTrips]);
 
   const shuffledTrips = useMemo(() => {
       const trips = [...allTrips];
@@ -68,6 +49,13 @@ const AgencyLandingPage: React.FC = () => {
       }
       return trips;
   }, [allTrips]);
+
+  const currentHeroTrip = useMemo(() => {
+      const featured = shuffledTrips.filter(t => t.featuredInHero);
+      if (featured.length > 0) return featured[0]; // Prioritize featured
+      if (shuffledTrips.length > 0) return shuffledTrips[0]; // Fallback to any trip
+      return null;
+  }, [shuffledTrips]);
   
   const agencyStats = useMemo(() => {
       const totalReviews = agencyReviews.length;
@@ -97,9 +85,21 @@ const AgencyLandingPage: React.FC = () => {
     });
   }), [shuffledTrips, searchTerm, selectedInterests, agency]);
 
-  // --- CONDITIONAL RENDERING ---
-  // Now that all hooks are called, we can safely return early for loading or not found states.
+  // --- 3. SIDE EFFECTS ---
+  // useEffect for theme loading. It safely checks if `agency` exists.
+  useEffect(() => {
+      const loadTheme = async () => {
+          if (agency) {
+              const theme = await getAgencyTheme(agency.id);
+              if (theme) setAgencyTheme(theme.colors);
+          }
+      };
+      loadTheme();
+  }, [agency, getAgencyTheme, setAgencyTheme]);
 
+  // --- 4. EARLY RETURNS FOR LOADING & NOT FOUND STATES ---
+  // These conditional returns happen after all hooks have been called, respecting the Rules of Hooks.
+  // This handles the refresh case where `agency` is not yet available.
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -119,7 +119,8 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // --- RENDER LOGIC (SAFE TO USE DERIVED DATA) ---
+  // --- 5. RENDER LOGIC ---
+  // From this point on, we can safely assume `agency` is a valid object.
   const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
   const toggleInterest = (label: string) => {
@@ -130,7 +131,7 @@ const AgencyLandingPage: React.FC = () => {
             prev.includes(label) ? prev.filter(i => i !== label) : [...prev, label]
         );
     }
- };
+  };
 
   const clearFilters = () => {
       setSearchTerm('');
@@ -398,7 +399,6 @@ const AgencyLandingPage: React.FC = () => {
                             <p className="text-xs text-gray-500 uppercase font-bold">Viajantes Embarcados</p>
                         </div>
                     </div>
-                    {/* FIX: The elements for this statistics card were not properly wrapped in a parent div, causing a JSX parsing error. */}
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
                         <div className="bg-green-50 p-3 rounded-full text-green-600"><CheckCircle size={24}/></div>
                         <div>

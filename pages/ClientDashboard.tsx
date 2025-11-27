@@ -7,7 +7,6 @@ import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, L
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
-// FIX: Import 'slugify' function
 import { slugify } from '../utils/slugify';
 
 const ClientDashboard: React.FC = () => {
@@ -55,7 +54,7 @@ const ClientDashboard: React.FC = () => {
      confirmPassword: ''
   });
 
-  // Fix: Move navigation to useEffect to avoid render-phase side effects
+  // FIX: Move navigation to useEffect to avoid render-phase side effects
   useEffect(() => {
     if (!authLoading) {
       if (!user || user.role !== UserRole.CLIENT) {
@@ -114,7 +113,7 @@ const ClientDashboard: React.FC = () => {
         if (!data.erro) {
           setAddressForm(prev => ({
             ...prev,
-            street: data.logradouro,
+            street: data.logouro,
             district: data.bairro,
             city: data.localidade,
             state: data.uf
