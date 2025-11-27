@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
+import { useToast } from './ToastContext';
 
 // Helper to convert Hex to RGB Array [r, g, b]
 const hexToRgbArray = (hex: string): [number, number, number] => {
@@ -55,6 +55,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { showToast } = useToast();
   const [themes, setThemes] = useState<ThemePalette[]>([FALLBACK_THEME]);
   const [activeTheme, setActiveTheme] = useState<ThemePalette>(FALLBACK_THEME);
   const [previewMode, setPreviewMode] = useState<ThemePalette | null>(null);
@@ -85,7 +86,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               if (currentActive) setActiveTheme(currentActive);
           }
       } catch (error: any) {
-          console.error("Error fetching themes:", error.message || error);
+          console.error("Error fetching themes:", error);
+          showToast('Erro ao carregar temas. Verifique sua conexão ou permissões (RLS).', 'error');
           // Keep fallback
       } finally {
           setLoading(false);
