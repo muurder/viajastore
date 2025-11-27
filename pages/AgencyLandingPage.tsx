@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -32,9 +31,13 @@ const AgencyLandingPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   
+  // --- UNCONDITIONAL HOOKS & DATA FETCHING ---
+  // All hooks and data logic are now at the top level to respect the Rules of Hooks.
+  
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
-  // Force refresh theme on mount
+  // This hook fetches the theme and must run on every render.
+  // It's safe because it internally checks if `agency` exists.
   useEffect(() => {
       const loadTheme = async () => {
           if (agency) {
@@ -43,10 +46,61 @@ const AgencyLandingPage: React.FC = () => {
           }
       };
       loadTheme();
-  }, [agency]);
+  }, [agency, getAgencyTheme, setAgencyTheme]);
 
-  // Wait for data loading
-  if (loading) {
+  // These `useMemo` hooks derive data. They will run on every render but only
+  // re-calculate when their dependencies change. They are safe to call even if `agency` is initially undefined.
+  const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.id) : [], [agency, getAgencyPublicTrips]);
+  const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.id) : [], [agency, getReviewsByAgencyId]);
+
+  const currentHeroTrip = useMemo(() => {
+      const active = allTrips.filter(t => t.active);
+      if (active.length === 0) return null;
+      const randomIndex = Math.floor(Math.random() * active.length);
+      return active[randomIndex];
+  }, [allTrips]);
+
+  const shuffledTrips = useMemo(() => {
+      const trips = [...allTrips];
+      for (let i = trips.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [trips[i], trips[j]] = [trips[j], trips[i]];
+      }
+      return trips;
+  }, [allTrips]);
+  
+  const agencyStats = useMemo(() => {
+      const totalReviews = agencyReviews.length;
+      const averageRating = totalReviews > 0 
+          ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
+          : 0; 
+      const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
+      return { totalReviews, averageRating, totalClients };
+  }, [agencyReviews, allTrips]);
+
+  const filteredTrips = useMemo(() => shuffledTrips.filter(t => {
+    if (!agency || t.agencyId !== agency.id) return false;
+
+    const matchesSearch = 
+        t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.destination.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (selectedInterests.length === 0) return true;
+
+    return selectedInterests.some(interest => {
+        const cleanInterest = normalizeText(interest);
+        const cleanCategory = normalizeText(t.category);
+        if (cleanCategory === cleanInterest) return true;
+        if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
+        return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
+    });
+  }), [shuffledTrips, searchTerm, selectedInterests, agency]);
+
+  // --- CONDITIONAL RENDERING ---
+  // Now that all hooks are called, we can safely return early for loading or not found states.
+
+  if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
@@ -65,71 +119,8 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // Fetch trips for this agency
-  const allTrips = getAgencyPublicTrips(agency.id);
-
-  // --- HERO LOGIC: RANDOM TRIP ON REFRESH ---
-  const currentHeroTrip = useMemo(() => {
-      // 1. Get active trips
-      const active = allTrips.filter(t => t.active);
-      
-      if (active.length === 0) return null;
-
-      // 2. Select ONE random trip
-      // Using Math.random() inside useMemo with [active] dependency means it runs once when data loads
-      // This effectively gives "Random trip on page load/refresh"
-      const randomIndex = Math.floor(Math.random() * active.length);
-      return active[randomIndex];
-  }, [allTrips]);
-
-  // --- GRID LOGIC: RANDOM ORDER ON REFRESH ---
-  const shuffledTrips = useMemo(() => {
-      const trips = [...allTrips];
-      // Fisher-Yates Shuffle
-      for (let i = trips.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [trips[i], trips[j]] = [trips[j], trips[i]];
-      }
-      return trips;
-  }, [allTrips]);
-
-  // Fallback Image
+  // --- RENDER LOGIC (SAFE TO USE DERIVED DATA) ---
   const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
-
-  // --- REVIEWS DATA ---
-  const agencyReviews = getReviewsByAgencyId(agency.id);
-
-  const agencyStats = useMemo(() => {
-      const totalReviews = agencyReviews.length;
-      const averageRating = totalReviews > 0 
-          ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
-          : 0; 
-      
-      const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
-
-      return { totalReviews, averageRating, totalClients };
-  }, [agencyReviews, allTrips]);
-
-  
-  // Filtering Logic (Using shuffledTrips as base)
-  const filteredTrips = shuffledTrips.filter(t => {
-    if (t.agencyId !== agency.id) return false;
-
-    const matchesSearch = 
-        t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.destination.toLowerCase().includes(searchTerm.toLowerCase());
-
-    if (!matchesSearch) return false;
-    if (selectedInterests.length === 0) return true;
-
-    return selectedInterests.some(interest => {
-        const cleanInterest = normalizeText(interest);
-        const cleanCategory = normalizeText(t.category);
-        if (cleanCategory === cleanInterest) return true;
-        if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
-        return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
-    });
-  });
 
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
@@ -407,6 +398,7 @@ const AgencyLandingPage: React.FC = () => {
                             <p className="text-xs text-gray-500 uppercase font-bold">Viajantes Embarcados</p>
                         </div>
                     </div>
+                    {/* FIX: The elements for this statistics card were not properly wrapped in a parent div, causing a JSX parsing error. */}
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
                         <div className="bg-green-50 p-3 rounded-full text-green-600"><CheckCircle size={24}/></div>
                         <div>
