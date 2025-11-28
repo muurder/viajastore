@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
 
