@@ -61,7 +61,9 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   // Find Agency for WhatsApp
   // FIX: Find agency by 'agencyId' (PK) to match trip.agencyId, not by user 'id'.
   const agency = agencies.find(a => a.agencyId === trip.agencyId);
-  const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
+  // UPDATE: Check for both whatsapp and phone fields for robustness
+  const contactNumber = agency?.whatsapp || agency?.phone;
+  const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent Link navigation
@@ -170,19 +172,17 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
           </div>
           <div className="flex items-center gap-2">
               {whatsappLink && (
-                  <button 
+                  <button
                     onClick={handleWhatsAppClick}
-                    className="p-2 rounded-full bg-green-50 text-green-600 hover:bg-green-100 transition-colors flex items-center justify-center border border-green-100"
-                    title="Falar com a agência"
+                    className="text-xs font-bold text-white flex items-center bg-[#25D366] px-3 py-1.5 rounded-full hover:bg-[#128C7E] transition-colors"
                   >
-                      <MessageCircle size={18} />
+                    <MessageCircle size={14} className="mr-1.5" />
+                    WhatsApp
                   </button>
               )}
-              <div className="mb-1">
-                 <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full hover:bg-primary-100 transition-colors">
-                   Detalhes &rarr;
-                 </span>
-              </div>
+              <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full hover:bg-primary-100 transition-colors">
+                Detalhes &rarr;
+              </span>
           </div>
         </div>
       </div>

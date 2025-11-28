@@ -550,60 +550,91 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-    const createTrip = async (trip: Trip) => {
+  const createTrip = async (trip: Trip) => {
     const supabase = guardSupabase();
-    const { images, ...tripData } = trip;
-    const { data, error } = await supabase.from('trips').insert({
-        ...tripData,
-        agency_id: trip.agencyId, // This must be the agency PK
-        start_date: trip.startDate,
-        end_date: trip.endDate,
-        duration_days: trip.durationDays,
-        traveler_types: trip.travelerTypes,
-        payment_methods: trip.paymentMethods,
-        not_included: trip.notIncluded,
-        views_count: trip.views,
-        sales_count: trip.sales,
-        featured_in_hero: trip.featuredInHero,
-        popular_near_sp: trip.popularNearSP,
-        is_active: trip.is_active,
-    }).select().single();
+    
+    // Explicitly build the payload to avoid inserting extra fields like 'rating'
+    const payload = {
+      agency_id: trip.agencyId,
+      title: trip.title,
+      slug: trip.slug,
+      description: trip.description,
+      destination: trip.destination,
+      price: trip.price,
+      start_date: trip.startDate,
+      end_date: trip.endDate,
+      duration_days: trip.durationDays,
+      category: trip.category,
+      tags: trip.tags,
+      traveler_types: trip.travelerTypes,
+      itinerary: trip.itinerary,
+      payment_methods: trip.paymentMethods,
+      included: trip.included,
+      not_included: trip.notIncluded,
+      is_active: trip.is_active,
+      featured: trip.featured,
+      featured_in_hero: trip.featuredInHero,
+      popular_near_sp: trip.popularNearSP,
+      views_count: trip.views || 0,
+      sales_count: trip.sales || 0,
+    };
+
+    const { data, error } = await supabase.from('trips').insert(payload).select().single();
+    
     if (error) throw error;
-    if (images.length > 0) {
-        const imagePayload = images.map((url, i) => ({ trip_id: data.id, image_url: url, position: i }));
+
+    // Handle images
+    if (trip.images && trip.images.length > 0) {
+        const imagePayload = trip.images.map((url, i) => ({ trip_id: data.id, image_url: url, position: i }));
         const { error: imgError } = await supabase.from('trip_images').insert(imagePayload);
         if (imgError) throw imgError;
     }
+    
     await refreshData();
   };
 
   const updateTrip = async (trip: Trip) => {
     const supabase = guardSupabase();
-    const { images, ...tripData } = trip;
-    const { error } = await supabase.from('trips').update({
-        ...tripData,
-        agency_id: trip.agencyId,
-        start_date: trip.startDate,
-        end_date: trip.endDate,
-        duration_days: trip.durationDays,
-        traveler_types: trip.travelerTypes,
-        payment_methods: trip.paymentMethods,
-        not_included: trip.notIncluded,
-        views_count: trip.views,
-        sales_count: trip.sales,
-        featured_in_hero: trip.featuredInHero,
-        popular_near_sp: trip.popularNearSP,
-        is_active: trip.is_active,
-    }).eq('id', trip.id);
+    
+    // Explicitly build the payload to avoid inserting extra fields like 'rating'
+    const payload = {
+      agency_id: trip.agencyId,
+      title: trip.title,
+      slug: trip.slug,
+      description: trip.description,
+      destination: trip.destination,
+      price: trip.price,
+      start_date: trip.startDate,
+      end_date: trip.endDate,
+      duration_days: trip.durationDays,
+      category: trip.category,
+      tags: trip.tags,
+      traveler_types: trip.travelerTypes,
+      itinerary: trip.itinerary,
+      payment_methods: trip.paymentMethods,
+      included: trip.included,
+      not_included: trip.notIncluded,
+      is_active: trip.is_active,
+      featured: trip.featured,
+      featured_in_hero: trip.featuredInHero,
+      popular_near_sp: trip.popularNearSP,
+      views_count: trip.views || 0,
+      sales_count: trip.sales || 0,
+      updated_at: new Date().toISOString() // Good practice to update this
+    };
+
+    const { error } = await supabase.from('trips').update(payload).eq('id', trip.id);
+
     if (error) throw error;
 
     // Manage images: delete all then re-insert
     await supabase.from('trip_images').delete().eq('trip_id', trip.id);
-    if (images.length > 0) {
-        const imagePayload = images.map((url, i) => ({ trip_id: trip.id, image_url: url, position: i }));
+    if (trip.images && trip.images.length > 0) {
+        const imagePayload = trip.images.map((url, i) => ({ trip_id: trip.id, image_url: url, position: i }));
         const { error: imgError } = await supabase.from('trip_images').insert(imagePayload);
         if (imgError) throw imgError;
     }
+    
     await refreshData();
   };
   
