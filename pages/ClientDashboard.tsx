@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { UserRole, Booking, Address, AgencyReview } from '../types';
+// FIX: Import 'Agency' type to resolve reference error.
+import { UserRole, Booking, Address, AgencyReview, Agency } from '../types';
 import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -71,10 +72,12 @@ const ClientDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== UserRole.CLIENT) {
-        navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
-      }
+    if (!authLoading && user?.role === 'AGENCY' && !window.location.hash.includes('dashboard')) {
+      const agencyUser = user as Agency;
+      const slug = agencyUser.slug || slugify(agencyUser.name);
+      navigate(`/${slug}`);
+    } else if (!authLoading && user && user.role !== UserRole.CLIENT) {
+      navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
     }
   }, [user, authLoading, isMicrositeMode, agencySlug, navigate]);
   
