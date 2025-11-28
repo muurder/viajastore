@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -349,8 +350,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              const favs = data.map(f => f.trip_id);
              setClients(prev => {
                  const me = prev.find(c => c.id === user.id);
-                 if (me) return prev.map(c => c.id === user.id ? {...c, favorites: favs} : c);
-                 return prev;
+                 if (me) {
+                    return prev.map(c => c.id === user.id ? {...c, favorites: favs} : c);
+                 } else {
+                    // Client not in state, add them with their favorites
+                    const newClient = {
+                        ...(user as Client),
+                        favorites: favs
+                    };
+                    return [...prev, newClient];
+                 }
              });
           }
       }
