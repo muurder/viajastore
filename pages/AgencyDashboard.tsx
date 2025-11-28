@@ -8,6 +8,7 @@ import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { supabase } from '../services/supabase';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -27,6 +28,58 @@ interface ActionsMenuProps {
   onToggleStatus: () => void;
   fullAgencyLink: string;
 }
+
+const SubscriptionActivationView: React.FC<{
+  agency: Agency;
+  onSelectPlan: (planId: string) => void;
+  activatingPlanId: string | null;
+}> = ({ agency, onSelectPlan, activatingPlanId }) => {
+  return (
+    <div className="max-w-4xl mx-auto text-center py-12 animate-[fadeIn_0.3s]">
+      <div className="bg-red-50 p-4 rounded-full inline-block border-4 border-red-100 mb-4">
+        <CreditCard size={32} className="text-red-500" />
+      </div>
+      <h1 className="text-3xl font-bold text-gray-900">Ative sua conta de agência</h1>
+      <p className="text-gray-500 mt-2 mb-8">
+        Olá, {agency.name}! Para começar a vender e gerenciar seus pacotes, escolha um dos nossos planos de assinatura.
+      </p>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        {PLANS.map(plan => {
+          const isLoading = activatingPlanId === plan.id;
+          return (
+            <div key={plan.id} className="bg-white p-8 rounded-2xl border border-gray-200 transition-all shadow-sm hover:shadow-xl hover:border-primary-300 relative overflow-hidden">
+              <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+              <p className="text-3xl font-extrabold text-primary-600 mt-2">
+                R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span>
+              </p>
+              <ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8 text-left">
+                {plan.features.map((f, i) => (
+                  <li key={i} className="flex gap-3 items-start">
+                    <CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0" /> 
+                    <span className="leading-snug">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <button 
+                onClick={() => onSelectPlan(plan.id)}
+                disabled={isLoading}
+                className="w-full py-3 rounded-xl font-bold transition-colors bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader size={16} className="animate-spin" /> Ativando...
+                  </span>
+                ) : 'Selecionar Plano'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
 const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -270,7 +323,7 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme } = useData();
+  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData } = useData();
   const { setAgencyTheme } = useTheme(); // For previewing
   const { showToast } = useToast();
   
@@ -283,7 +336,7 @@ const AgencyDashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tripSearch, setTripSearch] = useState('');
   const [lastReadTime, setLastReadTime] = useState(Number(localStorage.getItem('agency_last_read_sales') || 0));
-  const [selectedPlan, setSelectedPlan] = useState<'BASIC' | 'PREMIUM' | null>(null);
+  const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -337,11 +390,48 @@ const AgencyDashboard: React.FC = () => {
   }, [viewMode, editingTripId, trips]);
 
   useEffect(() => { if (viewMode === 'FORM' && !editingTripId) { const timeout = setTimeout(() => { localStorage.setItem('trip_draft', JSON.stringify(tripForm)); }, 500); return () => clearTimeout(timeout); } }, [tripForm, viewMode, editingTripId]);
+  
+  const handleSelectPlan = async (planId: string) => {
+    if (!supabase || !myAgency) return;
+
+    setActivatingPlanId(planId);
+    try {
+      const { error } = await supabase.rpc("activate_agency_subscription", {
+        p_agency_id: myAgency.id,
+        p_plan_id: planId
+      });
+
+      if (error) {
+        throw error;
+      }
+      
+      showToast('Assinatura ativada com sucesso! Bem-vindo(a)!', 'success');
+      await refreshData();
+
+    } catch (err: any) {
+      console.error("Error activating subscription:", err);
+      showToast(`Erro ao ativar assinatura: ${err.message || 'Tente novamente.'}`, 'error');
+    } finally {
+      setActivatingPlanId(null);
+    }
+  };
+
 
   if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
   if (!myAgency) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin text-primary-600" /></div>;
 
-  const isActive = myAgency.subscriptionStatus === 'ACTIVE';
+  const isActive = myAgency.is_active;
+
+  if (!isActive) {
+    return (
+      <SubscriptionActivationView 
+        agency={myAgency}
+        onSelectPlan={handleSelectPlan}
+        activatingPlanId={activatingPlanId}
+      />
+    );
+  }
+
   const myTrips = getAgencyTrips(user.id);
   const stats = getAgencyStats(user.id);
   
@@ -404,7 +494,7 @@ const AgencyDashboard: React.FC = () => {
 
   const handleAgencyUpdate = async (e: React.FormEvent) => { e.preventDefault(); const res = await updateUser(agencyForm); if(res.success) showToast('Configurações salvas!', 'success'); else showToast('Erro: ' + res.error, 'error'); };
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploadingBanner(true); try { const url = await uploadImage(e.target.files[0], 'trip-images'); if (url) { setAgencyForm({ ...agencyForm, heroBannerUrl: url }); showToast('Banner enviado!', 'success'); } } catch(e) { showToast('Erro no upload do banner', 'error'); } finally { setUploadingBanner(false); } };
-  const handleConfirmPayment = async () => { if (selectedPlan) { await updateAgencySubscription(user.id, 'ACTIVE', selectedPlan); showToast('Assinatura ativada!', 'success'); setShowPayment(false); handleTabChange('OVERVIEW'); } };
+  const handleConfirmPayment = async () => { if (activatingPlanId) { await updateAgencySubscription(user.id, 'ACTIVE', activatingPlanId as 'BASIC' | 'PREMIUM'); showToast('Assinatura ativada!', 'success'); setShowPayment(false); handleTabChange('OVERVIEW'); } };
   const handleSlugChange = (val: string) => { setAgencyForm({...agencyForm, slug: slugify(val)}); };
 
   const handleSaveTheme = async () => {
@@ -435,7 +525,7 @@ const AgencyDashboard: React.FC = () => {
           </div>
           
           <div className="animate-[fadeIn_0.3s]">
-          {activeTab === 'OVERVIEW' && isActive && (
+          {activeTab === 'OVERVIEW' && (
             <div className="space-y-8">
                 {/* REDESIGNED MINI SITE BANNER */}
                 <div className="bg-white rounded-2xl shadow-md border-l-8 border-primary-600 p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group hover:shadow-lg transition-all">
@@ -542,7 +632,7 @@ const AgencyDashboard: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'TRIPS' && isActive && (
+          {activeTab === 'TRIPS' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col min-h-[600px]">
                <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
                  <div className="flex items-center gap-3"><h2 className="text-xl font-bold text-gray-900">Gerenciar Pacotes</h2><span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{myTrips.length} Total</span></div>
@@ -557,7 +647,7 @@ const AgencyDashboard: React.FC = () => {
 
           {activeTab === 'SUBSCRIPTION' && (
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                {PLANS.map(plan => (<div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>{myAgency.subscriptionPlan === plan.id && isActive && (<div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>)}<h3 className="text-xl font-bold text-gray-900">{plan.name}</h3><p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p><ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> <span className="leading-snug">{f}</span></li>))}</ul><button onClick={() => { setSelectedPlan(plan.id as any); setShowPayment(true); }} className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`} disabled={myAgency.subscriptionPlan === plan.id && isActive}>{myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}</button></div>))}
+                {PLANS.map(plan => (<div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>{myAgency.subscriptionPlan === plan.id && isActive && (<div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>)}<h3 className="text-xl font-bold text-gray-900">{plan.name}</h3><p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p><ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> <span className="leading-snug">{f}</span></li>))}</ul><button onClick={() => { handleSelectPlan(plan.id) }} className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`} disabled={myAgency.subscriptionPlan === plan.id && isActive}>{myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}</button></div>))}
             </div>
           )}
 
@@ -638,7 +728,7 @@ const AgencyDashboard: React.FC = () => {
          </div>
       )}
 
-      {showPayment && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}><div className="bg-white rounded-2xl p-8 max-w-md w-full text-center" onClick={e => e.stopPropagation()}><h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3><p className="mb-6">Ativar plano {selectedPlan}?</p><button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700">Confirmar Pagamento</button></div></div> )}
+      {showPayment && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}><div className="bg-white rounded-2xl p-8 max-w-md w-full text-center" onClick={e => e.stopPropagation()}><h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3><p className="mb-6">Ativar plano {activatingPlanId}?</p><button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700">Confirmar Pagamento</button></div></div> )}
     </div>
   );
 };

@@ -181,6 +181,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: a.description,
         logo: a.logo_url,
         whatsapp: a.whatsapp,
+        is_active: a.is_active,
         heroMode: a.hero_mode || 'TRIPS',
         heroBannerUrl: a.hero_banner_url,
         heroTitle: a.hero_title,
@@ -514,7 +515,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // ... and so on for all functions that interact with supabase.
   
-  // The following is a simplified representation of guarding all functions.
   const createGuardedFunction = (fn: Function) => async (...args: any[]) => {
     if (!supabase) {
       showToast('Funcionalidade indisponível offline.', 'info');

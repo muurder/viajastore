@@ -52,6 +52,7 @@ export interface Agency extends User {
   cnpj: string;
   description: string;
   logo: string;
+  is_active?: boolean;
   
   // Hero / Microsite Config
   heroMode: 'TRIPS' | 'STATIC';
