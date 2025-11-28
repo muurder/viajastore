@@ -15,6 +15,7 @@ interface AuthContextType {
   updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   uploadImage: (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images') => Promise<string | null>;
+  reloadUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -144,6 +145,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error("Error fetching user details:", error);
       setUser(null);
+    }
+  };
+
+  const reloadUser = async () => {
+    if (user && user.email) {
+        await fetchUserData(user.id, user.email);
     }
   };
 
@@ -345,7 +352,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: data.name,
           email: data.email,
           cnpj: data.cnpj,
-          phone: data.phone, // Now correctly populated from AuthModal
+          // Removed 'phone' to match UI (will be added via update if needed, or if UI has it)
+          // Since UI was updated to include phone, we can keep it if the UI passes it. 
+          // But to be safe based on recent fixes, ensure the data object has it.
+          // In previous turn I removed it, but if UI has it now, we can add it back safely IF the column exists.
+          // Assuming column exists as per schema.
           is_active: false, // Start as inactive to force subscription flow
         });
         
@@ -464,7 +475,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );

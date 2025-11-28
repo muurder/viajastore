@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -322,7 +323,7 @@ const defaultTripForm: Partial<Trip> = {
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, updateUser, uploadImage } = useAuth();
+  const { user, updateUser, uploadImage, reloadUser } = useAuth();
   const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData } = useData();
   const { setAgencyTheme } = useTheme(); // For previewing
   const { showToast } = useToast();
@@ -341,7 +342,10 @@ const AgencyDashboard: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   
-  const myAgency = agencies.find(a => a.id === user?.id) as Agency;
+  // FIX: Fallback to 'user' if global agencies list isn't ready or matching yet.
+  const agencyFromData = agencies.find(a => a.id === user?.id);
+  const myAgency = (agencyFromData || user) as Agency;
+
   const [agencyForm, setAgencyForm] = useState<Partial<Agency>>({});
   const [tripForm, setTripForm] = useState<Partial<Trip>>(defaultTripForm);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -407,6 +411,7 @@ const AgencyDashboard: React.FC = () => {
       
       showToast('Assinatura ativada com sucesso! Bem-vindo(a)!', 'success');
       await refreshData();
+      await reloadUser(); // Update AuthContext user state to reflect 'is_active'
 
     } catch (err: any) {
       console.error("Error activating subscription:", err);
