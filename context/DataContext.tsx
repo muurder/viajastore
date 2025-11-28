@@ -380,29 +380,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- ACTIONS ---
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
-    const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
-    const isCurrentlyFavorite = currentClient.favorites?.includes(tripId);
+    const currentClient = clients.find(c => c.id === clientId);
+    const originalFavorites = currentClient?.favorites || [];
+    const isCurrentlyFavorite = originalFavorites.includes(tripId);
     
+    // 1. Optimistic Update
     const updatedFavorites = isCurrentlyFavorite 
-      ? currentClient.favorites.filter(id => id !== tripId)
-      : [...(currentClient.favorites || []), tripId];
+      ? originalFavorites.filter(id => id !== tripId)
+      : [...originalFavorites, tripId];
 
     setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: updatedFavorites } : c));
 
-    try {
-        if (isCurrentlyFavorite) {
-            const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
-            if (error) throw error;
-            showToast('Removido dos favoritos', 'info');
+    // 2. Database Operation
+    if (isCurrentlyFavorite) {
+      // User wants to UNFAVORITE
+      const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
+      if (error) {
+        console.error('Error unfavoriting:', error);
+        showToast('Erro ao remover dos favoritos.', 'error');
+        // Revert UI on failure
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: originalFavorites } : c));
+      } else {
+        showToast('Removido dos favoritos.', 'info');
+      }
+    } else {
+      // User wants to FAVORITE
+      const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
+      if (error) {
+        console.error('Error favoriting:', error);
+        
+        // Gracefully handle duplicate key error which indicates a sync issue
+        if (error.code === '23505') {
+            // The item was already favorited, local state was just stale.
+            // The optimistic update fixed the UI, so we just confirm with a success toast.
+            showToast('Adicionado aos favoritos!', 'success');
         } else {
-            const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
-            if (error) throw error;
-            showToast('Adicionado aos favoritos', 'success');
+            // It's a different, real error
+            showToast('Erro ao adicionar aos favoritos.', 'error');
+            // Revert UI
+            setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: originalFavorites } : c));
         }
-    } catch (error: any) {
-        console.error('Error toggling favorite:', error);
-        showToast('Erro ao atualizar favoritos', 'error');
-        setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
+      } else {
+        showToast('Adicionado aos favoritos!', 'success');
+      }
     }
   };
 
