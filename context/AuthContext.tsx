@@ -325,8 +325,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 2. Create corresponding DB records. If this fails, registration is incomplete.
     try {
-      // Create profile for ALL roles
-      const { error: profileError } = await supabase.from('profiles').insert({
+      // Create/Update profile for ALL roles using upsert for robustness
+      const { error: profileError } = await supabase.from('profiles').upsert({
           id: userId,
           full_name: data.name,
           email: data.email,
@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: data.phone,
           role: role,
           avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}`
-      });
+      }, { onConflict: 'id' });
 
       if (profileError) throw profileError;
 
