@@ -233,13 +233,16 @@ const ClientDashboard: React.FC = () => {
       }
   };
 
+  // Fix: Define openWhatsApp function to handle click
   const openWhatsApp = () => {
-      if (!selectedBooking || !selectedBooking._agency?.whatsapp) return;
-      const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
-      const tripTitle = selectedBooking._trip?.title || 'Pacote';
-      const agencyName = selectedBooking._agency?.name || 'Agência';
-      const msg = `Olá ${agencyName}! Comprei o pacote *${tripTitle}* pela ViajaStore e gostaria de tirar algumas dúvidas.`;
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    if (selectedBooking?._agency?.whatsapp && selectedBooking?._trip) {
+      const agency = selectedBooking._agency;
+      const trip = selectedBooking._trip;
+      const phone = agency.whatsapp.replace(/\D/g, '');
+      const message = `Olá! Tenho uma dúvida sobre minha reserva para a viagem "${trip.title}". Código da reserva: ${selectedBooking.voucherCode}.`;
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+    }
   };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -345,6 +348,13 @@ const ClientDashboard: React.FC = () => {
                     const startDate = trip.startDate || trip.start_date;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
+                    
+                    // Construct WhatsApp link
+                    const whatsappLink = agency?.whatsapp ? (() => {
+                      const phone = agency.whatsapp.replace(/\D/g, '');
+                      const msg = `Olá, tenho uma dúvida sobre minha viagem "${trip.title}".`;
+                      return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+                    })() : null;
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
@@ -360,6 +370,11 @@ const ClientDashboard: React.FC = () => {
                                <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
+                               {whatsappLink && (
+                                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-50 text-green-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-green-100 transition-colors border border-green-100">
+                                    <MessageCircle size={16} /> WhatsApp
+                                  </a>
+                               )}
                                <button 
                                   onClick={() => {
                                     if (agencySlugForNav) {
@@ -466,7 +481,13 @@ const ClientDashboard: React.FC = () => {
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setSelectedBooking(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 z-10"><X size={24}/></button>
+                <button 
+                  onClick={() => setSelectedBooking(null)} 
+                  className="absolute top-4 right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                  aria-label="Fechar modal"
+                >
+                  <X size={24}/>
+                </button>
                 <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                     <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
