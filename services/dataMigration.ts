@@ -1,5 +1,4 @@
 
-
 import { supabase } from './supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
 
@@ -7,6 +6,10 @@ import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const migrateData = async () => {
+  if (!supabase) {
+    alert('Cliente Supabase não está configurado. Verifique seu arquivo .env e as variáveis de ambiente.');
+    return;
+  }
   console.log('🚀 Iniciando migração...');
   const agencyIdMap: Record<string, string> = {};
   const logs: string[] = [];
@@ -24,13 +27,12 @@ export const migrateData = async () => {
       log(`Processando agência: ${agency.name}`);
       
       // A. Criar Usuário de Auth
-      // Fix: Cast auth to any
       const { data: authData, error: authError } = await (supabase.auth as any).signUp({
         email: agency.email,
         password: 'password123', 
         options: {
           data: {
-            name: agency.name,
+            full_name: agency.name,
             role: 'AGENCY'
           }
         }
@@ -41,7 +43,6 @@ export const migrateData = async () => {
       if (authError) {
         log(`⚠️ Info Auth para ${agency.email}: ${authError.message}`);
         if (authError.message.includes('already registered')) {
-             // Fix: Cast auth to any
              const { data: loginData } = await (supabase.auth as any).signInWithPassword({
                  email: agency.email,
                  password: 'password123'
@@ -51,29 +52,44 @@ export const migrateData = async () => {
       }
 
       if (userId) {
-        agencyIdMap[agency.id] = userId;
+        // Map mock agencyId (e.g., 'ag_1') to the new user UUID
+        agencyIdMap[agency.agencyId] = userId;
 
-        const { error: agencyError } = await supabase
+        // B. Upsert Profile
+        const { error: profileError } = await supabase.from('profiles').upsert({
+            id: userId,
+            full_name: agency.name,
+            email: agency.email,
+            role: 'AGENCY'
+        }, { onConflict: 'id' });
+        if (profileError) log(`❌ Erro tabela profiles: ${profileError.message}`);
+
+        // C. Upsert Agency
+        const { data: agencyData, error: agencyError } = await supabase
           .from('agencies')
           .upsert({
-            id: userId,
+            user_id: userId,
             name: agency.name,
             description: agency.description,
             logo_url: agency.logo,
-            subscription_status: 'ACTIVE',
-            subscription_plan: 'PREMIUM',
             website: agency.website,
-            subscription_expires_at: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
-          });
+            slug: agency.slug,
+            is_active: true, // Activate during migration
+          }, { onConflict: 'user_id' })
+          .select()
+          .single();
 
         if (agencyError) log(`❌ Erro tabela agencies: ${agencyError.message}`);
-        else log(`✅ Agência salva: ${agency.name}`);
+        else if(agencyData) {
+            log(`✅ Agência salva: ${agency.name}`);
+            agencyIdMap[agency.agencyId] = agencyData.id; // IMPORTANT: Map to the agencies table PK
+        }
       }
       await delay(500);
     }
 
     // 2. Migrar Viagens (Individualmente para salvar as imagens)
-    log(`\n📦 Migrando viagens...`);
+    log(`\n📦 Migrando ${MOCK_TRIPS.length} viagens...`);
     
     let successCount = 0;
 
@@ -81,6 +97,7 @@ export const migrateData = async () => {
        const newAgencyId = agencyIdMap[trip.agencyId];
       
        if (!newAgencyId) {
+         log(`⚠️ Viagem "${trip.title}" pulada: agência com ID mock "${trip.agencyId}" não encontrada.`);
          continue;
        }
 
@@ -88,9 +105,9 @@ export const migrateData = async () => {
        const { data: tripData, error: tripError } = await supabase
         .from('trips')
         .insert({
-            agency_id: newAgencyId,
+            agency_id: newAgencyId, // Use the real agency PK
             title: trip.title,
-            slug: trip.slug, // Included slug field
+            slug: trip.slug,
             description: trip.description,
             destination: trip.destination,
             price: trip.price,
@@ -100,7 +117,6 @@ export const migrateData = async () => {
             category: trip.category,
             tags: trip.tags,
             traveler_types: trip.travelerTypes,
-            // FIX: The property `active` does not exist on type `Trip` and the database column is `is_active`.
             is_active: trip.is_active,
             included: trip.included,
             not_included: trip.notIncluded || [],
@@ -114,17 +130,38 @@ export const migrateData = async () => {
         .single();
 
         if (tripError) {
-            log(`❌ Erro viagem ${trip.title}: ${tripError.message}`);
+            log(`❌ Erro ao salvar viagem ${trip.title}: ${tripError.message}`);
             continue;
         }
 
         // Inserir Imagens
         if (tripData && trip.images && trip.images.length > 0) {
-            const imagesPayload = trip.images.map(url => ({
+            const imagesPayload = trip.images.map((url, index) => ({
                 trip_id: tripData.id,
-                image_url: url
+                image_url: url,
+                position: index
             }));
 
             const { error: imgError } = await supabase
                 .from('trip_images')
                 .insert(imagesPayload);
+            
+            if (imgError) {
+                log(`❌ Erro nas imagens da viagem ${trip.title}: ${imgError.message}`);
+            }
+        }
+        
+        successCount++;
+        log(`✅ Viagem salva: ${trip.title}`);
+    }
+
+    log(`\n🎉 ${successCount} de ${MOCK_TRIPS.length} viagens migradas com sucesso.`);
+
+  } catch (err: any) {
+    log(`\n❌ ERRO GERAL NA MIGRAÇÃO: ${err.message}`);
+    log('A migração foi interrompida. Verifique os logs e a configuração do Supabase.');
+  } finally {
+    log('\n🏁 Migração finalizada.');
+    alert('Migração finalizada! Verifique o console (F12) para ver os logs detalhados do processo.');
+  }
+};
