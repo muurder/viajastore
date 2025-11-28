@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -27,29 +28,38 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 
 // --- Reusable Review Form Component ---
 interface ReviewFormProps {
-  onSubmit: (rating: number, comment: string) => void;
+  onSubmit: (rating: number, comment: string, tags: string[]) => void;
   isSubmitting: boolean;
   initialRating?: number;
   initialComment?: string;
+  initialTags?: string[];
   submitButtonText: string;
 }
 
-const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', submitButtonText }) => {
+const SUGGESTED_TAGS = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios', 'Pontualidade'];
+
+const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', initialTags = [], submitButtonText }) => {
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
+  const [tags, setTags] = useState(initialTags);
 
   useEffect(() => {
     setRating(initialRating);
     setComment(initialComment);
-  }, [initialRating, initialComment]);
+    setTags(initialTags);
+  }, [initialRating, initialComment, initialTags]);
+
+  const toggleTag = (tag: string) => {
+    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(rating, comment);
+    onSubmit(rating, comment, tags);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" key={initialComment}>
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">Sua nota</label>
         <div className="flex gap-1">
@@ -69,6 +79,21 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
           onChange={e => setComment(e.target.value)}
           required
         />
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">O que você mais gostou?</label>
+        <div className="flex flex-wrap gap-2">
+          {SUGGESTED_TAGS.map(tag => (
+            <button
+              type="button"
+              key={tag}
+              onClick={() => toggleTag(tag)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
       </div>
       <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
         {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
@@ -228,7 +253,7 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  const handleReviewSubmit = async (rating: number, comment: string) => {
+  const handleReviewSubmit = async (rating: number, comment: string, tags: string[]) => {
     if (!user) return;
     setIsSubmittingReview(true);
     try {
@@ -236,7 +261,8 @@ const AgencyLandingPage: React.FC = () => {
         agencyId: agency.id,
         clientId: user.id,
         rating,
-        comment
+        comment,
+        tags
       });
       await refreshData();
     } finally {
@@ -244,11 +270,11 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
-  const handleReviewUpdate = async (rating: number, comment: string) => {
+  const handleReviewUpdate = async (rating: number, comment: string, tags: string[]) => {
     if (!myReview) return;
     setIsSubmittingReview(true);
     try {
-      await updateAgencyReview(myReview.id, { rating, comment });
+      await updateAgencyReview(myReview.id, { rating, comment, tags });
       await refreshData();
       setIsEditingReview(false);
     } finally {
@@ -542,12 +568,58 @@ const AgencyLandingPage: React.FC = () => {
             <div className="max-w-4xl mx-auto animate-[fadeIn_0.3s] mt-8 grid grid-cols-1 lg:grid-cols-3 gap-10">
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-2xl font-bold text-gray-900">Opinião de quem já viajou</h2>
-                    {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => (
-                        <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-3"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div><div><p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p><p className="text-xs text-gray-400">{new Date(review.createdAt).toLocaleDateString()} • Compra Verificada</p></div></div><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}</div></div>
-                            <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg">"{review.comment}"</p>
-                        </div>
-                    )) : (
+                    {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => {
+                        const clientBookingsWithAgency = bookings.filter(b => b.clientId === review.clientId && b._trip?.agencyId === agency.id && b.status === 'CONFIRMED').length;
+                        return (
+                            <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div>
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
+                                            <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">
+                                                <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="font-medium text-green-600">Compra Verificada</span>
+                                                {clientBookingsWithAgency > 1 && (
+                                                    <>
+                                                        <span className="text-gray-300">•</span>
+                                                        <span className="font-medium text-gray-500">{clientBookingsWithAgency} viagens com esta agência</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}</div>
+                                </div>
+                                
+                                {review.tripTitle && (
+                                    <div className="mb-4 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block">
+                                        Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
+                                    </div>
+                                )}
+
+                                <p className="text-gray-600 text-sm leading-relaxed mb-4">"{review.comment}"</p>
+                                
+                                {review.tags && review.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        {review.tags.map(tag => (
+                                            <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                {review.response && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <p className="text-xs font-bold text-gray-600 mb-2">Resposta da agência</p>
+                                            <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }) : (
                         <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500 italic">Esta agência ainda não recebeu nenhuma avaliação.</p></div>
                     )}
                 </div>
@@ -565,7 +637,15 @@ const AgencyLandingPage: React.FC = () => {
                             ) : (
                                 <div>
                                     <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
-                                    <ReviewForm onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} isSubmitting={isSubmittingReview} initialRating={myReview?.rating} initialComment={myReview?.comment} submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} />
+                                    <ReviewForm 
+                                      key={isEditingReview ? myReview?.id : 'new'}
+                                      onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} 
+                                      isSubmitting={isSubmittingReview} 
+                                      initialRating={myReview?.rating} 
+                                      initialComment={myReview?.comment} 
+                                      initialTags={myReview?.tags}
+                                      submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
+                                    />
                                     {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
                                 </div>
                             )

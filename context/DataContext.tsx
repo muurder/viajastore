@@ -250,7 +250,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .select(`
                 *, 
                 profiles (full_name),
-                agencies (name, logo_url, slug)
+                agencies (name, logo_url, slug),
+                trips (title)
             `);
             
           if (error) {
@@ -264,13 +265,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   agencyId: r.agency_id,
                   clientId: r.client_id,
                   bookingId: r.booking_id,
+                  trip_id: r.trip_id,
                   rating: r.rating,
                   comment: r.comment,
                   createdAt: r.created_at,
                   clientName: r.profiles?.full_name || 'Viajante',
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
-                  response: r.response
+                  response: r.response,
+                  tags: r.tags || [],
+                  tripTitle: r.trips?.title
               })));
           }
       } catch (err: any) {
