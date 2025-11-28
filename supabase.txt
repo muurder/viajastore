@@ -1,0 +1,230 @@
+-- ================================================================
+-- SCRIPT DE BANCO DE DADOS E POLÍTICAS DE SEGURANÇA (RLS)
+-- Para ViajaStore / Amotrip
+--
+-- Instruções: Execute este script completo no SQL Editor do Supabase.
+-- Ele irá limpar políticas antigas e aplicar a estrutura correta.
+-- ================================================================
+
+-- ----------------------------------------------------------------
+-- Habilita Row Level Security (RLS) para tabelas principais
+-- ----------------------------------------------------------------
+ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agency_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trip_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.themes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agency_themes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- ----------------------------------------------------------------
+-- Limpeza de políticas e funções antigas para garantir um estado limpo
+-- ----------------------------------------------------------------
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.agencies;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.trips;
+DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
+DROP POLICY IF EXISTS "Clients can create bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Users can view their own bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Agencies can view bookings for their trips" ON public.bookings;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can insert their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can insert their own reviews if they purchased" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can update or delete their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can update their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can delete their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Agencies can respond to their reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can manage their own favorites" ON public.favorites;
+DROP FUNCTION IF EXISTS public.has_purchased_from_agency(uuid, uuid);
+DROP VIEW IF EXISTS public.agency_trips_with_cover;
+
+
+-- ----------------------------------------------------------------
+-- Função Helper: has_purchased_from_agency
+-- Verifica se um cliente comprou de uma agência específica.
+--
+-- NOTA DE SEGURANÇA: Esta função usa `SECURITY DEFINER`.
+-- Isso é necessário para que a política de RLS possa verificar
+-- o histórico de compras em tabelas que o usuário comum não pode
+-- ler por completo. A função é segura pois:
+-- 1. Não aceita nomes de tabelas/colunas como parâmetros.
+-- 2. Retorna apenas um booleano (true/false), sem expor dados.
+-- ----------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(p_client_id uuid, p_agency_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.bookings b
+    JOIN public.trips t ON b.trip_id = t.id
+    WHERE b.client_id = p_client_id
+      AND t.agency_id = p_agency_id
+      AND b.status = 'CONFIRMED'
+  );
+END;
+$$;
+
+
+-- ----------------------------------------------------------------
+-- Correção da View: `agency_trips_with_cover`
+-- A view estava com `SECURITY DEFINER`, o que é um risco de segurança
+-- pois ignora as políticas de RLS do usuário que a consulta.
+-- Alteramos para `SECURITY INVOKER` (padrão), que respeita as RLS.
+-- ----------------------------------------------------------------
+CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
+ SELECT t.id,
+    t.agency_id,
+    t.title,
+    t.slug,
+    t.destination,
+    t.price,
+    t.start_date,
+    t.end_date,
+    t.active,
+    ( SELECT ti.image_url
+       FROM trip_images ti
+      WHERE ti.trip_id = t.id
+      ORDER BY ti.created_at
+     LIMIT 1) AS cover_image_url
+   FROM trips t;
+
+-- Altera o dono da view para `postgres` para garantir compatibilidade
+-- e remove o risco de segurança associado ao `authenticator`.
+ALTER VIEW public.agency_trips_with_cover OWNER TO postgres;
+
+
+-- ================================================================
+-- DEFINIÇÃO DAS POLÍTICAS DE RLS
+-- ================================================================
+
+-- ----------------------------------------------------------------
+-- Tabela: `agencies`
+-- ----------------------------------------------------------------
+CREATE POLICY "Enable read access for all users"
+ON public.agencies FOR SELECT USING (true);
+
+
+-- ----------------------------------------------------------------
+-- Tabela: `trips`
+-- ----------------------------------------------------------------
+CREATE POLICY "Enable read access for all users"
+ON public.trips FOR SELECT USING (active = true);
+
+CREATE POLICY "Agencies can manage their own trips"
+ON public.trips FOR ALL
+USING (auth.uid() = agency_id)
+WITH CHECK (auth.uid() = agency_id);
+
+
+-- ----------------------------------------------------------------
+-- Tabela: `agency_reviews`
+-- ----------------------------------------------------------------
+CREATE POLICY "Enable read access for all users"
+ON public.agency_reviews FOR SELECT USING (true);
+
+CREATE POLICY "Clients can insert their own reviews if they purchased"
+ON public.agency_reviews FOR INSERT WITH CHECK (
+  auth.uid() = client_id AND
+  public.has_purchased_from_agency(auth.uid(), agency_id)
+);
+
+CREATE POLICY "Clients can update their own reviews"
+ON public.agency_reviews FOR UPDATE
+USING (auth.uid() = client_id);
+
+CREATE POLICY "Clients can delete their own reviews"
+ON public.agency_reviews FOR DELETE
+USING (auth.uid() = client_id);
+
+CREATE POLICY "Agencies can respond to their reviews"
+ON public.agency_reviews FOR UPDATE
+USING (auth.uid() = agency_id);
+
+
+-- ----------------------------------------------------------------
+-- Tabela: `bookings`
+-- ----------------------------------------------------------------
+CREATE POLICY "Clients can create their own bookings"
+ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
+
+CREATE POLICY "Users can view their own bookings"
+ON public.bookings FOR SELECT USING (auth.uid() = client_id);
+
+CREATE POLICY "Agencies can view bookings for their trips"
+ON public.bookings FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.trips t
+    WHERE t.id = bookings.trip_id AND t.agency_id = auth.uid()
+  )
+);
+
+-- ----------------------------------------------------------------
+-- Tabela: `profiles`
+-- ----------------------------------------------------------------
+CREATE POLICY "Public profiles are viewable by everyone."
+ON public.profiles FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert their own profile."
+ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile."
+ON public.profiles FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can delete their own profile"
+ON public.profiles FOR DELETE USING (auth.uid() = id);
+
+-- ----------------------------------------------------------------
+-- Tabela: `favorites`
+-- ----------------------------------------------------------------
+CREATE POLICY "Users can manage their own favorites"
+ON public.favorites FOR ALL USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+-- ----------------------------------------------------------------
+-- Tabela: `trip_images`
+-- ----------------------------------------------------------------
+CREATE POLICY "Enable read access for all users"
+ON public.trip_images FOR SELECT USING (true);
+
+CREATE POLICY "Agencies can manage their own trip images"
+ON public.trip_images FOR ALL
+USING (
+    EXISTS (
+        SELECT 1
+        FROM public.trips t
+        WHERE t.id = trip_images.trip_id AND t.agency_id = auth.uid()
+    )
+);
+
+-- ----------------------------------------------------------------
+-- Tabelas de Admin/Sistema (Acesso restrito)
+-- ----------------------------------------------------------------
+CREATE POLICY "Admins can manage themes"
+ON public.themes FOR ALL
+USING (
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+)
+WITH CHECK (
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+);
+
+CREATE POLICY "Agencies can manage their own theme"
+ON public.agency_themes FOR ALL
+USING ( auth.uid() = agency_id )
+WITH CHECK ( auth.uid() = agency_id );
+
+CREATE POLICY "Admins can see audit logs"
+ON public.audit_logs FOR SELECT
+USING (
+  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
+);
