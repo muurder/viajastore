@@ -18,7 +18,7 @@ const AgencyList: React.FC = () => {
   // Calculate dynamic data for each agency (Specialties, Rating, Trip Count)
   const enrichedAgencies = useMemo(() => {
     return activeAgencies.map(agency => {
-      const trips = getAgencyPublicTrips(agency.id);
+      const trips = getAgencyPublicTrips(agency.agencyId);
       
       // Derive specialties from their trips categories
       const categories = trips.map(t => t.category);
@@ -128,7 +128,7 @@ const AgencyList: React.FC = () => {
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                <h4 className="font-bold text-blue-800 text-sm mb-2">Você é uma agência?</h4>
                <p className="text-blue-600 text-xs mb-3 leading-relaxed">Cadastre-se gratuitamente e comece a vender seus pacotes hoje mesmo.</p>
-               <Link to="/signup" className="block w-full py-2 bg-blue-600 text-white text-center rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
+               <Link to="/#signup" className="block w-full py-2 bg-blue-600 text-white text-center rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
                   Quero ser parceiro
                </Link>
             </div>
@@ -162,7 +162,7 @@ const AgencyList: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                {paginatedAgencies.map(agency => (
                   <Link 
-                    key={agency.id}
+                    key={agency.agencyId}
                     to={`/${agency.slug}`}
                     className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col"
                   >
