@@ -9,15 +9,15 @@ import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
 import { slugify } from '../utils/slugify';
 
-// Helper function to build the WhatsApp URL
-const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string, agencyName: string) => {
+// Helper function to build the WhatsApp URL, updated to match the prompt's message format.
+const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) => {
   if (!phone) return null;
 
   // Sanitize phone number to digits only
   const digits = phone.replace(/\D/g, '');
   if (!digits) return null;
 
-  const message = `Olá, tenho uma dúvida sobre minha viagem "${tripTitle}" com a agência ${agencyName}.`;
+  const message = `Olá, tenho uma dúvida sobre minha viagem "${tripTitle}".`;
   const encoded = encodeURIComponent(message);
 
   return `https://wa.me/${digits}?text=${encoded}`;
@@ -127,7 +127,7 @@ const ClientDashboard: React.FC = () => {
         if (!data.erro) {
           setAddressForm(prev => ({
             ...prev,
-            street: data.logouro,
+            street: data.logradouro,
             district: data.bairro,
             city: data.localidade,
             state: data.uf
@@ -249,12 +249,14 @@ const ClientDashboard: React.FC = () => {
   };
 
   const openWhatsApp = () => {
-      if (!selectedBooking || !selectedBooking._agency?.phone) return;
-      const phone = selectedBooking._agency.phone.replace(/\D/g, '');
-      const tripTitle = selectedBooking._trip?.title || 'Pacote';
-      const agencyName = selectedBooking._agency?.name || 'Agência';
-      const msg = `Olá ${agencyName}! Comprei o pacote *${tripTitle}* pela ViajaStore e gostaria de tirar algumas dúvidas.`;
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    if (!selectedBooking) return;
+    const phone = selectedBooking._agency?.phone || selectedBooking._agency?.whatsapp;
+    if (!phone) return;
+
+    const digits = phone.replace(/\D/g, '');
+    const tripTitle = selectedBooking._trip?.title || 'minha viagem';
+    const msg = `Olá! Tenho uma dúvida sobre minha viagem "${tripTitle}".`;
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -360,7 +362,7 @@ const ClientDashboard: React.FC = () => {
                     const startDate = trip.startDate || trip.start_date;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
-                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title, agency?.name);
+                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title);
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
@@ -511,7 +513,7 @@ const ClientDashboard: React.FC = () => {
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
-                        {selectedBooking._agency?.phone && ( <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button> )}
+                        <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>
                     </div>
                 </div>
             </div>
