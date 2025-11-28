@@ -273,7 +273,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 agencies (
                   name,
                   slug,
-                  whatsapp,
+                  phone,
                   logo_url
                 )
               )
@@ -396,12 +396,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             showToast('Removido dos favoritos', 'info');
         } else {
             const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
-            if (error) throw error;
+            if (error) {
+                // Gracefully handle duplicate key error if local state is out of sync
+                if (error.code === '23505') { // Postgres duplicate key error code
+                    console.warn('Favorite already exists in DB, syncing state.');
+                } else {
+                    throw error;
+                }
+            }
             showToast('Adicionado aos favoritos', 'success');
         }
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
         showToast('Erro ao atualizar favoritos', 'error');
+        // Revert optimistic update on failure
         setClients(prev => prev.map(c => c.id === clientId ? { ...c, favorites: currentClient.favorites } : c));
     }
   };

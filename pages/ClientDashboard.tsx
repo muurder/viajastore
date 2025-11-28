@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -221,7 +222,7 @@ const ClientDashboard: React.FC = () => {
         addField('Duração:', `${duration} Dias`);
         y += 5;
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
-        if (agency?.whatsapp) addField('Contato Agência:', agency.whatsapp);
+        if (agency?.phone) addField('Contato Agência:', agency.phone);
         y += 10;
         doc.setDrawColor(200, 200, 200);
         doc.line(20, y, 190, y);
@@ -249,8 +250,8 @@ const ClientDashboard: React.FC = () => {
   };
 
   const openWhatsApp = () => {
-      if (!selectedBooking || !selectedBooking._agency?.whatsapp) return;
-      const phone = selectedBooking._agency.whatsapp.replace(/\D/g, '');
+      if (!selectedBooking || !selectedBooking._agency?.phone) return;
+      const phone = selectedBooking._agency.phone.replace(/\D/g, '');
       const tripTitle = selectedBooking._trip?.title || 'Pacote';
       const agencyName = selectedBooking._agency?.name || 'Agência';
       const msg = `Olá ${agencyName}! Comprei o pacote *${tripTitle}* pela ViajaStore e gostaria de tirar algumas dúvidas.`;
@@ -360,7 +361,7 @@ const ClientDashboard: React.FC = () => {
                     const startDate = trip.startDate || trip.start_date;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
-                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp, trip.title, agency?.name);
+                    const whatsappUrl = buildWhatsAppUrl(agency?.phone, trip.title, agency?.name);
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
@@ -511,7 +512,7 @@ const ClientDashboard: React.FC = () => {
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
-                        {selectedBooking._agency?.whatsapp && ( <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button> )}
+                        {selectedBooking._agency?.phone && ( <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button> )}
                     </div>
                 </div>
             </div>
