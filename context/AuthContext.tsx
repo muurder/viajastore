@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (profileData) {
         // Handle AGENCY role
-        if (profileData.role === 'AGENCY') {
+        if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
             .select('*')
