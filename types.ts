@@ -132,7 +132,7 @@ export interface Trip {
   itinerary?: ItineraryDay[];
   paymentMethods?: string[]; // New field for accepted payment methods
 
-  active: boolean; // Controlled by agency
+  is_active: boolean; // Controlled by agency
   rating: number; // DEPRECATED on Trip, but kept for compatibility with older code if needed
   totalReviews: number; // DEPRECATED on Trip
   included: string[];

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -63,7 +62,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Create a temporary Agency object from profile data.
              const tempAgency: Agency = {
               id: profileData.id, // This is the agency's own ID, but we'll use profile ID temporarily
-              // FIX: Removed user_id as it doesn't exist on Agency type. The `id` property should hold the user's ID.
               name: profileData.full_name || 'Nova Agência',
               email: email,
               role: UserRole.AGENCY,
@@ -82,9 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           const agencyUser: Agency = {
-            // FIX: The `id` property on the user object should consistently be the user's ID, not the agency's table PK.
             id: agencyData.user_id, // This links to the profile/auth user
-            // FIX: Removed user_id as it doesn't exist on Agency type.
             name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,
@@ -300,6 +296,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
+    
+    // 1. Create Auth User
     const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
       password: data.password,
@@ -311,27 +309,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (authError) {
-        if (authError.message.includes('already registered') || authError.message.includes('Database error finding user')) {
+        if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
              return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
         }
         return { success: false, error: authError.message };
     }
     
-    let userId = authData.user?.id;
-    if (!userId && !authError) return { success: false, error: 'Verifique seu email para confirmar o cadastro.' };
-    if (!userId) return { success: false, error: 'Erro ao criar usuário.' };
+    const userId = authData.user?.id;
+    if (!userId) {
+        // This case usually means email confirmation is required.
+        return { success: true, error: 'Verifique seu email para confirmar o cadastro.' };
+    }
 
+    // 2. Create corresponding DB records. If this fails, registration is incomplete.
     try {
       // Create profile for ALL roles
-      const { error: profileError } = await supabase.from('profiles').upsert({
+      const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           full_name: data.name,
           email: data.email,
           cpf: role === UserRole.CLIENT ? data.cpf : null,
           phone: data.phone,
           role: role,
-          avatar_url: `https://ui-avatars.com/api/?name=${data.name}`
-      }, { onConflict: 'id' });
+          avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}`
+      });
+
       if (profileError) throw profileError;
 
       if (role === UserRole.AGENCY) {
@@ -342,19 +344,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           cnpj: data.cnpj,
           phone: data.phone,
           is_active: false, // Start as inactive to force subscription flow
-          // Other fields will be filled in the dashboard
         });
         
         if (agencyError) throw agencyError;
       }
-    } catch (dbError: any) {
-      console.error("DB Upsert Error:", dbError);
-      // Even if DB upsert fails, auth user was created. This is a temporary state.
-      // The user will be prompted to verify email.
-    }
 
-    return { success: true };
+      // If all DB operations succeed
+      return { success: true };
+
+    } catch (dbError: any) {
+      console.error("DB Registration Error:", dbError);
+      // Return a specific error if any of the DB operations failed.
+      return { success: false, error: `Falha ao salvar dados: ${dbError.message}. Tente novamente.` };
+    }
   };
+
 
   const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };

@@ -1,4 +1,3 @@
-
 -- =============================================================================
 -- SCRIPT DE BANCO DE DADOS COMPLETO E IDEMPOTENTE - VIAJASTORE
 -- =============================================================================
@@ -76,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 -- Tabela de Viagens (Pacotes)
 CREATE TABLE IF NOT EXISTS public.trips (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL REFERENCES public.agencies(user_id) ON DELETE CASCADE,
   title text NOT NULL,
   slug text,
   description text,
@@ -92,7 +91,7 @@ CREATE TABLE IF NOT EXISTS public.trips (
   payment_methods text[],
   included text[],
   not_included text[],
-  active boolean DEFAULT false,
+  is_active boolean DEFAULT false,
   featured boolean DEFAULT false,
   featured_in_hero boolean DEFAULT false,
   popular_near_sp boolean DEFAULT false,
@@ -137,7 +136,7 @@ CREATE TABLE IF NOT EXISTS public.favorites (
 -- Tabela de Avaliações de Agências
 CREATE TABLE IF NOT EXISTS public.agency_reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL REFERENCES public.agencies(user_id) ON DELETE CASCADE,
   client_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   booking_id uuid REFERENCES public.bookings(id) ON DELETE SET NULL,
   trip_id uuid REFERENCES public.trips(id) ON DELETE SET NULL,
@@ -160,7 +159,7 @@ CREATE TABLE IF NOT EXISTS public.themes (
 
 -- Tabela de Temas por Agência
 CREATE TABLE IF NOT EXISTS public.agency_themes (
-  agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(user_id) ON DELETE CASCADE,
   colors jsonb NOT NULL,
   updated_at timestamptz DEFAULT now()
 );
@@ -223,7 +222,7 @@ BEGIN
       status = 'active';
 
   -- Ativa a agência
-  UPDATE public.agencies SET is_active = true, updated_at = now() WHERE id = p_agency_id;
+  UPDATE public.agencies SET is_active = true, updated_at = now() WHERE user_id = p_agency_id;
 END;
 $$;
 
@@ -247,15 +246,15 @@ SELECT
     SELECT ti.image_url
     FROM public.trip_images ti
     WHERE ti.trip_id = t.id
-    ORDER BY ti.position, ti.created_at
+    ORDER BY ti.position, ti.id -- Use ID for stable sort
     LIMIT 1
   ) AS cover_image
 FROM
   public.trips t
 JOIN
-  public.agencies a ON t.agency_id = a.id
+  public.agencies a ON t.agency_id = a.user_id
 WHERE
-  t.active = true AND a.is_active = true;
+  t.is_active = true AND a.is_active = true;
 
 -- =============================================================================
 -- SEÇÃO 4: LIMPEZA E CRIAÇÃO DAS POLÍTICAS DE RLS
@@ -271,77 +270,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- Tabela: profiles
-CREATE POLICY "Public profiles are viewable by everyone." ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-CREATE POLICY "Admin full access" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: agencies
-CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (is_active = true AND deleted_at IS NULL);
-CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Admin full access" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: trips
-CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (active = true AND deleted_at IS NULL);
-CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
-CREATE POLICY "Admin full access" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: trip_images
-CREATE POLICY "Public can view trip images" ON public.trip_images FOR SELECT USING (true);
-CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR ALL USING (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-) WITH CHECK (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-);
-CREATE POLICY "Admin full access" ON public.trip_images FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: bookings
-CREATE POLICY "Clients can manage their own bookings" ON public.bookings FOR ALL USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
-CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-);
-CREATE POLICY "Admin full access" ON public.bookings FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: favorites
-CREATE POLICY "Clients can manage their own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Admin read access" ON public.favorites FOR SELECT USING (get_my_role() = 'ADMIN');
-
--- Tabela: agency_reviews
-CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
-CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (
-  auth.uid() = client_id AND has_purchased_from_agency(agency_id)
-);
-CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
-CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
-CREATE POLICY "Agencies can add responses to their reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
-CREATE POLICY "Admin full access" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
--- Tabela: subscriptions, plans, themes, agency_themes, audit_logs (Admin/System only)
-CREATE POLICY "Admin full access" ON public.subscriptions FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-CREATE POLICY "Agencies can view their own subscription" ON public.subscriptions FOR SELECT USING (
-  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
-);
-
-CREATE POLICY "Public can read plans" ON public.plans FOR SELECT USING (true);
-CREATE POLICY "Admin full access" ON public.plans FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
-CREATE POLICY "Authenticated users can view themes" ON public.themes FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Admin full access" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
-CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING (
-  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
-) WITH CHECK (
-  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
-);
-CREATE POLICY "Admin full access" ON public.agency_themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-
-CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR SELECT USING (get_my_role() = 'ADMIN');
-
--- =============================================================================
--- SEÇÃO 5: HABILITAÇÃO DO ROW LEVEL SECURITY
--- =============================================================================
-
+-- Habilita RLS em todas as tabelas
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
@@ -354,6 +283,74 @@ ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.themes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agency_themes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Tabela: profiles
+CREATE POLICY "Public profiles are viewable by everyone." ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: agencies
+CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (is_active = true AND deleted_at IS NULL);
+CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admin full access on agencies" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: trips
+CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (is_active = true AND deleted_at IS NULL);
+CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Admin full access on trips" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: trip_images
+CREATE POLICY "Public can view trip images" ON public.trip_images FOR SELECT USING (true);
+CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR ALL USING (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
+) WITH CHECK (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
+);
+CREATE POLICY "Admin full access on trip_images" ON public.trip_images FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: bookings
+CREATE POLICY "Clients can create their own bookings" ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Clients can view their own bookings" ON public.bookings FOR SELECT USING (auth.uid() = client_id);
+CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
+);
+CREATE POLICY "Admin full access on bookings" ON public.bookings FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: favorites
+CREATE POLICY "Clients can manage their own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admin read access on favorites" ON public.favorites FOR SELECT USING (get_my_role() = 'ADMIN');
+
+-- Tabela: agency_reviews
+CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
+CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (
+  auth.uid() = client_id AND has_purchased_from_agency(agency_id)
+);
+CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
+CREATE POLICY "Agencies can add responses to their reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Admin full access on agency_reviews" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: subscriptions
+CREATE POLICY "Admin full access on subscriptions" ON public.subscriptions FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Agencies can view their own subscription" ON public.subscriptions FOR SELECT USING (
+  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
+);
+
+-- Tabela: plans
+CREATE POLICY "Public can read plans" ON public.plans FOR SELECT USING (true);
+CREATE POLICY "Admin full access on plans" ON public.plans FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: themes
+CREATE POLICY "Authenticated users can view themes" ON public.themes FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access on themes" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: agency_themes
+CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Admin full access on agency_themes" ON public.agency_themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: audit_logs
+CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR SELECT USING (get_my_role() = 'ADMIN');
 
 -- =============================================================================
 -- FIM DO SCRIPT

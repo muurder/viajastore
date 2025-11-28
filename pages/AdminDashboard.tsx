@@ -509,7 +509,7 @@ const AdminDashboard: React.FC = () => {
                       <p className="text-xs text-gray-500">{trip.destination}</p>
                     </td>
                     <td className="px-6 py-4 text-gray-600 text-sm">{agencies.find(a => a.id === trip.agencyId)?.name}</td>
-                    <td className="px-6 py-4"><Badge color={trip.active ? 'green' : 'gray'}>{trip.active ? 'Ativo' : 'Pausado'}</Badge></td>
+                    <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Pausado'}</Badge></td>
                     <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                             <button title="Excluir Viagem" onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -518,8 +518,8 @@ const AdminDashboard: React.FC = () => {
                             <button title="Editar Viagem" onClick={() => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                                 <Edit3 size={18} />
                             </button>
-                            <button title={trip.active ? 'Pausar Viagem' : 'Ativar Viagem'} onClick={() => toggleTripStatus(trip.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
-                                {trip.active ? <Ban size={18} /> : <CheckCircle size={18} />}
+                            <button title={trip.is_active ? 'Pausar Viagem' : 'Ativar Viagem'} onClick={() => toggleTripStatus(trip.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                                {trip.is_active ? <Ban size={18} /> : <CheckCircle size={18} />}
                             </button>
                             <button title={trip.featured ? 'Remover Destaque' : 'Destacar Viagem'} onClick={() => toggleTripFeatureStatus(trip.id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                 <Sparkles size={18} className={trip.featured ? 'text-amber-500 fill-amber-400' : ''} />
@@ -546,7 +546,7 @@ const AdminDashboard: React.FC = () => {
       case 'SYSTEM':
         return ( <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s] max-w-2xl"> <div className="flex items-start gap-6 mb-8"><div className="bg-blue-50 p-4 rounded-full"><Database size={32} className="text-blue-600" /></div><div><h2 className="text-xl font-bold text-gray-900">Migração de Dados</h2><p className="text-gray-500 mt-1 text-sm">Popule o banco de dados com dados de teste para desenvolvimento e demonstração. Esta ação criará agências e viagens de exemplo.</p></div></div> <button onClick={() => migrateData().then(() => { showToast('Migração concluída!', 'success'); handleRefresh(); })} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"><Database size={18}/> Iniciar Migração</button> </div> );
       default:
-        return ( <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s]"> <StatCard title="Receita da Plataforma" value={`R$ ${platformRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} subtitle="Assinaturas ativas" icon={DollarSign} color="green" /> <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle={`${agencies.length} cadastradas`} icon={Briefcase} color="blue" /> <StatCard title="Usuários" value={activeUsers.length} subtitle="Viajantes na plataforma" icon={Users} color="purple" /> <StatCard title="Viagens Publicadas" value={trips.filter(t => t.active).length} subtitle="Roteiros ativos" icon={ShoppingBag} color="amber" /> </div> );
+        return ( <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s]"> <StatCard title="Receita da Plataforma" value={`R$ ${platformRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} subtitle="Assinaturas ativas" icon={DollarSign} color="green" /> <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle={`${agencies.length} cadastradas`} icon={Briefcase} color="blue" /> <StatCard title="Usuários" value={activeUsers.length} subtitle="Viajantes na plataforma" icon={Users} color="purple" /> <StatCard title="Viagens Publicadas" value={trips.filter(t => t.is_active).length} subtitle="Roteiros ativos" icon={ShoppingBag} color="amber" /> </div> );
     }
   };
 

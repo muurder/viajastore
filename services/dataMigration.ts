@@ -100,7 +100,8 @@ export const migrateData = async () => {
             category: trip.category,
             tags: trip.tags,
             traveler_types: trip.travelerTypes,
-            active: trip.active,
+            // FIX: The property `active` does not exist on type `Trip` and the database column is `is_active`.
+            is_active: trip.is_active,
             included: trip.included,
             not_included: trip.notIncluded || [],
             featured: trip.featured || false,
@@ -127,20 +128,3 @@ export const migrateData = async () => {
             const { error: imgError } = await supabase
                 .from('trip_images')
                 .insert(imagesPayload);
-            
-            if (imgError) log(`⚠️ Erro imagens ${trip.title}: ${imgError.message}`);
-        }
-
-        successCount++;
-        await delay(100); // Pequeno delay para evitar gargalo
-    }
-
-    log(`✅ ${successCount} viagens processadas com sucesso!`);
-
-  } catch (e: any) {
-    log(`💀 Erro fatal: ${e.message}`);
-  }
-
-  log('\n🏁 Migração concluída!');
-  return logs;
-};

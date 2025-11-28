@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -141,7 +140,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             travelerTypes: t.traveler_types || [],
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
-            active: t.active,
+            is_active: t.is_active,
             rating: 0, 
             totalReviews: 0,
             included: t.included || [],
@@ -172,7 +171,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) throw error;
       
       const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
-        id: a.id,
+        id: a.user_id, // Use user_id as the primary identifier in the app context
         name: a.name,
         email: a.email || '',
         role: UserRole.AGENCY,
@@ -187,9 +186,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
         customSettings: a.custom_settings || {},
-        subscriptionStatus: a.subscription_status,
-        subscriptionPlan: a.subscription_plan,
-        subscriptionExpiresAt: a.subscription_expires_at,
+        subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
+        subscriptionPlan: 'PREMIUM', // Placeholder, needs to join subscriptions
+        subscriptionExpiresAt: new Date().toISOString(), // Placeholder
         website: a.website,
         phone: a.phone,
         address: a.address || {},
@@ -423,11 +422,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- ACTIONS (all guarded with !supabase check) ---
 
-  const toggleFavorite = async (tripId: string, clientId: string) => {
+  const guardSupabase = () => {
     if (!supabase) {
-        showToast('Funcionalidade indisponível offline.', 'info');
-        return;
+        showToast('Funcionalidade indisponível no modo offline.', 'info');
+        throw new Error('Supabase client not available.');
     }
+    return supabase;
+  };
+
+  const toggleFavorite = async (tripId: string, clientId: string) => {
+    const supabase = guardSupabase();
     const currentClient = clients.find(c => c.id === clientId) || { favorites: [] as string[] };
     const isCurrentlyFavorite = currentClient.favorites?.includes(tripId);
     
@@ -461,10 +465,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addBooking = async (booking: Booking) => {
-    if (!supabase) {
-        showToast('Funcionalidade indisponível offline.', 'info');
-        return;
-    }
+    const supabase = guardSupabase();
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let finalId = booking.id;
     
@@ -492,63 +493,149 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
   
-  // All other action functions would have a similar guard.
-  // For brevity, I'll add a generic check. In a real app, each would be guarded.
-  const guard = () => {
-      if (!supabase) {
-          showToast('Funcionalidade indisponível no modo offline.', 'info');
-          return false;
-      }
-      return true;
-  }
-  
-  // ... (the rest of the action functions would use guard())
-
   const addReview = async (review: Review) => {
     console.warn("addReview is deprecated. Use addAgencyReview.");
   };
 
   const addAgencyReview = async (review: Partial<AgencyReview>) => {
-      if (!guard()) return;
-      // ... (rest of the function)
+      const supabase = guardSupabase();
+      if (!review.agencyId || !review.clientId || !review.rating) {
+          showToast("Dados incompletos para avaliação", 'error');
+          return;
+      }
+      const { data, error } = await supabase.from('agency_reviews').insert({
+          agency_id: review.agencyId,
+          client_id: review.clientId,
+          booking_id: review.bookingId,
+          rating: review.rating,
+          comment: review.comment,
+          tags: review.tags,
+          trip_id: review.trip_id
+      }).select().single();
+
+      if (error) {
+          console.error('Error adding agency review:', error);
+          showToast('Erro ao avaliar agência: ' + error.message, 'error');
+      } else {
+          showToast('Avaliação da agência enviada!', 'success');
+          await refreshData();
+      }
   };
 
-  // ... and so on for all functions that interact with supabase.
-  
-  const createGuardedFunction = (fn: Function) => async (...args: any[]) => {
-    if (!supabase) {
-      showToast('Funcionalidade indisponível offline.', 'info');
-      return;
-    }
-    return fn(...args);
-  };
-  
-  // Example of using the guard
-  const guardedAddAgencyReview = createGuardedFunction(async (review: Partial<AgencyReview>) => {
-    if (!review.agencyId || !review.clientId || !review.rating) {
-        showToast("Dados incompletos para avaliação", 'error');
-        return;
-    }
-    const { data, error } = await supabase.from('agency_reviews').insert({
-        agency_id: review.agencyId,
-        client_id: review.clientId,
-        booking_id: review.bookingId,
-        rating: review.rating,
-        comment: review.comment
-    }).select().single();
+  const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
+    const supabase = guardSupabase();
+    const { error } = await supabase.from('agency_reviews').update({
+        rating: data.rating,
+        comment: data.comment,
+        tags: data.tags,
+    }).eq('id', reviewId);
+
     if (error) {
-        console.error('Error adding agency review:', error);
-        showToast('Erro ao avaliar agência', 'error');
+        showToast('Erro ao atualizar avaliação: ' + error.message, 'error');
     } else {
-        showToast('Avaliação da agência enviada!', 'success');
-        setAgencyReviews(prev => [...prev, data as AgencyReview]);
+        showToast('Avaliação atualizada!', 'success');
+        await refreshData();
     }
-  });
+  };
 
+  const deleteAgencyReview = async (reviewId: string) => {
+    const supabase = guardSupabase();
+    const { error } = await supabase.from('agency_reviews').delete().eq('id', reviewId);
+    if (error) showToast('Erro ao excluir: ' + error.message, 'error');
+    else {
+        showToast('Avaliação excluída.', 'success');
+        await refreshData();
+    }
+  };
+
+    const createTrip = async (trip: Trip) => {
+    const supabase = guardSupabase();
+    const { images, ...tripData } = trip;
+    const { data, error } = await supabase.from('trips').insert({
+        ...tripData,
+        agency_id: trip.agencyId,
+        start_date: trip.startDate,
+        end_date: trip.endDate,
+        duration_days: trip.durationDays,
+        traveler_types: trip.travelerTypes,
+        payment_methods: trip.paymentMethods,
+        not_included: trip.notIncluded,
+        views_count: trip.views,
+        sales_count: trip.sales,
+        featured_in_hero: trip.featuredInHero,
+        popular_near_sp: trip.popularNearSP,
+        is_active: trip.is_active,
+    }).select().single();
+    if (error) throw error;
+    if (images.length > 0) {
+        const imagePayload = images.map((url, i) => ({ trip_id: data.id, image_url: url, position: i }));
+        const { error: imgError } = await supabase.from('trip_images').insert(imagePayload);
+        if (imgError) throw imgError;
+    }
+    await refreshData();
+  };
+
+  const updateTrip = async (trip: Trip) => {
+    const supabase = guardSupabase();
+    const { images, ...tripData } = trip;
+    const { error } = await supabase.from('trips').update({
+        ...tripData,
+        agency_id: trip.agencyId,
+        start_date: trip.startDate,
+        end_date: trip.endDate,
+        duration_days: trip.durationDays,
+        traveler_types: trip.travelerTypes,
+        payment_methods: trip.paymentMethods,
+        not_included: trip.notIncluded,
+        views_count: trip.views,
+        sales_count: trip.sales,
+        featured_in_hero: trip.featuredInHero,
+        popular_near_sp: trip.popularNearSP,
+        is_active: trip.is_active,
+    }).eq('id', trip.id);
+    if (error) throw error;
+
+    // Manage images: delete all then re-insert
+    await supabase.from('trip_images').delete().eq('trip_id', trip.id);
+    if (images.length > 0) {
+        const imagePayload = images.map((url, i) => ({ trip_id: trip.id, image_url: url, position: i }));
+        const { error: imgError } = await supabase.from('trip_images').insert(imagePayload);
+        if (imgError) throw imgError;
+    }
+    await refreshData();
+  };
+  
+  const deleteTrip = async (tripId: string) => {
+    const supabase = guardSupabase();
+    // Cascade delete should handle trip_images
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) throw error;
+    await refreshData();
+  };
+
+  const toggleTripStatus = async (tripId: string) => {
+    const supabase = guardSupabase();
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) return;
+    const { error } = await supabase.from('trips').update({ is_active: !trip.is_active }).eq('id', tripId);
+    if (error) showToast('Erro: ' + error.message, 'error');
+    else showToast(`Viagem ${!trip.is_active ? 'publicada' : 'pausada'}.`, 'success');
+    await refreshData();
+  };
+
+  const toggleTripFeatureStatus = async (tripId: string) => {
+    const supabase = guardSupabase();
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) return;
+    const { error } = await supabase.from('trips').update({ featured: !trip.featured }).eq('id', tripId);
+    if (error) showToast('Erro: ' + error.message, 'error');
+    else showToast(`Viagem ${!trip.featured ? 'destacada' : 'removida dos destaques'}.`, 'success');
+    await refreshData();
+  };
 
   // --- GETTERS (DERIVED STATE) ---
-  const getPublicTrips = () => trips.filter(t => t.active);
-  const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.active);
+  const getPublicTrips = () => trips.filter(t => t.is_active);
+  const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.is_active);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getTripById = (id: string | undefined) => trips.find(t => t.id === id);
   const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug);
@@ -560,16 +647,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyStats = (agencyId: string) => { const agencyTrips = getAgencyTrips(agencyId); const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0); const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); const totalRevenue = agencyTrips.reduce((sum, trip) => sum + ((trip.sales || 0) * trip.price), 0); return { totalRevenue, totalViews, totalSales, conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 }; };
 
   const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
-      if (!supabase) return null;
+      const supabase = guardSupabase();
       try {
           const { data, error } = await supabase.from('agency_themes').select('colors').eq('agency_id', agencyId).maybeSingle();
           if (error) throw error;
-          return data as AgencyTheme | null;
+          return data ? { agencyId, ...data } : null;
       } catch (e) { return null; }
   };
   
   const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
-      if (!supabase) return false;
+      const supabase = guardSupabase();
       try {
           const { error } = await supabase.from('agency_themes').upsert({ agency_id: agencyId, colors: colors }, { onConflict: 'agency_id' });
           if (error) throw error;
@@ -577,40 +664,38 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (e) { return false; }
   };
   
-  // NOTE: This is a sample of how to guard functions. For brevity, I'm not replacing every single function call.
-  // The provided implementation shows the pattern to follow for all supabase interactions.
-  const dummyGuardedFunc = async () => { if (!guard()) return; };
+  const dummyGuardedFunc = async () => { if (!supabase) return; };
 
   return (
     <DataContext.Provider value={{
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
-      addBooking: createGuardedFunction(addBooking),
+      addBooking,
       addReview,
-      addAgencyReview: guardedAddAgencyReview,
+      addAgencyReview,
       deleteReview: dummyGuardedFunc,
-      deleteAgencyReview: dummyGuardedFunc,
-      updateAgencyReview: dummyGuardedFunc,
+      deleteAgencyReview,
+      updateAgencyReview,
       toggleFavorite, 
       updateClientProfile: dummyGuardedFunc, 
       updateAgencySubscription: dummyGuardedFunc, 
       updateAgencyProfileByAdmin: dummyGuardedFunc, 
       toggleAgencyStatus: dummyGuardedFunc,
-      createTrip: dummyGuardedFunc, 
-      updateTrip: dummyGuardedFunc, 
-      deleteTrip: dummyGuardedFunc, 
-      toggleTripStatus: dummyGuardedFunc, 
-      toggleTripFeatureStatus: dummyGuardedFunc,
+      createTrip, 
+      updateTrip, 
+      deleteTrip, 
+      toggleTripStatus, 
+      toggleTripFeatureStatus,
       softDeleteEntity: dummyGuardedFunc, 
       restoreEntity: dummyGuardedFunc, 
       deleteUser: dummyGuardedFunc, 
       deleteMultipleUsers: dummyGuardedFunc, 
       deleteMultipleAgencies: dummyGuardedFunc, 
-      getUsersStats: createGuardedFunction(async() => []),
+      getUsersStats: async() => [],
       updateMultipleUsersStatus: dummyGuardedFunc, 
       updateMultipleAgenciesStatus: dummyGuardedFunc, 
       logAuditAction: dummyGuardedFunc,
       sendPasswordReset: dummyGuardedFunc, 
-      updateUserAvatarByAdmin: createGuardedFunction(async() => null),
+      updateUserAvatarByAdmin: async() => null,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,
       getAgencyTheme, saveAgencyTheme,

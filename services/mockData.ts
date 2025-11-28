@@ -147,7 +147,8 @@ export const MOCK_TRIPS: Trip[] = [
       { day: 2, title: 'Lado Brasileiro das Cataratas', description: 'Visita ao Parque Nacional do Iguaçu com vista panorâmica das quedas.' }
     ],
     paymentMethods: ['Pix', 'Cartão de Crédito', 'Boleto'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.9,
     totalReviews: 128,
     included: ['Hospedagem com café da manhã', 'Transfer aeroporto/hotel', 'Ingresso para o lado brasileiro das Cataratas', 'Guia local'],
@@ -173,7 +174,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Praia', 'Vida Noturna', 'Cultura'],
     travelerTypes: ['AMIGOS', 'CASAL', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.8,
     totalReviews: 210,
     included: ['Hospedagem em Copacabana', 'Café da manhã', 'Tour Cristo e Pão de Açúcar', 'Guia credenciado'],
@@ -199,7 +201,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Selva', 'Ecoturismo', 'Sobrevivência'],
     travelerTypes: ['MOCHILAO', 'SOZINHO', 'AMIGOS'],
     paymentMethods: ['Pix', 'Boleto'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 5.0,
     totalReviews: 89,
     included: ['Hospedagem em lodge na selva', 'Pensão completa', 'Todos os passeios descritos', 'Guia nativo'],
@@ -224,7 +227,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Mergulho', 'Natureza', 'Exclusivo'],
     travelerTypes: ['CASAL'],
     paymentMethods: ['Cartão de Crédito'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.9,
     totalReviews: 150,
     included: ['Pousada com café da manhã', 'Transfer aeroporto/pousada', 'Passeio de barco', 'Trilha histórica'],
@@ -250,7 +254,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Trekking', 'Cachoeiras', 'Ecoturismo'],
     travelerTypes: ['MOCHILAO', 'AMIGOS', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.9,
     totalReviews: 132,
     included: ['Hospedagem em Lençóis', 'Café da manhã', 'Passeios guiados', 'Transporte para os passeios'],
@@ -276,7 +281,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Vinho', 'Bate e Volta', 'Ideal para viajar sozinho'],
     travelerTypes: ['CASAL', 'AMIGOS', 'FAMILIA'],
     paymentMethods: ['Pix'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.7,
     totalReviews: 88,
     included: ['Transporte saindo de SP', 'Guia', 'Visita a 3 vinícolas com degustação'],
@@ -303,7 +309,8 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Praia', 'Cachoeira', 'Mochilão'],
     travelerTypes: ['AMIGOS', 'SOZINHO', 'MOCHILAO'],
     paymentMethods: ['Pix', 'Boleto'],
-    active: true,
+    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
+    is_active: true,
     rating: 4.6,
     totalReviews: 112,
     included: ['Transporte saindo de SP', 'Hospedagem em camping ou pousada simples', 'Guia acompanhante'],
