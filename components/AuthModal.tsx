@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
-import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X } from 'lucide-react';
+import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone } from 'lucide-react';
 
 interface AuthModalProps {
   initialView: 'login' | 'signup';
@@ -121,7 +121,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const { register, loginWithGoogle } = useAuth();
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '', phone: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     
@@ -176,8 +176,16 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             <form onSubmit={handleSubmit} className="space-y-4">
                 <input name="name" type="text" placeholder={activeTab === 'CLIENT' ? 'Nome Completo' : 'Nome da Agência'} required value={formData.name} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="email" type="email" placeholder="Email" required value={formData.email} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                
+                {/* Phone field added for both roles */}
+                <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input name="phone" type="text" placeholder="Telefone / WhatsApp" value={formData.phone} onChange={handleInputChange} className="w-full border p-3 pl-10 rounded-lg outline-none focus:border-primary-500"/>
+                </div>
+
                 {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
                 {activeTab === 'AGENCY' && <input name="cnpj" type="text" placeholder="CNPJ" required value={formData.cnpj} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
+                
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 

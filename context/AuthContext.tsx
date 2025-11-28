@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -48,7 +49,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
-        // Handle AGENCY role
+        // Handle AGENCY role (Check case-insensitive)
         if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
@@ -61,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // This can happen during registration flow before agency details are complete.
             // Create a temporary Agency object from profile data.
              const tempAgency: Agency = {
-              id: profileData.id, 
+              id: profileData.id, // User ID
               agencyId: '', // PK is not available yet
               name: profileData.full_name || 'Nova Agência',
               email: email,
@@ -344,7 +345,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: data.name,
           email: data.email,
           cnpj: data.cnpj,
-          phone: data.phone,
+          phone: data.phone, // Now correctly populated from AuthModal
           is_active: false, // Start as inactive to force subscription flow
         });
         
