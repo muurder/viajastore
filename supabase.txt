@@ -3,8 +3,8 @@
 -- Para ViajaStore / Amotrip
 --
 -- Instruções: Execute este script completo no SQL Editor do Supabase.
--- Ele irá criar tabelas ausentes, limpar políticas antigas e
--- aplicar a estrutura correta.
+-- Ele é idempotente, o que significa que pode ser executado várias
+-- vezes sem causar erros.
 -- ================================================================
 
 -- ----------------------------------------------------------------
@@ -20,6 +20,37 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 );
 
 -- ----------------------------------------------------------------
+-- Limpeza de políticas, funções e views antigas para garantir um estado limpo
+-- ----------------------------------------------------------------
+-- Drop Policies
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.agencies;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.trips;
+DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can insert their own reviews if they purchased" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can update their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can delete their own reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Agencies can respond to their reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Clients can create their own bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Users can view their own bookings" ON public.bookings;
+DROP POLICY IF EXISTS "Agencies can view bookings for their trips" ON public.bookings;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can manage their own favorites" ON public.favorites;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.trip_images;
+DROP POLICY IF EXISTS "Agencies can manage their own trip images" ON public.trip_images;
+DROP POLICY IF EXISTS "Admins can manage themes" ON public.themes;
+DROP POLICY IF EXISTS "Agencies can manage their own theme" ON public.agency_themes;
+DROP POLICY IF EXISTS "Admins can see audit logs" ON public.audit_logs;
+
+-- Drop Functions & Views
+DROP FUNCTION IF EXISTS public.has_purchased_from_agency(uuid, uuid);
+DROP VIEW IF EXISTS public.agency_trips_with_cover;
+
+
+-- ----------------------------------------------------------------
 -- Habilita Row Level Security (RLS) para tabelas principais
 -- ----------------------------------------------------------------
 ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
@@ -32,30 +63,6 @@ ALTER TABLE public.trip_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.themes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agency_themes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-
--- ----------------------------------------------------------------
--- Limpeza de políticas e funções antigas para garantir um estado limpo
--- ----------------------------------------------------------------
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.agencies;
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.trips;
-DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
-DROP POLICY IF EXISTS "Clients can create bookings" ON public.bookings;
-DROP POLICY IF EXISTS "Users can view their own bookings" ON public.bookings;
-DROP POLICY IF EXISTS "Agencies can view bookings for their trips" ON public.bookings;
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can insert their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can insert their own reviews if they purchased" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can update or delete their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can update their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can delete their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Agencies can respond to their reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can manage their own favorites" ON public.favorites;
-DROP FUNCTION IF EXISTS public.has_purchased_from_agency(uuid, uuid);
-DROP VIEW IF EXISTS public.agency_trips_with_cover;
 
 
 -- ----------------------------------------------------------------
