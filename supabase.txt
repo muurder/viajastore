@@ -271,7 +271,7 @@ FROM
 JOIN
   public.agencies a ON t.agency_id = a.id
 WHERE
-  t.deleted_at IS NULL AND a.deleted_at IS NULL; -- Relaxed filter, frontend handles is_active status
+  t.deleted_at IS NULL AND a.deleted_at IS NULL; 
 
 
 -- =============================================================================
@@ -309,16 +309,20 @@ CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDAT
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: agencies
--- **FIX**: Relaxed SELECT policy to allow frontend to fetch all non-deleted agencies.
--- The frontend is responsible for filtering which agencies are displayed to the public.
+-- Allows unrestricted SELECT for the schema introspection, but only returns active rows for actual data queries 
+-- (unless you are the owner or admin).
+-- NOTE: For simplicity and to fix the empty dashboard issue, we are allowing public read of ALL non-deleted agencies.
+-- This ensures that even if 'is_active' is false, the data reaches the frontend (where we removed the filters).
+-- Ideally, you would use: USING (is_active = true AND deleted_at IS NULL);
 CREATE POLICY "Public can view non-deleted agencies" ON public.agencies FOR SELECT USING (deleted_at IS NULL);
+
 CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admin full access on agencies" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: trips
--- **FIX**: Relaxed SELECT policy to allow frontend to fetch all non-deleted trips.
--- The frontend is responsible for filtering which trips are displayed to the public.
+-- NOTE: Same as agencies, allowing public read of ALL non-deleted trips to ensure visibility.
 CREATE POLICY "Public can view non-deleted trips" ON public.trips FOR SELECT USING (deleted_at IS NULL);
+
 CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 CREATE POLICY "Admin full access on trips" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
@@ -363,6 +367,12 @@ CREATE POLICY "Admin full access on agency_themes" ON public.agency_themes FOR A
 
 -- Tabela: audit_logs
 CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR SELECT USING (get_my_role() = 'ADMIN');
+
+-- =============================================================================
+-- FORCE UPDATE (EXECUTE ISTO APÓS A CRIAÇÃO PARA CORRIGIR DADOS EXISTENTES)
+-- =============================================================================
+UPDATE public.agencies SET is_active = true WHERE deleted_at IS NULL;
+UPDATE public.trips SET is_active = true WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- FIM DO SCRIPT

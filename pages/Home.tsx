@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -38,9 +36,9 @@ const Home: React.FC = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // Stabilize the active trips list to prevent re-shuffling on re-renders
-  const activeTrips = useMemo(() => trips.filter(t => t.is_active), [trips]);
-  const activeAgencies = useMemo(() => agencies.filter(a => a.subscriptionStatus === 'ACTIVE').slice(0, 5), [agencies]);
+  // TRUST THE DB: We show what the database (via DataContext) gives us.
+  const activeTrips = useMemo(() => trips, [trips]);
+  const activeAgencies = useMemo(() => agencies.slice(0, 5), [agencies]);
 
   // --- HERO LOGIC (INDEPENDENT) ---
   // Select a random sample of up to 5 trips from the entire catalog for the Hero

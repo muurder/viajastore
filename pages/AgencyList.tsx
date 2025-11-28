@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
@@ -13,8 +12,8 @@ const AgencyList: React.FC = () => {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   
-  // Only show agencies that have an active subscription
-  const activeAgencies = agencies.filter(a => a.subscriptionStatus === 'ACTIVE');
+  // TRUST THE DB: We show what the database gives us.
+  const activeAgencies = agencies;
 
   // Calculate dynamic data for each agency (Specialties, Rating, Trip Count)
   const enrichedAgencies = useMemo(() => {

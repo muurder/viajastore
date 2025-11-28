@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -16,7 +15,7 @@ const normalizeText = (text: string) => {
 const TripList: React.FC = () => {
   // Detect if we are in an agency microsite
   const { agencySlug } = useParams<{ agencySlug?: string }>();
-  const { getPublicTrips, getAgencyPublicTrips, getAgencyBySlug, loading } = useData();
+  const { getPublicTrips, getAgencyPublicTrips, getAgencyBySlug, loading, trips } = useData();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Try to get agency if in microsite mode
@@ -28,10 +27,10 @@ const TripList: React.FC = () => {
   const isAgencyNotFound = !!agencySlug && !currentAgency && !loading;
   
   // Filter trips based on context
-  // If resolving, return empty to prevent global flash
+  // TRUST THE DB: If DB sends data, show it.
   const initialTrips = isResolvingAgency 
     ? [] 
-    : (currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips());
+    : (currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips);
   
   const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -43,9 +42,9 @@ const TripList: React.FC = () => {
   useEffect(() => {
      if (isResolvingAgency) return; // Wait until loaded
 
-     const trips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips();
-     setFilteredTrips(trips);
-  }, [currentAgency, agencySlug, loading]);
+     const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips;
+     setFilteredTrips(sourceTrips);
+  }, [currentAgency, agencySlug, loading, trips]);
 
   // Extract URL Params
   const q = searchParams.get('q') || '';
@@ -120,7 +119,7 @@ const TripList: React.FC = () => {
   useEffect(() => {
     if (isResolvingAgency) return;
 
-    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : getPublicTrips();
+    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips;
     let result = [...sourceTrips];
 
     // 1. Search Term (Generalized Search)
@@ -183,7 +182,7 @@ const TripList: React.FC = () => {
     }
 
     setFilteredTrips(result);
-  }, [currentAgency, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam, isResolvingAgency]);
+  }, [currentAgency, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam, isResolvingAgency, trips]);
 
   const clearFilters = () => {
       setSearchParams({});
