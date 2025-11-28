@@ -11,7 +11,7 @@ import { slugify } from '../utils/slugify';
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } from 'useData';
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
@@ -56,8 +56,8 @@ const ClientDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== UserRole.CLIENT) {
+    if (!authLoading && user?.role) {
+      if (user.role !== UserRole.CLIENT) {
         navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
       }
     }
@@ -363,7 +363,7 @@ const ClientDashboard: React.FC = () => {
                                <button 
                                   onClick={() => {
                                     if (agencySlugForNav) {
-                                      navigate(`/${agencySlugForNav}?tab=REVIEWS`);
+                                      navigate(`/${agencySlugForNav}?tab=REVIEWS`, { state: { tripId: booking.tripId, bookingId: booking.id } });
                                     } else {
                                       showToast('Não foi possível encontrar a página da agência.', 'error');
                                     }

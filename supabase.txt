@@ -19,25 +19,93 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS public.agency_reviews (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    agency_id uuid NOT NULL,
+    client_id uuid NOT NULL,
+    booking_id uuid,
+    rating smallint NOT NULL,
+    comment text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    response text,
+    PRIMARY KEY (id),
+    CONSTRAINT agency_reviews_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE,
+    CONSTRAINT agency_reviews_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+    CONSTRAINT agency_reviews_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE SET NULL,
+    CONSTRAINT agency_reviews_rating_check CHECK ((rating >= 1) AND (rating <= 5))
+);
+
+CREATE TABLE IF NOT EXISTS public.themes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    colors jsonb NOT NULL,
+    is_active boolean DEFAULT false NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.agency_themes (
+    agency_id uuid NOT NULL,
+    colors jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (agency_id),
+    CONSTRAINT agency_themes_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.favorites (
+    user_id uuid NOT NULL,
+    trip_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (user_id, trip_id),
+    CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+    CONSTRAINT favorites_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE
+);
+
 -- ----------------------------------------------------------------
--- Limpeza de políticas, funções e views antigas para garantir um estado limpo
+-- Alterações de Tabela para novas funcionalidades
+-- (Garante que colunas existam mesmo se a tabela foi criada antes)
 -- ----------------------------------------------------------------
--- Drop Policies
+ALTER TABLE public.agency_reviews ADD COLUMN IF NOT EXISTS trip_id uuid;
+ALTER TABLE public.agency_reviews ADD COLUMN IF NOT EXISTS tags text[];
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'agency_reviews_trip_id_fkey' AND conrelid = 'public.agency_reviews'::regclass
+  ) THEN
+    ALTER TABLE public.agency_reviews
+    ADD CONSTRAINT agency_reviews_trip_id_fkey
+    FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE SET NULL;
+  END IF;
+END;
+$$;
+
+
+-- ----------------------------------------------------------------
+-- Limpeza de políticas, funções e views antigas (Idempotência)
+-- ----------------------------------------------------------------
 DROP POLICY IF EXISTS "Enable read access for all users" ON public.agencies;
+DROP POLICY IF EXISTS "Agencies can manage their own data" ON public.agencies;
 DROP POLICY IF EXISTS "Enable read access for all users" ON public.trips;
 DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
+DROP POLICY IF EXISTS "Admins can manage all trips" ON public.trips;
 DROP POLICY IF EXISTS "Enable read access for all users" ON public.agency_reviews;
 DROP POLICY IF EXISTS "Clients can insert their own reviews if they purchased" ON public.agency_reviews;
 DROP POLICY IF EXISTS "Clients can update their own reviews" ON public.agency_reviews;
 DROP POLICY IF EXISTS "Clients can delete their own reviews" ON public.agency_reviews;
 DROP POLICY IF EXISTS "Agencies can respond to their reviews" ON public.agency_reviews;
+DROP POLICY IF EXISTS "Admins can manage all reviews" ON public.agency_reviews;
 DROP POLICY IF EXISTS "Clients can create their own bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Users can view their own bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Agencies can view bookings for their trips" ON public.bookings;
+DROP POLICY IF EXISTS "Admins can view all bookings" ON public.bookings;
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
 DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Users can manage their own favorites" ON public.favorites;
 DROP POLICY IF EXISTS "Enable read access for all users" ON public.trip_images;
 DROP POLICY IF EXISTS "Agencies can manage their own trip images" ON public.trip_images;
@@ -45,7 +113,6 @@ DROP POLICY IF EXISTS "Admins can manage themes" ON public.themes;
 DROP POLICY IF EXISTS "Agencies can manage their own theme" ON public.agency_themes;
 DROP POLICY IF EXISTS "Admins can see audit logs" ON public.audit_logs;
 
--- Drop Functions & Views
 DROP FUNCTION IF EXISTS public.has_purchased_from_agency(uuid, uuid);
 DROP VIEW IF EXISTS public.agency_trips_with_cover;
 
@@ -67,14 +134,6 @@ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- ----------------------------------------------------------------
 -- Função Helper: has_purchased_from_agency
--- Verifica se um cliente comprou de uma agência específica.
---
--- NOTA DE SEGURANÇA: Esta função usa `SECURITY DEFINER`.
--- Isso é necessário para que a política de RLS possa verificar
--- o histórico de compras em tabelas que o usuário comum não pode
--- ler por completo. A função é segura pois:
--- 1. Não aceita nomes de tabelas/colunas como parâmetros.
--- 2. Retorna apenas um booleano (true/false), sem expor dados.
 -- ----------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(p_client_id uuid, p_agency_id uuid)
 RETURNS boolean
@@ -97,9 +156,6 @@ $$;
 
 -- ----------------------------------------------------------------
 -- Correção da View: `agency_trips_with_cover`
--- A view estava com `SECURITY DEFINER`, o que é um risco de segurança
--- pois ignora as políticas de RLS do usuário que a consulta.
--- Alteramos para `SECURITY INVOKER` (padrão), que respeita as RLS.
 -- ----------------------------------------------------------------
 CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
  SELECT t.id,
@@ -118,8 +174,6 @@ CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
      LIMIT 1) AS cover_image_url
    FROM trips t;
 
--- Altera o dono da view para `postgres` para garantir compatibilidade
--- e remove o risco de segurança associado ao `authenticator`.
 ALTER VIEW public.agency_trips_with_cover OWNER TO postgres;
 
 
@@ -127,124 +181,44 @@ ALTER VIEW public.agency_trips_with_cover OWNER TO postgres;
 -- DEFINIÇÃO DAS POLÍTICAS DE RLS
 -- ================================================================
 
--- ----------------------------------------------------------------
 -- Tabela: `agencies`
--- ----------------------------------------------------------------
-CREATE POLICY "Enable read access for all users"
-ON public.agencies FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON public.agencies FOR SELECT USING (true);
+CREATE POLICY "Agencies can manage their own data" ON public.agencies FOR ALL USING (auth.uid() = id);
 
-
--- ----------------------------------------------------------------
 -- Tabela: `trips`
--- ----------------------------------------------------------------
-CREATE POLICY "Enable read access for all users"
-ON public.trips FOR SELECT USING (active = true);
+CREATE POLICY "Enable read access for all users" ON public.trips FOR SELECT USING (active = true);
+CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id);
+CREATE POLICY "Admins can manage all trips" ON public.trips FOR ALL USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');
 
-CREATE POLICY "Agencies can manage their own trips"
-ON public.trips FOR ALL
-USING (auth.uid() = agency_id)
-WITH CHECK (auth.uid() = agency_id);
-
-
--- ----------------------------------------------------------------
 -- Tabela: `agency_reviews`
--- ----------------------------------------------------------------
-CREATE POLICY "Enable read access for all users"
-ON public.agency_reviews FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON public.agency_reviews FOR SELECT USING (true);
+CREATE POLICY "Clients can insert their own reviews if they purchased" ON public.agency_reviews FOR INSERT WITH CHECK (auth.uid() = client_id AND public.has_purchased_from_agency(auth.uid(), agency_id));
+CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id);
+CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
+CREATE POLICY "Agencies can respond to their reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = agency_id);
+CREATE POLICY "Admins can manage all reviews" ON public.agency_reviews FOR ALL USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');
 
-CREATE POLICY "Clients can insert their own reviews if they purchased"
-ON public.agency_reviews FOR INSERT WITH CHECK (
-  auth.uid() = client_id AND
-  public.has_purchased_from_agency(auth.uid(), agency_id)
-);
-
-CREATE POLICY "Clients can update their own reviews"
-ON public.agency_reviews FOR UPDATE
-USING (auth.uid() = client_id);
-
-CREATE POLICY "Clients can delete their own reviews"
-ON public.agency_reviews FOR DELETE
-USING (auth.uid() = client_id);
-
-CREATE POLICY "Agencies can respond to their reviews"
-ON public.agency_reviews FOR UPDATE
-USING (auth.uid() = agency_id);
-
-
--- ----------------------------------------------------------------
 -- Tabela: `bookings`
--- ----------------------------------------------------------------
-CREATE POLICY "Clients can create their own bookings"
-ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Clients can create their own bookings" ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Users can view their own bookings" ON public.bookings FOR SELECT USING (auth.uid() = client_id);
+CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING (EXISTS (SELECT 1 FROM public.trips t WHERE t.id = bookings.trip_id AND t.agency_id = auth.uid()));
+CREATE POLICY "Admins can view all bookings" ON public.bookings FOR SELECT USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');
 
-CREATE POLICY "Users can view their own bookings"
-ON public.bookings FOR SELECT USING (auth.uid() = client_id);
-
-CREATE POLICY "Agencies can view bookings for their trips"
-ON public.bookings FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM public.trips t
-    WHERE t.id = bookings.trip_id AND t.agency_id = auth.uid()
-  )
-);
-
--- ----------------------------------------------------------------
 -- Tabela: `profiles`
--- ----------------------------------------------------------------
-CREATE POLICY "Public profiles are viewable by everyone."
-ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Public profiles are viewable by everyone." ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can delete their own profile" ON public.profiles FOR DELETE USING (auth.uid() = id);
+CREATE POLICY "Admins can manage all profiles" ON public.profiles FOR ALL USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');
 
-CREATE POLICY "Users can insert their own profile."
-ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile."
-ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Users can delete their own profile"
-ON public.profiles FOR DELETE USING (auth.uid() = id);
-
--- ----------------------------------------------------------------
 -- Tabela: `favorites`
--- ----------------------------------------------------------------
-CREATE POLICY "Users can manage their own favorites"
-ON public.favorites FOR ALL USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- ----------------------------------------------------------------
 -- Tabela: `trip_images`
--- ----------------------------------------------------------------
-CREATE POLICY "Enable read access for all users"
-ON public.trip_images FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON public.trip_images FOR SELECT USING (true);
+CREATE POLICY "Agencies can manage their own trip images" ON public.trip_images FOR ALL USING (EXISTS (SELECT 1 FROM public.trips t WHERE t.id = trip_images.trip_id AND t.agency_id = auth.uid()));
 
-CREATE POLICY "Agencies can manage their own trip images"
-ON public.trip_images FOR ALL
-USING (
-    EXISTS (
-        SELECT 1
-        FROM public.trips t
-        WHERE t.id = trip_images.trip_id AND t.agency_id = auth.uid()
-    )
-);
-
--- ----------------------------------------------------------------
--- Tabelas de Admin/Sistema (Acesso restrito)
--- ----------------------------------------------------------------
-CREATE POLICY "Admins can manage themes"
-ON public.themes FOR ALL
-USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-)
-WITH CHECK (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-);
-
-CREATE POLICY "Agencies can manage their own theme"
-ON public.agency_themes FOR ALL
-USING ( auth.uid() = agency_id )
-WITH CHECK ( auth.uid() = agency_id );
-
-CREATE POLICY "Admins can see audit logs"
-ON public.audit_logs FOR SELECT
-USING (
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN'
-);
+-- Tabelas de Admin/Sistema
+CREATE POLICY "Admins can manage themes" ON public.themes FOR ALL USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN') WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');
+CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR SELECT USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'ADMIN');

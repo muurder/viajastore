@@ -242,7 +242,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .select(`
                 *, 
                 profiles (full_name),
-                agencies (name, logo_url, slug)
+                agencies (name, logo_url, slug),
+                trips (id, title)
             `);
             
           if (error) {
@@ -256,12 +257,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   agencyId: r.agency_id,
                   clientId: r.client_id,
                   bookingId: r.booking_id,
+                  tripId: r.trip_id,
                   rating: r.rating,
                   comment: r.comment,
+                  tags: r.tags || [],
                   createdAt: r.created_at,
                   clientName: r.profiles?.full_name || 'Viajante',
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
+                  tripTitle: r.trips?.title,
                   response: r.response
               })));
           }
@@ -496,16 +500,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           agency_id: review.agencyId,
           client_id: review.clientId,
           booking_id: review.bookingId,
+          trip_id: review.tripId,
           rating: review.rating,
-          comment: review.comment
+          comment: review.comment,
+          tags: review.tags,
       }).select().single();
       
       if (error) {
           console.error('Error adding agency review:', error);
-          showToast('Erro ao avaliar agência', 'error');
+          showToast('Erro ao avaliar agência: ' + error.message, 'error');
+          throw error;
       } else {
           showToast('Avaliação da agência enviada!', 'success');
-          setAgencyReviews(prev => [...prev, data as AgencyReview]);
+          // No local update, rely on refreshData to get joined data
       }
   };
 
@@ -513,17 +520,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const { error } = await supabase
       .from('agency_reviews')
-      .update({ comment: data.comment, rating: data.rating })
+      .update({ comment: data.comment, rating: data.rating, tags: data.tags })
       .eq('id', reviewId);
       
     if (error) {
         console.error('Error updating review:', error);
         showToast('Erro ao atualizar avaliação. Verifique as permissões (RLS).', 'error');
-        return;
+        throw error;
     }
 
-    setAgencyReviews(prev => prev.map(r => r.id === reviewId ? { ...r, ...data } as AgencyReview : r));
     showToast('Avaliação atualizada!', 'success');
+    // No local update, rely on refreshData
   };
 
   const deleteReview = async (reviewId: string) => {};

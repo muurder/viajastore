@@ -177,12 +177,15 @@ export interface AgencyReview {
   agencyId: string;
   clientId: string;
   bookingId?: string;
+  tripId?: string; // Link to specific trip
   rating: number; // 1-5
   comment: string;
+  tags?: string[]; // Experience tags
   createdAt: string;
   clientName?: string; // Joined
   agencyName?: string; // Joined for client view
   agencyLogo?: string; // Joined for client view
+  tripTitle?: string; // Joined from trips table
   response?: string;
 }
 

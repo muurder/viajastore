@@ -23,41 +23,65 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
-const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0003-\u036f]/g, "");
+const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // --- Reusable Review Form Component ---
 interface ReviewFormProps {
-  onSubmit: (rating: number, comment: string) => void;
+  onSubmit: (rating: number, comment: string, tags: string[]) => void;
   isSubmitting: boolean;
   initialRating?: number;
   initialComment?: string;
+  initialTags?: string[];
   submitButtonText: string;
 }
 
-const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', submitButtonText }) => {
+const EXPERIENCE_TAGS = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios'];
+
+const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', initialTags = [], submitButtonText }) => {
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
+  const [tags, setTags] = useState<string[]>(initialTags);
 
   useEffect(() => {
     setRating(initialRating);
     setComment(initialComment);
-  }, [initialRating, initialComment]);
+    setTags(initialTags);
+  }, [initialRating, initialComment, initialTags]);
+
+  const toggleTag = (tag: string) => {
+    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(rating, comment);
+    onSubmit(rating, comment, tags);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Sua nota</label>
+        <label className="block text-sm font-bold text-gray-700 mb-2">Sua nota geral</label>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((star) => (
             <button type="button" key={star} onClick={() => setRating(star)} className="focus:outline-none transition-transform hover:scale-110">
               <Star size={28} className={star <= rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
             </button>
           ))}
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">O que você mais gostou?</label>
+        <div className="flex flex-wrap gap-2">
+            {EXPERIENCE_TAGS.map(tag => (
+                <button 
+                    type="button" 
+                    key={tag} 
+                    onClick={() => toggleTag(tag)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+                >
+                    {tag}
+                </button>
+            ))}
         </div>
       </div>
       <div>
@@ -80,7 +104,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 
 const AgencyLandingPage: React.FC = () => {
-  // --- HOOKS DECLARATION (TOP LEVEL) ---
+  // --- 1. HOOKS DECLARATION (MUST BE AT THE TOP) ---
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
@@ -97,7 +121,7 @@ const AgencyLandingPage: React.FC = () => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
-  // --- DATA FETCHING & DERIVED STATE (SAFE) ---
+  // --- 2. DATA FETCHING & DERIVED STATE (MUST BE CALLED ON EVERY RENDER) ---
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.id) : [], [agency, getAgencyPublicTrips]);
@@ -130,7 +154,15 @@ const AgencyLandingPage: React.FC = () => {
           ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
           : 0; 
       const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
-      return { totalReviews, averageRating, totalClients };
+      const verifiedPercentage = totalReviews > 0 ? 100 : 0; // Simplified
+      const ratingDistribution = [0, 0, 0, 0, 0];
+      agencyReviews.forEach(r => {
+        if (r.rating >= 1 && r.rating <= 5) {
+          ratingDistribution[5 - r.rating]++;
+        }
+      });
+
+      return { totalReviews, averageRating, totalClients, verifiedPercentage, ratingDistribution };
   }, [agencyReviews, allTrips]);
 
   const filteredTrips = useMemo(() => {
@@ -153,7 +185,6 @@ const AgencyLandingPage: React.FC = () => {
     });
   }, [shuffledTrips, searchTerm, selectedInterests, agency]);
 
-  // --- USEEFFECT HOOKS ---
   useEffect(() => {
     if (initialTab === 'REVIEWS' && reviewsSectionRef.current) {
         setTimeout(() => {
@@ -172,7 +203,7 @@ const AgencyLandingPage: React.FC = () => {
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
   
-  // --- EARLY RETURNS FOR LOADING/NOT FOUND ---
+  // --- 3. EARLY RETURNS (AFTER ALL HOOKS) ---
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -192,7 +223,7 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // --- HANDLER FUNCTIONS ---
+  // --- 4. HANDLER FUNCTIONS & RENDER LOGIC ---
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
         setSelectedInterests([]);
@@ -228,35 +259,36 @@ const AgencyLandingPage: React.FC = () => {
       }
   };
 
-  const handleReviewSubmit = async (rating: number, comment: string) => {
+  const handleReviewSubmit = async (rating: number, comment: string, tags: string[]) => {
     if (!user) return;
     setIsSubmittingReview(true);
     try {
-      await addAgencyReview({
-        agencyId: agency.id,
-        clientId: user.id,
-        rating,
-        comment
-      });
+      const tripIdFromState = (window.history.state?.usr as any)?.tripId;
+      await addAgencyReview({ agencyId: agency.id, clientId: user.id, rating, comment, tags, tripId: tripIdFromState });
       await refreshData();
+      showToast('Sua avaliação foi enviada!', 'success');
+    } catch (err) {
+      showToast('Erro ao enviar avaliação.', 'error');
     } finally {
       setIsSubmittingReview(false);
     }
   };
 
-  const handleReviewUpdate = async (rating: number, comment: string) => {
+  const handleReviewUpdate = async (rating: number, comment: string, tags: string[]) => {
     if (!myReview) return;
     setIsSubmittingReview(true);
     try {
-      await updateAgencyReview(myReview.id, { rating, comment });
+      await updateAgencyReview(myReview.id, { rating, comment, tags });
       await refreshData();
       setIsEditingReview(false);
+      showToast('Sua avaliação foi atualizada!', 'success');
+    } catch (err) {
+      showToast('Erro ao atualizar avaliação.', 'error');
     } finally {
       setIsSubmittingReview(false);
     }
   };
 
-  // --- RENDER LOGIC ---
   const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
 
   return (
@@ -541,11 +573,39 @@ const AgencyLandingPage: React.FC = () => {
         {activeTab === 'REVIEWS' && (
             <div className="max-w-4xl mx-auto animate-[fadeIn_0.3s] mt-8 grid grid-cols-1 lg:grid-cols-3 gap-10">
                 <div className="lg:col-span-2 space-y-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Opinião de quem já viajou</h2>
+                     <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Reputação da Agência</h2>
+                        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 mb-4">
+                            <div className="text-center">
+                                <p className="text-5xl font-extrabold text-gray-900">{agencyStats.averageRating.toFixed(1)}</p>
+                                <div className="flex text-amber-400 justify-center">{[...Array(5)].map((_, i) => ( <Star key={i} size={16} className={i < Math.round(agencyStats.averageRating) ? "fill-current" : "text-gray-300"} />))}</div>
+                                <p className="text-xs text-gray-500 mt-1">{agencyStats.totalReviews} avaliações</p>
+                            </div>
+                            <div className="w-full sm:flex-1 space-y-1">
+                                {agencyStats.ratingDistribution.map((count, index) => {
+                                    const percentage = agencyStats.totalReviews > 0 ? (count / agencyStats.totalReviews) * 100 : 0;
+                                    return (
+                                        <div key={index} className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+                                            <span>{5 - index} <span className="text-amber-400">★</span></span>
+                                            <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-amber-400 h-2 rounded-full" style={{ width: `${percentage}%`}}></div></div>
+                                            <span className="w-8 text-right">{Math.round(percentage)}%</span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                        {agencyStats.averageRating >= 4.5 && agencyStats.totalReviews >= 10 && (
+                            <div className="mt-4 bg-green-50 text-green-700 border border-green-200 rounded-lg p-3 text-sm font-bold flex items-center justify-center gap-2">
+                                <Award size={18}/> Selo de Super Agência
+                            </div>
+                        )}
+                    </div>
                     {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => (
                         <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                             <div className="flex justify-between items-start mb-3"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div><div><p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p><p className="text-xs text-gray-400">{new Date(review.createdAt).toLocaleDateString()} • Compra Verificada</p></div></div><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}</div></div>
                             <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 p-3 rounded-lg">"{review.comment}"</p>
+                            {review.tags && review.tags.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{review.tags.map(tag => <span key={tag} className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-md">{tag}</span>)}</div>}
+                            {review.tripTitle && <p className="text-xs text-gray-400 mt-3 text-right">Avaliação do pacote: <b>{review.tripTitle}</b></p>}
                         </div>
                     )) : (
                         <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500 italic">Esta agência ainda não recebeu nenhuma avaliação.</p></div>
@@ -559,18 +619,18 @@ const AgencyLandingPage: React.FC = () => {
                             myReview && !isEditingReview ? (
                                 <div className="space-y-4">
                                     <h3 className="font-bold text-lg">Sua Avaliação</h3>
-                                    <div className="bg-primary-50 p-4 rounded-xl border border-primary-100"><div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-primary-800">Minha nota</span><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < myReview.rating ? "fill-current" : "text-gray-200"} />))}</div></div><p className="text-sm text-gray-700 italic">"{myReview.comment}"</p></div>
+                                    <div className="bg-primary-50 p-4 rounded-xl border border-primary-100"><div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-primary-800">Minha nota</span><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < myReview.rating ? "fill-current" : "text-gray-200"} />))}</div></div><p className="text-sm text-gray-700 italic">"{myReview.comment}"</p>{myReview.tags && myReview.tags.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{myReview.tags.map(tag => <span key={tag} className="text-[10px] font-medium bg-white text-primary-700 px-1.5 py-0.5 rounded">{tag}</span>)}</div>}</div>
                                     <button onClick={() => setIsEditingReview(true)} className="w-full bg-gray-100 text-gray-700 font-bold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200"><Edit size={16}/> Editar Avaliação</button>
                                 </div>
                             ) : (
                                 <div>
                                     <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
-                                    <ReviewForm onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} isSubmitting={isSubmittingReview} initialRating={myReview?.rating} initialComment={myReview?.comment} submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} />
+                                    <ReviewForm onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} isSubmitting={isSubmittingReview} initialRating={myReview?.rating} initialComment={myReview?.comment} initialTags={myReview?.tags} submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} />
                                     {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
                                 </div>
                             )
                         ) : (
-                            <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500">Você precisa ter comprado um pacote desta agência para poder avaliá-la.</p></div>
+                            <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500 mb-4">Você precisa ter viajado com esta agência para poder avaliá-la.</p><button onClick={scrollToPackages} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg w-full">Ver Pacotes</button></div>
                         )}
                     </div>
                 </div>
