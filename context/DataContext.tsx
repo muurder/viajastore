@@ -93,6 +93,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- DATA FETCHING ---
 
   const fetchTrips = async () => {
+    if (!supabase) {
+      setTrips(MOCK_TRIPS);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('trips')
@@ -147,6 +151,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchAgencies = async () => {
+    if (!supabase) {
+      setAgencies(MOCK_AGENCIES);
+      return;
+    }
     try {
       const { data, error } = await supabase.from('agencies').select('*');
       
@@ -185,6 +193,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchClients = async () => {
+    if (!supabase) {
+      setClients(MOCK_CLIENTS);
+      return;
+    }
     try {
       // Fetches only profiles that are CLIENT or ADMIN, excluding AGENCY.
       // This prevents agencies from being incorrectly mapped and displayed in the user list.
@@ -220,6 +232,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchAgencyReviews = async () => {
+      if (!supabase) {
+        setAgencyReviews([]);
+        return;
+      }
       try {
           const { data, error } = await supabase
             .from('agency_reviews')
@@ -255,7 +271,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchBookings = async () => {
-    if (!user) return;
+    if (!supabase || !user) {
+        setBookings(MOCK_BOOKINGS);
+        return;
+    }
 
     try {
         const { data, error } = await supabase
@@ -316,6 +335,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const fetchAuditLogs = async () => {
+      if (!supabase) {
+        setAuditLogs([]);
+        return;
+      }
       try {
           const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
           if (error) throw error;
@@ -344,7 +367,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchBookings()
       ];
       
-      if (user && user.role === UserRole.CLIENT) {
+      if (supabase && user && user.role === UserRole.CLIENT) {
           const { data } = await supabase.from('favorites').select('trip_id').eq('user_id', user.id);
           if (data) {
              const favs = data.map(f => f.trip_id);
@@ -380,6 +403,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- ACTIONS ---
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
+    
     const currentClient = clients.find(c => c.id === clientId);
     const originalFavorites = currentClient?.favorites || [];
     const isCurrentlyFavorite = originalFavorites.includes(tripId);
@@ -427,6 +452,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addBooking = async (booking: Booking) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
+
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let finalId = booking.id;
     
@@ -459,6 +486,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const addAgencyReview = async (review: Partial<AgencyReview>) => {
+      if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
       if (!review.agencyId || !review.clientId || !review.rating) {
           showToast("Dados incompletos para avaliação", 'error');
           return;
@@ -482,6 +510,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyReview = async (reviewId: string, data: Partial<AgencyReview>) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const { error } = await supabase
       .from('agency_reviews')
       .update({ comment: data.comment, rating: data.rating })
@@ -500,6 +529,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteReview = async (reviewId: string) => {};
 
   const deleteAgencyReview = async (reviewId: string) => {
+      if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
       const { error } = await supabase.from('agency_reviews').delete().eq('id', reviewId);
       if (error) {
           showToast('Erro ao excluir avaliação', 'error');
@@ -510,6 +540,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const dbUpdates: any = {};
     if (data.name !== undefined) dbUpdates.full_name = data.name;
     if (data.cpf !== undefined) dbUpdates.cpf = data.cpf;
@@ -536,6 +567,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const expiresAt = new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString();
     
     const updates = {
@@ -564,6 +596,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const dbUpdates: any = {};
     if (data.name) dbUpdates.name = data.name;
     if (data.description) dbUpdates.description = data.description;
@@ -590,6 +623,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const toggleAgencyStatus = async (agencyId: string) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const agency = agencies.find(a => a.id === agencyId);
     if (!agency) {
       showToast('Agência não encontrada.', 'error');
@@ -617,6 +651,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
   const createTrip = async (trip: Trip) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     if (!user || user.role !== UserRole.AGENCY) {
       throw new Error("Apenas agências podem criar viagens.");
     }
@@ -670,6 +705,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   const updateTrip = async (trip: Trip) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const updates = {
       title: trip.title,
       slug: trip.slug,
@@ -720,6 +756,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteTrip = async (tripId: string) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const { error: imagesError } = await supabase.from('trip_images').delete().eq('trip_id', tripId);
     if (imagesError) { console.error('Error deleting trip images:', imagesError); }
     
@@ -732,6 +769,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const toggleTripStatus = async (tripId: string) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.active;
@@ -745,6 +783,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   const toggleTripFeatureStatus = async (tripId: string) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const trip = trips.find(t => t.id === tripId);
     if (!trip) return;
     const newStatus = !trip.featured;
@@ -759,6 +798,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // --- MASTER ADMIN ACTIONS ---
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const { error } = await supabase
       .from(table)
       .update({ deleted_at: new Date().toISOString() })
@@ -778,6 +818,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     const { error } = await supabase
       .from(table)
       .update({ deleted_at: null })
@@ -797,10 +838,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteUser = async (userId: string, role: UserRole) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     console.warn("deleteUser is a hard delete and should be used with caution.");
   };
 
   const deleteMultipleUsers = async (userIds: string[]) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     if (userIds.length === 0) return;
     const { error } = await supabase
       .from('profiles')
@@ -817,6 +860,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteMultipleAgencies = async (agencyIds: string[]) => {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
     if (agencyIds.length === 0) return;
     
     const { error: agencyError } = await supabase
@@ -848,7 +892,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logAuditAction = async (action: string, details: string) => {};
 
   const sendPasswordReset = async (email: string) => {
-    const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
+    if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/#/forgot-password`,
     });
     if (error) showToast('Erro ao enviar email: ' + error.message, 'error');
@@ -856,6 +901,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
+      if (!supabase) { showToast('Funcionalidade indisponível em modo offline.', 'warning'); return null; }
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${userId}-avatar-${Date.now()}.${fileExt}`;
@@ -903,6 +949,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyStats = (agencyId: string) => { const agencyTrips = getAgencyTrips(agencyId); const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0); const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); const totalRevenue = agencyTrips.reduce((sum, trip) => sum + ((trip.sales || 0) * trip.price), 0); return { totalRevenue, totalViews, totalSales, conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 }; };
 
   const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
+      if (!supabase) return null;
       try {
           const { data, error } = await supabase.from('agency_themes').select('colors').eq('agency_id', agencyId).maybeSingle();
           if (error) throw error;
@@ -911,6 +958,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
+      if (!supabase) return false;
       try {
           const { error } = await supabase.from('agency_themes').upsert({ agency_id: agencyId, colors: colors }, { onConflict: 'agency_id' });
           if (error) throw error;

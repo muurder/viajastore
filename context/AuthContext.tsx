@@ -25,6 +25,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
+    if (!supabase) return;
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
       if (email === 'juannicolas1@gmail.com') {
@@ -128,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Helper to ensure the record exists after Google Login
   const ensureUserRecord = async (authUser: any, role: string) => {
+      if (!supabase) return false;
       const userId = authUser.id;
       const userEmail = authUser.email;
       const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
@@ -180,11 +182,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      setLoading(true);
-      
-      const { data: { session } } = await (supabase.auth as any).getSession();
-      
+    if (!supabase) {
+      setUser(null);
+      setLoading(false);
+      console.log("Auth: Supabase not configured, running in offline mode.");
+      return;
+    }
+
+    setLoading(true);
+    
+    // Check initial session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
@@ -197,40 +205,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(null);
       }
       setLoading(false);
+    });
 
-      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
-        console.log("Auth State Change:", event);
-        
-        if (session?.user) {
-          if (event === 'SIGNED_IN') {
-             const pendingRole = localStorage.getItem('viajastore_pending_role');
-             if (pendingRole) {
-                 console.log("Found pending role after sign in:", pendingRole);
-                 const success = await ensureUserRecord(session.user, pendingRole);
-                 if (success) {
-                    localStorage.removeItem('viajastore_pending_role');
-                 }
-             }
-             
-             await fetchUserData(session.user.id, session.user.email!);
-          } else if (event === 'USER_UPDATED') {
-             await fetchUserData(session.user.id, session.user.email!);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth State Change:", event);
+      
+      if (session?.user) {
+        if (event === 'SIGNED_IN') {
+           const pendingRole = localStorage.getItem('viajastore_pending_role');
+           if (pendingRole) {
+               console.log("Found pending role after sign in:", pendingRole);
+               const success = await ensureUserRecord(session.user, pendingRole);
+               if (success) {
+                  localStorage.removeItem('viajastore_pending_role');
+               }
+           }
+           await fetchUserData(session.user.id, session.user.email!);
+        } else if (event === 'USER_UPDATED') {
+           await fetchUserData(session.user.id, session.user.email!);
         }
-      });
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
 
-      return () => subscription.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
     };
-
-    initializeAuth();
   }, []);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Modo offline. Login não disponível.' };
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
-    const { error } = await (supabase.auth as any).signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -243,6 +252,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async (role?: UserRole, redirectPath?: string) => {
+    if (!supabase) { console.error("Login com Google indisponível em modo offline."); return; }
     const redirectTo = redirectPath 
         ? `${window.location.origin}/#${redirectPath}` 
         : `${window.location.origin}/`;
@@ -254,7 +264,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.removeItem('viajastore_pending_role');
     }
 
-    const { error } = await (supabase.auth as any).signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectTo,
@@ -268,13 +278,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await (supabase.auth as any).signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     localStorage.removeItem('viajastore_pending_role');
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
-    const { data: authData, error: authError } = await (supabase.auth as any).signUp({
+    if (!supabase) return { success: false, error: 'Modo offline. Registro não disponível.' };
+    
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -337,11 +351,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
-    if (!user) return { success: false, error: 'Usuário não logado' };
+    if (!supabase || !user) return { success: false, error: 'Usuário não logado ou modo offline' };
     
     try {
       if (userData.email && userData.email !== user.email) {
-          const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
+          const { error } = await supabase.auth.updateUser({ email: userData.email });
           if (error) throw error;
       }
 
@@ -389,12 +403,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updatePassword = async (password: string) => {
-      const { error } = await (supabase.auth as any).updateUser({ password });
+      if (!supabase) return { success: false, error: 'Modo offline.' };
+      const { error } = await supabase.auth.updateUser({ password });
       if (error) return { success: false, error: error.message };
       return { success: true };
   };
 
   const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
+      if (!supabase) { console.error("Upload indisponível em modo offline."); return null; }
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
@@ -414,7 +430,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
-    if (!user) return { success: false, error: "Usuário não autenticado" };
+    if (!supabase || !user) return { success: false, error: "Usuário não autenticado ou modo offline" };
 
     try {
       // Both agencies and clients have a profile, so we always delete from there.
@@ -422,7 +438,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { error } = await supabase.from('profiles').delete().eq('id', user.id);
       if (error) throw error;
       
-      await (supabase.auth as any).signOut();
+      await supabase.auth.signOut();
       setUser(null);
       return { success: true };
 
