@@ -1,30 +1,197 @@
+
 -- =============================================================================
--- SCRIPT DEFINITIVO DE POLÍTICAS DE SEGURANÇA (RLS) - VIAJASTORE V3
+-- SCRIPT DE BANCO DE DADOS COMPLETO E IDEMPOTENTE - VIAJASTORE
 -- =============================================================================
--- Este script adiciona uma verificação de segurança para garantir que apenas
--- usuários que compraram de uma agência possam avaliá-la.
--- Mantém as políticas anteriores e é seguro de executar.
+-- Este script define o schema completo, funções, visões e políticas de RLS
+-- para a aplicação ViajaStore. É seguro executá-lo múltiplas vezes.
 -- =============================================================================
 
--- 1. FUNÇÃO SEGURA PARA VERIFICAR O PAPEL DO USUÁRIO (Existente)
-CREATE OR REPLACE FUNCTION get_my_role()
-RETURNS TEXT AS $$
+-- =============================================================================
+-- SEÇÃO 1: CRIAÇÃO DAS TABELAS (SCHEMA)
+-- =============================================================================
+
+-- Tabela de Perfis de Usuário (ligada ao auth.users)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name text,
+  email text UNIQUE,
+  role text DEFAULT 'CLIENT'::text,
+  avatar_url text,
+  cpf text,
+  phone text,
+  address jsonb,
+  status text DEFAULT 'ACTIVE'::text,
+  deleted_at timestamptz,
+  last_sign_in_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Agências
+CREATE TABLE IF NOT EXISTS public.agencies (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  email text,
+  cnpj text,
+  description text,
+  logo_url text,
+  phone text,
+  whatsapp text,
+  website text,
+  slug text UNIQUE,
+  is_active boolean DEFAULT false,
+  address jsonb,
+  bank_info jsonb,
+  hero_mode text DEFAULT 'TRIPS'::text,
+  hero_banner_url text,
+  hero_title text,
+  hero_subtitle text,
+  custom_settings jsonb,
+  deleted_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Planos de Assinatura
+CREATE TABLE IF NOT EXISTS public.plans (
+  id text NOT NULL PRIMARY KEY,
+  name text NOT NULL,
+  price numeric NOT NULL,
+  duration_months integer,
+  features text[]
+);
+
+-- Tabela de Assinaturas das Agências
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
+  plan_id text NOT NULL REFERENCES public.plans(id),
+  start_date timestamptz DEFAULT now(),
+  end_date timestamptz,
+  status text DEFAULT 'active'::text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Viagens (Pacotes)
+CREATE TABLE IF NOT EXISTS public.trips (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  slug text,
+  description text,
+  destination text,
+  price numeric NOT NULL DEFAULT 0,
+  start_date timestamptz,
+  end_date timestamptz,
+  duration_days integer,
+  category text,
+  tags text[],
+  traveler_types text[],
+  itinerary jsonb,
+  payment_methods text[],
+  included text[],
+  not_included text[],
+  active boolean DEFAULT false,
+  featured boolean DEFAULT false,
+  featured_in_hero boolean DEFAULT false,
+  popular_near_sp boolean DEFAULT false,
+  views_count integer DEFAULT 0,
+  sales_count integer DEFAULT 0,
+  deleted_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT trips_agency_id_slug_key UNIQUE (agency_id, slug)
+);
+
+-- Tabela de Imagens das Viagens
+CREATE TABLE IF NOT EXISTS public.trip_images (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
+  image_url text NOT NULL,
+  position integer DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Reservas (Bookings)
+CREATE TABLE IF NOT EXISTS public.bookings (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  client_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
+  passengers integer DEFAULT 1,
+  total_price numeric,
+  status text DEFAULT 'PENDING'::text,
+  payment_method text,
+  voucher_code text UNIQUE,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Favoritos
+CREATE TABLE IF NOT EXISTS public.favorites (
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  PRIMARY KEY (user_id, trip_id)
+);
+
+-- Tabela de Avaliações de Agências
+CREATE TABLE IF NOT EXISTS public.agency_reviews (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
+  client_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  booking_id uuid REFERENCES public.bookings(id) ON DELETE SET NULL,
+  trip_id uuid REFERENCES public.trips(id) ON DELETE SET NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  tags text[],
+  response text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Temas Globais
+CREATE TABLE IF NOT EXISTS public.themes (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  name text NOT NULL,
+  colors jsonb NOT NULL,
+  is_active boolean DEFAULT false,
+  is_default boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Temas por Agência
+CREATE TABLE IF NOT EXISTS public.agency_themes (
+  agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
+  colors jsonb NOT NULL,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Tabela de Logs de Auditoria (Admin)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  admin_email text,
+  action text NOT NULL,
+  details text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- =============================================================================
+-- SEÇÃO 2: FUNÇÕES AUXILIARES E RPC
+-- =============================================================================
+
+-- Função para obter o papel (role) do usuário de forma segura
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   user_role TEXT;
 BEGIN
-  -- Esta consulta é executada com privilégios elevados, bypassando a RLS.
-  SELECT role INTO user_role
-  FROM public.profiles
-  WHERE id = auth.uid()
-  LIMIT 1;
+  SELECT role INTO user_role FROM public.profiles WHERE id = auth.uid() LIMIT 1;
   RETURN user_role;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
-
--- 2. NOVA FUNÇÃO: VERIFICA SE O USUÁRIO COMPROU DA AGÊNCIA
-CREATE OR REPLACE FUNCTION has_purchased_from_agency(agency_id_to_check uuid)
-RETURNS boolean AS $$
+-- Função para verificar se o usuário já comprou da agência
+CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(agency_id_to_check uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1
@@ -35,74 +202,158 @@ BEGIN
       AND b.status = 'CONFIRMED'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Função RPC para ativar a assinatura de uma agência
+CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_agency_id uuid, p_plan_id text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_duration_months int;
+BEGIN
+  -- Obter a duração do plano
+  SELECT duration_months INTO v_duration_months FROM public.plans WHERE id = p_plan_id;
+
+  -- Upsert da assinatura (cria ou atualiza)
+  INSERT INTO public.subscriptions (agency_id, plan_id, start_date, end_date, status)
+  VALUES (p_agency_id, p_plan_id, now(), now() + (v_duration_months || ' months')::interval, 'active')
+  ON CONFLICT (agency_id) DO UPDATE
+  SET plan_id = p_plan_id,
+      start_date = now(),
+      end_date = now() + (v_duration_months || ' months')::interval,
+      status = 'active';
+
+  -- Ativa a agência
+  UPDATE public.agencies SET is_active = true, updated_at = now() WHERE id = p_agency_id;
+END;
+$$;
 
 
--- 3. LIMPEZA DE POLÍTICAS ANTIGAS (PARA GARANTIR UMA BASE LIMPA)
-DROP POLICY IF EXISTS "Admin full access" ON public.agencies;
-DROP POLICY IF EXISTS "Agencies can manage own record" ON public.agencies;
-DROP POLICY IF EXISTS "Public can view active agencies" ON public.agencies;
+-- =============================================================================
+-- SEÇÃO 3: VIEWS (VISÕES)
+-- =============================================================================
 
-DROP POLICY IF EXISTS "Admin full access" ON public.profiles;
-DROP POLICY IF EXISTS "Users can manage own profile" ON public.profiles;
+-- View para listar viagens com imagem de capa (corrigida)
+CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
+SELECT
+  t.id,
+  t.title,
+  t.slug,
+  t.destination,
+  t.price,
+  t.duration_days,
+  a.name AS agency_name,
+  a.slug AS agency_slug,
+  (
+    SELECT ti.image_url
+    FROM public.trip_images ti
+    WHERE ti.trip_id = t.id
+    ORDER BY ti.position, ti.created_at
+    LIMIT 1
+  ) AS cover_image
+FROM
+  public.trips t
+JOIN
+  public.agencies a ON t.agency_id = a.id
+WHERE
+  t.active = true AND a.is_active = true;
 
-DROP POLICY IF EXISTS "Admin full access" ON public.trips;
-DROP POLICY IF EXISTS "Agencies can manage their own trips" ON public.trips;
-DROP POLICY IF EXISTS "Public can view active trips" ON public.trips;
+-- =============================================================================
+-- SEÇÃO 4: LIMPEZA E CRIAÇÃO DAS POLÍTICAS DE RLS
+-- =============================================================================
 
--- Limpando políticas de 'agency_reviews' para recriá-las com mais granularidade
-DROP POLICY IF EXISTS "Admin full access" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Public can view reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Users can manage own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can create reviews for agencies they purchased from" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can update or delete their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can update their own reviews" ON public.agency_reviews;
-DROP POLICY IF EXISTS "Clients can delete their own reviews" ON public.agency_reviews;
+-- Limpeza geral para garantir idempotência
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN (SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public') LOOP
+    EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON public.' || quote_ident(r.tablename);
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "Admin full access" ON public.themes;
-DROP POLICY IF EXISTS "Authenticated users can view themes" ON public.themes;
-
-
--- 4. POLÍTICAS PARA A TABELA 'agencies' (Inalterado)
-CREATE POLICY "Admin full access" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-CREATE POLICY "Agencies can manage own record" ON public.agencies FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (subscription_status = 'ACTIVE' AND deleted_at IS NULL);
-
-
--- 5. POLÍTICAS PARA A TABELA 'profiles' (Inalterado)
+-- Tabela: profiles
+CREATE POLICY "Public profiles are viewable by everyone." ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 CREATE POLICY "Admin full access" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-CREATE POLICY "Users can manage own profile" ON public.profiles FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
+-- Tabela: agencies
+CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (is_active = true AND deleted_at IS NULL);
+CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admin full access" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
--- 6. POLÍTICAS PARA A TABELA 'trips' (Inalterado)
-CREATE POLICY "Admin full access" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+-- Tabela: trips
+CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (active = true AND deleted_at IS NULL);
 CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
-CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (active = true);
+CREATE POLICY "Admin full access" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
-
--- 7. POLÍTICAS ATUALIZADAS E GRANULARES PARA A TABELA 'agency_reviews'
-CREATE POLICY "Admin full access" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
-CREATE POLICY "Clients can create reviews for agencies they purchased from" ON public.agency_reviews FOR INSERT WITH CHECK (
-  auth.uid() = client_id AND
-  has_purchased_from_agency(agency_id)
+-- Tabela: trip_images
+CREATE POLICY "Public can view trip images" ON public.trip_images FOR SELECT USING (true);
+CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR ALL USING (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
+) WITH CHECK (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
 );
--- CORREÇÃO: Política de UPDATE e DELETE dividida em duas para sintaxe correta.
+CREATE POLICY "Admin full access" ON public.trip_images FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: bookings
+CREATE POLICY "Clients can manage their own bookings" ON public.bookings FOR ALL USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING (
+  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
+);
+CREATE POLICY "Admin full access" ON public.bookings FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- Tabela: favorites
+CREATE POLICY "Clients can manage their own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admin read access" ON public.favorites FOR SELECT USING (get_my_role() = 'ADMIN');
+
+-- Tabela: agency_reviews
+CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
+CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (
+  auth.uid() = client_id AND has_purchased_from_agency(agency_id)
+);
 CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
 CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
+CREATE POLICY "Agencies can add responses to their reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Admin full access" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
+-- Tabela: subscriptions, plans, themes, agency_themes, audit_logs (Admin/System only)
+CREATE POLICY "Admin full access" ON public.subscriptions FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Agencies can view their own subscription" ON public.subscriptions FOR SELECT USING (
+  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
+);
 
--- 8. POLÍTICAS PARA A TABELA 'themes' (Inalterado)
-CREATE POLICY "Admin full access" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+CREATE POLICY "Public can read plans" ON public.plans FOR SELECT USING (true);
+CREATE POLICY "Admin full access" ON public.plans FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
 CREATE POLICY "Authenticated users can view themes" ON public.themes FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Admin full access" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
+CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING (
+  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
+) WITH CHECK (
+  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
+);
+CREATE POLICY "Admin full access" ON public.agency_themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
--- 9. HABILITA A SEGURANÇA (RLS) NAS TABELAS
-ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR SELECT USING (get_my_role() = 'ADMIN');
+
+-- =============================================================================
+-- SEÇÃO 5: HABILITAÇÃO DO ROW LEVEL SECURITY
+-- =============================================================================
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.trip_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agency_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.themes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agency_themes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
 -- FIM DO SCRIPT

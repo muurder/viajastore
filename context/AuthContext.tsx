@@ -54,20 +54,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
             .select('*')
-            .eq('id', authId)
+            .eq('user_id', authId) // CORRECT: Use user_id to link
             .single();
 
           if (agencyError || !agencyData) {
             console.error("CRITICAL: Data inconsistency. Profile is AGENCY but no record in agencies table.", agencyError);
-            setUser(null);
+            // This can happen during registration flow before agency details are complete.
+            // Create a temporary Agency object from profile data.
+             const tempAgency: Agency = {
+              id: profileData.id, // This is the agency's own ID, but we'll use profile ID temporarily
+              // FIX: Removed user_id as it doesn't exist on Agency type. The `id` property should hold the user's ID.
+              name: profileData.full_name || 'Nova Agência',
+              email: email,
+              role: UserRole.AGENCY,
+              is_active: false, // Default to inactive
+              slug: slugify(profileData.full_name || 'nova-agencia'),
+              cnpj: '',
+              description: '',
+              logo: profileData.avatar_url || '',
+              heroMode: 'TRIPS',
+              subscriptionStatus: 'INACTIVE',
+              subscriptionPlan: 'BASIC',
+              subscriptionExpiresAt: new Date().toISOString(),
+            };
+            setUser(tempAgency);
             return;
           }
 
           const agencyUser: Agency = {
-            id: agencyData.id,
+            // FIX: The `id` property on the user object should consistently be the user's ID, not the agency's table PK.
+            id: agencyData.user_id, // This links to the profile/auth user
+            // FIX: Removed user_id as it doesn't exist on Agency type.
             name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,
+            is_active: agencyData.is_active,
             slug: agencyData.slug || slugify(agencyData.name),
             cnpj: agencyData.cnpj || '',
             description: agencyData.description || '',
@@ -153,21 +174,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           if (role === UserRole.AGENCY) {
-              // Generate a guaranteed slug
-              const baseSlug = slugify(userName);
-              const uniqueSuffix = Math.floor(Math.random() * 10000);
-              const generatedSlug = `${baseSlug}-${uniqueSuffix}`;
-              
               const { error: agencyError } = await supabase.from('agencies').upsert({
-                  id: userId,
+                  user_id: userId, // CORRECT: use user_id
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
-                  slug: generatedSlug,
-                  hero_mode: 'TRIPS',
-                  subscription_status: 'INACTIVE',
-                  subscription_plan: 'BASIC'
-              }, { onConflict: 'id' });
+                  is_active: false, // Start as inactive
+              }, { onConflict: 'user_id' }); // CORRECT: conflict on user_id
 
               if (agencyError) {
                   console.error("Failed to upsert agency record:", agencyError.message);
@@ -322,21 +335,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (profileError) throw profileError;
 
       if (role === UserRole.AGENCY) {
-        const baseSlug = slugify(data.name);
-        const uniqueSuffix = Math.floor(Math.random() * 1000);
-        
-        const { error: agencyError } = await supabase.from('agencies').upsert({
-          id: userId,
+        const { error: agencyError } = await supabase.from('agencies').insert({
+          user_id: userId, // CORRECT: Use user_id
           name: data.name,
           email: data.email,
           cnpj: data.cnpj,
           phone: data.phone,
-          description: data.description || '',
-          logo_url: `https://ui-avatars.com/api/?name=${data.name}`,
-          slug: `${baseSlug}-${uniqueSuffix}`,
-          subscription_status: 'INACTIVE',
-          subscription_plan: 'BASIC'
-        }, { onConflict: 'id' });
+          is_active: false, // Start as inactive to force subscription flow
+          // Other fields will be filled in the dashboard
+        });
         
         if (agencyError) throw agencyError;
       }
@@ -378,7 +385,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
 
-        const { error } = await supabase.from('agencies').update(updates).eq('id', user.id);
+        const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); // CORRECT: use user_id
         if (error) throw error;
         
       } else {
