@@ -3,8 +3,21 @@
 -- Para ViajaStore / Amotrip
 --
 -- Instruções: Execute este script completo no SQL Editor do Supabase.
--- Ele irá limpar políticas antigas e aplicar a estrutura correta.
+-- Ele irá criar tabelas ausentes, limpar políticas antigas e
+-- aplicar a estrutura correta.
 -- ================================================================
+
+-- ----------------------------------------------------------------
+-- Criação de Tabelas Ausentes
+-- ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    admin_email text,
+    action text NOT NULL,
+    details text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (id)
+);
 
 -- ----------------------------------------------------------------
 -- Habilita Row Level Security (RLS) para tabelas principais
