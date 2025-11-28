@@ -7,6 +7,18 @@
 -- =============================================================================
 
 -- =============================================================================
+-- SEÇÃO 0: MIGRAÇÕES DE COLUNAS (CORREÇÕES ESTRUTURAIS)
+-- =============================================================================
+
+-- Corrige nome da coluna em bookings (user_id -> client_id) se necessário
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'user_id') THEN
+    ALTER TABLE public.bookings RENAME COLUMN user_id TO client_id;
+  END IF;
+END $$;
+
+-- =============================================================================
 -- SEÇÃO 1: CRIAÇÃO DAS TABELAS (SCHEMA)
 -- =============================================================================
 
@@ -213,6 +225,9 @@ END;
 $$;
 
 -- Função RPC para ativar a assinatura de uma agência
+-- Drop para garantir que recriamos com a assinatura correta e permissões
+DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid, text);
+
 CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_user_id uuid, p_plan_id text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -226,8 +241,13 @@ BEGIN
     RAISE EXCEPTION 'Agency not found for user_id %', p_user_id;
   END IF;
 
-  -- Get plan duration
-  SELECT duration_months INTO v_duration_months FROM public.plans WHERE id = p_plan_id;
+  -- Get plan duration (default to 12 if not found)
+  SELECT COALESCE(duration_months, 12) INTO v_duration_months FROM public.plans WHERE id = p_plan_id;
+  
+  -- Handle case where plan might not be in DB yet (fallback)
+  IF v_duration_months IS NULL THEN 
+     v_duration_months := 12; 
+  END IF;
 
   -- Upsert subscription using the agency's primary key
   INSERT INTO public.subscriptions (agency_id, plan_id, start_date, end_date, status)
@@ -242,6 +262,10 @@ BEGIN
   UPDATE public.agencies SET is_active = true, updated_at = now() WHERE id = v_agency_pk;
 END;
 $$;
+
+-- GRANT EXECUTE é crucial para que o RPC seja visível para o cliente
+GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(uuid, text) TO service_role;
 
 
 -- =============================================================================

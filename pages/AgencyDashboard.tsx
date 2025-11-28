@@ -400,21 +400,26 @@ const AgencyDashboard: React.FC = () => {
 
     setActivatingPlanId(planId);
     try {
+      console.log('[Subscription] Activating plan', { planId, userId: myAgency.id });
+
       const { error } = await supabase.rpc("activate_agency_subscription", {
-        p_user_id: myAgency.id, // Pass the user_id
-        p_plan_id: planId
+        p_user_id: myAgency.id, // This passes the user_id (UUID)
+        p_plan_id: planId // This passes the plan_id (text)
       });
 
       if (error) {
         throw error;
       }
       
+      console.log('[Subscription] Success');
       showToast('Assinatura ativada com sucesso! Bem-vindo(a)!', 'success');
+      
+      // Critical: reload user data to update the local 'is_active' status
+      await reloadUser(); 
       await refreshData();
-      await reloadUser(); // Update AuthContext user state to reflect 'is_active'
 
     } catch (err: any) {
-      console.error("Error activating subscription:", err);
+      console.error("[Subscription] Error activating subscription:", err);
       showToast(`Erro ao ativar assinatura: ${err.message || 'Tente novamente.'}`, 'error');
     } finally {
       setActivatingPlanId(null);
