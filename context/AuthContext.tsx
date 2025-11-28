@@ -25,6 +25,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
+    if (!supabase) return;
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
       if (email === 'juannicolas1@gmail.com') {
@@ -128,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Helper to ensure the record exists after Google Login
   const ensureUserRecord = async (authUser: any, role: string) => {
+      if (!supabase) return false;
       const userId = authUser.id;
       const userEmail = authUser.email;
       const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
@@ -182,6 +184,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initializeAuth = async () => {
       setLoading(true);
+
+      if (!supabase) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
       
       const { data: { session } } = await (supabase.auth as any).getSession();
       
@@ -228,6 +236,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
     const { error } = await (supabase.auth as any).signInWithPassword({
@@ -243,6 +252,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async (role?: UserRole, redirectPath?: string) => {
+    if (!supabase) return;
     const redirectTo = redirectPath 
         ? `${window.location.origin}/#${redirectPath}` 
         : `${window.location.origin}/`;
@@ -268,12 +278,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await (supabase.auth as any).signOut();
+    if (supabase) {
+      await (supabase.auth as any).signOut();
+    }
     setUser(null);
     localStorage.removeItem('viajastore_pending_role');
   };
 
   const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
     const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
       password: data.password,
@@ -337,6 +350,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
@@ -389,12 +403,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updatePassword = async (password: string) => {
+      if (!supabase) return { success: false, error: 'Backend não configurado.' };
       const { error } = await (supabase.auth as any).updateUser({ password });
       if (error) return { success: false, error: error.message };
       return { success: true };
   };
 
   const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
+      if (!supabase) return null;
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
@@ -414,6 +430,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: "Backend não configurado." };
     if (!user) return { success: false, error: "Usuário não autenticado" };
 
     try {
@@ -434,7 +451,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

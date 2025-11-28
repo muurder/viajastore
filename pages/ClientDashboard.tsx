@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -361,7 +360,7 @@ const ClientDashboard: React.FC = () => {
                     const startDate = trip.startDate || trip.start_date;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
-                    const whatsappUrl = buildWhatsAppUrl(agency?.phone, trip.title, agency?.name);
+                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title, agency?.name);
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">

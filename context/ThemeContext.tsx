@@ -63,6 +63,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Fetch Themes from Supabase
   const fetchThemes = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
       try {
           const { data, error } = await supabase
             .from('themes')
@@ -95,18 +99,19 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
       fetchThemes();
 
-      // --- REALTIME SUBSCRIPTION ---
-      const channel = supabase
-        .channel('public:themes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
-            console.log('Theme change detected!', payload);
-            fetchThemes();
-        })
-        .subscribe();
+      if (supabase) {
+        const channel = supabase
+          .channel('public:themes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
+              console.log('Theme change detected!', payload);
+              fetchThemes();
+          })
+          .subscribe();
 
-      return () => {
-          supabase.removeChannel(channel);
-      };
+        return () => {
+            supabase.removeChannel(channel);
+        };
+      }
   }, []);
 
   // Apply CSS Variables to :root
@@ -138,6 +143,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const targetTheme = themes.find(t => t.id === themeId);
       if (targetTheme) setActiveTheme(targetTheme);
 
+      if (!supabase) return;
+
       try {
           await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); 
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
@@ -150,6 +157,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const addTheme = async (theme: Partial<ThemePalette>): Promise<string | null> => {
+      if (!supabase) return null;
       try {
           const { data, error } = await supabase.from('themes').insert({
               name: theme.name,
@@ -168,6 +176,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const deleteTheme = async (themeId: string) => {
+      if (!supabase) return;
       try {
           const { error } = await supabase.from('themes').delete().eq('id', themeId);
           if (error) throw error;
