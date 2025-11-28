@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
@@ -58,7 +59,8 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const isFavorite = user?.role === 'CLIENT' && currentUserData?.favorites.includes(trip.id);
 
   // Find Agency for WhatsApp
-  const agency = agencies.find(a => a.id === trip.agencyId);
+  // FIX: Find agency by 'agencyId' (PK) to match trip.agencyId, not by user 'id'.
+  const agency = agencies.find(a => a.agencyId === trip.agencyId);
   const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
 
   const handleFavorite = (e: React.MouseEvent) => {

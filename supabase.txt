@@ -20,10 +20,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone text,
   address jsonb,
   status text DEFAULT 'ACTIVE'::text,
-  deleted_at timestamptz,
-  last_sign_in_at timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  deleted_at timestptz,
+  last_sign_in_at timestptz,
+  created_at timestptz DEFAULT now(),
+  updated_at timestptz DEFAULT now()
 );
 
 -- Tabela de Agências
@@ -47,9 +47,9 @@ CREATE TABLE IF NOT EXISTS public.agencies (
   hero_title text,
   hero_subtitle text,
   custom_settings jsonb,
-  deleted_at timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  deleted_at timestptz,
+  created_at timestptz DEFAULT now(),
+  updated_at timestptz DEFAULT now()
 );
 
 -- Tabela de Planos de Assinatura
@@ -66,23 +66,23 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
   plan_id text NOT NULL REFERENCES public.plans(id),
-  start_date timestamptz DEFAULT now(),
-  end_date timestamptz,
+  start_date timestptz DEFAULT now(),
+  end_date timestptz,
   status text DEFAULT 'active'::text,
-  created_at timestamptz DEFAULT now()
+  created_at timestptz DEFAULT now()
 );
 
 -- Tabela de Viagens (Pacotes)
 CREATE TABLE IF NOT EXISTS public.trips (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  agency_id uuid NOT NULL REFERENCES public.agencies(user_id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
   title text NOT NULL,
   slug text,
   description text,
   destination text,
   price numeric NOT NULL DEFAULT 0,
-  start_date timestamptz,
-  end_date timestamptz,
+  start_date timestptz,
+  end_date timestptz,
   duration_days integer,
   category text,
   tags text[],
@@ -97,9 +97,9 @@ CREATE TABLE IF NOT EXISTS public.trips (
   popular_near_sp boolean DEFAULT false,
   views_count integer DEFAULT 0,
   sales_count integer DEFAULT 0,
-  deleted_at timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
+  deleted_at timestptz,
+  created_at timestptz DEFAULT now(),
+  updated_at timestptz DEFAULT now(),
   CONSTRAINT trips_agency_id_slug_key UNIQUE (agency_id, slug)
 );
 
@@ -108,8 +108,7 @@ CREATE TABLE IF NOT EXISTS public.trip_images (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   image_url text NOT NULL,
-  position integer DEFAULT 0,
-  created_at timestamptz DEFAULT now()
+  position integer DEFAULT 0
 );
 
 -- Tabela de Reservas (Bookings)
@@ -122,21 +121,21 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   status text DEFAULT 'PENDING'::text,
   payment_method text,
   voucher_code text UNIQUE,
-  created_at timestamptz DEFAULT now()
+  created_at timestptz DEFAULT now()
 );
 
 -- Tabela de Favoritos
 CREATE TABLE IF NOT EXISTS public.favorites (
   user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
-  created_at timestamptz DEFAULT now(),
+  created_at timestptz DEFAULT now(),
   PRIMARY KEY (user_id, trip_id)
 );
 
 -- Tabela de Avaliações de Agências
 CREATE TABLE IF NOT EXISTS public.agency_reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  agency_id uuid NOT NULL REFERENCES public.agencies(user_id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
   client_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   booking_id uuid REFERENCES public.bookings(id) ON DELETE SET NULL,
   trip_id uuid REFERENCES public.trips(id) ON DELETE SET NULL,
@@ -144,7 +143,7 @@ CREATE TABLE IF NOT EXISTS public.agency_reviews (
   comment text,
   tags text[],
   response text,
-  created_at timestamptz DEFAULT now()
+  created_at timestptz DEFAULT now()
 );
 
 -- Tabela de Temas Globais
@@ -154,14 +153,14 @@ CREATE TABLE IF NOT EXISTS public.themes (
   colors jsonb NOT NULL,
   is_active boolean DEFAULT false,
   is_default boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
+  created_at timestptz DEFAULT now()
 );
 
 -- Tabela de Temas por Agência
 CREATE TABLE IF NOT EXISTS public.agency_themes (
-  agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(user_id) ON DELETE CASCADE,
+  agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
   colors jsonb NOT NULL,
-  updated_at timestamptz DEFAULT now()
+  updated_at timestptz DEFAULT now()
 );
 
 -- Tabela de Logs de Auditoria (Admin)
@@ -170,7 +169,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   admin_email text,
   action text NOT NULL,
   details text,
-  created_at timestamptz DEFAULT now()
+  created_at timestptz DEFAULT now()
 );
 
 -- =============================================================================
@@ -189,7 +188,7 @@ END;
 $$;
 
 -- Função para verificar se o usuário já comprou da agência
-CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(agency_id_to_check uuid)
+CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(p_agency_id uuid)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   RETURN EXISTS (
@@ -197,32 +196,40 @@ BEGIN
     FROM public.bookings b
     JOIN public.trips t ON b.trip_id = t.id
     WHERE b.client_id = auth.uid()
-      AND t.agency_id = agency_id_to_check
+      AND t.agency_id = p_agency_id
       AND b.status = 'CONFIRMED'
   );
 END;
 $$;
 
 -- Função RPC para ativar a assinatura de uma agência
-CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_agency_id uuid, p_plan_id text)
+CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_user_id uuid, p_plan_id text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
+  v_agency_pk uuid;
   v_duration_months int;
 BEGIN
-  -- Obter a duração do plano
+  -- Find the agency's primary key from the user_id
+  SELECT id INTO v_agency_pk FROM public.agencies WHERE user_id = p_user_id;
+
+  IF v_agency_pk IS NULL THEN
+    RAISE EXCEPTION 'Agency not found for user_id %', p_user_id;
+  END IF;
+
+  -- Get plan duration
   SELECT duration_months INTO v_duration_months FROM public.plans WHERE id = p_plan_id;
 
-  -- Upsert da assinatura (cria ou atualiza)
+  -- Upsert subscription using the agency's primary key
   INSERT INTO public.subscriptions (agency_id, plan_id, start_date, end_date, status)
-  VALUES (p_agency_id, p_plan_id, now(), now() + (v_duration_months || ' months')::interval, 'active')
+  VALUES (v_agency_pk, p_plan_id, now(), now() + (v_duration_months || ' months')::interval, 'active')
   ON CONFLICT (agency_id) DO UPDATE
   SET plan_id = p_plan_id,
       start_date = now(),
       end_date = now() + (v_duration_months || ' months')::interval,
       status = 'active';
 
-  -- Ativa a agência
-  UPDATE public.agencies SET is_active = true, updated_at = now() WHERE user_id = p_agency_id;
+  -- Activate the agency using its primary key
+  UPDATE public.agencies SET is_active = true, updated_at = now() WHERE id = v_agency_pk;
 END;
 $$;
 
@@ -232,7 +239,8 @@ $$;
 -- =============================================================================
 
 -- View para listar viagens com imagem de capa (corrigida)
-CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
+DROP VIEW IF EXISTS public.agency_trips_with_cover;
+CREATE VIEW public.agency_trips_with_cover AS
 SELECT
   t.id,
   t.title,
@@ -246,13 +254,13 @@ SELECT
     SELECT ti.image_url
     FROM public.trip_images ti
     WHERE ti.trip_id = t.id
-    ORDER BY ti.position, ti.id -- Use ID for stable sort
+    ORDER BY ti.position, ti.id
     LIMIT 1
   ) AS cover_image
 FROM
   public.trips t
 JOIN
-  public.agencies a ON t.agency_id = a.user_id
+  public.agencies a ON t.agency_id = a.id
 WHERE
   t.is_active = true AND a.is_active = true;
 
@@ -297,24 +305,18 @@ CREATE POLICY "Admin full access on agencies" ON public.agencies FOR ALL USING (
 
 -- Tabela: trips
 CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (is_active = true AND deleted_at IS NULL);
-CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 CREATE POLICY "Admin full access on trips" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: trip_images
 CREATE POLICY "Public can view trip images" ON public.trip_images FOR SELECT USING (true);
-CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR ALL USING (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-) WITH CHECK (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-);
+CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR ALL USING ((SELECT a.user_id FROM public.trips t JOIN public.agencies a ON t.agency_id = a.id WHERE t.id = trip_id) = auth.uid()) WITH CHECK ((SELECT a.user_id FROM public.trips t JOIN public.agencies a ON t.agency_id = a.id WHERE t.id = trip_id) = auth.uid());
 CREATE POLICY "Admin full access on trip_images" ON public.trip_images FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: bookings
 CREATE POLICY "Clients can create their own bookings" ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
 CREATE POLICY "Clients can view their own bookings" ON public.bookings FOR SELECT USING (auth.uid() = client_id);
-CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING (
-  (SELECT agency_id FROM public.trips WHERE id = trip_id) = auth.uid()
-);
+CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING ((SELECT a.user_id FROM public.trips t JOIN public.agencies a ON t.agency_id = a.id WHERE t.id = trip_id) = auth.uid());
 CREATE POLICY "Admin full access on bookings" ON public.bookings FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: favorites
@@ -323,19 +325,15 @@ CREATE POLICY "Admin read access on favorites" ON public.favorites FOR SELECT US
 
 -- Tabela: agency_reviews
 CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
-CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (
-  auth.uid() = client_id AND has_purchased_from_agency(agency_id)
-);
+CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (auth.uid() = client_id AND has_purchased_from_agency(agency_id));
 CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
 CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
-CREATE POLICY "Agencies can add responses to their reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Agencies can add responses to their reviews" ON public.agency_reviews FOR UPDATE USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 CREATE POLICY "Admin full access on agency_reviews" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: subscriptions
 CREATE POLICY "Admin full access on subscriptions" ON public.subscriptions FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
-CREATE POLICY "Agencies can view their own subscription" ON public.subscriptions FOR SELECT USING (
-  (SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()
-);
+CREATE POLICY "Agencies can view their own subscription" ON public.subscriptions FOR SELECT USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 
 -- Tabela: plans
 CREATE POLICY "Public can read plans" ON public.plans FOR SELECT USING (true);
@@ -346,7 +344,7 @@ CREATE POLICY "Authenticated users can view themes" ON public.themes FOR SELECT 
 CREATE POLICY "Admin full access on themes" ON public.themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: agency_themes
-CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING (auth.uid() = agency_id) WITH CHECK (auth.uid() = agency_id);
+CREATE POLICY "Agencies can manage their own theme" ON public.agency_themes FOR ALL USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 CREATE POLICY "Admin full access on agency_themes" ON public.agency_themes FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: audit_logs

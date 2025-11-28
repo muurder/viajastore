@@ -359,7 +359,7 @@ const AgencyDashboard: React.FC = () => {
       const loadTheme = async () => {
           if (user && settingsSection === 'THEME') {
               setLoadingTheme(true);
-              const theme = await getAgencyTheme(user.id);
+              const theme = await getAgencyTheme(myAgency.agencyId);
               if (theme) {
                   setThemeForm(theme.colors);
               }
@@ -397,7 +397,7 @@ const AgencyDashboard: React.FC = () => {
     setActivatingPlanId(planId);
     try {
       const { error } = await supabase.rpc("activate_agency_subscription", {
-        p_agency_id: myAgency.id,
+        p_user_id: myAgency.id, // Pass the user_id
         p_plan_id: planId
       });
 
@@ -432,13 +432,13 @@ const AgencyDashboard: React.FC = () => {
     );
   }
 
-  const myTrips = getAgencyTrips(user.id);
-  const stats = getAgencyStats(user.id);
+  const myTrips = getAgencyTrips(myAgency.agencyId);
+  const stats = getAgencyStats(myAgency.agencyId);
   
   // Updated: Get Agency Reviews, not trip reviews
-  const myReviews = getReviewsByAgencyId(user.id);
+  const myReviews = getReviewsByAgencyId(myAgency.agencyId);
 
-  const agencyBookings = bookings.filter(b => { const trip = trips.find(t => t.id === b.tripId); return trip && trip.agencyId === user.id; }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const agencyBookings = bookings.filter(b => { const trip = trips.find(t => t.id === b.tripId); return trip && trip.agencyId === myAgency.agencyId; }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const recentBookings = agencyBookings.slice(0, 5);
   const newSalesCount = recentBookings.filter(b => new Date(b.date).getTime() > lastReadTime).length;
 
@@ -471,7 +471,7 @@ const AgencyDashboard: React.FC = () => {
 
   const handleTripSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setIsSubmitting(true);
-    const tripData = { ...tripForm, agencyId: user.id } as Trip;
+    const tripData = { ...tripForm, agencyId: myAgency.agencyId } as Trip; // Use agency PK
     const newSettings = { ...customSettings }; let settingsChanged = false;
     const updateSuggestions = (key: keyof typeof newSettings, items: string[] | undefined, existingList: string[]) => { if (!items) return; items.forEach(item => { if (!existingList.includes(item) && !newSettings[key]?.includes(item)) { newSettings[key] = [...(newSettings[key] || []), item]; settingsChanged = true; } }); };
     updateSuggestions('tags', tripData.tags, SUGGESTED_TAGS); updateSuggestions('included', tripData.included, SUGGESTED_INCLUDED); updateSuggestions('notIncluded', tripData.notIncluded, SUGGESTED_NOT_INCLUDED); updateSuggestions('paymentMethods', tripData.paymentMethods, SUGGESTED_PAYMENTS);
@@ -500,7 +500,7 @@ const AgencyDashboard: React.FC = () => {
   const handleSaveTheme = async () => {
       if (!user) return;
       setIsSubmitting(true);
-      const success = await saveAgencyTheme(user.id, themeForm);
+      const success = await saveAgencyTheme(myAgency.agencyId, themeForm);
       if (success) showToast('Tema salvo com sucesso!', 'success');
       else showToast('Erro ao salvar tema.', 'error');
       setIsSubmitting(false);

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -13,9 +14,10 @@ const AgencyProfile: React.FC = () => {
 
   if (!agency) return <div className="text-center py-20">Agência não encontrada.</div>;
 
-  const trips = getAgencyPublicTrips(agency.id);
+  // FIX: Use agency.agencyId (PK) to fetch related data, not agency.id (user ID).
+  const trips = getAgencyPublicTrips(agency.agencyId);
   // Correctly fetch Agency Reviews now
-  const reviews = getReviewsByAgencyId(agency.id);
+  const reviews = getReviewsByAgencyId(agency.agencyId);
   
   const avgRating = reviews.length > 0 
       ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length

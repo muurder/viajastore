@@ -61,7 +61,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // This can happen during registration flow before agency details are complete.
             // Create a temporary Agency object from profile data.
              const tempAgency: Agency = {
-              id: profileData.id, // This is the agency's own ID, but we'll use profile ID temporarily
+              id: profileData.id, 
+              agencyId: '', // PK is not available yet
               name: profileData.full_name || 'Nova Agência',
               email: email,
               role: UserRole.AGENCY,
@@ -80,7 +81,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           const agencyUser: Agency = {
-            id: agencyData.user_id, // This links to the profile/auth user
+            id: agencyData.user_id, // This is the User ID (from auth/profiles)
+            agencyId: agencyData.id, // This is the agencies table Primary Key
             name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,

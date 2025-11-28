@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -125,11 +124,11 @@ const AgencyLandingPage: React.FC = () => {
   // --- DATA FETCHING & DERIVED STATE (SAFE) ---
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   
-  const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.id) : [], [agency, getAgencyPublicTrips]);
+  const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
   
-  const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [], [agency, getReviewsByAgencyId]);
+  const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.agencyId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [], [agency, getReviewsByAgencyId]);
 
-  const hasPurchased = useMemo(() => user && agency && bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.id && b.status === 'CONFIRMED'), [bookings, user, agency]);
+  const hasPurchased = useMemo(() => user && agency && bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED'), [bookings, user, agency]);
   
   const myReview = useMemo(() => user && agencyReviews.find(r => r.clientId === user.id), [agencyReviews, user]);
   
@@ -190,7 +189,7 @@ const AgencyLandingPage: React.FC = () => {
   useEffect(() => {
       if (agency) {
           const loadTheme = async () => {
-              const theme = await getAgencyTheme(agency.id);
+              const theme = await getAgencyTheme(agency.agencyId);
               if (theme) setAgencyTheme(theme.colors);
           };
           loadTheme();
@@ -254,11 +253,11 @@ const AgencyLandingPage: React.FC = () => {
   };
 
   const handleReviewSubmit = async (rating: number, comment: string, tags: string[]) => {
-    if (!user) return;
+    if (!user || !agency) return;
     setIsSubmittingReview(true);
     try {
       await addAgencyReview({
-        agencyId: agency.id,
+        agencyId: agency.agencyId, // Use the agency's primary key
         clientId: user.id,
         rating,
         comment,
@@ -569,7 +568,7 @@ const AgencyLandingPage: React.FC = () => {
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-2xl font-bold text-gray-900">Opinião de quem já viajou</h2>
                     {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => {
-                        const clientBookingsWithAgency = bookings.filter(b => b.clientId === review.clientId && b._trip?.agencyId === agency.id && b.status === 'CONFIRMED').length;
+                        const clientBookingsWithAgency = bookings.filter(b => b.clientId === review.clientId && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED').length;
                         return (
                             <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">

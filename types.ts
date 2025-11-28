@@ -47,6 +47,7 @@ export interface Client extends User {
 
 export interface Agency extends User {
   role: UserRole.AGENCY;
+  agencyId: string; // The primary key of the 'agencies' table
   slug: string; // New field for multi-tenant URL
   whatsapp?: string; // New field for contact
   cnpj: string;

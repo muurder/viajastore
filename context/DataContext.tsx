@@ -112,7 +112,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('trips')
         .select(`
           *,
-          trip_images (image_url, created_at),
+          trip_images (image_url),
           agencies (name, logo_url)
         `);
 
@@ -132,7 +132,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             durationDays: t.duration_days,
             images: t.trip_images 
                 ? t.trip_images
-                    .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                    .sort((a: any, b: any) => a.position - b.position)
                     .map((img: any) => img.image_url) 
                 : [],
             category: t.category || 'PRAIA',
@@ -171,7 +171,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) throw error;
       
       const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
-        id: a.user_id, // Use user_id as the primary identifier in the app context
+        id: a.user_id, // User ID from auth/profiles
+        agencyId: a.id, // Primary Key from agencies table
         name: a.name,
         email: a.email || '',
         role: UserRole.AGENCY,
@@ -250,7 +251,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .select(`
                 *, 
                 profiles (full_name),
-                agencies (name, logo_url, slug),
+                agencies (id, name, logo_url, slug),
                 trips (title)
             `);
             
@@ -302,6 +303,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 duration_days,
                 trip_images (image_url),
                 agencies (
+                  id,
                   name,
                   slug,
                   phone,
@@ -553,7 +555,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { images, ...tripData } = trip;
     const { data, error } = await supabase.from('trips').insert({
         ...tripData,
-        agency_id: trip.agencyId,
+        agency_id: trip.agencyId, // This must be the agency PK
         start_date: trip.startDate,
         end_date: trip.endDate,
         duration_days: trip.durationDays,

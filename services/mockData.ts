@@ -91,8 +91,10 @@ const reportAgenciesData = [
   { name: 'Fé & Cultura Viagens', desc: 'Turismo religioso e histórico com guias especializados.', logoKey: 'aparecida' }
 ];
 
+// FIX: Add 'agencyId' property and distinguish between user 'id' and 'agencyId' to match the data model.
 export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
-  id: `ag_${index + 1}`,
+  id: `user_ag_${index + 1}`,
+  agencyId: `ag_${index + 1}`,
   name: ag.name,
   slug: slugify(ag.name),
   email: `contato@${slugify(ag.name)}.com`,
