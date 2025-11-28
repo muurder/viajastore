@@ -349,7 +349,7 @@ const ClientDashboard: React.FC = () => {
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
                     
-                    // Construct WhatsApp link
+                    // Construct WhatsApp link for the card button
                     const whatsappLink = agency?.whatsapp ? (() => {
                       const phone = agency.whatsapp.replace(/\D/g, '');
                       const msg = `Olá, tenho uma dúvida sobre minha viagem "${trip.title}".`;
@@ -371,7 +371,7 @@ const ClientDashboard: React.FC = () => {
                                     <QrCode size={16} /> Abrir Voucher
                                </button>
                                {whatsappLink && (
-                                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-green-50 text-green-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-green-100 transition-colors border border-green-100">
+                                  <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-green-600 transition-colors shadow-sm">
                                     <MessageCircle size={16} /> WhatsApp
                                   </a>
                                )}
@@ -483,7 +483,7 @@ const ClientDashboard: React.FC = () => {
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button 
                   onClick={() => setSelectedBooking(null)} 
-                  className="absolute top-4 right-4 z-10 flex items-center justify-center h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                  className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/20 text-white/80 backdrop-blur-sm hover:bg-black/40 hover:text-white transition-all cursor-pointer"
                   aria-label="Fechar modal"
                 >
                   <X size={24}/>
