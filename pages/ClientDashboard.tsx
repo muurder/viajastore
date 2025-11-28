@@ -9,6 +9,21 @@ import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
 import { slugify } from '../utils/slugify';
 
+// Helper function to build the WhatsApp URL
+const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string, agencyName: string) => {
+  if (!phone) return null;
+
+  // Sanitize phone number to digits only
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+
+  const message = `Olá, tenho uma dúvida sobre minha viagem "${tripTitle}" com a agência ${agencyName}.`;
+  const encoded = encodeURIComponent(message);
+
+  return `https://wa.me/${digits}?text=${encoded}`;
+};
+
+
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
   const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
@@ -345,6 +360,7 @@ const ClientDashboard: React.FC = () => {
                     const startDate = trip.startDate || trip.start_date;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
+                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp, trip.title, agency?.name);
 
                     return (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
@@ -373,6 +389,16 @@ const ClientDashboard: React.FC = () => {
                                 >
                                     <Star size={16} /> {hasReviewed ? 'Ver/Editar Avaliação' : 'Avaliar Agência'}
                                </button>
+                               {whatsappUrl && (
+                                <a
+                                  href={whatsappUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
+                                >
+                                  <MessageCircle size={16} /> WhatsApp
+                                </a>
+                               )}
                            </div>
                         </div>
                       </div>
@@ -466,7 +492,13 @@ const ClientDashboard: React.FC = () => {
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setSelectedBooking(null)} className="absolute top-4 right-4 text-white/80 hover:text-white p-1 z-10"><X size={24}/></button>
+                <button 
+                   onClick={() => setSelectedBooking(null)} 
+                   className="absolute top-4 right-4 text-white/80 hover:text-white p-2 z-10 w-10 h-10 flex items-center justify-center bg-black/20 rounded-full transition-colors hover:bg-black/40"
+                   aria-label="Fechar modal"
+                >
+                   <X size={24}/>
+                </button>
                 <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                     <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
