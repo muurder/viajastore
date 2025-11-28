@@ -10,7 +10,8 @@ const AgencyProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { agencies, getAgencyPublicTrips, getReviewsByAgencyId } = useData();
 
-  const agency = agencies.find(a => a.id === id);
+  // FIX: Find agency by its own primary key (agencyId), not the user's ID.
+  const agency = agencies.find(a => a.agencyId === id);
 
   if (!agency) return <div className="text-center py-20">Agência não encontrada.</div>;
 

@@ -635,6 +635,40 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
+  const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    const supabase = guardSupabase();
+    try {
+        const { error } = await supabase
+            .from('profiles') // Always soft-delete the profile
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', id);
+        
+        if (error) throw error;
+        
+        showToast(`${table === 'profiles' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
+        await refreshData();
+    } catch (error: any) {
+        showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
+    }
+};
+
+const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
+    const supabase = guardSupabase();
+    try {
+        const { error } = await supabase
+            .from('profiles') // Always restore the profile
+            .update({ deleted_at: null })
+            .eq('id', id);
+        
+        if (error) throw error;
+
+        showToast(`${table === 'profiles' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
+        await refreshData();
+    } catch (error: any) {
+        showToast(`Erro ao restaurar: ${error.message}`, 'error');
+    }
+};
+
   // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips.filter(t => t.is_active);
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId && t.is_active);
@@ -687,8 +721,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       deleteTrip, 
       toggleTripStatus, 
       toggleTripFeatureStatus,
-      softDeleteEntity: dummyGuardedFunc, 
-      restoreEntity: dummyGuardedFunc, 
+      softDeleteEntity, 
+      restoreEntity, 
       deleteUser: dummyGuardedFunc, 
       deleteMultipleUsers: dummyGuardedFunc, 
       deleteMultipleAgencies: dummyGuardedFunc, 

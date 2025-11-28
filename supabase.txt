@@ -20,11 +20,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone text,
   address jsonb,
   status text DEFAULT 'ACTIVE'::text,
-  deleted_at timestptz,
-  last_sign_in_at timestptz,
-  created_at timestptz DEFAULT now(),
-  updated_at timestptz DEFAULT now()
+  last_sign_in_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
+
+-- Adiciona a coluna de soft delete se não existir
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
 
 -- Tabela de Agências
 CREATE TABLE IF NOT EXISTS public.agencies (
@@ -47,10 +50,13 @@ CREATE TABLE IF NOT EXISTS public.agencies (
   hero_title text,
   hero_subtitle text,
   custom_settings jsonb,
-  deleted_at timestptz,
-  created_at timestptz DEFAULT now(),
-  updated_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
+
+-- Adiciona a coluna de soft delete se não existir
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
 
 -- Tabela de Planos de Assinatura
 CREATE TABLE IF NOT EXISTS public.plans (
@@ -66,10 +72,10 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   agency_id uuid NOT NULL REFERENCES public.agencies(id) ON DELETE CASCADE,
   plan_id text NOT NULL REFERENCES public.plans(id),
-  start_date timestptz DEFAULT now(),
-  end_date timestptz,
+  start_date timestamptz DEFAULT now(),
+  end_date timestamptz,
   status text DEFAULT 'active'::text,
-  created_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now()
 );
 
 -- Tabela de Viagens (Pacotes)
@@ -81,8 +87,8 @@ CREATE TABLE IF NOT EXISTS public.trips (
   description text,
   destination text,
   price numeric NOT NULL DEFAULT 0,
-  start_date timestptz,
-  end_date timestptz,
+  start_date timestamptz,
+  end_date timestamptz,
   duration_days integer,
   category text,
   tags text[],
@@ -97,11 +103,14 @@ CREATE TABLE IF NOT EXISTS public.trips (
   popular_near_sp boolean DEFAULT false,
   views_count integer DEFAULT 0,
   sales_count integer DEFAULT 0,
-  deleted_at timestptz,
-  created_at timestptz DEFAULT now(),
-  updated_at timestptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
   CONSTRAINT trips_agency_id_slug_key UNIQUE (agency_id, slug)
 );
+
+-- Adiciona a coluna de soft delete se não existir
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
 
 -- Tabela de Imagens das Viagens
 CREATE TABLE IF NOT EXISTS public.trip_images (
@@ -121,14 +130,14 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   status text DEFAULT 'PENDING'::text,
   payment_method text,
   voucher_code text UNIQUE,
-  created_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now()
 );
 
 -- Tabela de Favoritos
 CREATE TABLE IF NOT EXISTS public.favorites (
   user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
-  created_at timestptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
   PRIMARY KEY (user_id, trip_id)
 );
 
@@ -143,7 +152,7 @@ CREATE TABLE IF NOT EXISTS public.agency_reviews (
   comment text,
   tags text[],
   response text,
-  created_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now()
 );
 
 -- Tabela de Temas Globais
@@ -153,14 +162,14 @@ CREATE TABLE IF NOT EXISTS public.themes (
   colors jsonb NOT NULL,
   is_active boolean DEFAULT false,
   is_default boolean DEFAULT false,
-  created_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now()
 );
 
 -- Tabela de Temas por Agência
 CREATE TABLE IF NOT EXISTS public.agency_themes (
   agency_id uuid NOT NULL PRIMARY KEY REFERENCES public.agencies(id) ON DELETE CASCADE,
   colors jsonb NOT NULL,
-  updated_at timestptz DEFAULT now()
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Tabela de Logs de Auditoria (Admin)
@@ -169,7 +178,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   admin_email text,
   action text NOT NULL,
   details text,
-  created_at timestptz DEFAULT now()
+  created_at timestamptz DEFAULT now()
 );
 
 -- =============================================================================
@@ -254,7 +263,7 @@ SELECT
     SELECT ti.image_url
     FROM public.trip_images ti
     WHERE ti.trip_id = t.id
-    ORDER BY ti.position, ti.id
+    ORDER BY ti.position, ti.id -- Use ID for stable sort
     LIMIT 1
   ) AS cover_image
 FROM
@@ -262,7 +271,8 @@ FROM
 JOIN
   public.agencies a ON t.agency_id = a.id
 WHERE
-  t.is_active = true AND a.is_active = true;
+  t.deleted_at IS NULL AND a.deleted_at IS NULL; -- Relaxed filter, frontend handles is_active status
+
 
 -- =============================================================================
 -- SEÇÃO 4: LIMPEZA E CRIAÇÃO DAS POLÍTICAS DE RLS
@@ -299,12 +309,16 @@ CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDAT
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: agencies
-CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (is_active = true AND deleted_at IS NULL);
+-- **FIX**: Relaxed SELECT policy to allow frontend to fetch all non-deleted agencies.
+-- The frontend is responsible for filtering which agencies are displayed to the public.
+CREATE POLICY "Public can view non-deleted agencies" ON public.agencies FOR SELECT USING (deleted_at IS NULL);
 CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admin full access on agencies" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Tabela: trips
-CREATE POLICY "Public can view active trips" ON public.trips FOR SELECT USING (is_active = true AND deleted_at IS NULL);
+-- **FIX**: Relaxed SELECT policy to allow frontend to fetch all non-deleted trips.
+-- The frontend is responsible for filtering which trips are displayed to the public.
+CREATE POLICY "Public can view non-deleted trips" ON public.trips FOR SELECT USING (deleted_at IS NULL);
 CREATE POLICY "Agencies can manage their own trips" ON public.trips FOR ALL USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid());
 CREATE POLICY "Admin full access on trips" ON public.trips FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
