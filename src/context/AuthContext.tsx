@@ -188,6 +188,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   email: userEmail,
                   logo_url: userAvatar,
                   // is_active: false, // REMOVED: Rely on DB DEFAULT for is_active
+                  // cnpj: '', // REMOVED: CNPJ will be added later in dashboard
               };
               console.log('ensureUserRecord - Agency upsert payload:', agencyPayload); // For debugging
               const { error: agencyError } = await supabase.from('agencies').upsert(agencyPayload, { onConflict: 'user_id' });
@@ -389,9 +390,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
-        // Fix: Ensure description is accessed from the correct type.
+        // Fix: Ensure description is accessed from the correct type and can be updated to null/empty string.
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
-        if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj; // Allows setting to null/undefined
+        // Fix: Ensure cnpj can be updated to null/empty string.
+        if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;

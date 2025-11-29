@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
-import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone } from 'lucide-react';
+// Add Info to the import list
+import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 
@@ -211,6 +212,12 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 
                 {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
                 {/* REMOVED CNPJ INPUT FIELD */}
+                {activeTab === 'AGENCY' && (
+                    <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center gap-2">
+                        <Info size={16} className="text-primary-500"/>
+                        O CNPJ será solicitado no painel da agência após a criação da conta.
+                    </p>
+                )}
                 
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
