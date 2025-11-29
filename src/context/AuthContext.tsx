@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -340,20 +339,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (profileError) throw profileError;
 
       if (role === UserRole.AGENCY) {
+        // --- AGENCY PAYLOAD REFACTOR ---
+        // Ensure slug is unique enough to avoid initial conflicts
+        const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
+        
         const agencyPayload = {
           user_id: userId,
           name: data.name,
           email: data.email,
           phone: data.phone,
-          whatsapp: data.phone, // RESTORED: Whatsapp field is now available in DB
-          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
-          // Note: 'is_active' relies on DB default (false)
-          // Note: 'cnpj' is not collected at registration
+          // Whatsapp is optional, but if we have phone, we use it as default
+          whatsapp: data.phone, 
+          slug: safeSlug
+          // IMPORTANT: Do NOT send 'is_active' or 'cnpj'. 
+          // Let the database handle default values (is_active=false, cnpj=null).
         };
         
+        console.log("Attempting to create agency with payload:", agencyPayload);
+
         const { error: agencyError } = await supabase.from('agencies').insert(agencyPayload);
         
-        if (agencyError) throw agencyError;
+        if (agencyError) {
+            console.error("Supabase Agency Insert Error:", agencyError);
+            throw agencyError;
+        }
       }
 
       // If we reach here, DB operations succeeded
@@ -363,7 +372,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 
     } catch (dbError: any) {
-      console.error("DB Registration Error:", dbError);
+      console.error("DB Registration Error Details:", dbError);
       
       // Specific handling for schema cache errors
       if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache')) {
