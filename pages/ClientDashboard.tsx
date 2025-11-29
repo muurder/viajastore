@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
 import { slugify } from '../utils/slugify';
 
-// Helper function to build the WhatsApp URL, updated to match the prompt's message format.
+// Helper function to build the WhatsApp URL
 const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) => {
   if (!phone) return null;
 
@@ -33,7 +33,7 @@ const ClientDashboard: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState<AgencyReview | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // New state for modal submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
@@ -511,13 +511,14 @@ const ClientDashboard: React.FC = () => {
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                {/* IMPROVED CLOSE BUTTON */}
                 <button
-                   type="button"
-                   onClick={() => setSelectedBooking(null)}
-                   className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/20 text-white/80 hover:bg-black/40 hover:text-white transition-all transform hover:scale-110 active:scale-95"
-                   aria-label="Fechar modal"
+                    type="button"
+                    onClick={() => setSelectedBooking(null)}
+                    className="absolute top-4 right-4 z-50 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/10 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg"
+                    aria-label="Fechar voucher"
                 >
-                   <X size={22}/>
+                    <X size={24} />
                 </button>
                 <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>

@@ -137,7 +137,7 @@ END;
 $$;
 
 -- FIX: Explicitly grant execute permission to the authenticated role to fix "schema cache" error.
-GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(text, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(text, uuid) TO authenticated, service_role, anon;
 
 
 -- =============================================================================
