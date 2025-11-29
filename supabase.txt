@@ -22,14 +22,42 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name text, email text UNIQUE, role text DEFAULT 'CLIENT'::text, avatar_url text, cpf text, phone text, address jsonb, status text DEFAULT 'ACTIVE'::text, last_sign_in_at timestamptz, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+  full_name text,
+  email text UNIQUE,
+  role text DEFAULT 'CLIENT'::text,
+  avatar_url text,
+  cpf text,
+  phone text,
+  address jsonb,
+  status text DEFAULT 'ACTIVE'::text,
+  last_sign_in_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS public.agencies (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
-  name text NOT NULL, email text, cnpj text, description text, logo_url text, phone text, whatsapp text, website text, slug text UNIQUE, is_active boolean DEFAULT false, address jsonb, bank_info jsonb, hero_mode text DEFAULT 'TRIPS'::text, hero_banner_url text, hero_title text, hero_subtitle text, custom_settings jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+  name text NOT NULL,
+  email text,
+  cnpj text,
+  description text,
+  logo_url text,
+  phone text,
+  whatsapp text,
+  website text,
+  slug text UNIQUE,
+  is_active boolean DEFAULT false, -- Garante a coluna is_active
+  address jsonb,
+  bank_info jsonb,
+  hero_mode text DEFAULT 'TRIPS'::text,
+  hero_banner_url text,
+  hero_title text,
+  hero_subtitle text,
+  custom_settings jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 
@@ -168,11 +196,11 @@ CREATE POLICY "Users can manage their own profile" ON public.profiles FOR ALL US
 CREATE POLICY "Public can view profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
--- Agencies: (DEFINITIVE FIX FOR SCHEMA CACHE)
-CREATE POLICY "Public can view active agencies" ON public.agencies FOR SELECT USING (is_active = true AND deleted_at IS NULL);
-CREATE POLICY "Authenticated users can read schema" ON public.agencies FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Agencies can manage their own record" ON public.agencies FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+-- Agencies: (DEFINITIVE FIX FOR SCHEMA CACHE ERROR)
+-- Permite leitura pública (necessário para o cliente validar o schema antes do insert)
+CREATE POLICY "Public read agencies" ON public.agencies FOR SELECT USING (true);
 CREATE POLICY "Agencies can insert their own record" ON public.agencies FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Agencies can update their own record" ON public.agencies FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admin full access on agencies" ON public.agencies FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Trips:
@@ -186,6 +214,7 @@ CREATE POLICY "Agencies can manage their trip images" ON public.trip_images FOR 
 CREATE POLICY "Admin full access on trip_images" ON public.trip_images FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Bookings:
+CREATE POLICY "Clients can create their own bookings" ON public.bookings FOR INSERT WITH CHECK (auth.uid() = client_id);
 CREATE POLICY "Clients can manage their own bookings" ON public.bookings FOR ALL USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
 CREATE POLICY "Agencies can view bookings for their trips" ON public.bookings FOR SELECT USING ((SELECT a.user_id FROM public.trips t JOIN public.agencies a ON t.agency_id = a.id WHERE t.id = trip_id) = auth.uid());
 CREATE POLICY "Admin full access on bookings" ON public.bookings FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
@@ -196,7 +225,9 @@ CREATE POLICY "Admin read access on favorites" ON public.favorites FOR SELECT US
 
 -- Agency Reviews:
 CREATE POLICY "Public can view reviews" ON public.agency_reviews FOR SELECT USING (true);
-CREATE POLICY "Clients can manage their own reviews" ON public.agency_reviews FOR ALL USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id AND has_purchased_from_agency(agency_id));
+CREATE POLICY "Clients can create reviews for purchased agencies" ON public.agency_reviews FOR INSERT WITH CHECK (auth.uid() = client_id AND has_purchased_from_agency(agency_id));
+CREATE POLICY "Clients can update their own reviews" ON public.agency_reviews FOR UPDATE USING (auth.uid() = client_id) WITH CHECK (auth.uid() = client_id);
+CREATE POLICY "Clients can delete their own reviews" ON public.agency_reviews FOR DELETE USING (auth.uid() = client_id);
 CREATE POLICY "Agencies can respond to their reviews" ON public.agency_reviews FOR UPDATE USING ((SELECT user_id FROM public.agencies WHERE id = agency_id) = auth.uid()) WITH CHECK (response IS NOT NULL);
 CREATE POLICY "Admin full access on agency_reviews" ON public.agency_reviews FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
@@ -216,6 +247,12 @@ CREATE POLICY "Admin full access on agency_themes" ON public.agency_themes FOR A
 
 -- Audit Logs:
 CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
+
+-- =============================================================================
+-- FORCE UPDATE (EXECUTE ISTO APÓS A CRIAÇÃO PARA CORRIGIR DADOS EXISTENTES)
+-- =============================================================================
+UPDATE public.agencies SET is_active = true WHERE deleted_at IS NULL;
+UPDATE public.trips SET is_active = true WHERE deleted_at IS NULL;
 
 -- =============================================================================
 -- FIM DO SCRIPT

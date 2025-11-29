@@ -1,8 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
 import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 
 interface AuthModalProps {
   initialView: 'login' | 'signup';
@@ -120,6 +121,9 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 // --- SIGNUP VIEW ---
 const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const { register, loginWithGoogle } = useAuth();
+    const { showToast } = useToast();
+    const navigate = useNavigate();
+    
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
     const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '', phone: '' });
     const [error, setError] = useState('');
@@ -137,9 +141,18 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         if (formData.password.length < 6) return setError('A senha deve ter no mínimo 6 caracteres.');
         
         setIsLoading(true);
-        const result = await register(formData, activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY);
+        const role = activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY;
+        const result = await register(formData, role);
+        
         if (result.success) {
             onClose();
+            if (role === UserRole.AGENCY) {
+                showToast('🎉 Conta de agência criada com sucesso! Ative seu painel.', 'success');
+                navigate('/agency/dashboard');
+            } else {
+                showToast('Conta criada com sucesso! Bem-vindo(a).', 'success');
+                navigate('/client/dashboard/PROFILE');
+            }
         } else {
             setError(result.error || 'Erro ao criar conta.');
             setIsLoading(false);

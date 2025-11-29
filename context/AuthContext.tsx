@@ -54,20 +54,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
             .select('*')
-            .eq('user_id', authId) // CORRECT: Use user_id to link
+            .eq('user_id', authId)
             .single();
 
           if (agencyError || !agencyData) {
-            console.error("CRITICAL: Data inconsistency. Profile is AGENCY but no record in agencies table.", agencyError);
-            // This can happen during registration flow before agency details are complete.
-            // Create a temporary Agency object from profile data.
+            console.error("CRITICAL: Profile is AGENCY but no record in agencies table.", agencyError);
+            // This happens if registration failed halfway.
+            // We return a "Shell" agency object so the user can access the dashboard and fix it (or see "Pending")
              const tempAgency: Agency = {
-              id: profileData.id, // User ID
-              agencyId: '', // PK is not available yet
+              id: profileData.id,
+              agencyId: '',
               name: profileData.full_name || 'Nova Agência',
               email: email,
               role: UserRole.AGENCY,
-              is_active: false, // Default to inactive
+              is_active: false,
               slug: slugify(profileData.full_name || 'nova-agencia'),
               cnpj: '',
               description: '',
@@ -82,8 +82,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           const agencyUser: Agency = {
-            id: agencyData.user_id, // This is the User ID (from auth/profiles)
-            agencyId: agencyData.id, // This is the agencies table Primary Key
+            id: agencyData.user_id, // User ID (from auth)
+            agencyId: agencyData.id, // Agency PK
             name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,
@@ -99,8 +99,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             heroSubtitle: agencyData.hero_subtitle,
             customSettings: agencyData.custom_settings || {},
             subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE',
-            subscriptionPlan: 'BASIC', // Placeholder
-            subscriptionExpiresAt: new Date().toISOString(), // Placeholder
+            subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
+            subscriptionExpiresAt: new Date().toISOString(), 
             website: agencyData.website,
             phone: agencyData.phone,
             address: agencyData.address || {},
@@ -115,7 +115,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (profileData.role === 'ADMIN') {
           mappedRole = UserRole.ADMIN;
         } else {
-          // Default to CLIENT for any other role or if role is null/undefined
           mappedRole = UserRole.CLIENT;
         }
         
@@ -127,18 +126,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           avatar: profileData.avatar_url, 
           cpf: profileData.cpf,
           phone: profileData.phone,
-          favorites: [], // Favorites are loaded separately
+          favorites: [],
           createdAt: profileData.created_at,
           address: profileData.address || {},
           status: profileData.status || 'ACTIVE'
-        } as Client; // Cast as Client, will work for Admin too as it's a superset here
+        } as Client;
 
         setUser(genericUser);
         return;
       }
       
-      // 3. Fallback (User exists in Auth but no table record found yet)
-      console.log("User authenticated but no profile/agency found.");
       setUser(null); 
 
     } catch (error) {
@@ -161,36 +158,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
       const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
 
-      console.log(`Ensuring record for ${role}:`, userId);
-
       try {
-          // ALWAYS create a profile record first for role management
+          // ALWAYS create a profile record first
           const { error: profileError } = await supabase.from('profiles').upsert({
               id: userId,
               full_name: userName,
               email: userEmail,
-              role: role, // Use the passed role
+              role: role,
               avatar_url: userAvatar,
           }, { onConflict: 'id' });
 
-          if (profileError) {
-              console.error("Failed to upsert profile record:", profileError.message);
-              throw profileError;
-          }
+          if (profileError) throw profileError;
 
           if (role === UserRole.AGENCY) {
               const { error: agencyError } = await supabase.from('agencies').upsert({
-                  user_id: userId, // CORRECT: use user_id
+                  user_id: userId,
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
-                  is_active: false, // Start as inactive
-              }, { onConflict: 'user_id' }); // CORRECT: conflict on user_id
+                  is_active: false,
+              }, { onConflict: 'user_id' });
 
-              if (agencyError) {
-                  console.error("Failed to upsert agency record:", agencyError.message);
-                  throw agencyError;
-              }
+              if (agencyError) throw agencyError;
           }
           return true;
       } catch (err: any) {
@@ -214,7 +203,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (session?.user) {
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
-            console.log("Found pending role on init:", pendingRole);
             await ensureUserRecord(session.user, pendingRole);
             localStorage.removeItem('viajastore_pending_role');
         }
@@ -225,19 +213,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
 
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
-        console.log("Auth State Change:", event);
-        
         if (session?.user) {
           if (event === 'SIGNED_IN') {
              const pendingRole = localStorage.getItem('viajastore_pending_role');
              if (pendingRole) {
-                 console.log("Found pending role after sign in:", pendingRole);
                  const success = await ensureUserRecord(session.user, pendingRole);
                  if (success) {
                     localStorage.removeItem('viajastore_pending_role');
                  }
              }
-             
              await fetchUserData(session.user.id, session.user.email!);
           } else if (event === 'USER_UPDATED') {
              await fetchUserData(session.user.id, session.user.email!);
@@ -276,7 +260,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : `${window.location.origin}/`;
 
     if (role) {
-        console.log("Setting pending role for Google Signup:", role);
         localStorage.setItem('viajastore_pending_role', role);
     } else {
         localStorage.removeItem('viajastore_pending_role');
@@ -286,10 +269,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       provider: 'google',
       options: {
         redirectTo: redirectTo,
-        queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-        }
+        queryParams: { access_type: 'offline', prompt: 'consent' }
       }
     });
     if (error) console.error("Google login error:", error);
@@ -326,52 +306,54 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     const userId = authData.user?.id;
     if (!userId) {
-        // This case usually means email confirmation is required.
         return { success: true, error: 'Verifique seu email para confirmar o cadastro.' };
     }
 
-    // 2. Create corresponding DB records. If this fails, registration is incomplete.
+    // 2. Create corresponding DB records. 
     try {
-      // Create/Update profile for ALL roles using upsert for robustness
-      // This prevents "duplicate key" errors from Supabase triggers.
+      // Use UPSERT for profiles to avoid conflicts if Supabase has an automatic trigger
       const { error: profileError } = await supabase.from('profiles').upsert({
           id: userId,
           full_name: data.name,
           email: data.email,
           cpf: role === UserRole.CLIENT ? data.cpf : null,
           phone: data.phone,
-          role: role.toString(), // Ensure role is a string
+          role: role.toString(), 
           avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}`
       }, { onConflict: 'id' });
 
       if (profileError) throw profileError;
 
       if (role === UserRole.AGENCY) {
+        // Explicitly set is_active to false and map fields correctly
         const { error: agencyError } = await supabase.from('agencies').insert({
           user_id: userId,
           name: data.name,
           email: data.email,
           cnpj: data.cnpj,
           phone: data.phone,
-          whatsapp: data.phone, // Default whatsapp to phone
+          whatsapp: data.phone, // Default whatsapp to phone number
           is_active: false,
+          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
         });
         
         if (agencyError) throw agencyError;
       }
 
-      // If all DB operations succeed
+      // If we reach here, DB operations succeeded
+      // Force fetch the user data so the context updates immediately
+      await fetchUserData(userId, data.email);
+      
       return { success: true };
 
     } catch (dbError: any) {
       console.error("DB Registration Error:", dbError);
-      // Return a specific error if any of the DB operations failed.
-      return { success: false, error: `Falha ao salvar dados: ${dbError.message}. Tente novamente.` };
+      return { success: false, error: `Falha ao salvar dados: ${dbError.message || dbError.details || 'Erro desconhecido'}. Tente novamente.` };
     }
   };
 
-
   const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
+    // ... existing updateUser implementation ...
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!user) return { success: false, error: 'Usuário não logado' };
     
@@ -400,7 +382,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
 
-        const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); // CORRECT: use user_id
+        const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
         if (error) throw error;
         
       } else {
@@ -456,8 +438,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: "Usuário não autenticado" };
 
     try {
-      // Both agencies and clients have a profile, so we always delete from there.
-      // RLS and DB triggers should handle cascading deletes if necessary.
       const { error } = await supabase.from('profiles').delete().eq('id', user.id);
       if (error) throw error;
       
