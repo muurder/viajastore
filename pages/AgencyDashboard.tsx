@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams } from 'react-router-dom';
@@ -69,7 +68,7 @@ const SubscriptionActivationView: React.FC<{
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
-                    <Loader size={16} className="animate-spin" /> Ativando...
+                    <Loader size={16} className="animate-spin" /> Processando...
                   </span>
                 ) : 'Selecionar Plano'}
               </button>
@@ -324,7 +323,7 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage, reloadUser } = useAuth();
-  const { getAgencyTrips, updateAgencySubscription, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData } = useData();
+  const { getAgencyTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData } = useData();
   const { setAgencyTheme } = useTheme(); // For previewing
   const { showToast } = useToast();
   
@@ -395,34 +394,36 @@ const AgencyDashboard: React.FC = () => {
 
   useEffect(() => { if (viewMode === 'FORM' && !editingTripId) { const timeout = setTimeout(() => { localStorage.setItem('trip_draft', JSON.stringify(tripForm)); }, 500); return () => clearTimeout(timeout); } }, [tripForm, viewMode, editingTripId]);
   
-  const handleSelectPlan = async (planId: string) => {
-    if (!supabase || !myAgency) return;
-
+  const handleSelectPlan = (planId: string) => {
     setActivatingPlanId(planId);
+    setShowPayment(true);
+  };
+  
+  const handleConfirmPayment = async () => {
+    if (!supabase || !myAgency || !activatingPlanId) return;
+    
+    setIsSubmitting(true);
     try {
-      console.log('[Subscription] Activating plan', { planId, userId: myAgency.id });
-
       const { error } = await supabase.rpc("activate_agency_subscription", {
-        p_user_id: myAgency.id, // This passes the user_id (UUID)
-        p_plan_id: planId // This passes the plan_id (text)
+        p_user_id: myAgency.id,
+        p_plan_id: activatingPlanId
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
-      console.log('[Subscription] Success');
       showToast('Assinatura ativada com sucesso! Bem-vindo(a)!', 'success');
       
-      // Critical: reload user data to update the local 'is_active' status
-      await reloadUser(); 
+      await reloadUser();
       await refreshData();
+      
+      setShowPayment(false);
+      setActivatingPlanId(null);
 
     } catch (err: any) {
-      console.error("[Subscription] Error activating subscription:", err);
+      console.error("Error activating subscription via payment flow:", err);
       showToast(`Erro ao ativar assinatura: ${err.message || 'Tente novamente.'}`, 'error');
     } finally {
-      setActivatingPlanId(null);
+      setIsSubmitting(false);
     }
   };
 
@@ -504,7 +505,6 @@ const AgencyDashboard: React.FC = () => {
 
   const handleAgencyUpdate = async (e: React.FormEvent) => { e.preventDefault(); const res = await updateUser(agencyForm); if(res.success) showToast('Configurações salvas!', 'success'); else showToast('Erro: ' + res.error, 'error'); };
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploadingBanner(true); try { const url = await uploadImage(e.target.files[0], 'trip-images'); if (url) { setAgencyForm({ ...agencyForm, heroBannerUrl: url }); showToast('Banner enviado!', 'success'); } } catch(e) { showToast('Erro no upload do banner', 'error'); } finally { setUploadingBanner(false); } };
-  const handleConfirmPayment = async () => { if (activatingPlanId) { await updateAgencySubscription(user.id, 'ACTIVE', activatingPlanId as 'BASIC' | 'PREMIUM'); showToast('Assinatura ativada!', 'success'); setShowPayment(false); handleTabChange('OVERVIEW'); } };
   const handleSlugChange = (val: string) => { setAgencyForm({...agencyForm, slug: slugify(val)}); };
 
   const handleSaveTheme = async () => {
@@ -738,7 +738,24 @@ const AgencyDashboard: React.FC = () => {
          </div>
       )}
 
-      {showPayment && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}><div className="bg-white rounded-2xl p-8 max-w-md w-full text-center" onClick={e => e.stopPropagation()}><h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3><p className="mb-6">Ativar plano {activatingPlanId}?</p><button onClick={handleConfirmPayment} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700">Confirmar Pagamento</button></div></div> )}
+      {showPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}>
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3>
+                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{PLANS.find(p => p.id === activatingPlanId)?.name}</span>.</p>
+                <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                        <span className="font-bold">Total</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {PLANS.find(p => p.id === activatingPlanId)?.price.toFixed(2)}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
+                </div>
+                <button onClick={handleConfirmPayment} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Pagamento'}
+                </button>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
