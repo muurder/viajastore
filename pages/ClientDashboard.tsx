@@ -90,6 +90,21 @@ const ClientDashboard: React.FC = () => {
     }
   }, [editingReview]);
 
+  // VOUCHER MODAL: Add ESC key listener
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedBooking(null);
+      }
+    };
+    if (selectedBooking) {
+      window.addEventListener('keydown', handleEsc);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [selectedBooking]);
+
   if (authLoading || !user || user.role !== UserRole.CLIENT) {
     return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
   }
@@ -401,7 +416,7 @@ const ClientDashboard: React.FC = () => {
                                   rel="noopener noreferrer"
                                   className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
                                 >
-                                  <MessageCircle size={16} /> WhatsApp
+                                  <MessageCircle size={16} /> Falar com a Agência
                                 </a>
                                )}
                            </div>
@@ -498,8 +513,9 @@ const ClientDashboard: React.FC = () => {
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button 
+                   type="button"
                    onClick={() => setSelectedBooking(null)} 
-                   className="absolute top-4 right-4 text-white/80 hover:text-white p-2 z-10 w-10 h-10 flex items-center justify-center bg-black/20 rounded-full transition-colors hover:bg-black/40"
+                   className="absolute top-4 right-4 text-white/80 hover:text-white p-0 z-10 w-10 h-10 flex items-center justify-center bg-black/20 rounded-full transition-colors hover:bg-black/40 cursor-pointer"
                    aria-label="Fechar modal"
                 >
                    <X size={24}/>
@@ -562,4 +578,5 @@ const ClientDashboard: React.FC = () => {
   );
 };
 
+// FIX: Removed extraneous "END OF FILE" marker which was causing compilation errors.
 export default ClientDashboard;
