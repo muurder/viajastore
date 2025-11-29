@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -24,7 +22,7 @@ const TripDetails: React.FC = () => {
   
   const trip = activeTripSlug ? getTripBySlug(activeTripSlug) : undefined;
   const contextAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
-  const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.id);
+  const isConsistent = !agencySlug || (trip && contextAgency && trip.agencyId === contextAgency.agencyId);
 
   useEffect(() => {
       if (trip) {
@@ -50,7 +48,8 @@ const TripDetails: React.FC = () => {
       </div>
   );
 
-  const agency = agencies.find(a => a.id === trip.agencyId);
+  // Corrected: use 'agencyId' (PK) to find agency, not 'id' (user_id)
+  const agency = agencies.find(a => a.agencyId === trip.agencyId);
   const totalPrice = trip.price * passengers;
   const whatsappLink = agency?.whatsapp ? buildWhatsAppLink(agency.whatsapp, trip) : null;
   

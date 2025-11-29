@@ -30,7 +30,7 @@ const TripList: React.FC = () => {
   // TRUST THE DB: If DB sends data, show it.
   const initialTrips = isResolvingAgency 
     ? [] 
-    : (currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips);
+    : (currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips);
   
   const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -42,7 +42,8 @@ const TripList: React.FC = () => {
   useEffect(() => {
      if (isResolvingAgency) return; // Wait until loaded
 
-     const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips;
+     // Corrected: Use agencyId (PK) instead of id (Auth ID)
+     const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips;
      setFilteredTrips(sourceTrips);
   }, [currentAgency, agencySlug, loading, trips]);
 
@@ -119,7 +120,8 @@ const TripList: React.FC = () => {
   useEffect(() => {
     if (isResolvingAgency) return;
 
-    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.id) : trips;
+    // Corrected: Use agencyId (PK) instead of id (Auth ID)
+    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips;
     let result = [...sourceTrips];
 
     // 1. Search Term (Generalized Search)

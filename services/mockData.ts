@@ -1,5 +1,3 @@
-
-
 import { Agency, Client, Admin, Trip, Booking, Review, UserRole, Plan, TripCategory, TravelerType } from '../types';
 import { slugify } from '../utils/slugify';
 
@@ -91,7 +89,6 @@ const reportAgenciesData = [
   { name: 'Fé & Cultura Viagens', desc: 'Turismo religioso e histórico com guias especializados.', logoKey: 'aparecida' }
 ];
 
-// FIX: Add 'agencyId' property and distinguish between user 'id' and 'agencyId' to match the data model.
 export const MOCK_AGENCIES: Agency[] = reportAgenciesData.map((ag, index) => ({
   id: `user_ag_${index + 1}`,
   agencyId: `ag_${index + 1}`,
@@ -149,7 +146,6 @@ export const MOCK_TRIPS: Trip[] = [
       { day: 2, title: 'Lado Brasileiro das Cataratas', description: 'Visita ao Parque Nacional do Iguaçu com vista panorâmica das quedas.' }
     ],
     paymentMethods: ['Pix', 'Cartão de Crédito', 'Boleto'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.9,
     totalReviews: 128,
@@ -176,7 +172,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Praia', 'Vida Noturna', 'Cultura'],
     travelerTypes: ['AMIGOS', 'CASAL', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.8,
     totalReviews: 210,
@@ -203,7 +198,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Selva', 'Ecoturismo', 'Sobrevivência'],
     travelerTypes: ['MOCHILAO', 'SOZINHO', 'AMIGOS'],
     paymentMethods: ['Pix', 'Boleto'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 5.0,
     totalReviews: 89,
@@ -229,7 +223,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Mergulho', 'Natureza', 'Exclusivo'],
     travelerTypes: ['CASAL'],
     paymentMethods: ['Cartão de Crédito'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.9,
     totalReviews: 150,
@@ -256,7 +249,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Trekking', 'Cachoeiras', 'Ecoturismo'],
     travelerTypes: ['MOCHILAO', 'AMIGOS', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.9,
     totalReviews: 132,
@@ -283,7 +275,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Vinho', 'Bate e Volta', 'Ideal para viajar sozinho'],
     travelerTypes: ['CASAL', 'AMIGOS', 'FAMILIA'],
     paymentMethods: ['Pix'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.7,
     totalReviews: 88,
@@ -311,7 +302,6 @@ export const MOCK_TRIPS: Trip[] = [
     tags: ['Praia', 'Cachoeira', 'Mochilão'],
     travelerTypes: ['AMIGOS', 'SOZINHO', 'MOCHILAO'],
     paymentMethods: ['Pix', 'Boleto'],
-    // FIX: The property `active` does not exist on type `Trip`. It should be `is_active`.
     is_active: true,
     rating: 4.6,
     totalReviews: 112,
