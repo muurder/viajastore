@@ -193,9 +193,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   p_slug: safeSlug
               });
 
-              // PGRST204 might happen if RPC isn't found, but less likely.
-              // If agency already exists, RPC might fail depending on logic, but we treat ensureUser as idempotent logic.
-              // For simplicity, if RPC fails we log it, but let's assume it works for new users.
               if (agencyError) {
                   // Fallback: Check if agency already exists, if so, ignore error
                   const { data: existing } = await supabase.from('agencies').select('id').eq('user_id', userId).maybeSingle();
@@ -310,9 +307,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     
-    console.group("Agency Registration Debug");
-    console.log("1. Starting registration for role:", role);
-
     // 1. Create Auth User
     const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
@@ -325,8 +319,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     if (authError) {
-        console.error("Auth Sign Up Error:", authError);
-        console.groupEnd();
         if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
              return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
         }
@@ -334,11 +326,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     const userId = authData.user?.id;
-    console.log("2. Auth User Created with ID:", userId);
 
     // If user is created in auth but not immediately signed in (e.g., email confirmation)
     if (!userId) {
-        console.groupEnd();
         return { success: true, message: 'Verifique seu email para confirmar o cadastro.', role: role, email: data.email };
     }
 
@@ -359,17 +349,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Profile Upsert Error:", profileError);
           throw profileError;
       }
-      console.log("3. Profile Record Created");
 
       // 2b. Insert Agency Record (If applicable)
       if (role === UserRole.AGENCY) {
         // Ensure slug is unique enough to avoid initial conflicts
         const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
         
-        console.log("4. Attempting Agency Insert via RPC create_agency");
-
         // Use RPC to bypass potential REST Schema Cache issues
-        const { data: agencyData, error: agencyError } = await supabase.rpc('create_agency', {
+        const { error: agencyError } = await supabase.rpc('create_agency', {
             p_user_id: userId,
             p_name: data.name,
             p_email: data.email,
@@ -382,21 +369,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error("Supabase Agency RPC Insert Error:", agencyError);
             throw agencyError;
         }
-        console.log("5. Agency Insert Success", agencyData);
       }
 
       // If we reach here, DB operations succeeded
       // Force fetch the user data so the context updates immediately
       await fetchUserData(userId, data.email);
       
-      console.log("6. Registration Complete");
-      console.groupEnd();
-      
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 
     } catch (dbError: any) {
       console.error("DB Registration Process Failed:", dbError);
-      console.groupEnd();
       
       // SPECIAL HANDLING: If error is Schema Cache (PGRST204) BUT the user was created in Auth
       if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache') || dbError.message?.includes('user_id')) {
