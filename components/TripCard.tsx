@@ -172,9 +172,9 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
               {whatsappLink && (
                   <button
                     onClick={handleWhatsAppClick}
-                    className="text-xs font-bold text-white flex items-center bg-[#25D366] px-4 py-2 rounded-lg hover:bg-[#128C7E] transition-all shadow-sm hover:shadow-md"
+                    className="text-xs font-bold text-white flex flex-shrink-0 items-center bg-[#25D366] px-3 py-1.5 rounded-full hover:bg-[#128C7E] transition-all shadow-sm hover:shadow-md whitespace-nowrap"
                   >
-                    <MessageCircle size={16} className="mr-1.5" />
+                    <MessageCircle size={14} className="mr-1.5 fill-white/20" />
                     WhatsApp
                   </button>
               )}

@@ -349,7 +349,7 @@ const TripDetails: React.FC = () => {
             </div>
 
             {whatsappLink && (
-               <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3">
+               <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3.5 rounded-full transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3">
                  <MessageCircle size={20} /> Falar com a agência
                </a>
             )}
