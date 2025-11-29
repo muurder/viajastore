@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
@@ -174,9 +172,9 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
               {whatsappLink && (
                   <button
                     onClick={handleWhatsAppClick}
-                    className="text-xs font-bold text-white flex items-center bg-[#25D366] px-3 py-1.5 rounded-full hover:bg-[#128C7E] transition-colors"
+                    className="text-xs font-bold text-white flex items-center bg-[#25D366] px-4 py-2 rounded-lg hover:bg-[#128C7E] transition-all shadow-sm hover:shadow-md"
                   >
-                    <MessageCircle size={14} className="mr-1.5" />
+                    <MessageCircle size={16} className="mr-1.5" />
                     WhatsApp
                   </button>
               )}

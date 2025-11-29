@@ -325,16 +325,16 @@ const AgencyLandingPage: React.FC = () => {
                               <div className="flex flex-wrap gap-4">
                                   <Link 
                                     to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                                    className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-xl font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                    className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                                   >
                                       Ver Detalhes <ArrowRight size={18}/>
                                   </Link>
                                   {agency.whatsapp && (
                                       <button 
                                         onClick={handleContact}
-                                        className="bg-green-600 hover:bg-green-500 text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-green-900/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+                                        className="bg-[#25D366] hover:bg-[#128C7E] text-white px-8 py-3.5 rounded-full font-bold shadow-lg shadow-green-900/20 flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
                                       >
-                                          <MessageCircle size={20} /> WhatsApp
+                                          <MessageCircle size={20} className="fill-white/20" /> WhatsApp
                                       </button>
                                   )}
                               </div>
@@ -349,7 +349,7 @@ const AgencyLandingPage: React.FC = () => {
                               </p>
                               <button 
                                 onClick={scrollToPackages}
-                                className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-xl font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                               >
                                   Ver Pacotes <ArrowDown size={18}/>
                               </button>

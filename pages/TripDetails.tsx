@@ -165,7 +165,7 @@ const TripDetails: React.FC = () => {
             href={whatsappLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="fixed bottom-6 right-6 z-[60] p-4 bg-green-500 rounded-full text-white shadow-lg hover:bg-green-600 hover:scale-110 transition-all lg:hidden animate-[scaleIn_0.5s]"
+            className="fixed bottom-6 right-6 z-[60] p-4 bg-[#25D366] rounded-full text-white shadow-lg hover:bg-[#128C7E] hover:scale-110 transition-all lg:hidden animate-[scaleIn_0.5s]"
             title="Falar no WhatsApp"
         >
             <MessageCircle size={28} className="fill-current" />
@@ -213,9 +213,9 @@ const TripDetails: React.FC = () => {
                         href={whatsappLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hidden md:flex p-3 rounded-full border bg-green-50 border-green-200 text-green-600 hover:bg-green-100 transition-all shadow-sm flex-shrink-0 items-center gap-2 font-bold text-sm"
+                        className="hidden md:flex px-5 py-3 rounded-full border bg-[#25D366] border-green-500 text-white hover:bg-[#128C7E] transition-all shadow-md hover:shadow-lg flex-shrink-0 items-center gap-2 font-bold text-sm"
                       >
-                          <MessageCircle size={20} />
+                          <MessageCircle size={20} className="fill-white/20" />
                           <span>WhatsApp</span>
                       </a>
                   )}
@@ -349,7 +349,7 @@ const TripDetails: React.FC = () => {
             </div>
 
             {whatsappLink && (
-               <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3">
+               <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-green-500/30 active:scale-95 flex items-center justify-center gap-2 mb-3">
                  <MessageCircle size={20} /> Falar com a agência
                </a>
             )}
