@@ -514,7 +514,7 @@ const ClientDashboard: React.FC = () => {
                 <button 
                    type="button"
                    onClick={() => setSelectedBooking(null)} 
-                   className="absolute top-4 right-4 text-white/80 hover:text-white p-0 z-10 w-10 h-10 flex items-center justify-center bg-black/20 rounded-full transition-colors hover:bg-black/40 cursor-pointer"
+                   className="absolute top-3 right-3 text-white/80 hover:text-white p-2 z-20 w-11 h-11 flex items-center justify-center bg-black/30 rounded-full transition-all hover:bg-black/50 cursor-pointer hover:scale-105 active:scale-95"
                    aria-label="Fechar modal"
                 >
                    <X size={24}/>
