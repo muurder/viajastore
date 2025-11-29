@@ -400,30 +400,34 @@ const AgencyDashboard: React.FC = () => {
   };
   
   const handleConfirmPayment = async () => {
-    if (!supabase || !myAgency || !activatingPlanId) return;
+    if (!supabase || !myAgency || !activatingPlanId || !user) return;
     
     setIsSubmitting(true);
+    console.log('[Subscription] Activating plan', { planId: activatingPlanId, userId: user.id });
+
     try {
-      const { error } = await supabase.rpc("activate_agency_subscription", {
-        p_user_id: myAgency.id,
-        p_plan_id: activatingPlanId
+      const { data, error } = await supabase.rpc("activate_agency_subscription", {
+        p_plan_id: activatingPlanId,
+        p_user_id: user.id, // Ensure user ID is passed
       });
 
       if (error) throw error;
       
-      showToast('Assinatura ativada com sucesso! Bem-vindo(a)!', 'success');
+      console.log('[Subscription] Subscription activated:', data);
+      showToast('Assinatura ativada com sucesso! Bem-vindo(a)! 🎉', 'success');
       
+      // Force reload user data to get new `is_active` status
       await reloadUser();
       await refreshData();
       
       setShowPayment(false);
-      setActivatingPlanId(null);
 
     } catch (err: any) {
-      console.error("Error activating subscription via payment flow:", err);
+      console.error('[Subscription] Error activating subscription:', err);
       showToast(`Erro ao ativar assinatura: ${err.message || 'Tente novamente.'}`, 'error');
     } finally {
       setIsSubmitting(false);
+      setActivatingPlanId(null);
     }
   };
 
@@ -760,4 +764,5 @@ const AgencyDashboard: React.FC = () => {
   );
 };
 
+// FIX: Removed extraneous end-of-file markers that were causing a syntax error.
 export default AgencyDashboard;
