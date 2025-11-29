@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
-// Fix: Correct the import statement for slugify
 import { slugify } from '../utils/slugify';
 
 // Define a more granular return type for register
@@ -187,10 +186,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
-                  // is_active: false, // REMOVED: Rely on DB DEFAULT for is_active
-                  // cnpj: '', // REMOVED: CNPJ will be added later in dashboard
+                  // Note: 'is_active' defaults to false in DB
+                  // Note: 'cnpj' will be collected later
               };
-              console.log('ensureUserRecord - Agency upsert payload:', agencyPayload); // For debugging
               const { error: agencyError } = await supabase.from('agencies').upsert(agencyPayload, { onConflict: 'user_id' });
 
               if (agencyError) throw agencyError;
@@ -345,13 +343,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           user_id: userId,
           name: data.name,
           email: data.email,
-          // cnpj: data.cnpj, // REMOVED CNPJ from registration payload
           phone: data.phone,
           whatsapp: data.phone, // Default whatsapp to phone number
-          // is_active: false, // REMOVED: Rely on DB DEFAULT for is_active
           slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
+          // Note: 'is_active' relies on DB default (false)
+          // Note: 'cnpj' is not collected at registration
         };
-        console.log('register - Agency insert payload:', agencyPayload); // For debugging
+        
         const { error: agencyError } = await supabase.from('agencies').insert(agencyPayload);
         
         if (agencyError) throw agencyError;
@@ -390,9 +388,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
-        // Fix: Ensure description is accessed from the correct type and can be updated to null/empty string.
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
-        // Fix: Ensure cnpj can be updated to null/empty string.
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;

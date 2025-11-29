@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
-// Add Info to the import list
 import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
@@ -126,7 +125,6 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const navigate = useNavigate();
     
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
-    // Fix: Removed 'cnpj' from formData as it's no longer directly part of the initial register payload
     const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cpf: '', phone: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -211,12 +209,14 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 </div>
 
                 {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
-                {/* REMOVED CNPJ INPUT FIELD */}
+                
                 {activeTab === 'AGENCY' && (
-                    <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-center gap-2">
-                        <Info size={16} className="text-primary-500"/>
-                        O CNPJ será solicitado no painel da agência após a criação da conta.
-                    </p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-3">
+                        <Info className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-blue-700">
+                            O CNPJ será solicitado no painel da agência após a criação da conta.
+                        </p>
+                    </div>
                 )}
                 
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
