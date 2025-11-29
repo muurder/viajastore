@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
-import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone } from 'lucide-react';
+import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 
@@ -75,7 +75,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         <div className="p-8 md:p-10">
             {agencyContext && (
                 <div className="text-center mb-4">
-                    <img src={agencyContext.logo} className="w-14 h-14 rounded-full mx-auto mb-2 border-2 border-gray-100" />
+                    <img src={agencyContext.logo} className="w-14 h-14 rounded-full mx-auto mb-2 border-2 border-gray-100" alt={`${agencyContext.name} logo`} />
                     <p className="text-xs text-gray-500">Acessando <span className="font-bold text-gray-700">{agencyContext.name}</span></p>
                 </div>
             )}
@@ -92,18 +92,18 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
+                        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
                     </div>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
                     <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Eye size={18}/></button>
+                        <input id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}><Eye size={18}/></button>
                     </div>
                 </div>
                 {error && <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle size={16}/> {error}</p>}
@@ -146,12 +146,24 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         
         if (result.success) {
             onClose();
-            if (role === UserRole.AGENCY) {
-                showToast('🎉 Conta de agência criada com sucesso! Ative seu painel.', 'success');
-                navigate('/agency/dashboard');
+            // Show toast based on message
+            if (result.message) {
+                // If userId is present, it means the user is also signed in.
+                // Otherwise, it's just an info message (e.g., email verification).
+                showToast(result.message, result.userId ? 'success' : 'info'); 
             } else {
-                showToast('Conta criada com sucesso! Bem-vindo(a).', 'success');
-                navigate('/client/dashboard/PROFILE');
+                showToast('Conta criada com sucesso!', 'success');
+            }
+
+            if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
+                if (result.role === UserRole.AGENCY) {
+                    navigate('/agency/dashboard');
+                } else if (result.role === UserRole.CLIENT) {
+                    navigate('/client/dashboard/PROFILE');
+                }
+            } else {
+                // If not immediately signed in (e.g., email verification needed), navigate to home
+                navigate('/');
             }
         } else {
             setError(result.error || 'Erro ao criar conta.');
@@ -197,7 +209,15 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 </div>
 
                 {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
-                {activeTab === 'AGENCY' && <input name="cnpj" type="text" placeholder="CNPJ" required value={formData.cnpj} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
+                
+                {activeTab === 'AGENCY' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-3">
+                        <Info className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-blue-700">
+                            O CNPJ será solicitado no painel da agência após a criação da conta.
+                        </p>
+                    </div>
+                )}
                 
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>

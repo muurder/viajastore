@@ -50,7 +50,8 @@ export interface Agency extends User {
   agencyId: string; // The primary key of the 'agencies' table
   slug: string; // New field for multi-tenant URL
   whatsapp?: string; // New field for contact
-  cnpj: string;
+  // Fix: Make cnpj optional as it's not collected during initial registration
+  cnpj?: string; 
   description: string;
   logo: string;
   is_active?: boolean;
