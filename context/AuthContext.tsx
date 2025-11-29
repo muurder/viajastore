@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -99,9 +98,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             heroTitle: agencyData.hero_title,
             heroSubtitle: agencyData.hero_subtitle,
             customSettings: agencyData.custom_settings || {},
-            subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
-            subscriptionPlan: agencyData.subscription_plan || 'BASIC',
-            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
+            subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE',
+            subscriptionPlan: 'BASIC', // Placeholder
+            subscriptionExpiresAt: new Date().toISOString(), // Placeholder
             website: agencyData.website,
             phone: agencyData.phone,
             address: agencyData.address || {},
@@ -334,6 +333,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 2. Create corresponding DB records. If this fails, registration is incomplete.
     try {
       // Create/Update profile for ALL roles using upsert for robustness
+      // This prevents "duplicate key" errors from Supabase triggers.
       const { error: profileError } = await supabase.from('profiles').upsert({
           id: userId,
           full_name: data.name,
@@ -353,7 +353,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: data.email,
           cnpj: data.cnpj,
           phone: data.phone,
-          whatsapp: data.phone,
+          whatsapp: data.phone, // Default whatsapp to phone
           is_active: false,
         });
         
