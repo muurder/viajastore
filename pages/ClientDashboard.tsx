@@ -511,13 +511,13 @@ const ClientDashboard: React.FC = () => {
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button 
+                <button
                    type="button"
-                   onClick={() => setSelectedBooking(null)} 
-                   className="absolute top-3 right-3 text-white/80 hover:text-white p-2 z-20 w-11 h-11 flex items-center justify-center bg-black/30 rounded-full transition-all hover:bg-black/50 cursor-pointer hover:scale-105 active:scale-95"
+                   onClick={() => setSelectedBooking(null)}
+                   className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/20 text-white/80 hover:bg-black/40 hover:text-white transition-all transform hover:scale-110 active:scale-95"
                    aria-label="Fechar modal"
                 >
-                   <X size={24}/>
+                   <X size={22}/>
                 </button>
                 <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
