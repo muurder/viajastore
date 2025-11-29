@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-// FIX: Import 'Agency' type to resolve reference error.
 import { UserRole, Booking, Address, AgencyReview, Agency } from '../types';
 import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
@@ -90,7 +89,7 @@ const ClientDashboard: React.FC = () => {
     }
   }, [editingReview]);
 
-  // VOUCHER MODAL: Add ESC key listener
+  // VOUCHER MODAL: Add ESC key listener and overlay click
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -578,5 +577,4 @@ const ClientDashboard: React.FC = () => {
   );
 };
 
-// FIX: Removed extraneous "END OF FILE" marker which was causing compilation errors.
 export default ClientDashboard;
