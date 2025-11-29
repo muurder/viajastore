@@ -31,7 +31,7 @@ interface ActionsMenuProps {
 
 const SubscriptionActivationView: React.FC<{
   agency: Agency;
-  onSelectPlan: (planId: string) => void;
+  onSelectPlan: (plan: Plan) => void;
   activatingPlanId: string | null;
 }> = ({ agency, onSelectPlan, activatingPlanId }) => {
   return (
@@ -47,8 +47,10 @@ const SubscriptionActivationView: React.FC<{
       <div className="grid md:grid-cols-2 gap-8">
         {PLANS.map(plan => {
           const isLoading = activatingPlanId === plan.id;
+          const isPremium = plan.id === 'PREMIUM';
           return (
-            <div key={plan.id} className="bg-white p-8 rounded-2xl border border-gray-200 transition-all shadow-sm hover:shadow-xl hover:border-primary-300 relative overflow-hidden">
+            <div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${isPremium ? 'border-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>
+              {isPremium && <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-md">Recomendado</div>}
               <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
               <p className="text-3xl font-extrabold text-primary-600 mt-2">
                 R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span>
@@ -62,8 +64,8 @@ const SubscriptionActivationView: React.FC<{
                 ))}
               </ul>
               <button 
-                onClick={() => onSelectPlan(plan.id)}
-                disabled={isLoading}
+                onClick={() => onSelectPlan(plan)}
+                disabled={!!activatingPlanId}
                 className="w-full py-3 rounded-xl font-bold transition-colors bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -336,7 +338,7 @@ const AgencyDashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tripSearch, setTripSearch] = useState('');
   const [lastReadTime, setLastReadTime] = useState(Number(localStorage.getItem('agency_last_read_sales') || 0));
-  const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -394,21 +396,21 @@ const AgencyDashboard: React.FC = () => {
 
   useEffect(() => { if (viewMode === 'FORM' && !editingTripId) { const timeout = setTimeout(() => { localStorage.setItem('trip_draft', JSON.stringify(tripForm)); }, 500); return () => clearTimeout(timeout); } }, [tripForm, viewMode, editingTripId]);
   
-  const handleSelectPlan = (planId: string) => {
-    setActivatingPlanId(planId);
+  const handleSelectPlan = (plan: Plan) => {
+    setSelectedPlan(plan);
     setShowPayment(true);
   };
   
   const handleConfirmPayment = async () => {
-    if (!supabase || !myAgency || !activatingPlanId || !user) return;
+    if (!supabase || !myAgency || !selectedPlan || !user) return;
     
     setIsSubmitting(true);
-    console.log('[Subscription] Activating plan', { planId: activatingPlanId, userId: user.id });
+    console.log('[Subscription] Activating plan', { planId: selectedPlan.id, userId: user.id });
 
     try {
       const { data, error } = await supabase.rpc("activate_agency_subscription", {
-        p_plan_id: activatingPlanId,
-        p_user_id: user.id, // Ensure user ID is passed
+        p_plan_id: selectedPlan.id,
+        p_user_id: user.id,
       });
 
       if (error) throw error;
@@ -416,7 +418,6 @@ const AgencyDashboard: React.FC = () => {
       console.log('[Subscription] Subscription activated:', data);
       showToast('Assinatura ativada com sucesso! Bem-vindo(a)! 🎉', 'success');
       
-      // Force reload user data to get new `is_active` status
       await reloadUser();
       await refreshData();
       
@@ -424,10 +425,10 @@ const AgencyDashboard: React.FC = () => {
 
     } catch (err: any) {
       console.error('[Subscription] Error activating subscription:', err);
-      showToast(`Erro ao ativar assinatura: ${err.message || 'Tente novamente.'}`, 'error');
+      showToast(err.message || 'Não foi possível ativar sua assinatura. Tente novamente.', 'error');
     } finally {
       setIsSubmitting(false);
-      setActivatingPlanId(null);
+      setSelectedPlan(null);
     }
   };
 
@@ -442,7 +443,7 @@ const AgencyDashboard: React.FC = () => {
       <SubscriptionActivationView 
         agency={myAgency}
         onSelectPlan={handleSelectPlan}
-        activatingPlanId={activatingPlanId}
+        activatingPlanId={isSubmitting ? selectedPlan?.id || null : null}
       />
     );
   }
@@ -661,7 +662,7 @@ const AgencyDashboard: React.FC = () => {
 
           {activeTab === 'SUBSCRIPTION' && (
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                {PLANS.map(plan => (<div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>{myAgency.subscriptionPlan === plan.id && isActive && (<div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>)}<h3 className="text-xl font-bold text-gray-900">{plan.name}</h3><p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p><ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> <span className="leading-snug">{f}</span></li>))}</ul><button onClick={() => { handleSelectPlan(plan.id) }} className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`} disabled={myAgency.subscriptionPlan === plan.id && isActive}>{myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}</button></div>))}
+                {PLANS.map(plan => (<div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>{myAgency.subscriptionPlan === plan.id && isActive && (<div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>)}<h3 className="text-xl font-bold text-gray-900">{plan.name}</h3><p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p><ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> <span className="leading-snug">{f}</span></li>))}</ul><button onClick={() => { handleSelectPlan(plan) }} className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`} disabled={myAgency.subscriptionPlan === plan.id && isActive}>{myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}</button></div>))}
             </div>
           )}
 
@@ -742,20 +743,20 @@ const AgencyDashboard: React.FC = () => {
          </div>
       )}
 
-      {showPayment && (
+      {showPayment && selectedPlan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}>
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
                 <h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3>
-                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{PLANS.find(p => p.id === activatingPlanId)?.name}</span>.</p>
+                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{selectedPlan.name}</span>.</p>
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
                     <div className="flex justify-between items-center">
                         <span className="font-bold">Total</span>
-                        <span className="text-2xl font-bold text-primary-600">R$ {PLANS.find(p => p.id === activatingPlanId)?.price.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {selectedPlan.price.toFixed(2)}</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
                 </div>
                 <button onClick={handleConfirmPayment} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Pagamento'}
+                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Assinatura'}
                 </button>
             </div>
         </div>
@@ -764,5 +765,4 @@ const AgencyDashboard: React.FC = () => {
   );
 };
 
-// FIX: Removed extraneous end-of-file markers that were causing a syntax error.
 export default AgencyDashboard;
