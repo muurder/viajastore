@@ -125,7 +125,8 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const navigate = useNavigate();
     
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '', phone: '' });
+    // Fix: Removed 'cnpj' from formData as it's no longer directly part of the initial register payload
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cpf: '', phone: '' });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     

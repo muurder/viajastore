@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
+// Fix: Correct the import statement for slugify
 import { slugify } from '../utils/slugify';
 
 // Define a more granular return type for register
@@ -388,7 +389,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
-        // FIX: Ensure description is accessed from the correct type.
+        // Fix: Ensure description is accessed from the correct type.
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj; // Allows setting to null/undefined
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
