@@ -344,7 +344,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: data.name,
           email: data.email,
           phone: data.phone,
-          // Removed 'whatsapp' from initial payload as column might not exist in DB yet
+          whatsapp: data.phone, // NOW SAFE TO ADD
           slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000))
           // Note: 'is_active' relies on DB default (false)
           // Note: 'cnpj' is not collected at registration
