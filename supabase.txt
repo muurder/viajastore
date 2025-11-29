@@ -128,8 +128,11 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE OR REPLACE FUNCTION public.get_my_role() RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE user_role TEXT; BEGIN SELECT role INTO user_role FROM public.profiles WHERE id = auth.uid() LIMIT 1; RETURN user_role; END; $$;
 CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(p_agency_id uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN RETURN EXISTS (SELECT 1 FROM public.bookings b JOIN public.trips t ON b.trip_id = t.id WHERE b.client_id = auth.uid() AND t.agency_id = p_agency_id AND b.status = 'CONFIRMED'); END; $$;
 
+-- Drop old signatures to avoid conflicts
 DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid, text);
 DROP FUNCTION IF EXISTS public.activate_agency_subscription(text, uuid);
+
+-- Correct signature: (plan_id, user_id) to match API calls
 CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_plan_id text, p_user_id uuid) 
 RETURNS void 
 LANGUAGE plpgsql 
@@ -163,6 +166,7 @@ BEGIN
 END; 
 $$;
 
+-- Grant execute to everyone (safe because of logic inside)
 GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(text, uuid) TO authenticated, service_role, anon;
 
 -- =============================================================================
@@ -196,8 +200,8 @@ CREATE POLICY "Users can manage their own profile" ON public.profiles FOR ALL US
 CREATE POLICY "Public can view profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
--- Agencies: (DEFINITIVE FIX FOR SCHEMA CACHE ERROR)
--- Permite leitura pública (necessário para o cliente validar o schema antes do insert)
+-- Agencies: (CRITICAL FIX FOR REGISTRATION)
+-- Permite que qualquer um leia a tabela de agências (necessário para o cliente validar o schema antes do insert)
 CREATE POLICY "Public read agencies" ON public.agencies FOR SELECT USING (true);
 CREATE POLICY "Agencies can insert their own record" ON public.agencies FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Agencies can update their own record" ON public.agencies FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);

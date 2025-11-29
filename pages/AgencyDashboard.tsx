@@ -408,6 +408,7 @@ const AgencyDashboard: React.FC = () => {
     console.log('[Subscription] Activating plan', { planId: selectedPlan.id, userId: user.id });
 
     try {
+      // FIX: Ensure parameters match the SQL function signature (p_plan_id, p_user_id)
       const { data, error } = await supabase.rpc("activate_agency_subscription", {
         p_plan_id: selectedPlan.id,
         p_user_id: user.id,
