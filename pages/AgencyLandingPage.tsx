@@ -104,80 +104,32 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 
 const AgencyLandingPage: React.FC = () => {
-  // --- HOOKS DECLARATION (TOP LEVEL) ---
+  // --- REFACTORED HOOKS ORDER ---
+  // 1. All hook calls are now at the top level, before any returns, to respect the Rules of Hooks.
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
-
   const initialTab = (searchParams.get('tab')?.toUpperCase() as any) || 'PACKAGES';
-  const [activeTab, setActiveTab] = useState<'PACKAGES' | 'ABOUT' | 'REVIEWS'>(initialTab);
   
+  const [activeTab, setActiveTab] = useState<'PACKAGES' | 'ABOUT' | 'REVIEWS'>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isEditingReview, setIsEditingReview] = useState(false);
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
-  // --- DATA FETCHING & DERIVED STATE (SAFE) ---
+  // 2. Derive main state safely after hooks.
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
-  
+
+  // 3. All subsequent hooks also at the top, written to be safe against undefined data.
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
-  
-  const agencyReviews = useMemo(() => agency ? getReviewsByAgencyId(agency.agencyId).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [], [agency, getReviewsByAgencyId]);
+  const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [agency, getReviewsByAgencyId]);
+  const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
+  const myReview = useMemo(() => user ? agencyReviews.find(r => r.clientId === user.id) : undefined, [agencyReviews, user]);
 
-  const hasPurchased = useMemo(() => user && agency && bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED'), [bookings, user, agency]);
-  
-  const myReview = useMemo(() => user && agencyReviews.find(r => r.clientId === user.id), [agencyReviews, user]);
-  
-  const shuffledTrips = useMemo(() => {
-      const trips = [...allTrips];
-      for (let i = trips.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [trips[i], trips[j]] = [trips[j], trips[i]];
-      }
-      return trips;
-  }, [allTrips]);
-
-  const currentHeroTrip = useMemo(() => {
-      const featured = shuffledTrips.filter(t => t.featuredInHero);
-      if (featured.length > 0) return featured[0];
-      if (shuffledTrips.length > 0) return shuffledTrips[0];
-      return null;
-  }, [shuffledTrips]);
-  
-  const agencyStats = useMemo(() => {
-      const totalReviews = agencyReviews.length;
-      const averageRating = totalReviews > 0 
-          ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / totalReviews 
-          : 0; 
-      const totalClients = allTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
-      return { totalReviews, averageRating, totalClients };
-  }, [agencyReviews, allTrips]);
-
-  const filteredTrips = useMemo(() => {
-    if (!agency) return [];
-    return shuffledTrips.filter(t => {
-      const matchesSearch = 
-          t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          t.destination.toLowerCase().includes(searchTerm.toLowerCase());
-
-      if (!matchesSearch) return false;
-      if (selectedInterests.length === 0) return true;
-
-      return selectedInterests.some(interest => {
-          const cleanInterest = normalizeText(interest);
-          const cleanCategory = normalizeText(t.category);
-          if (cleanCategory === cleanInterest) return true;
-          if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
-          return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
-      });
-    });
-  }, [shuffledTrips, searchTerm, selectedInterests, agency]);
-
-  // --- USEEFFECT HOOKS ---
   useEffect(() => {
     if (initialTab === 'REVIEWS' && reviewsSectionRef.current) {
         setTimeout(() => {
@@ -195,8 +147,8 @@ const AgencyLandingPage: React.FC = () => {
           loadTheme();
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
-  
-  // --- EARLY RETURNS FOR LOADING/NOT FOUND ---
+
+  // 4. Early returns for loading and not-found states AFTER all hooks have been declared.
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -215,6 +167,33 @@ const AgencyLandingPage: React.FC = () => {
           </div>
       );
   }
+
+  // --- DERIVED STATE (SAFE TO CALCULATE AFTER CHECKS) ---
+  const shuffledTrips = [...allTrips].sort(() => 0.5 - Math.random());
+  const currentHeroTrip = shuffledTrips.find(t => t.featuredInHero) || shuffledTrips[0] || null;
+  
+  const agencyStats = {
+      totalReviews: agencyReviews.length,
+      averageRating: agencyReviews.length > 0 ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / agencyReviews.length : 0,
+      totalClients: allTrips.reduce((acc, t) => acc + (t.sales || 0), 0)
+  };
+
+  const filteredTrips = shuffledTrips.filter(t => {
+      const matchesSearch = 
+          t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.destination.toLowerCase().includes(searchTerm.toLowerCase());
+
+      if (!matchesSearch) return false;
+      if (selectedInterests.length === 0) return true;
+
+      return selectedInterests.some(interest => {
+          const cleanInterest = normalizeText(interest);
+          const cleanCategory = normalizeText(t.category);
+          if (cleanCategory === cleanInterest) return true;
+          if (cleanCategory === cleanInterest.replace(/\s/g, '_')) return true;
+          return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
+      });
+  });
 
   // --- HANDLER FUNCTIONS ---
   const toggleInterest = (label: string) => {

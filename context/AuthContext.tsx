@@ -348,16 +348,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (role === UserRole.AGENCY) {
         const { error: agencyError } = await supabase.from('agencies').insert({
-          user_id: userId, // CORRECT: Use user_id
+          user_id: userId,
           name: data.name,
           email: data.email,
           cnpj: data.cnpj,
-          // Removed 'phone' to match UI (will be added via update if needed, or if UI has it)
-          // Since UI was updated to include phone, we can keep it if the UI passes it. 
-          // But to be safe based on recent fixes, ensure the data object has it.
-          // In previous turn I removed it, but if UI has it now, we can add it back safely IF the column exists.
-          // Assuming column exists as per schema.
-          is_active: false, // Start as inactive to force subscription flow
+          phone: data.phone,
+          whatsapp: data.phone,
+          is_active: false,
         });
         
         if (agencyError) throw agencyError;
