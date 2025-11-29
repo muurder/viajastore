@@ -146,14 +146,23 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         
         if (result.success) {
             onClose();
-            showToast('Conta criada com sucesso! Bem-vindo(a).', 'success');
-            if (result.role === UserRole.AGENCY) {
-                navigate('/agency/dashboard');
-            } else if (result.role === UserRole.CLIENT) {
-                navigate('/client/dashboard/PROFILE');
+            // Show toast based on message
+            if (result.message) {
+                // If userId is present, it means the user is also signed in.
+                // Otherwise, it's just an info message (e.g., email verification).
+                showToast(result.message, result.userId ? 'success' : 'info'); 
             } else {
-                // Handle cases where confirmation email is sent and user is not immediately signed in
-                showToast(result.error || 'Verifique seu email para confirmar o cadastro.', 'info');
+                showToast('Conta criada com sucesso!', 'success');
+            }
+
+            if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
+                if (result.role === UserRole.AGENCY) {
+                    navigate('/agency/dashboard');
+                } else if (result.role === UserRole.CLIENT) {
+                    navigate('/client/dashboard/PROFILE');
+                }
+            } else {
+                // If not immediately signed in (e.g., email verification needed), navigate to home
                 navigate('/');
             }
         } else {
@@ -200,7 +209,7 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 </div>
 
                 {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
-                {activeTab === 'AGENCY' && <input name="cnpj" type="text" placeholder="CNPJ" required value={formData.cnpj} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
+                {/* REMOVED CNPJ INPUT FIELD */}
                 
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>

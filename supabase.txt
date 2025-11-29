@@ -14,6 +14,13 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'user_id') THEN
     ALTER TABLE public.bookings RENAME COLUMN user_id TO client_id;
   END IF;
+  
+  -- Garante que a coluna 'is_active' exista na tabela 'agencies' com um valor padrão.
+  -- Isso é crucial caso a tabela já exista e a coluna não tenha sido adicionada em uma execução anterior.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agencies' AND column_name = 'is_active') THEN
+      ALTER TABLE public.agencies ADD COLUMN is_active boolean DEFAULT false;
+  END IF;
+
 END $$;
 
 -- =============================================================================

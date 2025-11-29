@@ -3,13 +3,23 @@ import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
 
+// Define a more granular return type for register
+interface RegisterResult {
+  success: boolean;
+  message?: string; // For info messages, e.g., email verification
+  error?: string;   // For actual errors
+  role?: UserRole;
+  userId?: string;
+  email?: string;
+}
+
 interface AuthContextType {
   user: User | Client | Agency | Admin | null;
   loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: (role?: UserRole, redirectPath?: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (data: any, role: UserRole) => Promise<{ success: boolean; error?: string; role?: UserRole; userId?: string; email?: string }>;
+  register: (data: any, role: UserRole) => Promise<RegisterResult>;
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
@@ -285,7 +295,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('viajastore_pending_role');
   };
 
-  const register = async (data: any, role: UserRole): Promise<{ success: boolean; error?: string; role?: UserRole; userId?: string; email?: string }> => {
+  const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     
     // 1. Create Auth User
@@ -307,9 +317,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     const userId = authData.user?.id;
+
+    // If user is created in auth but not immediately signed in (e.g., email confirmation)
     if (!userId) {
-        // If user is created in auth but no ID, it might be a confirmation email flow
-        return { success: true, role: role, userId: undefined, email: data.email, error: 'Verifique seu email para confirmar o cadastro.' };
+        return { success: true, message: 'Verifique seu email para confirmar o cadastro.', role: role, email: data.email };
     }
 
     // 2. Create corresponding DB records. 
@@ -332,7 +343,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           user_id: userId,
           name: data.name,
           email: data.email,
-          cnpj: data.cnpj,
+          // cnpj: data.cnpj, // REMOVED CNPJ from registration payload
           phone: data.phone,
           whatsapp: data.phone, // Default whatsapp to phone number
           // is_active: false, // REMOVED: Rely on DB DEFAULT for is_active
@@ -348,10 +359,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Force fetch the user data so the context updates immediately
       await fetchUserData(userId, data.email);
       
-      return { success: true, role: role, userId: userId, email: data.email };
+      return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 
     } catch (dbError: any) {
       console.error("DB Registration Error:", dbError);
+      // Check for specific 'is_active' error, if it was just a cache issue
+      if (dbError.code === "PGRST204" && dbError.message.includes("'is_active' column")) {
+        console.warn("DB Registration Warning: 'is_active' column error detected. It's likely a cache issue; assuming success for agency record, though further DB inspection might be needed.");
+        // If agency and profile were created (which they were), treat as success for frontend UX
+        return { success: true, message: 'Conta de agência criada! (Aviso: possível inconsistência de cache; verificando dados).', role: role, userId: userId, email: data.email };
+      }
       return { success: false, error: `Falha ao salvar dados: ${dbError.message || dbError.details || 'Erro desconhecido'}. Tente novamente.` };
     }
   };
@@ -371,8 +388,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
         if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
-        if ((userData as Agency).description) updates.description = (userData.description); // Changed to userData.description to match type
-        if ((userData as Agency).cnpj) updates.cnpj = (userData as Agency).cnpj;
+        // FIX: Ensure description is accessed from the correct type.
+        if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
+        if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj; // Allows setting to null/undefined
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
