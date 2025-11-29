@@ -340,7 +340,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: data.email,
           cpf: role === UserRole.CLIENT ? data.cpf : null,
           phone: data.phone,
-          role: role,
+          role: role.toString(), // Ensure role is a string
           avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}`
       }, { onConflict: 'id' });
 
