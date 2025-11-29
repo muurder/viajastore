@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -79,6 +80,32 @@ const SubscriptionActivationView: React.FC<{
         })}
       </div>
     </div>
+  );
+};
+
+const SubscriptionConfirmationModal: React.FC<{
+  plan: Plan;
+  onClose: () => void;
+  onConfirm: () => void;
+  isSubmitting: boolean;
+}> = ({ plan, onClose, onConfirm, isSubmitting }) => {
+  return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3>
+                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{plan.name}</span>.</p>
+                <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                        <span className="font-bold">Total</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
+                </div>
+                <button onClick={onConfirm} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Assinatura'}
+                </button>
+            </div>
+        </div>
   );
 };
 
@@ -441,11 +468,21 @@ const AgencyDashboard: React.FC = () => {
 
   if (!isActive) {
     return (
-      <SubscriptionActivationView 
-        agency={myAgency}
-        onSelectPlan={handleSelectPlan}
-        activatingPlanId={isSubmitting ? selectedPlan?.id || null : null}
-      />
+      <>
+        <SubscriptionActivationView 
+          agency={myAgency}
+          onSelectPlan={handleSelectPlan}
+          activatingPlanId={isSubmitting ? selectedPlan?.id || null : null}
+        />
+        {showPayment && selectedPlan && (
+            <SubscriptionConfirmationModal 
+                plan={selectedPlan}
+                onClose={() => setShowPayment(false)}
+                onConfirm={handleConfirmPayment}
+                isSubmitting={isSubmitting}
+            />
+        )}
+      </>
     );
   }
 
@@ -745,22 +782,12 @@ const AgencyDashboard: React.FC = () => {
       )}
 
       {showPayment && selectedPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={() => setShowPayment(false)}>
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
-                <h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3>
-                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{selectedPlan.name}</span>.</p>
-                <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-                    <div className="flex justify-between items-center">
-                        <span className="font-bold">Total</span>
-                        <span className="text-2xl font-bold text-primary-600">R$ {selectedPlan.price.toFixed(2)}</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
-                </div>
-                <button onClick={handleConfirmPayment} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Assinatura'}
-                </button>
-            </div>
-        </div>
+        <SubscriptionConfirmationModal 
+            plan={selectedPlan}
+            onClose={() => setShowPayment(false)}
+            onConfirm={handleConfirmPayment}
+            isSubmitting={isSubmitting}
+        />
       )}
     </div>
   );
