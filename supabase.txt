@@ -1,38 +1,51 @@
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO E ATUALIZAÇÃO DO BANCO DE DADOS - VIAJASTORE
 -- Execute este script no SQL Editor do Supabase.
--- Ele adiciona colunas que podem estar faltando e recarrega o cache do PostgREST.
 -- =============================================================================
 
--- 1. Forçar atualização do Schema Cache via DDL (Adicionar/Remover coluna)
--- Isso dispara eventos internos do Postgres que o PostgREST escuta para limpar o cache.
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS _force_refresh_cache integer;
+-- 1. Criar função RPC para criação de agência (Bypassa o cache do PostgREST)
+CREATE OR REPLACE FUNCTION public.create_agency(
+  p_user_id uuid,
+  p_name text,
+  p_email text,
+  p_phone text,
+  p_whatsapp text,
+  p_slug text
+)
+RETURNS public.agencies
+LANGUAGE plpgsql
+SECURITY DEFINER -- Roda com privilégios de admin para garantir a inserção
+SET search_path = public
+AS $$
+DECLARE
+  new_agency public.agencies;
+BEGIN
+  INSERT INTO public.agencies (
+    user_id,
+    name,
+    email,
+    phone,
+    whatsapp,
+    slug,
+    is_active -- Garante o default false explicitamente ou deixa o banco decidir
+  )
+  VALUES (
+    p_user_id,
+    p_name,
+    p_email,
+    p_phone,
+    p_whatsapp,
+    p_slug,
+    false
+  )
+  RETURNING * INTO new_agency;
+
+  RETURN new_agency;
+END;
+$$;
+
+-- 2. Garantir permissão de execução para a API
+GRANT EXECUTE ON FUNCTION public.create_agency(uuid, text, text, text, text, text) TO anon, authenticated, service_role;
+
+-- 3. Forçar recarregamento do cache (apenas por garantia para outras rotas)
 NOTIFY pgrst, 'reload config';
-
--- Aguarda um momento (o DDL acima já deve ter disparado o reload) e limpa
-ALTER TABLE public.agencies DROP COLUMN IF EXISTS _force_refresh_cache;
-NOTIFY pgrst, 'reload config';
-
--- 2. Adicionar colunas faltantes na tabela 'agencies'
--- Baseado no diagnóstico que mostrou que essas colunas não existem no banco.
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS whatsapp text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS website text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS address jsonb;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS bank_info jsonb;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_mode text DEFAULT 'TRIPS'::text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_banner_url text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_title text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_subtitle text;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS custom_settings jsonb;
-
--- 3. Diagnóstico Pós-Execução (Verifique os resultados na aba 'Results')
-SELECT 
-    column_name, 
-    data_type, 
-    is_nullable 
-FROM 
-    information_schema.columns 
-WHERE 
-    table_name = 'agencies'
-ORDER BY 
-    column_name;
