@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -344,8 +345,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: data.name,
           email: data.email,
           phone: data.phone,
-          whatsapp: data.phone, // NOW SAFE TO ADD
-          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000))
+          whatsapp: data.phone, // RESTORED: Whatsapp field is now available in DB
+          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
           // Note: 'is_active' relies on DB default (false)
           // Note: 'cnpj' is not collected at registration
         };
