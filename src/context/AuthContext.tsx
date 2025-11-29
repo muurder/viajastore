@@ -186,8 +186,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
-                  // Note: 'is_active' defaults to false in DB
-                  // Note: 'cnpj' will be collected later
+                  // Note: 'is_active' relies on DB default (false)
+                  // Note: 'cnpj' is not collected at registration
               };
               const { error: agencyError } = await supabase.from('agencies').upsert(agencyPayload, { onConflict: 'user_id' });
 
@@ -344,8 +344,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           name: data.name,
           email: data.email,
           phone: data.phone,
-          whatsapp: data.phone, // Default whatsapp to phone number
-          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
+          // 'whatsapp' removed to prevent PGRST204 errors as column might not exist in DB yet
+          slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000))
           // Note: 'is_active' relies on DB default (false)
           // Note: 'cnpj' is not collected at registration
         };
@@ -363,12 +363,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (dbError: any) {
       console.error("DB Registration Error:", dbError);
-      // Check for specific 'is_active' error, if it was just a cache issue
-      if (dbError.code === "PGRST204" && dbError.message.includes("'is_active' column")) {
-        console.warn("DB Registration Warning: 'is_active' column error detected. It's likely a cache issue; assuming success for agency record, though further DB inspection might be needed.");
-        // If agency and profile were created (which they were), treat as success for frontend UX
-        return { success: true, message: 'Conta de agência criada! (Aviso: possível inconsistência de cache; verificando dados).', role: role, userId: userId, email: data.email };
+      
+      // Specific handling for schema cache errors
+      if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache')) {
+        return { success: false, error: `Erro de sincronização no banco de dados. Por favor, vá ao Painel do Supabase -> SQL Editor e execute o script de atualização do schema.` };
       }
+
       return { success: false, error: `Falha ao salvar dados: ${dbError.message || dbError.details || 'Erro desconhecido'}. Tente novamente.` };
     }
   };

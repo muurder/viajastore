@@ -2,15 +2,26 @@
 -- SCRIPT DE BANCO DE DADOS COMPLETO E IDEMPOTENTE - VIAJASTORE
 -- =============================================================================
 -- Este script define o schema completo, funções, visões e políticas de RLS.
+-- Execute este script no SQL Editor do Supabase para corrigir estruturas.
 -- =============================================================================
 
 -- =============================================================================
--- SEÇÃO 0: RECARREGAMENTO DO CACHE (SOLUÇÃO DE ERRO PGRST204)
+-- SEÇÃO 0: RECARREGAMENTO DO CACHE E ATUALIZAÇÃO DE ESTRUTURA
 -- =============================================================================
--- O comando abaixo altera um comentário na tabela. Isso é um truque para forçar
--- o PostgREST a detectar uma mudança de schema e recarregar seu cache interno,
--- resolvendo o erro "Could not find the 'user_id' column in schema cache".
-COMMENT ON TABLE public.agencies IS 'Tabela de Agências - Cache Reloaded';
+
+-- Adiciona colunas que podem estar faltando no banco atual (baseado no diagnóstico)
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS whatsapp text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS website text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS address jsonb;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS bank_info jsonb;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_mode text DEFAULT 'TRIPS'::text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_banner_url text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_title text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS hero_subtitle text;
+ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS custom_settings jsonb;
+
+-- Força o PostgREST a detectar a mudança de schema
+COMMENT ON TABLE public.agencies IS 'Tabela de Agências - Cache Reloaded (Fix)';
 NOTIFY pgrst, 'reload config';
 
 -- =============================================================================
@@ -22,8 +33,6 @@ BEGIN
   -- Garante que a coluna 'is_active' exista na tabela 'agencies' com um valor padrão.
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'agencies') THEN
       ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false;
-      -- Garante que user_id seja a FK correta se ainda não for
-      -- (O create table abaixo cuidará se a tabela não existir, mas se existir, garantimos aqui)
   END IF;
 END $$;
 
