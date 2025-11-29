@@ -1,30 +1,31 @@
 -- =============================================================================
 -- SCRIPT DE BANCO DE DADOS COMPLETO E IDEMPOTENTE - VIAJASTORE
 -- =============================================================================
--- Este script define o schema completo, funções, visões e políticas de RLS
--- para a aplicação ViajaStore. É seguro executá-lo múltiplas vezes.
+-- Este script define o schema completo, funções, visões e políticas de RLS.
 -- =============================================================================
 
 -- =============================================================================
--- SEÇÃO 0: MIGRAÇÕES DE COLUNAS (CORREÇÕES ESTRUTURAIS)
+-- SEÇÃO 0: RECARREGAMENTO DO CACHE (SOLUÇÃO DE ERRO PGRST204)
 -- =============================================================================
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'user_id') THEN
-    ALTER TABLE public.bookings RENAME COLUMN user_id TO client_id;
-  END IF;
-  
-  -- Garante que a coluna 'is_active' exista na tabela 'agencies' com um valor padrão.
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agencies' AND column_name = 'is_active') THEN
-      ALTER TABLE public.agencies ADD COLUMN is_active boolean DEFAULT false;
-  END IF;
-
-END $$;
+-- O comando abaixo altera um comentário na tabela. Isso é um truque para forçar
+-- o PostgREST a detectar uma mudança de schema e recarregar seu cache interno,
+-- resolvendo o erro "Could not find the 'user_id' column in schema cache".
+COMMENT ON TABLE public.agencies IS 'Tabela de Agências - Cache Reloaded';
+NOTIFY pgrst, 'reload config';
 
 -- =============================================================================
 -- SEÇÃO 1: CRIAÇÃO DAS TABELAS (SCHEMA)
 -- =============================================================================
+
+DO $$
+BEGIN
+  -- Garante que a coluna 'is_active' exista na tabela 'agencies' com um valor padrão.
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'agencies') THEN
+      ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false;
+      -- Garante que user_id seja a FK correta se ainda não for
+      -- (O create table abaixo cuidará se a tabela não existir, mas se existir, garantimos aqui)
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -134,11 +135,9 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE OR REPLACE FUNCTION public.get_my_role() RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE user_role TEXT; BEGIN SELECT role INTO user_role FROM public.profiles WHERE id = auth.uid() LIMIT 1; RETURN user_role; END; $$;
 CREATE OR REPLACE FUNCTION public.has_purchased_from_agency(p_agency_id uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN RETURN EXISTS (SELECT 1 FROM public.bookings b JOIN public.trips t ON b.trip_id = t.id WHERE b.client_id = auth.uid() AND t.agency_id = p_agency_id AND b.status = 'CONFIRMED'); END; $$;
 
--- Drop old signatures to avoid conflicts
 DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid, text);
 DROP FUNCTION IF EXISTS public.activate_agency_subscription(text, uuid);
 
--- Correct signature: (plan_id, user_id) to match API calls
 CREATE OR REPLACE FUNCTION public.activate_agency_subscription(p_plan_id text, p_user_id uuid) 
 RETURNS void 
 LANGUAGE plpgsql 
@@ -182,7 +181,7 @@ DROP VIEW IF EXISTS public.agency_trips_with_cover;
 CREATE VIEW public.agency_trips_with_cover AS SELECT t.id, t.title, t.slug, t.destination, t.price, t.duration_days, a.name AS agency_name, a.slug AS agency_slug, (SELECT ti.image_url FROM public.trip_images ti WHERE ti.trip_id = t.id ORDER BY ti.position, ti.id LIMIT 1) AS cover_image FROM public.trips t JOIN public.agencies a ON t.agency_id = a.id WHERE t.deleted_at IS NULL AND a.deleted_at IS NULL; 
 
 -- =============================================================================
--- SEÇÃO 4: LIMPEZA E CRIAÇÃO DAS POLÍTICAS DE RLS (REVISADO)
+-- SEÇÃO 4: LIMPEZA E CRIAÇÃO DAS POLÍTICAS DE RLS
 -- =============================================================================
 
 DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public') LOOP EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON public.' || quote_ident(r.tablename); END LOOP; END $$;
@@ -205,7 +204,7 @@ CREATE POLICY "Users can manage their own profile" ON public.profiles FOR ALL US
 CREATE POLICY "Public can view profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
--- Agencies: (CRITICAL FIX FOR REGISTRATION)
+-- Agencies:
 CREATE POLICY "Public read agencies" ON public.agencies FOR SELECT USING (true);
 CREATE POLICY "Agencies can insert their own record" ON public.agencies FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Agencies can update their own record" ON public.agencies FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -257,17 +256,7 @@ CREATE POLICY "Admin full access on agency_themes" ON public.agency_themes FOR A
 CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- =============================================================================
--- FORCE UPDATE (EXECUTE ISTO APÓS A CRIAÇÃO PARA CORRIGIR DADOS EXISTENTES)
+-- FORCE UPDATE (CORRIGE DADOS EXISTENTES)
 -- =============================================================================
 UPDATE public.agencies SET is_active = true WHERE deleted_at IS NULL;
 UPDATE public.trips SET is_active = true WHERE deleted_at IS NULL;
-
--- =============================================================================
--- SEÇÃO 5: RECARREGAMENTO DO CACHE (CRÍTICO PARA O ERRO PGRST204)
--- =============================================================================
--- Força o PostgREST a atualizar o cache do schema para reconhecer novas colunas
-NOTIFY pgrst, 'reload config';
-
--- =============================================================================
--- FIM DO SCRIPT
--- =============================================================================

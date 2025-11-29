@@ -186,7 +186,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   name: userName,
                   email: userEmail,
                   logo_url: userAvatar,
-                  // 'is_active' and 'cnpj' are handled by DB defaults/updates
+                  // Note: 'is_active' relies on DB default (false)
+                  // Note: 'cnpj' is not collected at registration
               };
               const { error: agencyError } = await supabase.from('agencies').upsert(agencyPayload, { onConflict: 'user_id' });
 
@@ -345,6 +346,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           phone: data.phone,
           whatsapp: data.phone, // Default whatsapp to phone number
           slug: slugify(data.name + '-' + Math.floor(Math.random() * 1000)) // Ensure unique default slug
+          // Note: 'is_active' relies on DB default (false)
+          // Note: 'cnpj' is not collected at registration
         };
         
         const { error: agencyError } = await supabase.from('agencies').insert(agencyPayload);
@@ -363,7 +366,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       // Specific handling for schema cache errors
       if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache')) {
-        return { success: false, error: `Erro de sincronização do banco de dados (Cache). Por favor, execute o script SQL atualizado no painel do Supabase ou contate o suporte.` };
+        return { success: false, error: `Erro de sincronização no banco de dados. Por favor, vá ao Painel do Supabase -> SQL Editor e execute o script de atualização do schema.` };
       }
 
       return { success: false, error: `Falha ao salvar dados: ${dbError.message || dbError.details || 'Erro desconhecido'}. Tente novamente.` };
