@@ -515,10 +515,10 @@ const ClientDashboard: React.FC = () => {
                 <button
                     type="button"
                     onClick={() => setSelectedBooking(null)}
-                    className="absolute top-4 right-4 z-50 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/10 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg"
+                    className="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/10 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg cursor-pointer"
                     aria-label="Fechar voucher"
                 >
-                    <X size={24} />
+                    <X size={28} />
                 </button>
                 <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
