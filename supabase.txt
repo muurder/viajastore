@@ -16,7 +16,6 @@ BEGIN
   END IF;
   
   -- Garante que a coluna 'is_active' exista na tabela 'agencies' com um valor padrão.
-  -- Isso é crucial caso a tabela já exista e a coluna não tenha sido adicionada em uma execução anterior.
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agencies' AND column_name = 'is_active') THEN
       ALTER TABLE public.agencies ADD COLUMN is_active boolean DEFAULT false;
   END IF;
@@ -55,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.agencies (
   whatsapp text,
   website text,
   slug text UNIQUE,
-  is_active boolean DEFAULT false, -- Garante a coluna is_active
+  is_active boolean DEFAULT false, 
   address jsonb,
   bank_info jsonb,
   hero_mode text DEFAULT 'TRIPS'::text,
@@ -173,7 +172,6 @@ BEGIN
 END; 
 $$;
 
--- Grant execute to everyone (safe because of logic inside)
 GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(text, uuid) TO authenticated, service_role, anon;
 
 -- =============================================================================
@@ -208,7 +206,6 @@ CREATE POLICY "Public can view profiles" ON public.profiles FOR SELECT USING (tr
 CREATE POLICY "Admin full access on profiles" ON public.profiles FOR ALL USING (get_my_role() = 'ADMIN') WITH CHECK (get_my_role() = 'ADMIN');
 
 -- Agencies: (CRITICAL FIX FOR REGISTRATION)
--- Permite que qualquer um leia a tabela de agências (necessário para o cliente validar o schema antes do insert)
 CREATE POLICY "Public read agencies" ON public.agencies FOR SELECT USING (true);
 CREATE POLICY "Agencies can insert their own record" ON public.agencies FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Agencies can update their own record" ON public.agencies FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
@@ -264,6 +261,12 @@ CREATE POLICY "Admins can see audit logs" ON public.audit_logs FOR ALL USING (ge
 -- =============================================================================
 UPDATE public.agencies SET is_active = true WHERE deleted_at IS NULL;
 UPDATE public.trips SET is_active = true WHERE deleted_at IS NULL;
+
+-- =============================================================================
+-- SEÇÃO 5: RECARREGAMENTO DO CACHE (CRÍTICO PARA O ERRO PGRST204)
+-- =============================================================================
+-- Força o PostgREST a atualizar o cache do schema para reconhecer novas colunas
+NOTIFY pgrst, 'reload config';
 
 -- =============================================================================
 -- FIM DO SCRIPT
