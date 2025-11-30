@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -568,9 +567,21 @@ const AgencyLandingPage: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden border border-gray-200">
                                             {review.clientAvatar ? (
-                                                <img src={review.clientAvatar} alt={review.clientName || 'Viajante'} className="w-full h-full object-cover" />
+                                                <img 
+                                                    src={review.clientAvatar} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover" 
+                                                    onError={(e) => {
+                                                        // Fallback to ui-avatars if image fails
+                                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
+                                                    }}
+                                                />
                                             ) : (
-                                                review.clientName ? review.clientName.charAt(0) : 'V'
+                                                <img 
+                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover"
+                                                />
                                             )}
                                         </div>
                                         <div>

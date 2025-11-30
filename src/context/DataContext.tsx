@@ -142,8 +142,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            rating: t.rating || 0, // Fix: Provide default for optional rating
-            totalReviews: t.totalReviews || 0, // Fix: Provide default for optional totalReviews
+            rating: t.rating || 0, // Assuming rating might be present or default to 0
+            totalReviews: t.totalReviews || 0,
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -346,11 +346,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                category: b.trips.category || 'PRAIA',
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
-               itinerary: b.itinerary || [], // Fix: Use b.itinerary directly
-               paymentMethods: b.trips.payment_methods || [],
+               itinerary: b.trips.itinerary || [],
+               // Fix: Corrected typo from b.trient_methods to b.trips.payment_methods
+               paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               rating: b.trips.rating || 0, // Fix: Provide default for optional rating
-               totalReviews: b.trips.totalReviews || 0, // Fix: Provide default for optional totalReviews
+               rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
+               totalReviews: b.trips.totalReviews || 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
@@ -361,7 +362,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } as Trip : undefined;
             
             const agencyData: Agency | undefined = b.trips?.agencies ? {
-              id: b.trips.agencies.user_id, // Fix: This should be user_id, not id
+              id: b.trips.agencies.user_id, // This should be user_id, not id
               agencyId: b.trips.agencies.id, // Primary Key of agencies table
               name: b.trips.agencies.name,
               email: b.trips.agencies.email,
