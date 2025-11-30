@@ -4,7 +4,8 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Mail, ShoppingBag, Heart, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
+// FIX: Removed unused icons Plane and Settings, and added Smartphone.
+import { LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { Agency } from '../types';
 
@@ -270,6 +271,17 @@ const Layout: React.FC = () => {
 
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
+                {showAgencyHeader && currentAgency && currentAgency.whatsapp && !isAgencyDashboard && (
+                  <a 
+                    href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
+                  >
+                    <Smartphone size={16} className="mr-2"/> WhatsApp
+                  </a>
+                )}
+
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}
@@ -390,6 +402,17 @@ const Layout: React.FC = () => {
                                     <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
                                     <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
+                                {currentAgency?.whatsapp && (
+                                    <a 
+                                        href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer" 
+                                        className="flex items-center justify-between px-4 py-3 rounded-xl text-green-700 bg-green-50 hover:bg-green-100 font-bold mt-2"
+                                    >
+                                        <div className="flex items-center"><Smartphone size={20} className="mr-3 text-green-600"/> WhatsApp</div>
+                                        <ChevronRight size={16} className="text-green-400"/>
+                                    </a>
+                                )}
                             </>
                         )}
 
@@ -418,14 +441,9 @@ const Layout: React.FC = () => {
                     {user ? (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 mb-2">
-                                {/* Use user.avatar if available, fallback to initials */}
-                                {user.avatar ? (
-                                    <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
-                                        {user.name.charAt(0).toUpperCase()}
-                                    </div>
-                                )}
+                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
+                                    {user.name.charAt(0).toUpperCase()}
+                                </div>
                                 <div className="overflow-hidden">
                                     <p className="font-bold text-gray-900 truncate">{user.name}</p>
                                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
