@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -86,8 +87,9 @@ const Home: React.FC = () => {
   const currentHeroTrip = heroTrips[currentSlide];
   
   // Get Agency for Hero Trip to generate WhatsApp Link
+  // FIX: Find agency by 'agencyId' (PK) to match trip.agencyId, not by user 'id'.
   const currentHeroAgency = useMemo(() => {
-    return currentHeroTrip ? agencies.find(a => a.id === currentHeroTrip.agencyId) : undefined;
+    return currentHeroTrip ? agencies.find(a => a.agencyId === currentHeroTrip.agencyId) : undefined;
   }, [currentHeroTrip, agencies]);
 
   const heroWhatsAppLink = (currentHeroAgency?.whatsapp && currentHeroTrip) 
@@ -442,7 +444,7 @@ const Home: React.FC = () => {
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {activeAgencies.map(agency => (
-                <Link key={agency.id} to={`/${agency.slug || agency.id}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center group">
+                <Link key={agency.id} to={`/${agency.slug}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center group">
                     <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100 group-hover:border-primary-100 transition-colors"/>
                     <h3 className="font-bold text-gray-900 text-sm line-clamp-1 group-hover:text-primary-600 transition-colors">{agency.name}</h3>
                 </Link>

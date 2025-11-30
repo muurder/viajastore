@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -199,7 +200,7 @@ const AdminDashboard: React.FC = () => {
         setIsProcessing(true);
         await deleteUser(id, role);
         setIsProcessing(false);
-        showToast('Excluído permanentemente.', 'success');
+        showToast('Exclído permanentemente.', 'success');
     }
   };
   
@@ -265,7 +266,8 @@ const AdminDashboard: React.FC = () => {
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
-        await updateAgencyProfileByAdmin(selectedItem.id, editFormData);
+        // Pass agencyId to updateAgencyProfileByAdmin
+        await updateAgencyProfileByAdmin(selectedItem.agencyId, editFormData);
     } catch (error) {
         // Toast handled in context
     } finally {
@@ -330,9 +332,9 @@ const AdminDashboard: React.FC = () => {
   const filteredReviews = useMemo(() => agencyReviews.filter(r => r.comment.toLowerCase().includes(searchTerm.toLowerCase()) || r.agencyName?.toLowerCase().includes(searchTerm.toLowerCase())), [agencyReviews, searchTerm]);
   
   const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
-  const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length ? [] : filteredUsers.map(u => u.id));
+  const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
   const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
-  const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length ? [] : filteredAgencies.map(a => a.id));
+  const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.id));
 
   const handleMassDeleteUsers = async () => { if (window.confirm(`Excluir ${selectedUsers.length} usuários?`)) { await deleteMultipleUsers(selectedUsers); setSelectedUsers([]); showToast('Usuários excluídos.', 'success'); } };
   const handleMassDeleteAgencies = async () => { if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) { await deleteMultipleAgencies(selectedAgencies); setSelectedAgencies([]); showToast('Agências excluídas.', 'success'); } };
@@ -459,251 +461,3 @@ const AdminDashboard: React.FC = () => {
                                     {showAgencyTrash ? (
                                         <>
                                             <button title="Restaurar" onClick={() => handleRestore(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                                                <ArchiveRestore size={18} />
-                                            </button>
-                                            <button title="Excluir Permanentemente" onClick={() => handlePermanentDelete(agency.id, agency.role)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                                <Trash size={18} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <button title="Editar Dados" onClick={() => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                                                <Edit3 size={18} />
-                                            </button>
-                                            <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                                <CreditCard size={18} />
-                                            </button>
-                                            <button title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência'} onClick={() => toggleAgencyStatus(agency.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
-                                                {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={18}/> : <CheckCircle size={18}/>}
-                                            </button>
-                                            <button title="Mover para Lixeira" onClick={() => handleSoftDelete(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </td></tr>);})}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-          </div>
-        );
-      case 'TRIPS':
-        return (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
-            <table className="min-w-full divide-y divide-gray-100">
-              <thead className="bg-gray-50/50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Viagem</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {filteredTrips.map(trip => (
-                  <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-bold text-gray-900 text-sm flex items-center gap-2">{trip.title}{trip.featured && <span title="Destaque Global"><Sparkles size={16} className="text-amber-400 fill-amber-400" /></span>}</p>
-                      <p className="text-xs text-gray-500">{trip.destination}</p>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 text-sm">{agencies.find(a => a.id === trip.agencyId)?.name}</td>
-                    <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Pausado'}</Badge></td>
-                    <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                            <button title="Excluir Viagem" onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                                <Trash2 size={18} />
-                            </button>
-                            <button title="Editar Viagem" onClick={() => { setSelectedItem(trip); setEditFormData({ title: trip.title, description: trip.description, price: trip.price }); setModalType('EDIT_TRIP'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
-                                <Edit3 size={18} />
-                            </button>
-                            <button title={trip.is_active ? 'Pausar Viagem' : 'Ativar Viagem'} onClick={() => toggleTripStatus(trip.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
-                                {trip.is_active ? <Ban size={18} /> : <CheckCircle size={18} />}
-                            </button>
-                            <button title={trip.featured ? 'Remover Destaque' : 'Destacar Viagem'} onClick={() => toggleTripFeatureStatus(trip.id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                <Sparkles size={18} className={trip.featured ? 'text-amber-500 fill-amber-400' : ''} />
-                            </button>
-                             <a href={`/#/viagem/${trip.slug}`} target="_blank" rel="noopener noreferrer" title="Ver Página" className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                                <Eye size={18} />
-                            </a>
-                        </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      case 'REVIEWS':
-        return ( <div className="space-y-4 animate-[fadeIn_0.3s]"> {filteredReviews.map(review => ( <div key={review.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-start gap-6"> <img src={review.agencyLogo || `https://ui-avatars.com/api/?name=${review.agencyName || 'A'}`} className="w-10 h-10 rounded-full" alt="" /> <div className="flex-1"> <div className="flex justify-between items-start"> <div> <p className="font-bold text-gray-900">{review.clientName || 'Anônimo'}</p> <a href={`/#/${slugify(review.agencyName || '')}`} target="_blank" className="text-xs text-gray-400 hover:text-primary-600">em <span className="font-medium text-gray-600 hover:underline">{review.agencyName}</span> • {new Date(review.createdAt).toLocaleDateString()}</a> </div> <div className="flex items-center gap-1 font-bold text-amber-500 text-lg"> <Star size={18} className="fill-current"/> {review.rating.toFixed(1)} </div> </div> <blockquote className="mt-4 text-gray-600 text-sm italic border-l-4 border-gray-100 pl-4 py-2 bg-gray-50/50 rounded-r-lg">"{review.comment}"</blockquote> </div> <ActionMenu actions={[{ label: 'Editar Conteúdo', icon: Edit3, onClick: () => { setSelectedItem(review); setEditFormData({ comment: review.comment, rating: review.rating }); setModalType('EDIT_REVIEW'); } }, { label: 'Excluir Definitivamente', icon: Trash2, onClick: async () => { if(window.confirm('Excluir esta avaliação?')) await deleteAgencyReview(review.id) }, variant: 'danger' }]} /> </div> ))} </div> );
-      case 'THEMES':
-        if (!isMaster) return null;
-        return ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-[fadeIn_0.3s]"> <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-3"> <h2 className="text-lg font-bold text-gray-900 mb-2">Gerenciar Temas Globais</h2> {themes.map(theme => ( <div key={theme.id} className={`p-4 rounded-xl border-2 flex items-center justify-between transition-all ${activeTheme.id === theme.id ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}> <div className="flex items-center gap-4"><div className="flex -space-x-2"><div className="w-8 h-8 rounded-full border-2 border-white shadow" style={{ backgroundColor: theme.colors.primary }}></div><div className="w-8 h-8 rounded-full border-2 border-white shadow" style={{ backgroundColor: theme.colors.secondary }}></div></div><div><p className={`font-bold text-sm ${activeTheme.id === theme.id ? 'text-primary-800' : 'text-gray-800'}`}>{theme.name}</p><p className="text-xs text-gray-500 font-mono">ID: {theme.id.substring(0, 8)}</p></div></div> <div className="flex items-center gap-2"> <button onMouseEnter={() => previewTheme(theme)} onMouseLeave={resetPreview} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-white rounded-lg" title="Preview"><MonitorPlay size={16}/></button> {activeTheme.id === theme.id ? (<Badge color="green"><CheckCircle size={12}/> Ativo</Badge>) : (<button onClick={() => setTheme(theme.id)} className="text-xs font-bold bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-full hover:bg-gray-50">Ativar</button>)} {!theme.isDefault && (<button onClick={() => handleDeleteTheme(theme.id, theme.name)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>)} </div> </div> ))} </div> <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit"> <h3 className="text-lg font-bold text-gray-900 mb-4">Novo Tema</h3> <form onSubmit={handleAddTheme} className="space-y-4"> <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Nome</label><input value={newThemeForm.name} onChange={e => setNewThemeForm({...newThemeForm, name: e.target.value})} placeholder="Ex: Verão Tropical" className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500" /></div> <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Cor Primária</label><div className="flex items-center gap-2"><input type="color" value={newThemeForm.primary} onChange={e => setNewThemeForm({...newThemeForm, primary: e.target.value})} className="w-12 h-12 p-1 rounded-lg bg-white border border-gray-200" /><input value={newThemeForm.primary} onChange={e => setNewThemeForm({...newThemeForm, primary: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 font-mono text-sm" /></div></div> <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Cor Secundária</label><div className="flex items-center gap-2"><input type="color" value={newThemeForm.secondary} onChange={e => setNewThemeForm({...newThemeForm, secondary: e.target.value})} className="w-12 h-12 p-1 rounded-lg bg-white border border-gray-200" /><input value={newThemeForm.secondary} onChange={e => setNewThemeForm({...newThemeForm, secondary: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 font-mono text-sm" /></div></div> <button type="submit" disabled={isProcessing} className="w-full bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2">{isProcessing ? <Loader className="animate-spin" size={16}/> : 'Salvar Tema'}</button> </form> </div> </div> );
-      case 'AUDIT':
-        if (!isMaster) return null;
-        return ( <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]"> <table className="min-w-full divide-y divide-gray-100"> <thead className="bg-gray-50/50"><tr><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Ação</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Detalhes</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Admin</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th></tr></thead> <tbody className="divide-y divide-gray-100 bg-white"> {auditLogs.map(log => ( <tr key={log.id}><td className="px-6 py-4 font-mono text-xs text-purple-700">{log.action}</td><td className="px-6 py-4 text-sm text-gray-600">{log.details}</td><td className="px-6 py-4 text-xs font-medium text-gray-500">{log.adminEmail}</td><td className="px-6 py-4 text-xs text-gray-400">{new Date(log.createdAt).toLocaleString()}</td></tr> ))} </tbody> </table> </div> );
-      case 'SYSTEM':
-        return ( <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s] max-w-2xl"> <div className="flex items-start gap-6 mb-8"><div className="bg-blue-50 p-4 rounded-full"><Database size={32} className="text-blue-600" /></div><div><h2 className="text-xl font-bold text-gray-900">Migração de Dados</h2><p className="text-gray-500 mt-1 text-sm">Popule o banco de dados com dados de teste para desenvolvimento e demonstração. Esta ação criará agências e viagens de exemplo.</p></div></div> <button onClick={() => migrateData().then(() => { showToast('Migração concluída!', 'success'); handleRefresh(); })} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"><Database size={18}/> Iniciar Migração</button> </div> );
-      default:
-        return ( <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s]"> <StatCard title="Receita da Plataforma" value={`R$ ${platformRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} subtitle="Assinaturas ativas" icon={DollarSign} color="green" /> <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle={`${agencies.length} cadastradas`} icon={Briefcase} color="blue" /> <StatCard title="Usuários" value={activeUsers.length} subtitle="Viajantes na plataforma" icon={Users} color="purple" /> <StatCard title="Viagens Publicadas" value={trips.filter(t => t.is_active).length} subtitle="Roteiros ativos" icon={ShoppingBag} color="amber" /> </div> );
-    }
-  };
-
-  const renderToolbar = () => {
-    if (activeTab === 'USERS') {
-      const selectionCount = selectedUsers.length;
-      if (selectionCount > 0 && !showUserTrash) {
-        return (
-            <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border border-gray-200 animate-[fadeIn_0.2s]">
-                <p className="text-sm font-bold text-gray-700">{selectionCount} usuário(s) selecionado(s)</p>
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={() => handleMassUpdateUserStatus('ACTIVE')} className="px-3 py-1.5 text-xs font-bold text-green-700 bg-green-100 rounded-lg hover:bg-green-200 flex items-center gap-1"><UserCheck size={14}/> Reativar</button>
-                    <button onClick={() => handleMassUpdateUserStatus('SUSPENDED')} className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 flex items-center gap-1"><Ban size={14}/> Suspender</button>
-                    <button onClick={handleViewStats} className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 flex items-center gap-1"><StatsIcon size={14}/> Ver Stats</button>
-                    <button onClick={() => downloadPdf('users')} className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-1"><Download size={14}/> Baixar PDF</button>
-                    <button onClick={() => { if(window.confirm(`Mover ${selectionCount} usuários para a lixeira?`)) selectedUsers.forEach(id => softDeleteEntity(id, 'profiles')) }} className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 flex items-center gap-1"><Trash2 size={14}/> Lixeira</button>
-                </div>
-            </div>
-        );
-      }
-    }
-    if (activeTab === 'AGENCIES') {
-      const selectionCount = selectedAgencies.length;
-      if (selectionCount > 0 && !showAgencyTrash) {
-        return (
-            <div className="bg-white/80 backdrop-blur-md rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border border-gray-200 animate-[fadeIn_0.2s]">
-                <p className="text-sm font-bold text-gray-700">{selectionCount} agência(s) selecionada(s)</p>
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="px-3 py-1.5 text-xs font-bold text-green-700 bg-green-100 rounded-lg hover:bg-green-200 flex items-center gap-1"><CheckCircle size={14}/> Reativar</button>
-                    <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 flex items-center gap-1"><Ban size={14}/> Suspender</button>
-                    <button onClick={() => downloadPdf('agencies')} className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-1"><Download size={14}/> Baixar PDF</button>
-                    <button onClick={() => { if(window.confirm(`Mover ${selectionCount} agências para a lixeira?`)) selectedAgencies.forEach(id => softDeleteEntity(id, 'agencies')) }} className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 rounded-lg hover:bg-red-200 flex items-center gap-1"><Trash2 size={14}/> Lixeira</button>
-                </div>
-            </div>
-        );
-      }
-    }
-    return null;
-  };
-
-  const closeModal = () => {
-    setModalType(null);
-    setSelectedItem(null);
-    setEditFormData({});
-  }
-
-  return (
-    <div className="max-w-7xl mx-auto pb-12 min-h-screen relative animate-[fadeIn_0.3s]">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"> <div> <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2"> Painel Master {isMaster && <span className="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full border border-purple-200 uppercase tracking-wider">Super Admin</span>} </h1> <p className="text-gray-500 mt-1">Gestão completa da plataforma ViajaStore.</p> </div> <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-gray-100"> <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold">{user.name.charAt(0)}</div> <div className="pr-4"><p className="text-xs font-bold text-gray-400 uppercase">Administrador</p><p className="font-bold text-gray-900 text-sm">{user.email}</p></div> </div> </div>
-      <div className="bg-white p-1.5 rounded-xl shadow-sm border border-gray-100 inline-flex mb-8 flex-wrap gap-1 sticky top-20 z-20">
-          {[ {id: 'OVERVIEW', label: 'Visão Geral', icon: Activity}, {id: 'AGENCIES', label: 'Agências', icon: Briefcase}, {id: 'USERS', label: 'Usuários', icon: Users}, {id: 'TRIPS', label: 'Viagens', icon: BarChart}, {id: 'REVIEWS', label: 'Avaliações', icon: MessageCircle}, {id: 'THEMES', label: 'Temas', icon: Palette, masterOnly: true}, {id: 'AUDIT', label: 'Auditoria', icon: Lock, masterOnly: true}, {id: 'SYSTEM', label: 'Sistema', icon: Database} ].map(tab => (tab.masterOnly && !isMaster) ? null : (<button key={tab.id} onClick={() => handleTabChange(tab.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}`}><tab.icon size={16} /> {tab.label}</button>))}
-      </div>
-
-      {['AGENCIES', 'USERS'].includes(activeTab) && (
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-              <div className="relative flex-1 max-w-lg w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-              <div className="flex items-center gap-2">
-                  <div className="p-1 bg-gray-100 rounded-lg flex items-center">
-                    {activeTab === 'USERS' ? (
-                        <>
-                        <button onClick={() => handleSetUserView('cards')} className={`p-2 rounded-md transition-colors ${userView === 'cards' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18}/></button>
-                        <button onClick={() => handleSetUserView('list')} className={`p-2 rounded-md transition-colors ${userView === 'list' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><List size={18}/></button>
-                        </>
-                    ) : (
-                        <>
-                        <button onClick={() => handleSetAgencyView('cards')} className={`p-2 rounded-md transition-colors ${agencyView === 'cards' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18}/></button>
-                        <button onClick={() => handleSetAgencyView('list')} className={`p-2 rounded-md transition-colors ${agencyView === 'list' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><List size={18}/></button>
-                        </>
-                    )}
-                  </div>
-                  <button onClick={() => activeTab === 'USERS' ? setShowUserTrash(!showUserTrash) : setShowAgencyTrash(!showAgencyTrash)} className={`px-4 py-2.5 text-sm font-bold rounded-lg flex items-center gap-2 transition-colors border ${(activeTab === 'USERS' && showUserTrash) || (activeTab === 'AGENCIES' && showAgencyTrash) ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}><Archive size={16}/> Lixeira</button>
-              </div>
-          </div>
-      )}
-
-      {((showUserTrash && activeTab === 'USERS') || (showAgencyTrash && activeTab === 'AGENCIES')) && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-6 flex items-center justify-between"><div className="flex items-center gap-2"><Archive size={16} className="text-amber-700"/><p className="text-sm font-bold text-amber-800">Visualizando itens na lixeira.</p></div><button onClick={() => handleEmptyTrash(activeTab === 'USERS' ? 'user' : 'agency')} className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 px-3 py-1.5 rounded-lg hover:bg-red-200"><Trash size={12}/> Esvaziar Lixeira</button></div>
-      )}
-
-      {['TRIPS', 'REVIEWS'].includes(activeTab) && (<div className="mb-6 relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder={`Buscar em ${activeTab.toLowerCase()}...`} className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-sm transition-all hover:border-gray-300" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>)}
-      {activeTab === 'TRIPS' && (<div className="flex flex-col md:flex-row gap-4 mb-6"><div className="relative flex-1"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm appearance-none"><option value="">Todas as Agências</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/></div><div className="relative flex-1"><Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/><select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm appearance-none"><option value="">Todas as Categorias</option>{tripCategories.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}</select><ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/></div></div>)}
-
-      {renderToolbar()}
-      {renderContent()}
-
-      {modalType === 'VIEW_STATS' && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Estatísticas dos Usuários Selecionados</h3><button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div> <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin"> {userStats.map(stat => (<div key={stat.userId} className="grid grid-cols-4 gap-4 items-center bg-gray-50 p-3 rounded-lg border border-gray-100"><p className="font-bold col-span-1">{stat.userName}</p><p className="text-sm text-center"><span className="font-bold">{stat.totalBookings}</span> Viagens</p><p className="text-sm text-center"><span className="font-bold text-green-600">R$ {stat.totalSpent.toLocaleString()}</span> Gastos</p><p className="text-sm text-center"><span className="font-bold">{stat.totalReviews}</span> Avaliações</p></div>))} </div> </div> </div> )}
-      {modalType === 'MANAGE_SUB' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Gerenciar Assinatura</h3><button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button></div><div className="bg-gray-50 p-4 rounded-xl mb-6 flex items-center gap-4"><img src={selectedItem.logo} className="w-12 h-12 rounded-full bg-white" alt=""/><div className="truncate"><p className="font-bold text-gray-900 truncate">{selectedItem.name}</p><p className="text-xs text-gray-500 truncate">{selectedItem.email}</p></div></div> <div className="space-y-4"><p className="text-xs font-bold text-gray-400 uppercase">Plano</p><div className="grid grid-cols-2 gap-4"><button onClick={() => setEditFormData({...editFormData, plan: 'BASIC'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'BASIC' ? 'border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">BASIC</p></button><button onClick={() => setEditFormData({...editFormData, plan: 'PREMIUM'})} className={`p-4 rounded-xl border-2 text-center transition-all ${editFormData.plan === 'PREMIUM' ? 'border-purple-500 bg-purple-50 text-purple-700 ring-2 ring-purple-200' : 'border-gray-200 hover:border-gray-300'}`}><p className="font-bold text-sm">PREMIUM</p></button></div><p className="text-xs font-bold text-gray-400 uppercase mt-4">Status</p><button onClick={() => setEditFormData({...editFormData, status: editFormData.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })} className={`w-full py-3 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${editFormData.status === 'ACTIVE' ? 'border-green-200 bg-green-50 text-green-600' : 'border-red-200 bg-red-50 text-red-600'}`}>{editFormData.status === 'ACTIVE' ? <><CheckCircle size={16}/> Ativo</> : <><Ban size={16}/> Inativo</>}</button> <button onClick={handleSubscriptionUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
-      {modalType === 'EDIT_USER' && selectedItem && ( 
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl animate-[scaleIn_0.2s] flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-gray-900">Gerenciar Usuário</h3>
-              <button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-100"><X size={20} className="text-gray-400"/></button>
-            </div>
-            <div className="flex border-b border-gray-100">
-                <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'PROFILE' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Perfil</button>
-                <button onClick={() => setModalTab('ACTIVITY')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'ACTIVITY' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Atividade</button>
-                <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold ${modalTab === 'SECURITY' ? 'text-primary-600 border-b-2 border-primary-600' : 'text-gray-500'}`}>Segurança</button>
-            </div>
-            <div className="p-8 overflow-y-auto flex-1">
-              {modalTab === 'PROFILE' && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} className="w-24 h-24 rounded-full object-cover border-4 border-gray-100" />
-                      <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md">
-                        <Camera size={14}/>
-                        <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
-                      </label>
-                      {isUploadingAvatar && <div className="absolute inset-0 rounded-full bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg">{editFormData.name}</h4>
-                      <p className="text-sm text-gray-500">{editFormData.email}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
-                    <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div>
-                  </div>
-                </div>
-              )}
-              {modalTab === 'ACTIVITY' && (
-                <div className="space-y-6">
-                    <div><h4 className="font-bold text-gray-700 mb-2">Histórico de Viagens ({bookings.filter(b => b.clientId === selectedItem.id).length})</h4><div className="space-y-2 max-h-40 overflow-y-auto pr-2">{bookings.filter(b => b.clientId === selectedItem.id).map((b: Booking) => <div key={b.id} className="bg-gray-50 p-2 rounded-lg text-xs flex justify-between"><span>{b._trip?.title || 'Viagem desconhecida'}</span> <span className="font-mono">{new Date(b.date).toLocaleDateString()}</span></div>)}</div></div>
-                    <div><h4 className="font-bold text-gray-700 mb-2">Avaliações Feitas ({agencyReviews.filter(r => r.clientId === selectedItem.id).length})</h4><div className="space-y-2 max-h-40 overflow-y-auto pr-2">{agencyReviews.filter(r => r.clientId === selectedItem.id).map(r => <div key={r.id} className="bg-gray-50 p-2 rounded-lg text-xs"><b>{r.rating}★</b> em <i>{r.agencyName}</i>: "{r.comment}"</div>)}</div></div>
-                    <div><h4 className="font-bold text-gray-700 mb-2">Último Login</h4><p className="text-sm text-gray-600 bg-gray-50 p-2 rounded-lg">{selectedItem.last_sign_in_at ? new Date(selectedItem.last_sign_in_at).toLocaleString('pt-BR') : 'Nunca'}</p></div>
-                </div>
-              )}
-              {modalTab === 'SECURITY' && (
-                  <div className="space-y-6">
-                      <div>
-                          <h4 className="font-bold text-gray-700 mb-2">Gerenciar Senha</h4>
-                          <button onClick={() => sendPasswordReset(selectedItem.email)} className="w-full bg-blue-100 text-blue-700 font-bold p-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-200 transition-colors"><Key size={16}/> Enviar Link de Redefinição de Senha</button>
-                      </div>
-                      <div>
-                          <h4 className="font-bold text-gray-700 mb-2">Status da Conta</h4>
-                          <button onClick={() => handleUserStatusToggle(selectedItem)} className={`w-full p-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${selectedItem.status === 'ACTIVE' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                              {selectedItem.status === 'ACTIVE' ? <><Ban size={16}/> Suspender Usuário</> : <><UserCheck size={16}/> Reativar Usuário</>}
-                          </button>
-                      </div>
-                  </div>
-              )}
-            </div>
-            <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
-              <button onClick={handleUserUpdate} className="bg-primary-600 text-white py-2.5 px-6 rounded-lg font-bold hover:bg-primary-700">Salvar Alterações</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {modalType === 'EDIT_AGENCY' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleAgencyUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
-      {modalType === 'EDIT_REVIEW' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Editar Avaliação</h3> <form onSubmit={(e) => { e.preventDefault(); handleReviewUpdate(); }} className="space-y-4"> <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nota (1-5)</label> <div className="flex gap-1"> {[1, 2, 3, 4, 5].map(star => (<button key={star} type="button" onClick={() => setEditFormData({...editFormData, rating: star})}><Star className={`transition-colors h-8 w-8 ${editFormData.rating >= star ? 'text-amber-400 fill-current' : 'text-gray-300'}`} /></button>))} </div> </div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-3 rounded-lg h-32 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </form> </div> </div> )}
-      {modalType === 'EDIT_TRIP' && selectedItem && ( <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={closeModal}> <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}> <h3 className="text-xl font-bold text-gray-900 mb-6">Edição Moderada de Viagem</h3> <div className="space-y-4"> <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-3 rounded-lg h-24 border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço (R$)</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg border-gray-200 focus:ring-primary-500 focus:border-primary-500"/></div> <button onClick={handleTripUpdate} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 mt-4">{isProcessing ? <Loader className="animate-spin mx-auto"/> : 'Salvar Alterações'}</button> </div> </div> </div> )}
-
-    </div>
-  );
-};
-
-export default AdminDashboard;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -42,7 +43,7 @@ const TripDetails: React.FC = () => {
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Viagem não encontrada</h1>
         <p className="text-gray-500 mb-8 max-w-md">O pacote que você procura não existe ou não pertence a esta agência.</p>
-        <Link to={agencySlug ? `/${agencySlug}` : "/trips"} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+        <Link to={agencySlug ? `/${agencySlug}/trips` : "/trips"} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
           Voltar
         </Link>
       </div>
@@ -264,7 +265,7 @@ const TripDetails: React.FC = () => {
                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">Organizado por</p>
                    <h4 className="text-xl font-bold text-gray-900 mb-1">{agency.name}</h4>
                    <p className="text-sm text-gray-600 line-clamp-1 mb-3">{agency.description}</p>
-                   <Link to={`/${agency.slug || agency.id}`} className="text-primary-600 text-sm font-bold hover:underline">
+                   <Link to={`/${agency.slug || agency.agencyId}`} className="text-primary-600 text-sm font-bold hover:underline">
                      Ver perfil da agência &rarr;
                    </Link>
                 </div>
@@ -374,7 +375,7 @@ const TripDetails: React.FC = () => {
 
       {/* Booking Modal */}
       {isBookingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
           <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl animate-[scaleIn_0.2s_ease-out] relative">
              <button onClick={() => setIsBookingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             

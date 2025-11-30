@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -158,8 +157,8 @@ export interface Booking {
   passengers: number;
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
-  _trip?: any;
-  _agency?: any; // Expanded agency data
+  _trip?: Trip; // Corrected from any to Trip
+  _agency?: Agency; // Corrected from any to Agency
 }
 
 // Legacy Trip Review (Deprecated - Use AgencyReview)

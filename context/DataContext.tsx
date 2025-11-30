@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -319,13 +320,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const formattedBookings: Booking[] = data.map((b: any) => {
             const images = b.trips?.trip_images?.map((img: any) => img.image_url) || [];
             
-            const tripData = b.trips ? {
-               ...b.trips,
-               images: images, 
+            const tripData: Trip | undefined = b.trips ? {
+               id: b.trips.id,
                agencyId: b.trips.agency_id,
+               title: b.trips.title,
+               slug: b.trips.slug,
+               description: b.trips.description || '', // Ensure no undefined
+               destination: b.trips.destination,
+               price: b.trips.price,
                startDate: b.trips.start_date,
-               durationDays: b.trips.duration_days
-            } : undefined;
+               endDate: b.trips.end_date, // Needs to be fetched
+               durationDays: b.trips.duration_days,
+               images: images,
+               category: b.trips.category || 'PRAIA', // Needs to be fetched
+               tags: b.trips.tags || [],
+               travelerTypes: b.trips.traveler_types || [],
+               is_active: b.trips.is_active || false,
+               rating: 0, // Needs to be fetched
+               totalReviews: 0, // Needs to be fetched
+               included: b.trips.included || [],
+               notIncluded: b.trips.not_included || [],
+            } as Trip : undefined; // Explicitly cast to Trip
+            
+            const agencyData: Agency | undefined = b.trips?.agencies ? {
+              id: b.trips.agencies.id, // user_id
+              agencyId: b.trips.agencies.id, // Primary Key of agencies table
+              name: b.trips.agencies.name,
+              email: b.trips.agencies.email,
+              role: UserRole.AGENCY, // Default
+              slug: b.trips.agencies.slug,
+              logo: b.trips.agencies.logo_url,
+              phone: b.trips.agencies.phone,
+              whatsapp: b.trips.agencies.whatsapp,
+              description: '',
+              is_active: true, // Default
+              heroMode: 'TRIPS', // Default
+              subscriptionStatus: 'ACTIVE', // Default
+              subscriptionPlan: 'BASIC', // Default
+              subscriptionExpiresAt: new Date().toISOString(), // Default
+            } as Agency : undefined;
 
             return {
               id: b.id,
@@ -338,7 +371,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               voucherCode: b.voucher_code,
               paymentMethod: b.payment_method,
               _trip: tripData,
-              _agency: b.trips?.agencies
+              _agency: agencyData,
             };
           });
           setBookings(formattedBookings);

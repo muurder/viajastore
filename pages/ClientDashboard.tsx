@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -232,9 +233,11 @@ const ClientDashboard: React.FC = () => {
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
-        const dateStr = trip.startDate || trip.start_date;
+        // Fix: Access trip.startDate directly, remove trip.start_date
+        const dateStr = trip.startDate;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        const duration = trip.durationDays || trip.duration_days;
+        // Fix: Access trip.durationDays directly, remove trip.duration_days
+        const duration = trip.durationDays;
         addField('Duração:', `${duration} Dias`);
         y += 5;
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
@@ -376,7 +379,7 @@ const ClientDashboard: React.FC = () => {
                     if (!trip) return null;
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-                    const startDate = trip.startDate || trip.start_date;
+                    const startDate = trip.startDate;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
                     const agencySlugForNav = booking._agency?.slug;
                     const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title);
@@ -388,7 +391,7 @@ const ClientDashboard: React.FC = () => {
                            <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{trip.title}</h3>
                            {agency && ( <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block"> Organizado por {agency.name} </Link> )}
                            <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
-                             <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2 text-gray-400" /> {trip.destination}</div>
+                             <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2" /> {trip.destination}</div>
                              <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
                            </div>
                            <div className="flex gap-2 flex-wrap">

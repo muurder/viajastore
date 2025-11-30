@@ -1,5 +1,4 @@
 
-
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -16,7 +15,6 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  // FIX: Correctly destructure useState to get setIsMenuOpen
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
   // Scroll Lock when Menu is Open
@@ -75,7 +73,7 @@ const Layout: React.FC = () => {
   // Resolve the agency to display in the header
   let currentAgency: Agency | undefined = undefined;
   
-  if (isAgencyDashboard) {
+  if (isAgencyDashboard && user) {
       currentAgency = user as Agency;
   } else if (activeSlug) {
       currentAgency = getAgencyBySlug(activeSlug);
@@ -84,8 +82,8 @@ const Layout: React.FC = () => {
   // --- THEME APPLICATION LOGIC ---
   useEffect(() => {
       const applyTheme = async () => {
-          if (currentAgency) {
-              const theme = await getAgencyTheme(currentAgency.id);
+          if (currentAgency && currentAgency.agencyId) { // Check agencyId exists before fetching theme
+              const theme = await getAgencyTheme(currentAgency.agencyId);
               if (theme) {
                   setAgencyTheme(theme.colors);
               } else {
@@ -95,8 +93,10 @@ const Layout: React.FC = () => {
               resetAgencyTheme();
           }
       };
-      applyTheme();
-  }, [currentAgency?.id]); 
+      // FIX: Trigger only if currentAgency or its ID changes, to avoid unnecessary re-fetches
+      // Re-fetch when currentAgency.agencyId changes.
+      applyTheme(); 
+  }, [currentAgency?.agencyId, getAgencyTheme, setAgencyTheme, resetAgencyTheme]); 
 
   // --- PAGE TITLE MANAGEMENT ---
   useEffect(() => {
@@ -501,8 +501,8 @@ const Layout: React.FC = () => {
       <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
          {isMicrositeClientArea ? (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-               <Link to="/" className="inline-flex items-center gap-2 text-xs text-gray-500 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
-                  <Globe size={12}/> Voltar para o Marketplace ViajaStore
+               <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
+                  <Globe size={12} className="mr-2"/> Voltar para o Marketplace ViajaStore
                </Link>
             </div>
          ) : (
