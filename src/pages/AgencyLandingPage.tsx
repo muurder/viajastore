@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -30,9 +31,9 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 interface ReviewFormProps {
   onSubmit: (rating: number, comment: string, tags: string[]) => void;
   isSubmitting: boolean;
-  initialRating: number;
-  initialComment: string;
-  initialTags: string[];
+  initialRating?: number;
+  initialComment?: string;
+  initialTags?: string[];
   submitButtonText: string;
 }
 

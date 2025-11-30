@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -133,8 +134,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  rating: number; // DEPRECATED on Trip, but kept for compatibility with older code if needed
-  totalReviews: number; // DEPRECATED on Trip
+  rating?: number; // Removed DEPRECATED and made optional
+  totalReviews?: number; // Removed DEPRECATED and made optional
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats

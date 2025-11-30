@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
-        // Handle AGENCY role (Check case-insensitive)
+        // Fix: Ensure AGENCY role check is case-insensitive for robustness
         if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')

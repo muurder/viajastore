@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -141,8 +142,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            rating: 0, 
-            totalReviews: 0,
+            rating: t.rating || 0, // Fix: Provide default for optional rating
+            totalReviews: t.totalReviews || 0, // Fix: Provide default for optional totalReviews
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -348,8 +349,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [],
                is_active: b.trips.is_active || false,
-               rating: 0, 
-               totalReviews: 0,
+               rating: b.trips.rating || 0, // Fix: Provide default for optional rating
+               totalReviews: b.trips.totalReviews || 0, // Fix: Provide default for optional totalReviews
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
@@ -360,7 +361,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } as Trip : undefined;
             
             const agencyData: Agency | undefined = b.trips?.agencies ? {
-              id: b.trips.agencies.user_id, // This should be user_id, not id
+              id: b.trips.agencies.user_id, // Fix: This should be user_id, not id
               agencyId: b.trips.agencies.id, // Primary Key of agencies table
               name: b.trips.agencies.name,
               email: b.trips.agencies.email,
