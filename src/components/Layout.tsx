@@ -270,7 +270,17 @@ const Layout: React.FC = () => {
 
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
-                {/* REMOVED: WhatsApp button from Agency Landing Page header */}
+                {showAgencyHeader && currentAgency && currentAgency.whatsapp && !isAgencyDashboard && (
+                  <a 
+                    href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
+                  >
+                    <Smartphone size={16} className="mr-2"/> WhatsApp
+                  </a>
+                )}
+
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}

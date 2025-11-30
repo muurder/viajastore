@@ -185,6 +185,7 @@ export interface AgencyReview {
   tags?: string[];
   createdAt: string;
   clientName?: string; // Joined
+  clientAvatar?: string; // Added for display
   agencyName?: string; // Joined for client view
   agencyLogo?: string; // Joined for client view
   response?: string;
