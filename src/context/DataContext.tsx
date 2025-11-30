@@ -348,8 +348,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [],
                is_active: b.trips.is_active || false,
-               rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b.trips.totalReviews || 0,
+               rating: 0, 
+               totalReviews: 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,

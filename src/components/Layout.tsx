@@ -110,7 +110,9 @@ const Layout: React.FC = () => {
       case 'AGENCY': return '/agency/dashboard';
       case 'ADMIN': return '/admin/dashboard';
       case 'CLIENT':
-        if (isAgencyMode && activeSlug) return `/${activeSlug}/client/BOOKINGS`;
+        if (isAgencyMode && activeSlug) {
+            return `/${activeSlug}/client/BOOKINGS`;
+        }
         return '/client/dashboard/BOOKINGS';
       default: return '/';
     }
@@ -120,10 +122,12 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300 pb-16 md:pb-0">
+      {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal initialView={initialView} onClose={handleCloseModal} agencyContext={currentAgency} />
       )}
 
+      {/* Navbar */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
@@ -131,7 +135,16 @@ const Layout: React.FC = () => {
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!showAgencyHeader ? (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform">
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform"
+                      >
                         <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                       </svg>
                       <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
@@ -186,12 +199,16 @@ const Layout: React.FC = () => {
                 </div>
               </div>
 
-              {/* Desktop Right Menu - Hamburger menu REMOVED */}
+              {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
+                {/* REMOVED: WhatsApp button from Agency Landing Page header */}
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
                     {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
-                        <Link to={getDashboardRoute()} className={`mr-4 flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${location.pathname.includes('/dashboard') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50 hover:text-primary-600'}`}>
+                        <Link 
+                            to={getDashboardRoute()}
+                            className={`mr-4 flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${location.pathname.includes('/dashboard') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50 hover:text-primary-600'}`}
+                        >
                             <LayoutDashboard size={16}/> {user.role === 'ADMIN' ? 'Painel Master' : 'Meu Painel'}
                         </Link>
                     )}
@@ -222,13 +239,18 @@ const Layout: React.FC = () => {
                  {/* Empty on purpose. The old hamburger menu button was here. */}
               </div>
             </div>
+          )}
         </div>
+
+        {/* Mobile Menu (Off-canvas) - REMOVED */}
+        {/* The isMenuOpen state and related JSX for the mobile drawer are entirely removed */}
       </nav>
 
       <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
 
+      {/* Footer */}
       <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
          {isMicrositeClientArea ? (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
