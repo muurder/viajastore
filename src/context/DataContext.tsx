@@ -272,7 +272,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   comment: r.comment,
                   createdAt: r.created_at,
                   clientName: r.profiles?.full_name || 'Viajante',
-                  clientAvatar: r.profiles?.avatar_url || undefined, // Mapped client avatar
+                  clientAvatar: r.profiles?.avatar_url || undefined,
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
                   response: r.response,
@@ -759,8 +759,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
 };
 
   // --- GETTERS (DERIVED STATE) ---
-  // RELAXED GETTERS: We trust the Database RLS to filter what is public.
-  // We removed ".filter(t => t.is_active)" from here to solve the "Nothing shows" bug.
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);

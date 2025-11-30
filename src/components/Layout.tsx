@@ -4,7 +4,7 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
+import { LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Mail, ShoppingBag, Heart, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { Agency } from '../types';
 
@@ -270,7 +270,6 @@ const Layout: React.FC = () => {
 
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
-                {/* Removed: WhatsApp button from Agency Landing Page header */}
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}
@@ -391,7 +390,6 @@ const Layout: React.FC = () => {
                                     <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
                                     <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
-                                {/* Removed: WhatsApp button from Mobile Menu */}
                             </>
                         )}
 
