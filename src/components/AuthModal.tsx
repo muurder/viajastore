@@ -209,7 +209,18 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                     <input name="phone" type="text" placeholder="Telefone / WhatsApp" value={formData.phone} onChange={handleInputChange} className="w-full border p-3 pl-10 rounded-lg outline-none focus:border-primary-500"/>
                 </div>
 
-                {activeTab === 'CLIENT' && <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>}
+                {activeTab === 'CLIENT' && (
+                    <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                )}
+                
+                {activeTab === 'AGENCY' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-3">
+                        <Info className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-blue-700">
+                            O CNPJ será solicitado no painel da agência após a criação da conta.
+                        </p>
+                    </div>
+                )}
                 
                 <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
                 <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>

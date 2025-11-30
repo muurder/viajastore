@@ -270,17 +270,7 @@ const Layout: React.FC = () => {
 
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
-                {showAgencyHeader && currentAgency && currentAgency.whatsapp && !isAgencyDashboard && (
-                  <a 
-                    href={`https://wa.me/${currentAgency.whatsapp.replace(/\D/g, '')}?text=Olá, gostaria de mais informações.`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mr-6 text-sm font-bold text-green-600 hover:text-green-700 flex items-center bg-green-50 px-3 py-1.5 rounded-full border border-green-100 transition-all hover:shadow-sm"
-                  >
-                    <Smartphone size={16} className="mr-2"/> WhatsApp
-                  </a>
-                )}
-
+                {/* Removed: WhatsApp button from Agency Landing Page header */}
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}
@@ -401,7 +391,7 @@ const Layout: React.FC = () => {
                                     <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
                                     <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
-                                {/* REMOVED: WhatsApp button from Mobile Menu */}
+                                {/* Removed: WhatsApp button from Mobile Menu */}
                             </>
                         )}
 
@@ -430,9 +420,14 @@ const Layout: React.FC = () => {
                     {user ? (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
-                                    {user.name.charAt(0).toUpperCase()}
-                                </div>
+                                {/* Use user.avatar if available, fallback to initials */}
+                                {user.avatar ? (
+                                    <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold shrink-0">
+                                        {user.name.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
                                 <div className="overflow-hidden">
                                     <p className="font-bold text-gray-900 truncate">{user.name}</p>
                                     <p className="text-xs text-gray-500 truncate">{user.email}</p>

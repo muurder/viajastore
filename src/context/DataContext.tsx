@@ -251,7 +251,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .from('agency_reviews')
             .select(`
                 *, 
-                profiles (full_name),
+                profiles (full_name, avatar_url),
                 agencies (id, name, logo_url, slug),
                 trips (title)
             `);
@@ -272,6 +272,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   comment: r.comment,
                   createdAt: r.created_at,
                   clientName: r.profiles?.full_name || 'Viajante',
+                  clientAvatar: r.profiles?.avatar_url || undefined, // Mapped client avatar
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
                   response: r.response,
@@ -309,7 +310,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   slug,
                   phone,
                   whatsapp,
-                  logo_url
+                  logo_url,
+                  description,
+                  is_active,
+                  hero_mode,
+                  hero_banner_url,
+                  hero_title,
+                  hero_subtitle,
+                  custom_settings,
+                  website,
+                  address,
+                  bank_info
                 )
               )
             `);
