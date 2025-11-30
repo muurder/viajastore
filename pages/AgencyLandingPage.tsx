@@ -58,7 +58,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" key={initialComment}>
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">Sua nota</label>
         <div className="flex gap-1">
@@ -126,7 +126,7 @@ const AgencyLandingPage: React.FC = () => {
 
   // 3. All subsequent hooks also at the top, written to be safe against undefined data.
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
-  const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [agency, getReviewsByAgencyId]);
+  const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
   const myReview = useMemo(() => user ? agencyReviews.find(r => r.clientId === user.id) : undefined, [agencyReviews, user]);
 
@@ -242,7 +242,11 @@ const AgencyLandingPage: React.FC = () => {
         comment,
         tags
       });
+      showToast('Avaliação enviada com sucesso!', 'success');
       await refreshData();
+    } catch (error) {
+        showToast('Erro ao enviar avaliação.', 'error');
+        console.error(error);
     } finally {
       setIsSubmittingReview(false);
     }
@@ -253,8 +257,12 @@ const AgencyLandingPage: React.FC = () => {
     setIsSubmittingReview(true);
     try {
       await updateAgencyReview(myReview.id, { rating, comment, tags });
+      showToast('Avaliação atualizada com sucesso!', 'success');
       await refreshData();
       setIsEditingReview(false);
+    } catch(err) {
+        showToast('Erro ao atualizar avaliação.', 'error');
+        console.error(err);
     } finally {
       setIsSubmittingReview(false);
     }

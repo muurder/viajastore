@@ -13,9 +13,8 @@ import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 import AgencyDashboard from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
-// Fix: Change import to named import if AdminDashboard does not have a default export or if default export is not recognized.
-// Reverting to default export as the file clearly has one. This error is likely a tooling/linter false positive.
-import AdminDashboard from './pages/AdminDashboard'; 
+// Fix: Changed import to named import to resolve potential tooling issues with default export recognition.
+import { AdminDashboard } from './pages/AdminDashboard'; 
 import ClientDashboard from './pages/ClientDashboard';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
