@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
-import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader } from 'lucide-react';
+import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
 const normalizeText = (text: string) => {
@@ -208,39 +209,73 @@ const TripList: React.FC = () => {
       );
   }
 
+  const headerImage = currentAgency?.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
+
   return (
     <div className="space-y-8 pb-12">
-      {/* Compact Hero */}
-      <div className="bg-gray-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
-         <div className="relative z-10">
-            {currentAgency && (
-                <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-400 hover:text-white text-sm mb-2 transition-colors">
-                    <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
-                </Link>
-            )}
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">
-                {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
-            </h1>
-            <p className="text-gray-400 text-sm">
-                {currentAgency ? "Explore nossas opções de roteiros exclusivos." : "Explore centenas de pacotes com as melhores tarifas."}
-            </p>
+      {/* Premium Hero Section */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[300px] flex items-center group mx-0 lg:mx-0">
+         {/* Background Image */}
+         <div className="absolute inset-0 z-0">
+            <img 
+                src={headerImage}
+                alt="Background" 
+                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110"
+            />
+            {/* Gradient Overlay for Readability */}
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10"></div>
          </div>
-         <div className="relative z-10 w-full md:w-auto">
-            <div className="relative">
-               <Search size={16} className="absolute left-3 top-3 text-gray-500" />
-               <input 
-                 type="text" 
-                 value={q}
-                 onChange={(e) => updateUrl('q', e.target.value || null)}
-                 placeholder="Destino ou estilo..."
-                 className="w-full md:w-80 pl-10 pr-4 py-2.5 rounded-lg text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none"
-               />
-            </div>
+
+         {/* Content */}
+         <div className="relative z-20 w-full max-w-7xl mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+             <div className="flex-1 text-center lg:text-left">
+                {currentAgency && (
+                    <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
+                        <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
+                    </Link>
+                )}
+                
+                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 mb-3">
+                    {currentAgency?.logo && (
+                        <img 
+                            src={currentAgency.logo} 
+                            alt={currentAgency.name} 
+                            className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg object-cover"
+                        />
+                    )}
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">
+                            {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
+                        </h1>
+                        <p className="text-gray-300 text-lg mt-2 font-light max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                            {currentAgency ? "Explore roteiros exclusivos selecionados para você." : "Centenas de destinos incríveis com as melhores tarifas do mercado."}
+                        </p>
+                    </div>
+                </div>
+             </div>
+
+             <div className="w-full lg:w-auto min-w-[320px]">
+                <div className="relative group/search">
+                   <div className="absolute inset-0 bg-white/20 backdrop-blur-md rounded-2xl transform transition-transform group-hover/search:scale-[1.02]"></div>
+                   <div className="relative bg-white rounded-2xl shadow-xl p-2 flex items-center">
+                       <MapPin className="text-primary-500 ml-3 shrink-0" size={20} />
+                       <input 
+                         type="text" 
+                         value={q}
+                         onChange={(e) => updateUrl('q', e.target.value || null)}
+                         placeholder="Qual seu próximo destino?"
+                         className="w-full pl-3 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium outline-none bg-transparent rounded-xl"
+                       />
+                       <button className="bg-primary-600 hover:bg-primary-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-primary-500/30">
+                           <Search size={20} />
+                       </button>
+                   </div>
+                </div>
+             </div>
          </div>
-         <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
+      <div className="flex flex-col md:flex-row gap-8 px-2">
         {/* Sidebar Filters */}
         <aside className={`
           md:w-72 flex-shrink-0 bg-white md:bg-transparent p-6 md:p-0 
@@ -253,11 +288,11 @@ const TripList: React.FC = () => {
             <button onClick={() => setShowMobileFilters(false)}><X /></button>
           </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-6 sticky top-24">
              
              {/* A - Traveler Type */}
              <div className="border-b border-gray-100 pb-4">
-                <button onClick={() => toggleAccordion('traveler')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                <button onClick={() => toggleAccordion('traveler')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
                     <span>Tipo de Viajante</span>
                     {openFilterSections['traveler'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
@@ -265,7 +300,7 @@ const TripList: React.FC = () => {
                     <div className="space-y-2">
                         {travelerOptions.map(type => (
                             <label key={type.id} className="flex items-center cursor-pointer group">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${selectedTravelerTypes.includes(type.id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400'}`}>
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${selectedTravelerTypes.includes(type.id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
                                     {selectedTravelerTypes.includes(type.id) && <div className="w-2 h-2 bg-white rounded-full" />}
                                 </div>
                                 <input 
@@ -274,7 +309,7 @@ const TripList: React.FC = () => {
                                   checked={selectedTravelerTypes.includes(type.id)} 
                                   onChange={() => toggleSelection('traveler', selectedTravelerTypes, type.id)} 
                                 />
-                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-medium' : 'text-gray-600'}`}>{type.label}</span>
+                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{type.label}</span>
                             </label>
                         ))}
                     </div>
@@ -283,7 +318,7 @@ const TripList: React.FC = () => {
 
              {/* B - Style / Tags */}
              <div className="border-b border-gray-100 pb-4">
-                <button onClick={() => toggleAccordion('style')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                <button onClick={() => toggleAccordion('style')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
                     <span>Estilo de Viagem</span>
                     {openFilterSections['style'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
@@ -293,7 +328,7 @@ const TripList: React.FC = () => {
                             <button 
                               key={tag}
                               onClick={() => toggleSelection('tags', selectedTags, tag)}
-                              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${selectedTags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                              className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${selectedTags.includes(tag) ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold' : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'}`}
                             >
                                 {tag}
                             </button>
@@ -304,50 +339,56 @@ const TripList: React.FC = () => {
 
              {/* C - Duration */}
              <div className="border-b border-gray-100 pb-4">
-                <button onClick={() => toggleAccordion('duration')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                <button onClick={() => toggleAccordion('duration')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
                     <span>Duração</span>
                     {openFilterSections['duration'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
                 {openFilterSections['duration'] && (
                     <div className="space-y-2">
                         {durationOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer">
+                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 transition-all ${durationParam === opt.id ? 'border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
+                                    {durationParam === opt.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full" />}
+                                </div>
                                 <input 
                                   type="radio" 
                                   name="duration"
-                                  className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-gray-300"
+                                  className="hidden"
                                   checked={durationParam === opt.id}
                                   onChange={() => updateUrl('duration', opt.id === durationParam ? null : opt.id)}
                                 />
-                                <span className="ml-3 text-sm text-gray-600">{opt.label}</span>
+                                <span className={`text-sm ${durationParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
                             </label>
                         ))}
-                        {durationParam && <button onClick={() => updateUrl('duration', null)} className="text-xs text-gray-400 hover:text-red-500 mt-1 ml-7">Limpar</button>}
+                        {durationParam && <button onClick={() => updateUrl('duration', null)} className="text-xs text-red-500 font-bold hover:underline mt-2 ml-8 block">Limpar filtro</button>}
                     </div>
                 )}
              </div>
 
              {/* D - Price */}
              <div className="border-b border-gray-100 pb-4">
-                <button onClick={() => toggleAccordion('price')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                <button onClick={() => toggleAccordion('price')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
                     <span>Preço por Pessoa</span>
                     {openFilterSections['price'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
                 {openFilterSections['price'] && (
                     <div className="space-y-2">
                         {priceOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer">
+                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 transition-all ${priceParam === opt.id ? 'border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
+                                    {priceParam === opt.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full" />}
+                                </div>
                                 <input 
                                   type="radio" 
                                   name="price"
-                                  className="w-4 h-4 text-primary-600 focus:ring-primary-500 border-gray-300"
+                                  className="hidden"
                                   checked={priceParam === opt.id}
                                   onChange={() => updateUrl('price', opt.id === priceParam ? null : opt.id)}
                                 />
-                                <span className="ml-3 text-sm text-gray-600">{opt.label}</span>
+                                <span className={`text-sm ${priceParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
                             </label>
                         ))}
-                         {priceParam && <button onClick={() => updateUrl('price', null)} className="text-xs text-gray-400 hover:text-red-500 mt-1 ml-7">Limpar</button>}
+                         {priceParam && <button onClick={() => updateUrl('price', null)} className="text-xs text-red-500 font-bold hover:underline mt-2 ml-8 block">Limpar filtro</button>}
                     </div>
                 )}
              </div>
@@ -355,7 +396,7 @@ const TripList: React.FC = () => {
              {/* E - Popular Destinations (Global only) */}
              {!currentAgency && (
                  <div>
-                    <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3">
+                    <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
                         <span>Destinos Populares</span>
                         {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                     </button>
@@ -367,7 +408,7 @@ const TripList: React.FC = () => {
                                     <button 
                                       key={dest}
                                       onClick={() => updateUrl('q', isSelected ? null : dest)}
-                                      className={`text-xs px-3 py-1.5 rounded border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                                     >
                                         {dest}
                                     </button>
@@ -378,7 +419,7 @@ const TripList: React.FC = () => {
                  </div>
              )}
 
-             <button onClick={clearFilters} className="w-full py-2 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-800 transition-colors">
+             <button onClick={clearFilters} className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:bg-gray-50 hover:text-gray-800 transition-colors font-medium">
                Limpar Todos os Filtros
              </button>
           </div>
@@ -388,14 +429,14 @@ const TripList: React.FC = () => {
 
         {/* Main Content */}
         <div className="flex-1">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
             <div className="text-gray-600 text-sm">
                Mostrando <span className="font-bold text-gray-900">{filteredTrips.length}</span> resultados
             </div>
             
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <button 
-                  className="md:hidden flex-1 flex items-center justify-center text-gray-700 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm"
+                  className="md:hidden flex-1 flex items-center justify-center text-gray-700 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm font-medium"
                   onClick={() => setShowMobileFilters(true)}
               >
                   <Filter size={16} className="mr-2" /> Filtros
@@ -406,13 +447,14 @@ const TripList: React.FC = () => {
                 <select 
                     value={sortParam}
                     onChange={(e) => updateUrl('sort', e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer hover:bg-gray-50"
+                    className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-transparent rounded-lg text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer hover:bg-gray-100 appearance-none"
                 >
                     <option value="RELEVANCE">Mais Relevantes</option>
                     <option value="LOW_PRICE">Menor Preço</option>
                     <option value="HIGH_PRICE">Maior Preço</option>
                     <option value="RATING">Melhor Avaliação</option>
                 </select>
+                <ChevronDown size={14} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
             </div>
           </div>
@@ -429,13 +471,13 @@ const TripList: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                <div className="text-center py-24 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm">
                   <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <Search className="text-gray-300" size={32} />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
-                  <p className="text-gray-500 mb-6 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
-                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">
+                  <p className="text-gray-500 mb-8 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
+                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors bg-primary-50 px-6 py-2.5 rounded-full">
                     Limpar todos os filtros
                   </button>
                 </div>
