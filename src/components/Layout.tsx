@@ -16,9 +16,6 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   
-  // --- REMOVED OLD MENU LOGIC ---
-  // The 'isMenuOpen' state and related effects are now gone.
-  
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
