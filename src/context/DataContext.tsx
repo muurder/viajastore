@@ -272,7 +272,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   comment: r.comment,
                   createdAt: r.created_at,
                   clientName: r.profiles?.full_name || 'Viajante',
-                  clientAvatar: r.profiles?.avatar_url || undefined,
+                  clientAvatar: r.profiles?.avatar_url || undefined, // Mapped client avatar
                   agencyName: r.agencies?.name || 'Agência',
                   agencyLogo: r.agencies?.logo_url,
                   response: r.response,

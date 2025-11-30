@@ -24,7 +24,8 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
-const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0003-\u036f]/g, "");
+// @FIX: Corrected unicode range for diacritics removal
+const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // --- Reusable Review Form Component ---
 interface ReviewFormProps {

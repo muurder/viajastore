@@ -24,6 +24,7 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
+// @FIX: Corrected unicode range for diacritics removal
 const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // --- Reusable Review Form Component ---
@@ -43,8 +44,12 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
   const [comment, setComment] = useState(initialComment);
   const [tags, setTags] = useState(initialTags);
 
-  // Removed useEffect to prevent re-rendering loops or state resets on parent re-renders.
-  // The parent component controls the key prop to force a remount when switching review contexts.
+  useEffect(() => {
+    setRating(initialRating);
+    setComment(initialComment);
+    setTags(initialTags);
+  }, [initialRating, initialComment, initialTags]);
+
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -227,7 +232,7 @@ const AgencyLandingPage: React.FC = () => {
     setIsSubmittingReview(true);
     try {
       await addAgencyReview({
-        agencyId: agency.agencyId, 
+        agencyId: agency.agencyId, // Use the agency's primary key
         clientId: user.id,
         rating,
         comment,
@@ -552,13 +557,7 @@ const AgencyLandingPage: React.FC = () => {
                             <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden">
-                                            {review.clientAvatar ? (
-                                                <img src={review.clientAvatar} alt={review.clientName || 'Viajante'} className="w-full h-full object-cover" />
-                                            ) : (
-                                                review.clientName ? review.clientName.charAt(0) : 'V'
-                                            )}
-                                        </div>
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div>
                                         <div>
                                             <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
                                             <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">

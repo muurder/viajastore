@@ -759,8 +759,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
 };
 
   // --- GETTERS (DERIVED STATE) ---
-  // RELAXED GETTERS: We trust the Database RLS to filter what is public.
-  // We removed ".filter(t => t.is_active)" from here to solve the "Nothing shows" bug.
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
