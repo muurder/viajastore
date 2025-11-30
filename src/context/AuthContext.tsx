@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -167,6 +168,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const userEmail = authUser.email;
       const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
       const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
+      // Get phone from authUser if available, otherwise null
+      const userPhone = authUser.user_metadata?.phone_number || null;
 
       try {
           // ALWAYS create a profile record first
@@ -176,6 +179,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               email: userEmail,
               role: role,
               avatar_url: userAvatar,
+              phone: userPhone, // Pass phone if available
           }, { onConflict: 'id' });
 
           if (profileError) throw profileError;
@@ -188,8 +192,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   p_user_id: userId,
                   p_name: userName,
                   p_email: userEmail,
-                  p_phone: null,
-                  p_whatsapp: null,
+                  p_phone: userPhone,    // Pass phone to RPC
+                  p_whatsapp: userPhone, // Pass phone as whatsapp to RPC
                   p_slug: safeSlug
               });
 

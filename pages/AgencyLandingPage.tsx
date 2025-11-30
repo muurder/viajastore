@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -43,10 +44,12 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
   const [tags, setTags] = useState(initialTags);
 
   useEffect(() => {
+    // This effect ensures the internal state syncs with initial props when the component mounts or initial props change
     setRating(initialRating);
     setComment(initialComment);
     setTags(initialTags);
   }, [initialRating, initialComment, initialTags]);
+
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -626,12 +629,12 @@ const AgencyLandingPage: React.FC = () => {
                                 <div>
                                     <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
                                     <ReviewForm 
-                                      key={isEditingReview ? myReview?.id : 'new'}
+                                      key={isEditingReview ? (myReview?.id || 'edit_review_form') : 'new_review_form'} // Robust key for remounting
                                       onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} 
                                       isSubmitting={isSubmittingReview} 
-                                      initialRating={myReview?.rating} 
-                                      initialComment={myReview?.comment} 
-                                      initialTags={myReview?.tags}
+                                      initialRating={myReview?.rating || 5} // Provide default for initialRating
+                                      initialComment={myReview?.comment || ''} // Provide default for initialComment
+                                      initialTags={myReview?.tags || []} // Provide default for initialTags
                                       submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
                                     />
                                     {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
