@@ -261,7 +261,9 @@ const AgencyLandingPage: React.FC = () => {
   };
 
   // --- RENDER LOGIC ---
-  const heroBgImage = currentHeroTrip?.images[0] || agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
+  const heroBgImage = agency.heroMode === 'STATIC' && agency.heroBannerUrl 
+    ? agency.heroBannerUrl 
+    : (currentHeroTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop");
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
@@ -302,7 +304,7 @@ const AgencyLandingPage: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
                   <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24">
-                      {currentHeroTrip ? (
+                      {agency.heroMode === 'TRIPS' && currentHeroTrip ? (
                           <>
                              <div className="flex flex-wrap items-center gap-3 mb-4">
                                   <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
@@ -358,7 +360,7 @@ const AgencyLandingPage: React.FC = () => {
                   </div>
 
                   <div className="hidden lg:flex justify-end animate-[fadeIn_1s_ease-out]">
-                      {currentHeroTrip && (
+                      {agency.heroMode === 'TRIPS' && currentHeroTrip && (
                           <Link 
                             to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
                             className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
