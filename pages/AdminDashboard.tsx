@@ -12,7 +12,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, Calendar, Clock
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -222,17 +222,29 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  const handleSubscriptionUpdate = async () => {
+  const handleSubscriptionUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
-        await updateAgencySubscription(selectedItem.id, editFormData.status, editFormData.plan);
+        await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
+        setModalType(null);
     } catch (error) {
         // Toast is already handled in DataContext
     } finally {
         setIsProcessing(false);
-        setModalType(null);
     }
+  };
+
+  const addSubscriptionTime = (days: number) => {
+      const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
+      // If current is invalid or in the past, maybe start from now? 
+      // User likely wants to extend from current expiry if valid, or now if expired/null.
+      const baseDate = (current.getTime() > Date.now()) ? current : new Date();
+      
+      const newDate = new Date(baseDate);
+      newDate.setDate(newDate.getDate() + days);
+      setEditFormData({ ...editFormData, expiresAt: newDate.toISOString() });
   };
   
   const handleUserStatusToggle = async (user: Client) => {
@@ -490,7 +502,7 @@ const AdminDashboard: React.FC = () => {
                                 {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(agency.id, agency.role), variant: 'danger'}
                             ] : [
                                 { label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }},
-                                { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); } },
+                                { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus, expiresAt: agency.subscriptionExpiresAt }); setModalType('MANAGE_SUB'); } },
                                 { label: agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência', icon: agency.subscriptionStatus === 'ACTIVE' ? Ban : CheckCircle, onClick: () => toggleAgencyStatus(agency.id) },
                                 { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') },
                                 { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(agency.id, 'agency'), variant: 'danger' }
@@ -531,7 +543,7 @@ const AdminDashboard: React.FC = () => {
                                             <button title="Editar" onClick={() => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                                                 <Edit3 size={18} />
                                             </button>
-                                            <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                            <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus, expiresAt: agency.subscriptionExpiresAt }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                                                 <CreditCard size={18} />
                                             </button>
                                             <button title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência'} onClick={() => toggleAgencyStatus(agency.id)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
@@ -980,19 +992,62 @@ const AdminDashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
             <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
-                <p className="text-gray-600 mb-4">Agência: <span className="font-bold">{selectedItem.name}</span></p>
+                
+                <div className="flex items-center gap-4 mb-6">
+                    <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                        <CreditCard size={24}/>
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900">Gerenciar Assinatura</h2>
+                        <p className="text-sm text-gray-500">{selectedItem.name}</p>
+                    </div>
+                </div>
+
                 <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Plano Atual</label><select value={editFormData.plan || ''} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="BASIC">BASIC</option>
-                        <option value="PREMIUM">PREMIUM</option>
-                    </select></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Status</label><select value={editFormData.status || ''} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                        <option value="PENDING">PENDING</option>
-                    </select></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Assinatura</button>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Plano</label>
+                            <select 
+                                value={editFormData.plan || ''} 
+                                onChange={e => setEditFormData({...editFormData, plan: e.target.value})} 
+                                className="w-full border border-gray-200 bg-gray-50 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-medium"
+                            >
+                                <option value="BASIC">BASIC</option>
+                                <option value="PREMIUM">PREMIUM</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                            <select 
+                                value={editFormData.status || ''} 
+                                onChange={e => setEditFormData({...editFormData, status: e.target.value})} 
+                                className={`w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-bold ${editFormData.status === 'ACTIVE' ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}
+                            >
+                                <option value="ACTIVE">ATIVO</option>
+                                <option value="INACTIVE">INATIVO</option>
+                                <option value="PENDING">PENDENTE</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Expiração</label>
+                        <input 
+                            type="datetime-local" 
+                            value={editFormData.expiresAt ? new Date(editFormData.expiresAt).toISOString().slice(0, 16) : ''}
+                            onChange={e => setEditFormData({...editFormData, expiresAt: e.target.value})}
+                            className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+                        />
+                        <div className="flex gap-2 mt-2">
+                            <button type="button" onClick={() => addSubscriptionTime(30)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+30 Dias</button>
+                            <button type="button" onClick={() => addSubscriptionTime(365)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+1 Ano</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-primary-600/20 transition-all">
+                        {isProcessing ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} 
+                        Salvar Alterações
+                    </button>
                 </form>
             </div>
         </div>
@@ -1000,7 +1055,7 @@ const AdminDashboard: React.FC = () => {
 
       {modalType === 'EDIT_REVIEW' && selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
                 <form onSubmit={handleReviewUpdate} className="space-y-6">
@@ -1014,7 +1069,7 @@ const AdminDashboard: React.FC = () => {
 
       {modalType === 'EDIT_TRIP' && selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
                 <form onSubmit={handleTripUpdate} className="space-y-6">
@@ -1032,7 +1087,7 @@ const AdminDashboard: React.FC = () => {
 
       {modalType === 'VIEW_STATS' && selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
                 {userStats.length > 0 ? (
