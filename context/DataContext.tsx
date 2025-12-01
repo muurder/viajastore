@@ -36,7 +36,7 @@ interface DataContextType {
   
   updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => Promise<void>;
   updateAgencyProfileByAdmin: (agencyId: string, data: Partial<Agency>) => Promise<void>;
-  toggleAgencyStatus: (agencyId: string) => Promise<void>;
+  toggleAgencyStatus: (userId: string) => Promise<void>;
   createTrip: (trip: Trip) => Promise<void>;
   updateTrip: (trip: Trip) => Promise<void>;
   deleteTrip: (tripId: string) => Promise<void>;
@@ -191,7 +191,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         customSettings: a.custom_settings || {},
         subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
         subscriptionPlan: 'PREMIUM', // Placeholder, needs to join subscriptions
-        subscriptionExpiresAt: new Date().toISOString(), // Placeholder
+        subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), 
         website: a.website,
         phone: a.phone,
         address: a.address || {},
@@ -725,11 +725,161 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await refreshData();
   };
 
+  // --- ADMIN FUNCTIONS ---
+
+  const toggleAgencyStatus = async (userId: string) => {
+    const supabase = guardSupabase();
+    const agency = agencies.find(a => a.id === userId); // Agency.id is the user_id (profile id)
+    if (!agency) return;
+
+    const newStatus = !agency.is_active;
+    const updates: any = { is_active: newStatus };
+
+    // Logic: If activating AND expired (or null), add 30 days
+    if (newStatus) {
+        const currentExpire = agency.subscriptionExpiresAt ? new Date(agency.subscriptionExpiresAt).getTime() : 0;
+        if (currentExpire < Date.now()) {
+            const nextMonth = new Date();
+            nextMonth.setDate(nextMonth.getDate() + 30);
+            updates.subscription_expires_at = nextMonth.toISOString();
+            showToast('Agência ativada e 30 dias adicionados!', 'success');
+        } else {
+            showToast('Agência ativada!', 'success');
+        }
+    } else {
+        showToast('Agência suspensa.', 'warning');
+    }
+
+    try {
+        const { error } = await supabase.from('agencies').update(updates).eq('user_id', userId);
+        if (error) throw error;
+        await refreshData();
+    } catch (err: any) {
+        showToast('Erro ao alterar status: ' + err.message, 'error');
+    }
+  };
+
+  const updateMultipleAgenciesStatus = async (ids: string[], status: 'ACTIVE' | 'INACTIVE') => {
+    const supabase = guardSupabase();
+    const isActive = status === 'ACTIVE';
+    
+    // We iterate because we might need to update expiry date individually
+    let successCount = 0;
+    
+    for(const id of ids) {
+        const agency = agencies.find(a => a.id === id);
+        if(!agency) continue;
+
+        const updates: any = { is_active: isActive };
+        
+        // Add 30 days if activating and expired
+        if (isActive) {
+            const currentExpire = agency.subscriptionExpiresAt ? new Date(agency.subscriptionExpiresAt).getTime() : 0;
+            if (currentExpire < Date.now()) {
+                const nextMonth = new Date();
+                nextMonth.setDate(nextMonth.getDate() + 30);
+                updates.subscription_expires_at = nextMonth.toISOString();
+            }
+        }
+
+        const { error } = await supabase.from('agencies').update(updates).eq('user_id', id);
+        if(!error) successCount++;
+    }
+    
+    showToast(`${successCount} agências atualizadas.`, 'success');
+    await refreshData();
+  };
+
+  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {
+      const supabase = guardSupabase();
+      const { error } = await supabase.from('profiles').update({ status }).in('id', userIds);
+      if (error) showToast('Erro ao atualizar usuários: ' + error.message, 'error');
+      else {
+          showToast('Usuários atualizados.', 'success');
+          await refreshData();
+      }
+  };
+
+  const deleteMultipleAgencies = async (agencyIds: string[]) => {
+      const supabase = guardSupabase();
+      // Usually delete via profile cascades, but if agencyIds passed are user_ids:
+      const { error } = await supabase.from('profiles').delete().in('id', agencyIds); 
+      // Note: agencyIds in context of AdminDashboard (selectedAgencies) stores user_id (agency.id).
+      if (error) showToast('Erro ao excluir agências: ' + error.message, 'error');
+      else {
+          showToast('Agências excluídas.', 'success');
+          await refreshData();
+      }
+  };
+
+  const deleteMultipleUsers = async (userIds: string[]) => {
+      const supabase = guardSupabase();
+      const { error } = await supabase.from('profiles').delete().in('id', userIds);
+      if (error) showToast('Erro ao excluir usuários: ' + error.message, 'error');
+      else {
+          showToast('Usuários excluídos.', 'success');
+          await refreshData();
+      }
+  };
+
+  const deleteUser = async (userId: string, role: UserRole) => {
+      const supabase = guardSupabase();
+      // Hard delete from profiles (cascade triggers for agency/client data)
+      const { error } = await supabase.from('profiles').delete().eq('id', userId);
+      if (error) showToast('Erro ao excluir: ' + error.message, 'error');
+      else {
+          showToast('Usuário excluído permanentemente.', 'success');
+          await refreshData();
+      }
+  };
+
+  const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
+      const supabase = guardSupabase();
+      // Map Client fields to DB columns
+      const updates: any = {};
+      if (data.name) updates.full_name = data.name;
+      if (data.phone) updates.phone = data.phone;
+      if (data.cpf) updates.cpf = data.cpf;
+      if (data.status) updates.status = data.status;
+      // ... add other fields as needed
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', clientId);
+      if (error) throw error;
+      await refreshData();
+  };
+
+  const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
+      const supabase = guardSupabase();
+      const updates: any = {};
+      if (data.name) updates.name = data.name;
+      if (data.description) updates.description = data.description;
+      if (data.cnpj) updates.cnpj = data.cnpj;
+      if (data.slug) updates.slug = data.slug;
+      if (data.phone) updates.phone = data.phone;
+      if (data.whatsapp) updates.whatsapp = data.whatsapp;
+      if (data.website) updates.website = data.website;
+      if (data.address) updates.address = data.address;
+      if (data.bankInfo) updates.bank_info = data.bankInfo;
+
+      const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId); // Use PK
+      if (error) {
+          showToast('Erro ao atualizar agência: ' + error.message, 'error');
+          throw error;
+      } else {
+          showToast('Agência atualizada.', 'success');
+          await refreshData();
+      }
+  };
+
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const supabase = guardSupabase();
+    // For agencies, if soft deleting, we might want to soft delete the profile?
+    // Usually Admin Dashboard passes ID. For Agencies, ID = user_id.
+    // If we want to soft delete just the agency record, use 'agencies'. 
+    // But usually we soft delete the USER.
     try {
         const { error } = await supabase
-            .from('profiles') // Always soft-delete the profile
+            .from('profiles') // Always soft-delete the profile for simplicity in this context
             .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
         
@@ -839,10 +989,10 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       deleteAgencyReview,
       updateAgencyReview,
       toggleFavorite, 
-      updateClientProfile: dummyGuardedFunc, 
+      updateClientProfile, 
       updateAgencySubscription: dummyGuardedFunc, 
-      updateAgencyProfileByAdmin: dummyGuardedFunc, 
-      toggleAgencyStatus: dummyGuardedFunc,
+      updateAgencyProfileByAdmin, 
+      toggleAgencyStatus,
       createTrip, 
       updateTrip, 
       deleteTrip, 
@@ -850,12 +1000,12 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       toggleTripFeatureStatus,
       softDeleteEntity, 
       restoreEntity, 
-      deleteUser: dummyGuardedFunc, 
-      deleteMultipleUsers: dummyGuardedFunc, 
-      deleteMultipleAgencies: dummyGuardedFunc, 
+      deleteUser, 
+      deleteMultipleUsers, 
+      deleteMultipleAgencies, 
       getUsersStats: async() => [],
-      updateMultipleUsersStatus: dummyGuardedFunc, 
-      updateMultipleAgenciesStatus: dummyGuardedFunc, 
+      updateMultipleUsersStatus, 
+      updateMultipleAgenciesStatus, 
       logAuditAction: dummyGuardedFunc,
       sendPasswordReset: dummyGuardedFunc, 
       updateUserAvatarByAdmin: async() => null,
