@@ -39,7 +39,8 @@ export const TripCardSkeleton = () => (
   </div>
 );
 
-const TripCard: React.FC<TripCardProps> = ({ trip }) => {
+// Fix: Export TripCard as a named export.
+export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const { user } = useAuth();
   const { toggleFavorite, clients, agencies } = useData();
   const { showToast } = useToast();

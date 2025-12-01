@@ -1,9 +1,11 @@
 
 
+
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
-import TripCard from '../components/TripCard';
+// Fix: Use named import for TripCard as it's exported as such.
+import { TripCard } from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, ExternalLink, Star, MessageCircle } from 'lucide-react';
 
 const AgencyProfile: React.FC = () => {

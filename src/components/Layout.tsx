@@ -1,9 +1,11 @@
 
+
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
+// Fix: Removed unused imports.
 import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
@@ -265,107 +267,4 @@ const Layout: React.FC = () => {
                     )}
                     
                     <div className="relative flex items-center gap-3 bg-gray-50 py-1.5 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
-                      <Link to={userProfileLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
-                        {user.avatar ? (
-                            <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full object-cover mr-2 border border-gray-200" />
-                        ) : (
-                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-bold mr-2">
-                                {user.name.charAt(0).toUpperCase()}
-                            </div>
-                        )}
-                        <span className="max-w-[100px] truncate">{user.name}</span>
-                      </Link>
-                      <div className="h-4 w-px bg-gray-300 mx-1"></div>
-                      <button onClick={handleLogout} className="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors" title="Sair">
-                        <LogOut size={16} className="mr-1" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-4">
-                    <Link to={{ hash: 'login' }} className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
-                    <Link to={{ hash: 'signup' }} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
-                  </div>
-                )}
-              </div>
-
-              {/* Mobile Menu Button Removed - replaced by BottomNav */}
-            </div>
-          )}
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
-      </main>
-
-      {/* Footer */}
-      <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
-         {isMicrositeClientArea ? (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-               <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
-                  <Globe size={12} className="mr-2"/> Voltar para o Marketplace ViajaStore
-               </Link>
-            </div>
-         ) : (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-                <div className="col-span-1 md:col-span-2">
-                  {currentAgency ? (
-                    <div className="mb-4">
-                       <span className="text-xl font-bold text-gray-900">{currentAgency.name}</span>
-                       <p className="text-gray-500 text-sm mt-2 max-w-sm">{currentAgency.description}</p>
-                    </div>
-                  ) : (
-                    <div className="mb-4">
-                       <span className="text-xl font-bold text-gray-900">ViajaStore</span>
-                       <p className="text-gray-500 text-sm mt-2 max-w-sm">Conectando você às melhores experiências de viagem do Brasil.</p>
-                    </div>
-                  )}
-                  <div className="flex space-x-4">
-                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Instagram size={20} /></a>
-                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Facebook size={20} /></a>
-                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Twitter size={20} /></a>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Navegação</h3>
-                  <ul className="space-y-2">
-                    <li><Link to="/trips" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Viagens</Link></li>
-                    <li><Link to="/agencies" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Agências</Link></li>
-                    <li><Link to="/blog" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Blog</Link></li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Institucional</h3>
-                  <ul className="space-y-2">
-                    <li><Link to="/about" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Sobre Nós</Link></li>
-                    <li><Link to="/contact" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Contato</Link></li>
-                    <li><Link to="/terms" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Termos de Uso</Link></li>
-                    <li><Link to="/privacy" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Privacidade</Link></li>
-                  </ul>
-                </div>
-              </div>
-              <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center">
-                <p className="text-sm text-gray-400">
-                  &copy; {new Date().getFullYear()} ViajaStore. Todos os direitos reservados.
-                </p>
-                <div className="flex items-center gap-2 mt-4 md:mt-0">
-                   <span className="text-[10px] text-gray-400 uppercase font-bold">Powered by</span>
-                   <span className="text-xs font-extrabold text-gray-600">ViajaStore</span>
-                </div>
-              </div>
-            </div>
-         )}
-      </footer>
-
-      {/* RENDER THE NEW BOTTOM NAV */}
-      <BottomNav />
-    </div>
-  );
-};
-
-export default Layout;
+                      

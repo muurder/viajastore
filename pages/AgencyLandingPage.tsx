@@ -1,11 +1,14 @@
 
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import TripCard from '../components/TripCard';
+// Fix: Use named import for TripCard as it's exported as such.
+import { TripCard } from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
 import { AgencyReview } from '../types';
 
@@ -31,15 +34,15 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 interface ReviewFormProps {
   onSubmit: (rating: number, comment: string, tags: string[]) => void;
   isSubmitting: boolean;
-  initialRating?: number;
-  initialComment?: string;
-  initialTags?: string[];
+  initialRating: number;
+  initialComment: string;
+  initialTags: string[];
   submitButtonText: string;
 }
 
 const SUGGESTED_TAGS = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios', 'Pontualidade'];
 
-const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', initialTags = [], submitButtonText }) => {
+const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating, initialComment, initialTags, submitButtonText }) => {
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
   const [tags, setTags] = useState(initialTags);
@@ -566,7 +569,25 @@ const AgencyLandingPage: React.FC = () => {
                             <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div>
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden border border-gray-200">
+                                            {review.clientAvatar ? (
+                                                <img 
+                                                    src={review.clientAvatar} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover" 
+                                                    onError={(e) => {
+                                                        // Fallback to ui-avatars if image fails
+                                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
+                                                    }}
+                                                />
+                                            ) : (
+                                                <img 
+                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
+                                        </div>
                                         <div>
                                             <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
                                             <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">

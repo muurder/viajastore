@@ -321,7 +321,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
+  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
   const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); } };
   
   const tripCategories = useMemo(() => Array.from(new Set(trips.map(t => t.category))), [trips]);
@@ -636,7 +636,25 @@ const AdminDashboard: React.FC = () => {
                         {filteredReviews.map(review => (
                             <tr key={review.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4 text-sm font-bold text-gray-900">{review.agencyName}</td>
-                                <td className="px-6 py-4 text-sm text-gray-700">{review.clientName}</td>
+                                <td className="px-6 py-4 text-sm text-gray-700">
+                                    <div className="flex items-center gap-3">
+                                        {review.clientAvatar ? (
+                                            <img 
+                                                src={review.clientAvatar} 
+                                                alt={review.clientName || 'Viajante'} 
+                                                className="w-8 h-8 rounded-full object-cover border border-gray-200" 
+                                                onError={(e) => {
+                                                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase text-xs">
+                                                {review.clientName ? review.clientName.charAt(0) : 'V'}
+                                            </div>
+                                        )}
+                                        {review.clientName}
+                                    </div>
+                                </td>
                                 <td className="px-6 py-4 text-sm text-gray-700">{review.tripTitle || 'N/A'}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-1">
