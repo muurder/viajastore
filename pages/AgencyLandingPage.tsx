@@ -31,26 +31,18 @@ const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").repl
 interface ReviewFormProps {
   onSubmit: (rating: number, comment: string, tags: string[]) => void;
   isSubmitting: boolean;
-  initialRating?: number;
-  initialComment?: string;
-  initialTags?: string[];
+  initialRating: number;
+  initialComment: string;
+  initialTags: string[];
   submitButtonText: string;
 }
 
 const SUGGESTED_TAGS = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios', 'Pontualidade'];
 
-const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating = 5, initialComment = '', initialTags = [], submitButtonText }) => {
+const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating, initialComment, initialTags, submitButtonText }) => {
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
   const [tags, setTags] = useState(initialTags);
-
-  useEffect(() => {
-    // This effect ensures the internal state syncs with initial props when the component mounts or initial props change
-    setRating(initialRating);
-    setComment(initialComment);
-    setTags(initialTags);
-  }, [initialRating, initialComment, initialTags]);
-
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -108,8 +100,6 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 
 const AgencyLandingPage: React.FC = () => {
-  // --- REFACTORED HOOKS ORDER ---
-  // 1. All hook calls are now at the top level, before any returns, to respect the Rules of Hooks.
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
@@ -125,11 +115,49 @@ const AgencyLandingPage: React.FC = () => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
-  // 2. Derive main state safely after hooks.
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
-  // 3. All subsequent hooks also at the top, written to be safe against undefined data.
+  // 1. Stable All Trips List
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
+
+  // 2. Stable Hero Carousel List (Sub-set of allTrips)
+  const heroTrips = useMemo(() => {
+      if (!allTrips.length) return [];
+      if (agency?.heroMode === 'STATIC') return [];
+
+      // Filter active trips only
+      const activeTrips = allTrips.filter(t => t.is_active);
+      
+      // Shuffle once on mount/change, ensuring stable list for carousel
+      // Prioritize featuredInHero trips if any
+      const featured = activeTrips.filter(t => t.featuredInHero);
+      const others = activeTrips.filter(t => !t.featuredInHero);
+      
+      const combined = [...featured, ...others];
+      // If we don't have explicit featured items, shuffle all to vary
+      if (featured.length === 0) {
+          combined.sort(() => 0.5 - Math.random());
+      }
+      
+      return combined.slice(0, 5); // Take top 5 for rotation
+  }, [allTrips, agency?.heroMode]);
+
+  // 3. Carousel State & Logic
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+
+  useEffect(() => {
+      if (heroTrips.length <= 1) return;
+      
+      const intervalId = setInterval(() => {
+          setCurrentHeroIndex(prev => (prev + 1) % heroTrips.length);
+      }, 8000); // 8 Seconds rotation
+
+      return () => clearInterval(intervalId);
+  }, [heroTrips.length]);
+
+  const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentHeroIndex] : null;
+
+  // 4. Other Derived State
   const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
   const myReview = useMemo(() => user ? agencyReviews.find(r => r.clientId === user.id) : undefined, [agencyReviews, user]);
@@ -152,7 +180,6 @@ const AgencyLandingPage: React.FC = () => {
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
 
-  // 4. Early returns for loading and not-found states AFTER all hooks have been declared.
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -172,17 +199,8 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
-  // --- DERIVED STATE (SAFE TO CALCULATE AFTER CHECKS) ---
-  const shuffledTrips = [...allTrips].sort(() => 0.5 - Math.random());
-  const currentHeroTrip = shuffledTrips.find(t => t.featuredInHero) || shuffledTrips[0] || null;
-  
-  const agencyStats = {
-      totalReviews: agencyReviews.length,
-      averageRating: agencyReviews.length > 0 ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / agencyReviews.length : 0,
-      totalClients: allTrips.reduce((acc, t) => acc + (t.sales || 0), 0)
-  };
-
-  const filteredTrips = shuffledTrips.filter(t => {
+  // Use a stable shuffled list for the Grid (separate from Hero to avoid grid jumping)
+  const filteredTrips = allTrips.filter(t => {
       const matchesSearch = 
           t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.destination.toLowerCase().includes(searchTerm.toLowerCase());
@@ -198,8 +216,13 @@ const AgencyLandingPage: React.FC = () => {
           return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
       });
   });
+  
+  const agencyStats = {
+      totalReviews: agencyReviews.length,
+      averageRating: agencyReviews.length > 0 ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / agencyReviews.length : 0,
+      totalClients: allTrips.reduce((acc, t) => acc + (t.sales || 0), 0)
+  };
 
-  // --- HANDLER FUNCTIONS ---
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
         setSelectedInterests([]);
@@ -272,7 +295,6 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
-  // --- RENDER LOGIC ---
   const heroBgImage = agency.heroMode === 'STATIC' && agency.heroBannerUrl 
     ? agency.heroBannerUrl 
     : (currentHeroTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop");
@@ -286,8 +308,9 @@ const AgencyLandingPage: React.FC = () => {
       >
           <div className="absolute inset-0 z-0">
               <img 
+                key={currentHeroTrip ? currentHeroTrip.id : 'static-hero'} 
                 src={heroBgImage} 
-                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
+                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110 animate-[fadeIn_1s_ease-in-out]" 
                 alt="Cover" 
               />
           </div>
@@ -315,9 +338,9 @@ const AgencyLandingPage: React.FC = () => {
           <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
-                  <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24">
+                  <div className="text-white pt-8 lg:pt-24">
                       {agency.heroMode === 'TRIPS' && currentHeroTrip ? (
-                          <>
+                          <div key={currentHeroTrip.id} className="animate-[fadeIn_0.6s_ease-out]">
                              <div className="flex flex-wrap items-center gap-3 mb-4">
                                   <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
                                       {currentHeroTrip.category.replace('_', ' ')}
@@ -352,9 +375,9 @@ const AgencyLandingPage: React.FC = () => {
                                       </button>
                                   )}
                               </div>
-                          </>
+                          </div>
                       ) : (
-                          <>
+                          <div className="animate-[fadeInUp_0.8s_ease-out]">
                               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
                                   {agency.heroTitle || `Bem-vindo à ${agency.name}`}
                               </h1>
@@ -367,15 +390,16 @@ const AgencyLandingPage: React.FC = () => {
                               >
                                   Ver Pacotes <ArrowDown size={18}/>
                               </button>
-                          </>
+                          </div>
                       )}
                   </div>
 
-                  <div className="hidden lg:flex justify-end animate-[fadeIn_1s_ease-out]">
+                  <div className="hidden lg:flex justify-end">
                       {agency.heroMode === 'TRIPS' && currentHeroTrip && (
                           <Link 
+                            key={currentHeroTrip.id}
                             to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
+                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card animate-[fadeInRight_0.6s_ease-out]"
                           >
                               <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
                                   <img 
@@ -566,7 +590,25 @@ const AgencyLandingPage: React.FC = () => {
                             <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase">{review.clientName ? review.clientName.charAt(0) : 'V'}</div>
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden border border-gray-200">
+                                            {review.clientAvatar ? (
+                                                <img 
+                                                    src={review.clientAvatar} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover" 
+                                                    onError={(e) => {
+                                                        // Fallback to ui-avatars if image fails
+                                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
+                                                    }}
+                                                />
+                                            ) : (
+                                                <img 
+                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
+                                        </div>
                                         <div>
                                             <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
                                             <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">
