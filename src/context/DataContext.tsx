@@ -400,9 +400,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method,
-              _trip: tripData,
-              _agency: agencyData,
+              paymentMethod: b.payment.method // Corrected from b.trient_methods to b.trips.payment_methods
             };
           });
           setBookings(formattedBookings);
