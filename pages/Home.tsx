@@ -49,6 +49,7 @@ const Home: React.FC = () => {
     const shuffled = [...activeTrips];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
+        // Fix: Correct array destructuring for swap
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled.slice(0, 5);
