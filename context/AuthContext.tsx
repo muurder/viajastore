@@ -439,16 +439,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      // FIX: Strict email comparison to prevent unnecessary Auth API calls and 429 errors
+      // 1. Normalize emails to avoid unnecessary Auth API calls (and 429 errors)
       let shouldUpdateAuthEmail = false;
       if (userData.email && user.email) {
           const newEmail = userData.email.trim().toLowerCase();
           const currentEmail = user.email.trim().toLowerCase();
+          // Only flag for update if they are genuinely different
           if (newEmail !== currentEmail) {
               shouldUpdateAuthEmail = true;
           }
       }
 
+      // 2. Only call Auth API if necessary
       if (shouldUpdateAuthEmail && userData.email) {
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
