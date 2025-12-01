@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -44,6 +45,14 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
   const [rating, setRating] = useState(initialRating);
   const [comment, setComment] = useState(initialComment);
   const [tags, setTags] = useState(initialTags);
+
+  useEffect(() => {
+    // This effect ensures the internal state syncs with initial props when the component mounts or initial props change
+    setRating(initialRating);
+    setComment(initialComment);
+    setTags(initialTags);
+  }, [initialRating, initialComment, initialTags]);
+
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -101,6 +110,8 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 
 const AgencyLandingPage: React.FC = () => {
+  // --- REFACTORED HOOKS ORDER ---
+  // 1. All hook calls are now at the top level, before any returns, to respect the Rules of Hooks.
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
@@ -116,8 +127,10 @@ const AgencyLandingPage: React.FC = () => {
   const [isEditingReview, setIsEditingReview] = useState(false);
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
+  // 2. Derive main state safely after hooks.
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
+  // 3. All subsequent hooks also at the top, written to be safe against undefined data.
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
   const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
@@ -141,6 +154,7 @@ const AgencyLandingPage: React.FC = () => {
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
 
+  // 4. Early returns for loading and not-found states AFTER all hooks have been declared.
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -160,6 +174,7 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
+  // --- DERIVED STATE (SAFE TO CALCULATE AFTER CHECKS) ---
   const shuffledTrips = [...allTrips].sort(() => 0.5 - Math.random());
   const currentHeroTrip = shuffledTrips.find(t => t.featuredInHero) || shuffledTrips[0] || null;
   
@@ -186,6 +201,7 @@ const AgencyLandingPage: React.FC = () => {
       });
   });
 
+  // --- HANDLER FUNCTIONS ---
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
         setSelectedInterests([]);
@@ -258,6 +274,7 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
+  // --- RENDER LOGIC ---
   const heroBgImage = agency.heroMode === 'STATIC' && agency.heroBannerUrl 
     ? agency.heroBannerUrl 
     : (currentHeroTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop");
@@ -520,6 +537,7 @@ const AgencyLandingPage: React.FC = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div className="flex gap-4"><ShieldCheck className="text-green-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Segurança Garantida</h4><p className="text-sm text-gray-500 mt-1">Agência verificada com CNPJ e suporte 24h durante a viagem.</p></div></div>
                                 <div className="flex gap-4"><Award className="text-blue-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Guias Especialistas</h4><p className="text-sm text-gray-500 mt-1">Profissionais locais que conhecem cada detalhe do destino.</p></div></div>
+                                {/* FIX: Removed duplicate 'className' attribute. */}
                                 <div className="flex gap-4"><ThumbsUp className="text-primary-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Melhor Custo-Benefício</h4><p className="text-sm text-gray-500 mt-1">Negociamos diretamente com hotéis e passeios para o melhor preço.</p></div></div>
                                 <div className="flex gap-4"><Heart className="text-red-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Feito com Carinho</h4><p className="text-sm text-gray-500 mt-1">Roteiros pensados nos mínimos detalhes para você só aproveitar.</p></div></div>
                             </div>
