@@ -1,3 +1,4 @@
+
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO E ATUALIZAÇÃO DO BANCO DE DADOS - VIAJASTORE
 -- Execute este script no SQL Editor do Supabase.
@@ -46,6 +47,69 @@ $$;
 
 -- 2. Garantir permissão de execução para a API
 GRANT EXECUTE ON FUNCTION public.create_agency(uuid, text, text, text, text, text) TO anon, authenticated, service_role;
+
+-- =============================================================================
+-- PARTE 2: CORREÇÃO DOS BOTÕES DE EXCLUSÃO (CASCADE) E ATUALIZAÇÃO (RLS)
+-- =============================================================================
+
+-- Remover chaves estrangeiras existentes que bloqueiam exclusão
+ALTER TABLE public.agencies DROP CONSTRAINT IF EXISTS agencies_user_id_fkey;
+ALTER TABLE public.trips DROP CONSTRAINT IF EXISTS trips_agency_id_fkey;
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_trip_id_fkey;
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_client_id_fkey;
+ALTER TABLE public.trip_images DROP CONSTRAINT IF EXISTS trip_images_trip_id_fkey;
+ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_agency_id_fkey;
+ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey;
+ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_user_id_fkey;
+ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_trip_id_fkey;
+
+-- Recriar com ON DELETE CASCADE (Se apagar o pai, apaga os filhos automaticamente)
+ALTER TABLE public.agencies
+  ADD CONSTRAINT agencies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE public.trips
+  ADD CONSTRAINT trips_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE;
+
+ALTER TABLE public.bookings
+  ADD CONSTRAINT bookings_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE,
+  ADD CONSTRAINT bookings_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE public.trip_images
+  ADD CONSTRAINT trip_images_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
+
+ALTER TABLE public.agency_reviews
+  ADD CONSTRAINT agency_reviews_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE,
+  ADD CONSTRAINT agency_reviews_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE public.favorites
+  ADD CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+  ADD CONSTRAINT favorites_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
+
+-- Atualizar Políticas RLS (Row Level Security) para permitir que Admin gerencie tudo
+-- Habilitar RLS em todas as tabelas (se ainda não estiver)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+
+-- Política ADMIN TOTAL: Se o usuário logado tiver role='ADMIN' na tabela profiles, pode fazer tudo.
+CREATE POLICY "Admin pode fazer tudo em profiles" ON public.profiles
+FOR ALL USING (
+  auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'ADMIN')
+);
+
+CREATE POLICY "Admin pode fazer tudo em agencies" ON public.agencies
+FOR ALL USING (
+  auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'ADMIN')
+);
+
+-- Garantir que a própria agência possa se editar
+CREATE POLICY "Agencia edita a si mesma" ON public.agencies
+FOR UPDATE USING (
+  auth.uid() = user_id
+);
+
+-- Garantir que usuários possam ver agências
+CREATE POLICY "Publico vê agências" ON public.agencies
+FOR SELECT USING (true);
 
 -- 3. Forçar recarregamento do cache (apenas por garantia para outras rotas)
 NOTIFY pgrst, 'reload config';
