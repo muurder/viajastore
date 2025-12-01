@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -400,7 +399,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment.method // Corrected from b.trient_methods to b.trips.payment_methods
+              paymentMethod: b.payment_method
             };
           });
           setBookings(formattedBookings);
