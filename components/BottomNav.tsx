@@ -2,107 +2,80 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
-import { Compass, Building, Info, LogIn, Heart, ShoppingBag, User, Home, Package, LayoutDashboard, Settings, Search } from 'lucide-react';
-import { Agency } from '../types';
+import { Search, Building, LogIn, User, LayoutDashboard } from 'lucide-react';
 
 const BottomNav: React.FC = () => {
   const { user } = useAuth();
-  const { pathname, search } = useLocation();
-  const { agencies } = useData();
+  const { pathname } = useLocation();
 
-  // Helper to determine active state
-  const isActive = (path: string, exact = false) => {
-    if (exact) return pathname === path;
-    return pathname.startsWith(path);
+  const isActive = (path: string) => {
+    if (path === '/' && pathname === '/') return true;
+    if (path !== '/' && pathname.startsWith(path)) return true;
+    return false;
   };
 
-  // Helper for query params (e.g. for dashboard tabs)
-  const hasQuery = (query: string) => search.includes(query);
-
-  const NavItem = ({ to, icon: Icon, label, active }: { to: string | Partial<Location> | any; icon: any; label: string; active: boolean }) => (
-    <Link 
-      to={to} 
-      className={`flex flex-col items-center justify-center py-2 px-1 text-xs font-bold transition-all duration-200 h-full w-full ${
+  const NavItem = ({ to, icon: Icon, label, active }: { to: any; icon: any; label: string; active: boolean }) => (
+    <Link
+      to={to}
+      className={`flex flex-col items-center justify-center py-2 text-xs font-bold transition-colors w-full h-full ${
         active 
-          ? 'text-primary-600 bg-primary-50' 
-          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+          ? 'text-primary-600' 
+          : 'text-gray-400 hover:text-gray-600'
       }`}
     >
-      <Icon size={20} className={`mb-1 ${active ? 'fill-current text-primary-600' : ''}`} />
-      <span className="truncate max-w-full">{label}</span>
+      <div className="relative">
+        <Icon size={24} className={`mb-0.5 ${active ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+        {active && <div className="absolute -top-1 right-0 w-1.5 h-1.5 bg-primary-600 rounded-full md:hidden"></div>}
+      </div>
+      <span>{label}</span>
     </Link>
   );
 
-  // 1. Guest Menu (Not Logged In)
-  if (!user) {
-    return (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] h-[64px]">
-        <div className="grid grid-cols-4 h-full">
-          <NavItem to="/trips" icon={Compass} label="Explorar" active={isActive('/trips') || pathname === '/'} />
-          <NavItem to="/agencies" icon={Building} label="Agências" active={isActive('/agencies')} />
-          <NavItem to="/about" icon={Info} label="Sobre" active={isActive('/about')} />
-          <NavItem to={{ hash: 'login' }} icon={LogIn} label="Entrar" active={false} />
-        </div>
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] h-[64px]">
+      <div className="grid grid-cols-3 h-full">
+        {/* 1. Explorar (Universal) */}
+        <NavItem
+          to="/"
+          icon={Search}
+          label="Explorar"
+          active={pathname === '/' || pathname.startsWith('/trips') || pathname.startsWith('/viagem')}
+        />
+
+        {/* 2. Agências (Universal) */}
+        <NavItem
+          to="/agencies"
+          icon={Building}
+          label="Agências"
+          active={pathname.startsWith('/agencies') || pathname.startsWith('/agency/')}
+        />
+
+        {/* 3. Contextual (Auth Based) */}
+        {!user ? (
+          <NavItem
+            to={{ hash: 'login' }}
+            icon={LogIn}
+            label="Entrar"
+            active={false}
+          />
+        ) : user.role === 'CLIENT' ? (
+          <NavItem
+            to="/client/dashboard/PROFILE"
+            icon={User}
+            label="Conta"
+            active={pathname.startsWith('/client/dashboard')}
+          />
+        ) : (
+          <NavItem
+            to="/agency/dashboard"
+            icon={LayoutDashboard}
+            label="Painel"
+            active={pathname.startsWith('/agency/dashboard')}
+          />
+        )}
       </div>
-    );
-  }
-
-  // 2. Client Menu (Viajante)
-  if (user.role === 'CLIENT') {
-    return (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] h-[64px]">
-        <div className="grid grid-cols-4 h-full">
-          <NavItem to="/trips" icon={Search} label="Explorar" active={isActive('/trips') || pathname === '/'} />
-          <NavItem to="/client/dashboard/FAVORITES" icon={Heart} label="Favoritos" active={pathname.includes('FAVORITES')} />
-          <NavItem to="/client/dashboard/BOOKINGS" icon={ShoppingBag} label="Pedidos" active={pathname.includes('BOOKINGS')} />
-          <NavItem to="/client/dashboard/PROFILE" icon={User} label="Perfil" active={pathname.includes('PROFILE')} />
-        </div>
-      </div>
-    );
-  }
-
-  // 3. Agency Menu (Agência)
-  if (user.role === 'AGENCY') {
-    const agencyUser = user as Agency;
-    // Find agency details to ensure we have the slug, fallback to user data
-    const currentAgency = agencies.find(a => a.id === user.id) || agencyUser;
-    const agencySlug = currentAgency.slug;
-
-    return (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] h-[64px]">
-        <div className="grid grid-cols-4 h-full">
-          <NavItem 
-            to={agencySlug ? `/${agencySlug}` : '/'} 
-            icon={Home} 
-            label="Home" 
-            active={pathname === `/${agencySlug}`} 
-          />
-          <NavItem 
-            to={agencySlug ? `/${agencySlug}/trips` : '/trips'} 
-            icon={Package} 
-            label="Pacotes" 
-            active={pathname.includes('/trips') && !pathname.includes('dashboard')} 
-          />
-          <NavItem 
-            to="/agency/dashboard?tab=OVERVIEW" 
-            icon={LayoutDashboard} 
-            label="Vendas" 
-            active={hasQuery('OVERVIEW')} 
-          />
-          <NavItem 
-            to="/agency/dashboard?tab=SETTINGS" 
-            icon={Settings} 
-            label="Perfil" 
-            active={hasQuery('SETTINGS')} 
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback for Admin or other roles (Default to generic)
-  return null;
+    </div>
+  );
 };
 
 export default BottomNav;
