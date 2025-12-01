@@ -142,18 +142,16 @@ const AgencyLandingPage: React.FC = () => {
       return combined.slice(0, 5); // Take top 5 for rotation
   }, [allTrips, agency?.heroMode]);
 
-  // 3. Carousel State & Logic
+  // 3. Carousel State & Logic - Optimized
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
 
   useEffect(() => {
-      if (heroTrips.length <= 1) return;
-      
-      const intervalId = setInterval(() => {
+      if (!heroTrips.length) return;
+      const id = setInterval(() => {
           setCurrentHeroIndex(prev => (prev + 1) % heroTrips.length);
-      }, 8000); // 8 Seconds rotation
-
-      return () => clearInterval(intervalId);
-  }, [heroTrips.length]);
+      }, 8000);
+      return () => clearInterval(id);
+  }, [heroTrips.length]); // Dependency only on length to avoid resets
 
   const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentHeroIndex] : null;
 
@@ -200,6 +198,7 @@ const AgencyLandingPage: React.FC = () => {
   }
 
   // Use a stable shuffled list for the Grid (separate from Hero to avoid grid jumping)
+  // We use allTrips directly here but filter it. 
   const filteredTrips = allTrips.filter(t => {
       const matchesSearch = 
           t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -263,7 +262,7 @@ const AgencyLandingPage: React.FC = () => {
     setIsSubmittingReview(true);
     try {
       await addAgencyReview({
-        agencyId: agency.agencyId, // Use the agency's primary key
+        agencyId: agency.agencyId,
         clientId: user.id,
         rating,
         comment,
@@ -295,10 +294,6 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
-  const heroBgImage = agency.heroMode === 'STATIC' && agency.heroBannerUrl 
-    ? agency.heroBannerUrl 
-    : (currentHeroTrip?.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop");
-
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
@@ -306,13 +301,24 @@ const AgencyLandingPage: React.FC = () => {
         key={agency.id}
         className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] md:min-h-[580px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
       >
+          {/* Background Layer with Crossfade Logic */}
           <div className="absolute inset-0 z-0">
-              <img 
-                key={currentHeroTrip ? currentHeroTrip.id : 'static-hero'} 
-                src={heroBgImage} 
-                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110 animate-[fadeIn_1s_ease-in-out]" 
-                alt="Cover" 
-              />
+              {agency.heroMode === 'STATIC' ? (
+                  <img 
+                    src={agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
+                    className="w-full h-full object-cover" 
+                    alt="Cover"
+                  />
+              ) : (
+                  currentHeroTrip && (
+                    <img 
+                        key={currentHeroTrip.id} 
+                        src={currentHeroTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"} 
+                        className="w-full h-full object-cover animate-[fadeIn_0.4s_ease-out] transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
+                        alt={currentHeroTrip.title} 
+                    />
+                  )
+              )}
           </div>
 
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-20 pointer-events-none"></div>
@@ -338,9 +344,10 @@ const AgencyLandingPage: React.FC = () => {
           <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
+                  {/* Left Content with Animation Key */}
                   <div className="text-white pt-8 lg:pt-24">
                       {agency.heroMode === 'TRIPS' && currentHeroTrip ? (
-                          <div key={currentHeroTrip.id} className="animate-[fadeIn_0.6s_ease-out]">
+                          <div key={currentHeroTrip.id} className="animate-[fadeIn_0.4s_ease-out]">
                              <div className="flex flex-wrap items-center gap-3 mb-4">
                                   <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
                                       {currentHeroTrip.category.replace('_', ' ')}
@@ -377,7 +384,8 @@ const AgencyLandingPage: React.FC = () => {
                               </div>
                           </div>
                       ) : (
-                          <div className="animate-[fadeInUp_0.8s_ease-out]">
+                          // Static Mode or Fallback
+                          <div className="animate-[fadeIn_0.4s_ease-out]">
                               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
                                   {agency.heroTitle || `Bem-vindo à ${agency.name}`}
                               </h1>
@@ -394,12 +402,13 @@ const AgencyLandingPage: React.FC = () => {
                       )}
                   </div>
 
+                  {/* Right Content Card with Animation Key */}
                   <div className="hidden lg:flex justify-end">
                       {agency.heroMode === 'TRIPS' && currentHeroTrip && (
                           <Link 
                             key={currentHeroTrip.id}
                             to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card animate-[fadeInRight_0.6s_ease-out]"
+                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card animate-[fadeIn_0.4s_ease-out]"
                           >
                               <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
                                   <img 
@@ -424,7 +433,7 @@ const AgencyLandingPage: React.FC = () => {
                                           <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
                                       </div>
                                   </div>
-                                  <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover/card:bg-primary-500 transition-colors">
+                                  <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover/card:bg-primary-600 transition-colors">
                                       <ArrowRight size={20} className="-rotate-45 group-hover/card:rotate-0 transition-transform duration-300"/>
                                   </div>
                               </div>
