@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -385,443 +386,846 @@ const AgencyDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab = (searchParams.get('tab') as 'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS') || 'OVERVIEW';
-  const viewMode = (searchParams.get('view') as 'LIST' | 'FORM') || 'LIST';
-  const editingTripId = searchParams.get('editId');
+  const viewMode = (searchParams.get('view') as 'grid' | 'list') || 'grid';
 
-  const [settingsSection, setSettingsSection] = useState<'PROFILE' | 'PAGE' | 'THEME'>('PROFILE');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tripSearch, setTripSearch] = useState('');
-  const [lastReadTime, setLastReadTime] = useState(Number(localStorage.getItem('agency_last_read_sales') || 0));
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [showPayment, setShowPayment] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const isAgencyActive = (user as Agency)?.subscriptionStatus === 'ACTIVE';
+
+  const [editFormData, setEditFormData] = useState<Partial<Agency>>({}); // For Settings tab
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+
+  // Trip Form State
+  const [tripForm, setTripForm] = useState<Partial<Trip>>({...defaultTripForm, agencyId: user?.id || ''});
+  const [isNewTrip, setIsNewTrip] = useState(true);
+  const [isSubmittingTrip, setIsSubmittingTrip] = useState(false);
+  const [showTripPreview, setShowTripPreview] = useState(false);
+  const [searchTripTerm, setSearchTripTerm] = useState('');
+
+  // Subscription State
+  const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
+  const [showSubscriptionConfirmModal, setShowSubscriptionConfirmModal] = useState(false);
+  const [selectedPlanForConfirmation, setSelectedPlanForConfirmation] = useState<Plan | null>(null);
+
+  // Agency data specific to the logged-in user
+  const currentAgency = user?.role === UserRole.AGENCY ? (user as Agency) : undefined;
+  const myTrips = currentAgency ? getAgencyTrips(currentAgency.agencyId) : [];
+  const myReviews = currentAgency ? getReviewsByAgencyId(currentAgency.agencyId) : [];
+  const agencyStats = currentAgency ? getAgencyStats(currentAgency.agencyId) : { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0 };
   
-  // FIX: Fallback to 'user' if global agencies list isn't ready or matching yet.
-  const agencyFromData = agencies.find(a => a.id === user?.id);
-  const myAgency = (agencyFromData || user) as Agency;
-
-  const [agencyForm, setAgencyForm] = useState<Partial<Agency>>({});
-  const [tripForm, setTripForm] = useState<Partial<Trip>>(defaultTripForm);
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  // Theme State
-  const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#ffffff', text: '#111827' });
-  const [loadingTheme, setLoadingTheme] = useState(false);
-
-  const customSettings = myAgency?.customSettings || { tags: [], included: [], notIncluded: [], paymentMethods: [] };
-
-  useEffect(() => { if(myAgency) { setAgencyForm({ ...myAgency, heroMode: myAgency.heroMode || 'TRIPS' }); } }, [myAgency]);
-
-  // Fetch Theme on Settings Open
-  useEffect(() => {
-      const loadTheme = async () => {
-          if (user && settingsSection === 'THEME') {
-              setLoadingTheme(true);
-              const theme = await getAgencyTheme(myAgency.agencyId);
-              if (theme) {
-                  setThemeForm(theme.colors);
-              }
-              setLoadingTheme(false);
-          }
-      };
-      loadTheme();
-  }, [settingsSection, user]);
-
-  // Live Preview of Theme
-  useEffect(() => {
-      if (settingsSection === 'THEME') {
-          setAgencyTheme(themeForm);
-      }
-  }, [themeForm, settingsSection]);
+  const fullAgencyLink = currentAgency?.slug ? `/#/${currentAgency.slug}` : '';
 
   useEffect(() => {
-    if (viewMode === 'FORM') {
-        if (editingTripId) {
-            const tripToEdit = trips.find(t => t.id === editingTripId);
-            if (tripToEdit) { setTripForm({ ...defaultTripForm, ...tripToEdit, startDate: tripToEdit.startDate?.split('T')[0], endDate: tripToEdit.endDate?.split('T')[0] }); setSlugTouched(true); }
-        } else {
-            const savedDraft = localStorage.getItem('trip_draft');
-            if (savedDraft) { try { setTripForm(JSON.parse(savedDraft)); } catch (e) { setTripForm(defaultTripForm); } } else { setTripForm(defaultTripForm); }
-            setSlugTouched(false);
-        }
+    if (user?.role !== UserRole.AGENCY && !user) {
+        navigate('/unauthorized'); // Redirect if not agency or logged out
     }
-  }, [viewMode, editingTripId, trips]);
+  }, [user, navigate]);
 
-  useEffect(() => { if (viewMode === 'FORM' && !editingTripId) { const timeout = setTimeout(() => { localStorage.setItem('trip_draft', JSON.stringify(tripForm)); }, 500); return () => clearTimeout(timeout); } }, [tripForm, viewMode, editingTripId]);
-  
-  const handleSelectPlan = (plan: Plan) => {
-    setSelectedPlan(plan);
-    setShowPayment(true);
-  };
-  
-  const handleConfirmPayment = async () => {
-    if (!supabase || !myAgency || !selectedPlan || !user) return;
-    
-    setIsSubmitting(true);
-    console.log('[Subscription] Activating plan', { planId: selectedPlan.id, userId: user.id });
-
-    try {
-      // FIX: Ensure parameters match the SQL function signature (p_plan_id, p_user_id)
-      const { data, error } = await supabase.rpc("activate_agency_subscription", {
-        p_plan_id: selectedPlan.id,
-        p_user_id: user.id,
+  useEffect(() => {
+    if (currentAgency) {
+      setEditFormData({
+        name: currentAgency.name,
+        description: currentAgency.description,
+        cnpj: currentAgency.cnpj,
+        slug: currentAgency.slug,
+        phone: currentAgency.phone,
+        whatsapp: currentAgency.whatsapp,
+        website: currentAgency.website,
+        address: currentAgency.address,
+        bankInfo: currentAgency.bankInfo,
+        heroMode: currentAgency.heroMode,
+        heroBannerUrl: currentAgency.heroBannerUrl,
+        heroTitle: currentAgency.heroTitle,
+        heroSubtitle: currentAgency.heroSubtitle,
+        customSettings: currentAgency.customSettings
       });
+      setTripForm(prev => ({...prev, agencyId: currentAgency.agencyId}));
+      
+      // Load custom settings for tags, includes, etc. into current form context if applicable.
+      if (currentAgency.customSettings?.tags) SUGGESTED_TAGS.push(...currentAgency.customSettings.tags.filter(t => !SUGGESTED_TAGS.includes(t)));
+      if (currentAgency.customSettings?.included) SUGGESTED_INCLUDED.push(...currentAgency.customSettings.included.filter(t => !SUGGESTED_INCLUDED.includes(t)));
+      if (currentAgency.customSettings?.notIncluded) SUGGESTED_NOT_INCLUDED.push(...currentAgency.customSettings.notIncluded.filter(t => !SUGGESTED_NOT_INCLUDED.includes(t)));
+      if (currentAgency.customSettings?.paymentMethods) SUGGESTED_PAYMENTS.push(...currentAgency.customSettings.paymentMethods.filter(t => !SUGGESTED_PAYMENTS.includes(t)));
+    }
+  }, [currentAgency]);
 
-      if (error) throw error;
-      
-      console.log('[Subscription] Subscription activated:', data);
-      showToast('Assinatura ativada com sucesso! Bem-vindo(a)! 🎉', 'success');
-      
-      await reloadUser();
-      await refreshData();
-      
-      setShowPayment(false);
-
-    } catch (err: any) {
-      console.error('[Subscription] Error activating subscription:', err);
-      showToast(err.message || 'Não foi possível ativar sua assinatura. Tente novamente.', 'error');
-    } finally {
-      setIsSubmitting(false);
-      setSelectedPlan(null); // Clear selected plan on success or error to reset the form
+  const handleTabChange = (tab: 'OVERVIEW' | 'TRIPS' | 'SUBSCRIPTION' | 'SETTINGS') => {
+    setSearchParams({ tab });
+    if (tab !== 'TRIPS') {
+        // Reset trip form when switching tabs
+        setTripForm({...defaultTripForm, agencyId: currentAgency?.agencyId || ''});
+        setIsNewTrip(true);
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
+  const handleSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentAgency || !user) return;
+    setIsSavingSettings(true);
+    try {
+      // FIX: The user.id should be the 'user_id' in the `agencies` table to match for update.
+      await updateUser(editFormData);
+      showToast('Configurações salvas com sucesso!', 'success');
+      reloadUser(); // Fetch latest user data
+    } catch (error: any) {
+      showToast('Erro ao salvar configurações: ' + error.message, 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
-  if (!user || user.role !== UserRole.AGENCY) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin" /></div>;
-  if (!myAgency) return <div className="min-h-screen flex justify-center items-center"><Loader className="animate-spin text-primary-600" /></div>;
+  const handleImageUpload = async (file: File, field: 'logo' | 'heroBannerUrl') => {
+    if (!user) return;
+    if (field === 'logo') setIsUploadingLogo(true); else setIsUploadingBanner(true);
+    try {
+      const bucket = field === 'logo' ? 'agency-logos' : 'agency-banners'; // Assuming 'agency-banners' bucket
+      const url = await uploadImage(file, bucket);
+      if (url) {
+        setEditFormData(prev => ({ ...prev, [field]: url }));
+        // Directly update user object to reflect change immediately in UI (if user is currentAgency)
+        await updateUser({ [field]: url } as Partial<Agency>);
+        showToast('Imagem enviada com sucesso!', 'success');
+      } else {
+        showToast('Erro ao enviar imagem.', 'error');
+      }
+    } catch (error: any) {
+      showToast('Erro no upload: ' + error.message, 'error');
+    } finally {
+      if (field === 'logo') setIsUploadingLogo(false); else setIsUploadingBanner(false);
+    }
+  };
 
-  const isActive = myAgency.is_active;
+  const handleTripFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type, checked } = e.target;
+    setTripForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
 
-  if (!isActive) {
-    return (
-      <>
-        <SubscriptionActivationView 
-          agency={myAgency}
-          onSelectPlan={handleSelectPlan}
-          activatingPlanId={isSubmitting ? selectedPlan?.id || null : null}
-        />
-        {showPayment && selectedPlan && (
-            <SubscriptionConfirmationModal 
-                plan={selectedPlan}
-                onClose={() => setShowPayment(false)}
-                onConfirm={handleConfirmPayment}
-                isSubmitting={isSubmitting}
-            />
-        )}
-      </>
-    );
-  }
+  const handleItineraryChange = (index: number, field: string, value: string) => {
+      const updatedItinerary = [...(tripForm.itinerary || [])];
+      if (!updatedItinerary[index]) {
+          updatedItinerary[index] = { day: index + 1, title: '', description: '' };
+      }
+      (updatedItinerary[index] as any)[field] = value;
+      setTripForm(prev => ({ ...prev, itinerary: updatedItinerary }));
+  };
 
-  const myTrips = getAgencyTrips(myAgency.agencyId);
-  const stats = getAgencyStats(myAgency.agencyId);
-  
-  // Updated: Get Agency Reviews, not trip reviews
-  const myReviews = getReviewsByAgencyId(myAgency.agencyId);
+  const handleAddItineraryDay = () => {
+      setTripForm(prev => ({
+          ...prev,
+          itinerary: [...(prev.itinerary || []), { day: (prev.itinerary?.length || 0) + 1, title: '', description: '' }]
+      }));
+  };
 
-  const agencyBookings = bookings.filter(b => { const trip = trips.find(t => t.id === b.tripId); return trip && trip.agencyId === myAgency.agencyId; }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const recentBookings = agencyBookings.slice(0, 5);
-  const newSalesCount = recentBookings.filter(b => new Date(b.date).getTime() > lastReadTime).length;
-
-  const handleClearNotifications = () => { const now = Date.now(); setLastReadTime(now); localStorage.setItem('agency_last_read_sales', String(now)); showToast('Notificações marcadas como lidas.', 'success'); };
-
-  // Grouped Sales Logic
-  const salesByTrip = agencyBookings.reduce((acc, booking) => {
-      const trip = trips.find(t => t.id === booking.tripId);
-      if (!trip) return acc;
-      if (!acc[trip.id]) acc[trip.id] = { title: trip.title, count: 0, total: 0, image: trip.images?.[0], passengers: 0 };
-      acc[trip.id].count += 1;
-      acc[trip.id].total += booking.totalPrice;
-      acc[trip.id].passengers += (booking.passengers || 1);
-      return acc;
-  }, {} as Record<string, { title: string, count: number, total: number, image?: string, passengers: number }>);
-
-  const filteredTrips = myTrips.filter(t => t.title.toLowerCase().includes(tripSearch.toLowerCase()));
-  const rawSlug = agencyForm.slug || myAgency.slug || '';
-  const cleanSlug = rawSlug.replace(/[^a-z0-9-]/gi, '');
-  const fullAgencyLink = cleanSlug ? `${window.location.origin}/#/${cleanSlug}` : '';
-
-  const updateParams = (newParams: Record<string, string | null>) => { setSearchParams(prev => { const next = new URLSearchParams(prev); Object.entries(newParams).forEach(([key, val]) => { if (val === null) next.delete(key); else next.set(key, val); }); return next; }); };
-  const handleTabChange = (tab: string) => { updateParams({ tab, view: null, editId: null }); };
-  const handleOpenCreate = () => { updateParams({ view: 'FORM', editId: null }); };
-  const handleOpenEdit = (trip: Trip) => { updateParams({ view: 'FORM', editId: trip.id }); };
-  const handleBackToList = () => { updateParams({ view: 'LIST', editId: null }); };
-
-  const handleDuplicateTrip = async (trip: Trip) => { if(!window.confirm(`Deseja duplicar "${trip.title}"?`)) return; const { id, ...rest } = trip; const duplicatedTrip = { ...rest, title: `${trip.title} (Cópia)`, slug: `${slugify(trip.title)}-copia-${Date.now()}`, is_active: false, views: 0, sales: 0, featuredInHero: false }; try { await createTrip(duplicatedTrip as Trip); showToast('Pacote duplicado como Rascunho.', 'success'); } catch (err) { showToast('Erro ao duplicar pacote.', 'error'); } };
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => { const newTitle = e.target.value; setTripForm(prev => ({ ...prev, title: newTitle, ...(!slugTouched && { slug: slugify(newTitle) }) })); };
+  const handleRemoveItineraryDay = (index: number) => {
+      setTripForm(prev => ({
+          ...prev,
+          itinerary: prev.itinerary?.filter((_, i) => i !== index).map((item, i) => ({ ...item, day: i + 1 })) || []
+      }));
+  };
 
   const handleTripSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); setIsSubmitting(true);
-    const tripData = { ...tripForm, agencyId: myAgency.agencyId } as Trip; // Use agency PK
-    const newSettings = { ...customSettings }; let settingsChanged = false;
-    const updateSuggestions = (key: keyof typeof newSettings, items: string[] | undefined, existingList: string[]) => { if (!items) return; items.forEach(item => { if (!existingList.includes(item) && !newSettings[key]?.includes(item)) { newSettings[key] = [...(newSettings[key] || []), item]; settingsChanged = true; } }); };
-    updateSuggestions('tags', tripData.tags, SUGGESTED_TAGS); updateSuggestions('included', tripData.included, SUGGESTED_INCLUDED); updateSuggestions('notIncluded', tripData.notIncluded, SUGGESTED_NOT_INCLUDED); updateSuggestions('paymentMethods', tripData.paymentMethods, SUGGESTED_PAYMENTS);
-    if (settingsChanged) await updateUser({ customSettings: newSettings });
-    try { if (editingTripId) { await updateTrip(tripData); showToast('Viagem atualizada!', 'success'); } else { await createTrip({ ...tripData, is_active: true } as Trip); showToast('Viagem criada!', 'success'); localStorage.removeItem('trip_draft'); } handleBackToList(); } catch (err: any) { showToast('Erro ao salvar: ' + (err.message || err), 'error'); } finally { setIsSubmitting(false); }
+    e.preventDefault();
+    if (!currentAgency || isSubmittingTrip) return;
+    setIsSubmittingTrip(true);
+    try {
+      const finalTripData = {
+          ...tripForm,
+          agencyId: currentAgency.agencyId, // Ensure agencyId is set from currentAgency
+          slug: tripForm.slug || slugify(tripForm.title || ''),
+          price: Number(tripForm.price),
+          durationDays: Number(tripForm.durationDays),
+          is_active: tripForm.is_active || false,
+          featured: tripForm.featured || false,
+          featuredInHero: tripForm.featuredInHero || false,
+          popularNearSP: tripForm.popularNearSP || false,
+          views: tripForm.views || 0,
+          sales: tripForm.sales || 0,
+          // Ensure all array fields are not undefined
+          tags: tripForm.tags || [],
+          travelerTypes: tripForm.travelerTypes || [],
+          itinerary: tripForm.itinerary || [],
+          paymentMethods: tripForm.paymentMethods || [],
+          included: tripForm.included || [],
+          notIncluded: tripForm.notIncluded || [],
+          description: tripForm.description || '', // Ensure description is not undefined
+          images: tripForm.images || []
+      } as Trip;
+
+      if (isNewTrip) {
+        await createTrip(finalTripData);
+        showToast('Viagem criada com sucesso!', 'success');
+      } else {
+        await updateTrip(finalTripData);
+        showToast('Viagem atualizada com sucesso!', 'success');
+      }
+      setTripForm({...defaultTripForm, agencyId: currentAgency.agencyId});
+      setIsNewTrip(true);
+      setSearchParams({ tab: 'TRIPS' }); // Go back to trip list view
+    } catch (error: any) {
+      showToast('Erro ao salvar viagem: ' + error.message, 'error');
+    } finally {
+      setIsSubmittingTrip(false);
+    }
   };
 
-  const handleDeleteCustomSuggestion = async (type: keyof typeof customSettings, item: string) => { const currentList = customSettings[type] || []; const newList = currentList.filter(i => i !== item); const newSettings = { ...customSettings, [type]: newList }; await updateUser({ customSettings: newSettings }); showToast('Sugestão removida.', 'success'); };
-  
-  const handleDeleteTrip = async (tripId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este pacote? A ação não pode ser desfeita.')) {
+  const handleEditTrip = (trip: Trip) => {
+    setTripForm(trip);
+    setIsNewTrip(false);
+    setSearchParams({ tab: 'TRIPS', view: 'form' });
+  };
+
+  const handleDuplicateTrip = async (tripToDuplicate: Trip) => {
+    if (!currentAgency) return;
+    if (window.confirm(`Deseja duplicar a viagem "${tripToDuplicate.title}"?`)) {
+      setIsSubmittingTrip(true);
       try {
-        await deleteTrip(tripId);
-        showToast('Pacote excluído com sucesso.', 'success');
-      } catch (err: any) {
-        showToast('Erro ao excluir o pacote: ' + (err.message || 'Erro desconhecido'), 'error');
+        const duplicatedTrip: Partial<Trip> = {
+          ...tripToDuplicate,
+          id: undefined, // Let DB generate new ID
+          title: `Cópia de ${tripToDuplicate.title}`,
+          slug: slugify(`Copia de ${tripToDuplicate.title}-${Date.now().toString().slice(-4)}`),
+          is_active: false, // Duplicates are inactive by default
+          featured: false,
+          featuredInHero: false,
+          views: 0,
+          sales: 0,
+          agencyId: currentAgency.agencyId // Ensure correct agency ID
+        };
+        await createTrip(duplicatedTrip as Trip);
+        showToast('Viagem duplicada com sucesso!', 'success');
+      } catch (error: any) {
+        showToast('Erro ao duplicar viagem: ' + error.message, 'error');
+      } finally {
+        setIsSubmittingTrip(false);
       }
     }
   };
 
-  const handleAgencyUpdate = async (e: React.FormEvent) => { e.preventDefault(); const res = await updateUser(agencyForm); if(res.success) showToast('Configurações salvas!', 'success'); else showToast('Erro: ' + res.error, 'error'); };
-  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploadingBanner(true); try { const url = await uploadImage(e.target.files[0], 'trip-images'); if (url) { setAgencyForm({ ...agencyForm, heroBannerUrl: url }); showToast('Banner enviado!', 'success'); } } catch(e) { showToast('Erro no upload do banner', 'error'); } finally { setUploadingBanner(false); } };
-  const handleSlugChange = (val: string) => { setAgencyForm({...agencyForm, slug: slugify(val)}); };
-
-  const handleSaveTheme = async () => {
-      if (!user) return;
-      setIsSubmitting(true);
-      const success = await saveAgencyTheme(myAgency.agencyId, themeForm);
-      if (success) showToast('Tema salvo com sucesso!', 'success');
-      else showToast('Erro ao salvar tema.', 'error');
-      setIsSubmitting(false);
+  const handleSelectPlan = (plan: Plan) => {
+    setSelectedPlanForConfirmation(plan);
+    setShowSubscriptionConfirmModal(true);
   };
 
+  const handleConfirmSubscription = async () => {
+    if (!selectedPlanForConfirmation || !currentAgency) return;
+    setActivatingPlanId(selectedPlanForConfirmation.id);
+    try {
+        const expiresAt = new Date();
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year subscription
+        await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', selectedPlanForConfirmation.id as 'BASIC' | 'PREMIUM', expiresAt.toISOString());
+        showToast('Plano ativado com sucesso! Bem-vindo(a)!', 'success');
+        setShowSubscriptionConfirmModal(false);
+        setActivatingPlanId(null);
+        await reloadUser(); // Reload user to update subscription status in AuthContext
+    } catch (error) {
+        // Toast is already handled by updateAgencySubscription
+        setActivatingPlanId(null);
+    }
+  };
+
+  // Function to save custom suggestions
+  const saveCustomSuggestions = async (key: 'tags' | 'included' | 'notIncluded' | 'paymentMethods', newItems: string[]) => {
+    if (!currentAgency) return;
+    const updatedCustomSettings = {
+        ...currentAgency.customSettings,
+        [key]: newItems
+    };
+    try {
+        // Update user state first for responsiveness
+        await updateUser({ customSettings: updatedCustomSettings });
+        // Then send to DB
+        await supabase.from('agencies').update({ custom_settings: updatedCustomSettings }).eq('id', currentAgency.agencyId);
+        showToast('Sugestões salvas!', 'success');
+        reloadUser(); // Ensure custom settings are refreshed
+    } catch (error: any) {
+        showToast('Erro ao salvar sugestões: ' + error.message, 'error');
+        console.error(error);
+    }
+  };
+
+  const handleDeleteCustomSuggestion = async (key: 'tags' | 'included' | 'notIncluded' | 'paymentMethods', itemToRemove: string) => {
+    if (!currentAgency) return;
+    const currentList = currentAgency.customSettings?.[key] || [];
+    const updatedList = currentList.filter(item => item !== itemToRemove);
+    await saveCustomSuggestions(key, updatedList);
+  };
+
+  // Helper to dynamically get current custom suggestions list
+  const getCustomSuggestions = (key: 'tags' | 'included' | 'notIncluded' | 'paymentMethods') => {
+    return currentAgency?.customSettings?.[key] || [];
+  };
+
+  // Filtered trips for the list view
+  const filteredMyTrips = myTrips.filter(t => 
+    t.title.toLowerCase().includes(searchTripTerm.toLowerCase()) ||
+    t.destination.toLowerCase().includes(searchTripTerm.toLowerCase())
+  );
+
+  // If agency is not active, redirect to subscription tab
+  if (currentAgency && !isAgencyActive && activeTab !== 'SUBSCRIPTION' && activeTab !== 'SETTINGS') {
+      handleTabChange('SUBSCRIPTION');
+      showToast('Sua agência precisa de um plano ativo para usar o painel.', 'info');
+  }
+  
+  if (!user || user.role !== UserRole.AGENCY) {
+      return (
+          <div className="min-h-screen flex items-center justify-center">
+              <Loader size={32} className="animate-spin text-primary-600"/>
+              <p className="text-gray-600 ml-3">Carregando painel...</p>
+          </div>
+      );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto pb-12 min-h-screen">
-      {showPreview && ( <TripPreviewModal trip={tripForm} agency={myAgency} onClose={() => setShowPreview(false)} /> )}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
-        <div className="flex items-center gap-4 w-full"><img src={agencyForm.logo || myAgency.logo} className="w-20 h-20 rounded-full border-2 border-gray-200 object-cover bg-white" alt="Logo" /><div><h1 className="text-2xl font-bold text-gray-900">{myAgency.name}</h1><div className="flex items-center gap-3 mt-1">{isActive ? <p className="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle size={12}/> Ativo</p> : <p className="text-red-600 text-xs font-bold bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><X size={12}/> Pendente</p>}{cleanSlug && (<a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="text-primary-600 text-xs font-bold bg-primary-50 px-2 py-0.5 rounded-full flex items-center gap-1 hover:bg-primary-100 hover:underline"><Eye size={12}/> Ver Página Pública</a>)}</div></div></div>
+    <div className="max-w-7xl mx-auto pb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Olá, {currentAgency?.name || user.name}!</h1>
+          <p className="text-gray-500 mt-2 max-w-xl">
+            {isAgencyActive ? 'Gerencie suas viagens, vendas e configurações.' : 'Selecione um plano para começar a usar o painel.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+            <a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-colors">
+                <Globe size={18} className="mr-2"/> Ver Perfil Público
+            </a>
+            <button onClick={logout} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors">
+                <LogOut size={18} className="mr-2"/> Sair
+            </button>
+        </div>
+      </div>
+      
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={handleTabChange} hasNotification={currentAgency?.subscriptionStatus === 'PENDING'} />
+        <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} hasNotification={!isAgencyActive} />
+        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} hasNotification={myReviews.length > 0 && myReviews.some(r => !r.response)} />
+        <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
       </div>
 
-      {viewMode === 'LIST' ? (
-        <>
-          <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} activeTab={activeTab} onClick={handleTabChange} hasNotification={newSalesCount > 0} />
-            <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
-            <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} />
-            <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
-          </div>
-          
-          <div className="animate-[fadeIn_0.3s]">
-          {activeTab === 'OVERVIEW' && (
-            <div className="space-y-8">
-                {/* REDESIGNED MINI SITE BANNER */}
-                <div className="bg-white rounded-2xl shadow-md border-l-8 border-primary-600 p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden group hover:shadow-lg transition-all">
-                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-primary-50 to-transparent opacity-50 pointer-events-none"></div>
-                    
-                    <div className="flex items-center gap-5 relative z-10">
-                        <div className="bg-primary-50 p-4 rounded-full text-primary-600 shadow-sm ring-1 ring-primary-100">
-                            <Rocket size={28}/>
-                        </div>
-                        <div>
-                            <h3 className="text-gray-900 font-bold text-lg flex items-center gap-2">
-                                Seu Mini Site está no ar! 
-                                <span className="bg-green-100 text-green-700 text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border border-green-200 flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> Online
-                                </span>
-                            </h3>
-                            <p className="text-gray-500 text-sm mt-1 max-w-md">
-                                Divulgue seus pacotes com seu link exclusivo.
-                            </p>
-                            <div className="mt-2 inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-md border border-gray-200">
-                                <Globe size={12} className="text-gray-400"/>
-                                <span className="text-xs font-mono text-gray-600 select-all">{fullAgencyLink}</span>
-                            </div>
-                        </div>
+      {activeTab === 'OVERVIEW' && (
+        <div className="space-y-8 animate-[fadeIn_0.3s]">
+          {isAgencyActive ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 rounded-xl bg-primary-50 text-primary-600 group-hover:scale-105 transition-transform"><DollarSign size={24}/></div>
                     </div>
-
-                    <div className="flex gap-3 relative z-10 w-full md:w-auto">
-                        <button 
-                            onClick={() => { navigator.clipboard.writeText(fullAgencyLink); showToast('Link copiado!', 'success'); }} 
-                            className="flex-1 md:flex-initial bg-white border border-gray-200 text-gray-600 hover:text-primary-600 hover:border-primary-200 hover:bg-primary-50 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Copy size={16}/> Copiar Link
-                        </button>
-                        <a 
-                            href={fullAgencyLink} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex-1 md:flex-initial bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-primary-600/20 hover:shadow-primary-600/30 active:scale-95"
-                        >
-                            <ExternalLink size={16}/> Acessar Agora
-                        </a>
-                    </div>
+                    <p className="text-sm text-gray-500 font-medium">Receita Estimada</p>
+                    <h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {agencyStats.totalRevenue.toLocaleString('pt-BR')}</h3>
+                    <p className="text-xs text-gray-400 mt-2">Total de vendas confirmadas</p>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:bg-green-100 transition-colors"><DollarSign size={24}/></div><span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full">Total</span></div><p className="text-sm text-gray-500 font-medium">Receita Total</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:bg-blue-100 transition-colors"><Plane size={24}/></div><span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded-full">Ativos</span></div><p className="text-sm text-gray-500 font-medium">Pacotes Publicados</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.is_active).length}</h3></div>
-                    <div className={`bg-white p-6 rounded-2xl border shadow-sm group transition-all ${newSalesCount > 0 ? 'border-primary-300 ring-2 ring-primary-100' : 'border-gray-100 hover:border-primary-200'}`}><div className="flex justify-between items-start mb-4"><div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:bg-purple-100 transition-colors"><ShoppingBag size={24}/></div>{newSalesCount > 0 && <span className="text-xs font-bold text-white bg-red-500 px-2 py-1 rounded-full animate-pulse">+{newSalesCount} NOVO</span>}</div><p className="text-sm text-gray-500 font-medium">Total de Vendas</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm group hover:border-primary-200 transition-colors"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-100 transition-colors"><Eye size={24}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">Conv: {stats.conversionRate.toFixed(1)}%</span></div><p className="text-sm text-gray-500 font-medium">Visualizações</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalViews.toLocaleString()}</h3></div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 rounded-xl bg-purple-50 text-purple-600 group-hover:scale-105 transition-transform"><ShoppingBag size={24}/></div>
+                    </div>
+                    <p className="text-sm text-gray-500 font-medium">Total de Vendas</p>
+                    <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{agencyStats.totalSales}</h3>
+                    <p className="text-xs text-gray-400 mt-2">Reservas confirmadas</p>
                 </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 space-y-8">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <div className="flex justify-between items-center mb-4"><h3 className="text-lg font-bold text-gray-900 flex items-center"><ShoppingBag className="mr-2 text-green-600" size={20}/> Vendas Recentes</h3>{newSalesCount > 0 && (<button onClick={handleClearNotifications} className="text-xs font-bold text-gray-400 hover:text-primary-600 flex items-center gap-1 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-primary-200 transition-colors"><Bell size={12}/> Marcar como lidas</button>)}</div>
-                            {recentBookings.length > 0 ? (<div className="space-y-3">{recentBookings.map(booking => { const trip = trips.find(t => t.id === booking.tripId); const client = clients.find(c => c.id === booking.clientId); const isNew = new Date(booking.date).getTime() > lastReadTime; return (<div key={booking.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isNew ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center font-bold text-gray-600 text-sm">{client?.name.charAt(0) || 'U'}</div><div><p className="text-sm font-bold text-gray-900 flex items-center gap-2">{client?.name || 'Cliente'} {isNew && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">NOVO</span>}</p><p className="text-xs text-gray-500 line-clamp-1">{trip?.title || 'Pacote desconhecido'}</p><p className="text-[10px] text-green-600 mt-0.5 flex items-center"><Smartphone size={10} className="mr-1"/> {client?.phone || 'Sem telefone'}</p></div></div><div className="text-right"><p className="text-sm font-bold text-green-600">+ R$ {booking.totalPrice.toLocaleString()}</p><p className="text-[10px] text-gray-400">{new Date(booking.date).toLocaleDateString()}</p></div></div>); })}</div>) : (<div className="text-center py-8 text-gray-400 text-sm">Nenhuma venda registrada recentemente.</div>)}
-                        </div>
-
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><BarChart2 className="mr-2 text-blue-600" size={20}/> Vendas por Pacote</h3>
-                            {Object.keys(salesByTrip).length > 0 ? (
-                                <div className="space-y-4">
-                                    {Object.entries(salesByTrip).map(([id, data]: [string, any]) => (
-                                        <div key={id} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition-shadow">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">{data.image && <img src={data.image} className="w-full h-full object-cover" alt="" />}</div>
-                                                <div><p className="font-bold text-sm text-gray-900 line-clamp-1">{data.title}</p><p className="text-xs text-gray-500">{data.count} vendas • {data.passengers} passageiros</p></div>
-                                            </div>
-                                            <p className="font-bold text-sm text-gray-700">R$ {data.total.toLocaleString()}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (<div className="text-center py-8 text-gray-400 text-sm">Sem dados de vendas.</div>)}
-                        </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform"><Eye size={24}/></div>
                     </div>
-
-                    <div className="space-y-6">
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MessageSquare className="mr-2 text-amber-500" size={20}/> Avaliações Recebidas</h3>
-                            {myReviews.length > 0 ? (
-                                <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar-thin pr-2">
-                                    {myReviews.map(r => (
-                                        <div key={r.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className="text-xs font-bold text-gray-900">{r.clientName}</span>
-                                                <div className="flex text-amber-400">{[...Array(5)].map((_, i) => <Star key={i} size={10} className={i < r.rating ? 'fill-current' : 'text-gray-200'}/>)}</div>
-                                            </div>
-                                            <p className="text-xs text-gray-600 italic">"{r.comment}"</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : <p className="text-xs text-gray-400 text-center py-4">Nenhuma avaliação recebida.</p>}
-                        </div>
-
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Layout className="mr-2 text-primary-600" size={20}/> Ações Rápidas</h3>
-                            <div className="space-y-3">
-                                <button onClick={() => handleOpenCreate()} className="w-full p-3 border border-gray-200 rounded-xl hover:bg-primary-50 hover:border-primary-200 hover:text-primary-700 transition-all flex items-center gap-3 group"><div className="bg-primary-100 text-primary-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><Plus size={18}/></div><div className="text-left"><span className="font-bold block text-sm">Criar Novo Pacote</span></div></button>
-                                <button onClick={() => { handleTabChange('SETTINGS'); setSettingsSection('PROFILE'); }} className="w-full p-3 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-3 group"><div className="bg-gray-100 text-gray-600 p-2 rounded-lg group-hover:scale-110 transition-transform"><Settings size={18}/></div><div className="text-left"><span className="font-bold block text-sm">Editar Perfil</span></div></button>
-                            </div>
-                        </div>
+                    <p className="text-sm text-gray-500 font-medium">Visualizações</p>
+                    <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{agencyStats.totalViews.toLocaleString('pt-BR')}</h3>
+                    <p className="text-xs text-gray-400 mt-2">Total de views nos pacotes</p>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 rounded-xl bg-green-50 text-green-600 group-hover:scale-105 transition-transform"><BarChart2 size={24}/></div>
                     </div>
+                    <p className="text-sm text-gray-500 font-medium">Taxa de Conversão</p>
+                    <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{agencyStats.conversionRate.toFixed(2)}%</h3>
+                    <p className="text-xs text-gray-400 mt-2">Vendas / Visualizações</p>
                 </div>
             </div>
-          )}
-
-          {activeTab === 'TRIPS' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col min-h-[600px]">
-               <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                 <div className="flex items-center gap-3"><h2 className="text-xl font-bold text-gray-900">Gerenciar Pacotes</h2><span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">{myTrips.length} Total</span></div>
-                 <div className="flex gap-3 w-full md:w-auto"><div className="relative flex-1 md:w-64"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/><input value={tripSearch} onChange={e => setTripSearch(e.target.value)} type="text" placeholder="Buscar por nome..." className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm"/></div><button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center hover:bg-primary-700 transition-colors shadow-md shadow-primary-500/20 whitespace-nowrap"><Plus size={18} className="mr-2"/> Novo Pacote</button></div>
-               </div>
-               <div className="flex-1 overflow-x-auto">
-                 <table className="min-w-full divide-y divide-gray-100"><thead className="bg-gray-50/50"><tr><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead><tbody className="divide-y divide-gray-100 bg-white">{filteredTrips.map(trip => (<tr key={trip.id} className="hover:bg-gray-50/80 transition-colors group"><td className="px-6 py-4"><div className="flex items-center gap-4"><div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200"><img src={trip.images?.[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} /></div><div><p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p><p className="text-xs text-gray-500 flex items-center mt-0.5"><MapPin size={10} className="mr-1"/> {trip.destination}</p></div></div></td><td className="px-6 py-4"><span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border ${trip.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>{trip.is_active ? 'PUBLICADO' : 'RASCUNHO'}</span></td><td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td><td className="px-6 py-4"><div className="flex items-center gap-4 text-xs font-medium text-gray-500"><div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div><div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div></div></td><td className="px-6 py-4 text-right"><ActionsMenu trip={trip} onEdit={() => handleOpenEdit(trip)} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={fullAgencyLink}/></td></tr>))}</tbody></table>
-                 {filteredTrips.length === 0 && (<div className="text-center py-16"><div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Search className="text-gray-300" size={24}/></div><p className="text-gray-500 font-medium">Nenhum pacote encontrado.</p>{tripSearch && <button onClick={() => setTripSearch('')} className="text-primary-600 text-sm font-bold hover:underline mt-2">Limpar busca</button>}</div>)}
-               </div>
-            </div>
-          )}
-
-          {activeTab === 'SUBSCRIPTION' && (
-            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                {PLANS.map(plan => (<div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${myAgency.subscriptionPlan === plan.id && isActive ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>{myAgency.subscriptionPlan === plan.id && isActive && (<div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">PLANO ATUAL</div>)}<h3 className="text-xl font-bold text-gray-900">{plan.name}</h3><p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p><ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8">{plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0"/> <span className="leading-snug">{f}</span></li>))}</ul><button onClick={() => { handleSelectPlan(plan) }} className={`w-full py-3 rounded-xl font-bold transition-colors ${myAgency.subscriptionPlan === plan.id && isActive ? 'bg-gray-100 text-gray-400 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'}`} disabled={myAgency.subscriptionPlan === plan.id && isActive}>{myAgency.subscriptionPlan === plan.id && isActive ? 'Plano Ativo' : 'Selecionar Plano'}</button></div>))}
-            </div>
-          )}
-
-          {activeTab === 'SETTINGS' && (
-             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row min-h-[600px]">
-                <div className="w-full md:w-64 bg-gray-50 p-6 border-r border-gray-100 rounded-l-2xl"><h3 className="text-xs font-bold text-gray-400 uppercase mb-4">Menu de Ajustes</h3>
-                    <nav className="space-y-2">
-                        <button onClick={() => setSettingsSection('PROFILE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PROFILE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Users size={16}/> Perfil & Contato</button>
-                        <button onClick={() => setSettingsSection('PAGE')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'PAGE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Layout size={16}/> Página Pública (Hero)</button>
-                        <button onClick={() => setSettingsSection('THEME')} className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 ${settingsSection === 'THEME' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200/50'}`}><Palette size={16}/> Identidade Visual</button>
-                        
-                        {/* Logout Button for Mobile Access */}
-                        <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 text-red-600 hover:bg-red-50 mt-4 border-t border-gray-200 pt-4">
-                            <LogOut size={16}/> Sair da Conta
-                        </button>
-                    </nav>
-                </div>
-                <div className="flex-1 p-8">
-                    <form onSubmit={handleAgencyUpdate} className="space-y-8 max-w-2xl">
-                    {settingsSection === 'PROFILE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Identidade & Contato</h2><p className="text-sm text-gray-500 mt-1">Essas informações serão exibidas na sua página pública.</p></div><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Logomarca</label><LogoUpload currentLogo={agencyForm.logo} onUpload={(url) => setAgencyForm({...agencyForm, logo: url})} /></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Nome da Agência</label><input value={agencyForm.name || ''} onChange={e => setAgencyForm({...agencyForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">WhatsApp (Apenas números)</label><div className="relative"><Smartphone className="absolute left-3 top-3 text-gray-400" size={18} /><input value={agencyForm.whatsapp || ''} onChange={e => setAgencyForm({...agencyForm, whatsapp: e.target.value.replace(/\D/g, '')})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="5511999999999"/></div></div></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Descrição</label><textarea rows={3} value={agencyForm.description || ''} onChange={e => setAgencyForm({...agencyForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" placeholder="Sobre a agência..." /></div><div><label className="block text-xs font-bold mb-1.5 text-gray-700">Slug (Endereço Personalizado)</label><div className="relative"><input value={agencyForm.slug || ''} onChange={e => handleSlugChange(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 bg-gray-50 font-mono text-sm text-primary-700 font-medium pl-48 focus:bg-white outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" /><span className="absolute left-3 top-3 text-gray-500 text-sm select-none">{`${window.location.host}/#/`}</span></div>{cleanSlug && (<a href={fullAgencyLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline mt-2 font-medium"><ExternalLink size={10} /> {fullAgencyLink}</a>)}</div></section>)}
-                    {settingsSection === 'PAGE' && (<section className="space-y-6 animate-[fadeIn_0.2s]"><div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Banner Principal (Hero)</h2><p className="text-sm text-gray-500 mt-1">Escolha como o topo do seu site será exibido para os visitantes.</p></div><div><label className="block text-xs font-bold mb-3 uppercase text-gray-500">Modo de Exibição</label><div className="flex gap-4"><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'TRIPS' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'TRIPS' ? 'border-primary-600 bg-primary-50 ring-1 ring-primary-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><Layout size={16}/> Carrossel de Viagens</div><p className="text-xs text-gray-500">Exibe suas viagens ativas e destacadas rotativamente.</p></button><button type="button" onClick={() => setAgencyForm({ ...agencyForm, heroMode: 'STATIC' })} className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${agencyForm.heroMode === 'STATIC' ? 'border-primary-600 bg-primary-50 ring-1 ring-600' : 'border-gray-200 hover:border-gray-300 bg-white'}`}><div className="font-bold text-gray-900 mb-1 flex items-center gap-2"><ImageIcon size={16}/> Banner Estático</div><p className="text-xs text-gray-500">Exibe uma imagem fixa com título e subtítulo.</p></button></div></div>{agencyForm.heroMode === 'STATIC' && (<div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4 animate-[fadeIn_0.3s]"><div><label className="block text-xs font-bold mb-1 text-gray-700">Imagem do Banner</label><div className="flex items-center gap-4"><div className="w-32 h-16 bg-gray-200 rounded-lg overflow-hidden relative border border-gray-300 shadow-sm">{agencyForm.heroBannerUrl ? (<img src={agencyForm.heroBannerUrl} className="w-full h-full object-cover" alt="Banner" />) : (<div className="flex items-center justify-center h-full text-gray-400 text-xs">Sem imagem</div>)}{uploadingBanner && <div className="absolute inset-0 bg-white/50 flex items-center justify-center"><Loader className="animate-spin"/></div>}</div><label className="cursor-pointer bg-white border border-gray-300 px-3 py-2 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm"><input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner}/>Enviar Imagem</label></div></div><div><label className="block text-xs font-bold mb-1 text-gray-700">Título do Hero</label><input value={agencyForm.heroTitle || ''} onChange={e => setAgencyForm({...agencyForm, heroTitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: Explore o Mundo Conosco"/></div><div><label className="block text-xs font-bold mb-1 text-gray-700">Subtítulo do Hero</label><input value={agencyForm.heroSubtitle || ''} onChange={e => setAgencyForm({...agencyForm, heroSubtitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white" placeholder="Ex: As melhores experiências para você."/></div></div>)}</section>)}
-                    
-                    {settingsSection === 'THEME' && (
-                        <section className="space-y-6 animate-[fadeIn_0.2s]">
-                            <div className="pb-4 border-b border-gray-100"><h2 className="text-xl font-bold text-gray-900">Personalização Visual</h2><p className="text-sm text-gray-500 mt-1">Escolha as cores que representam sua marca no seu mini site.</p></div>
-                            {loadingTheme ? <Loader className="animate-spin"/> : (
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Primária</label>
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
-                                                    <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"/>
-                                                </div>
-                                                <input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-full border border-gray-300 rounded-xl py-3 px-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"/>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Cor Secundária</label>
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative w-14 h-12 rounded-xl shadow-sm ring-1 ring-black/10 overflow-hidden cursor-pointer hover:ring-primary-500 transition-all">
-                                                    <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="absolute inset-0 w-[200%] h-[200%] -top-[50%] -left-[50%] cursor-pointer"/>
-                                                </div>
-                                                <input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-full border border-gray-300 rounded-xl py-3 px-3 font-mono text-sm uppercase focus:ring-2 focus:ring-primary-500 outline-none"/>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                        <p className="text-xs font-bold text-gray-400 uppercase mb-3">Preview</p>
-                                        <div className="flex gap-4 items-center">
-                                            <button type="button" className="px-6 py-2 rounded-lg text-white font-bold shadow-lg" style={{backgroundColor: themeForm.primary}}>Botão Principal</button>
-                                            <span className="font-bold" style={{color: themeForm.secondary}}>Texto Destaque</span>
-                                        </div>
-                                    </div>
-                                    <button type="button" onClick={handleSaveTheme} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><Save size={18}/> Salvar Tema</button>
-                                </div>
-                            )}
-                        </section>
-                    )}
-
-                    {settingsSection !== 'THEME' && (
-                        <div className="pt-6 border-t border-gray-100"><button type="submit" className="bg-primary-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-primary-700 shadow-lg shadow-primary-500/20 transition-all flex items-center justify-center gap-2"><Save size={18}/> Salvar Alterações</button></div>
-                    )}
-                    </form>
-                </div>
+          ) : (
+             <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center animate-[fadeIn_0.3s]">
+                <Info size={32} className="text-blue-600 mx-auto mb-4"/>
+                <h3 className="text-xl font-bold text-blue-800">Sua agência está inativa!</h3>
+                <p className="text-blue-700 mt-2 mb-4">Para acessar as métricas, ative sua assinatura.</p>
+                <button onClick={() => handleTabChange('SUBSCRIPTION')} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">
+                    Gerenciar Assinatura
+                </button>
              </div>
           )}
-          </div>
-        </>
-      ) : (
-         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-[scaleIn_0.2s]">
-             <div className="bg-gray-50 p-6 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm"><button onClick={handleBackToList} className="flex items-center font-bold text-gray-600 hover:text-gray-900"><ArrowLeft size={18} className="mr-2"/> Voltar</button><div className="flex gap-3"><button type="button" onClick={() => setShowPreview(true)} className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-50 transition-colors"><Eye size={18} className="mr-2"/> Prévia</button><button onClick={handleTripSubmit} disabled={isSubmitting} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 disabled:opacity-50 shadow-sm">{isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar</button></div></div>
-             <form onSubmit={handleTripSubmit} className="p-8 space-y-10 max-w-4xl mx-auto bg-gray-50/50 pb-32">
-                 <section><div className="flex justify-between items-center border-b pb-2 mb-6"><h3 className="text-lg font-bold">Informações Básicas</h3><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!tripForm.featuredInHero} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"/><span className="text-sm font-bold text-amber-600 flex items-center"><Star size={14} className="mr-1 fill-amber-500"/> Destacar na página da agência</span></label></div><div className="space-y-4"><div><label className="font-bold text-sm mb-1 block">Título do Pacote</label><input value={tripForm.title || ''} onChange={handleTitleChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" placeholder="Ex: Fim de semana em Paraty"/></div><div><label className="font-bold text-sm mb-1 block">Slug (URL Amigável)</label><input value={tripForm.slug || ''} onFocus={() => setSlugTouched(true)} onChange={e => setTripForm({...tripForm, slug: slugify(e.target.value)}) } className="w-full border p-3 rounded-lg bg-gray-100 font-mono text-primary-700 outline-none focus:border-primary-500 transition-colors" /></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div><label className="font-bold text-sm mb-1 block">Preço (R$)</label><input type="number" value={tripForm.price || ''} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div><div><label className="font-bold text-sm mb-1 block">Duração (Dias)</label><input type="number" value={tripForm.durationDays || ''} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div><div><label className="font-bold text-sm mb-1 block">Categoria</label><select value={tripForm.category} onChange={(e) => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"><option value="PRAIA">Praia</option><option value="AVENTURA">Aventura</option><option value="FAMILIA">Família</option><option value="ROMANTICO">Romântico</option><option value="URBANO">Urbano</option><option value="NATUREZA">Natureza</option><option value="CULTURA">Cultura</option><option value="GASTRONOMICO">Gastronômico</option></select></div></div><div><label className="font-bold text-sm mb-1 block">Destino (Cidade/Estado)</label><input value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div></div></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Datas da Viagem</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Início</label><input type="date" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div><div><label className="font-bold text-sm mb-1 block flex items-center gap-2"><Calendar size={14}/> Data de Fim</label><input type="date" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm" /></div></div></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Tags & Público</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Tag size={14}/> Tags</label><PillInput value={tripForm.tags || []} onChange={v => setTripForm({...tripForm, tags: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TAGS} customSuggestions={customSettings.tags} onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('tags', s)}/></div><div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><Users size={14}/> Tipo de Viajante</label><PillInput value={tripForm.travelerTypes as string[] || []} onChange={v => setTripForm({...tripForm, travelerTypes: v as TravelerType[]})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_TRAVELERS} /></div></div></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Formas de Pagamento</h3><div><label className="font-bold text-sm mb-2 block flex items-center gap-2"><CreditCard size={14}/> Métodos Aceitos</label><PillInput value={tripForm.paymentMethods || []} onChange={v => setTripForm({...tripForm, paymentMethods: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_PAYMENTS} customSuggestions={customSettings.paymentMethods} onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('paymentMethods', s)}/></div></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-6">Inclusos e Não Inclusos</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-green-600"><Check size={14}/> Itens Inclusos</label><PillInput value={tripForm.included || []} onChange={v => setTripForm({...tripForm, included: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_INCLUDED} customSuggestions={customSettings.included} onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('included', s)}/></div><div><label className="font-bold text-sm mb-2 block flex items-center gap-2 text-red-500"><X size={14}/> Itens NÃO Inclusos</label><PillInput value={tripForm.notIncluded || []} onChange={v => setTripForm({...tripForm, notIncluded: v})} placeholder="Digite ou selecione..." suggestions={SUGGESTED_NOT_INCLUDED} customSuggestions={customSettings.notIncluded} onDeleteCustomSuggestion={s => handleDeleteCustomSuggestion('notIncluded', s)}/></div></div></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Descrição Detalhada</h3><p className="text-sm text-gray-500 mb-4">Use o editor abaixo para contar a história da sua viagem. Adicione títulos, listas e imagens para tornar o texto atrativo.</p><RichTextEditor value={tripForm.description || ''} onChange={v => setTripForm({...tripForm, description: v})} /></section>
-                 <section><h3 className="text-lg font-bold border-b pb-2 mb-4">Galeria de Imagens</h3><ImageManager images={tripForm.images || []} onChange={imgs => setTripForm({...tripForm, images: imgs})} /></section>
-             </form>
-             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]"><div className="max-w-4xl mx-auto flex justify-between items-center"><p className="text-xs text-gray-500 hidden sm:block">Certifique-se de salvar todas as alterações.</p><div className="flex gap-3 w-full sm:w-auto"><button type="button" onClick={() => setShowPreview(true)} className="flex-1 sm:flex-initial bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-bold flex justify-center items-center hover:bg-gray-50 transition-colors"><Eye size={18} className="mr-2"/> Prévia</button><button onClick={handleTripSubmit} disabled={isSubmitting} className="flex-1 sm:flex-initial bg-primary-600 text-white px-8 py-3 rounded-xl font-bold flex justify-center items-center hover:bg-primary-700 disabled:opacity-50 shadow-lg shadow-primary-500/30 transition-all">{isSubmitting ? <Loader className="animate-spin" size={18}/> : <Save size={18} className="mr-2"/>} Salvar Viagem</button></div></div></div>
-         </div>
+        </div>
       )}
 
-      {showPayment && selectedPlan && (
-        <SubscriptionConfirmationModal 
-            plan={selectedPlan}
-            onClose={() => setShowPayment(false)}
-            onConfirm={handleConfirmPayment}
-            isSubmitting={isSubmitting}
-        />
+      {activeTab === 'TRIPS' && (
+        <div className="space-y-8 animate-[fadeIn_0.3s]">
+          {isAgencyActive ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2>
+                <div className="flex gap-3 flex-wrap items-center">
+                    <div className="relative">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                        <input type="text" placeholder="Buscar pacote..." value={searchTripTerm} onChange={e => setSearchTripTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 outline-none"/>
+                    </div>
+                    <button onClick={() => { setTripForm({...defaultTripForm, agencyId: currentAgency?.agencyId || ''}); setIsNewTrip(true); setSearchParams({ tab: 'TRIPS', view: 'form' }); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-colors">
+                      <Plus size={18} className="mr-2"/> Adicionar Novo
+                    </button>
+                    <button onClick={() => setSearchParams({ tab: 'TRIPS', view: viewMode === 'list' ? 'grid' : 'list' })} className="p-2 bg-gray-100 rounded-lg text-gray-600 hover:bg-gray-200 transition-colors">
+                       {viewMode === 'grid' ? <List size={18}/> : <Layout size={18}/>}
+                    </button>
+                </div>
+              </div>
+
+              {searchParams.get('view') === 'form' ? (
+                // Trip Form
+                <form onSubmit={handleTripSubmit} className="space-y-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">{isNewTrip ? 'Novo Pacote de Viagem' : `Editar Pacote: ${tripForm.title}`}</h3>
+                    <button type="button" onClick={() => setSearchParams({ tab: 'TRIPS' })} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-6">
+                        <ArrowLeft size={16}/> Voltar para lista
+                    </button>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote</label><input type="text" name="title" value={tripForm.title || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Destino</label><input type="text" name="destination" value={tripForm.destination || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa (R$)</label><input type="number" name="price" value={tripForm.price || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required min="0"/></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label><input type="number" name="durationDays" value={tripForm.durationDays || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required min="1"/></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label><input type="date" name="startDate" value={tripForm.startDate?.split('T')[0] || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-2">Data de Término</label><input type="date" name="endDate" value={tripForm.endDate?.split('T')[0] || ''} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/></div>
+                        <div className="md:col-span-2">
+                           <label className="block text-sm font-bold text-gray-700 mb-2">Slug (URL Amigável)</label>
+                           <input 
+                             type="text" 
+                             name="slug" 
+                             value={tripForm.slug || slugify(tripForm.title || '')} 
+                             onChange={e => setTripForm(prev => ({ ...prev, slug: slugify(e.target.value) }))} 
+                             className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 bg-gray-50 font-mono text-primary-700" 
+                             readOnly={!isNewTrip} // Make slug read-only after creation to prevent accidental changes
+                           />
+                        </div>
+                        <div className="md:col-span-2">
+                           <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+                           <select name="category" value={tripForm.category || 'PRAIA'} onChange={handleTripFormChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500">
+                             {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA', 'VIAGEM_BARATA', 'ARTE'].map(cat => <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>)}
+                           </select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Tipos de Viajantes</label>
+                            <PillInput 
+                                value={tripForm.travelerTypes || []} 
+                                onChange={(val) => setTripForm(prev => ({...prev, travelerTypes: val}))} 
+                                placeholder="Adicionar tipo de viajante..." 
+                                suggestions={SUGGESTED_TRAVELERS}
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="h-px bg-gray-100 my-8"></div>
+
+                    <div>
+                        <ImageManager 
+                          images={tripForm.images || []} 
+                          onChange={(imgs) => setTripForm(prev => ({...prev, images: imgs}))} 
+                        />
+                    </div>
+                    
+                    <div className="h-px bg-gray-100 my-8"></div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa da Experiência</label>
+                        <RichTextEditor 
+                          value={tripForm.description || ''} 
+                          onChange={(val) => setTripForm(prev => ({...prev, description: val}))} 
+                        />
+                    </div>
+
+                    <div className="h-px bg-gray-100 my-8"></div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-4">Roteiro Detalhado</label>
+                        <div className="space-y-4">
+                            {tripForm.itinerary?.map((item, index) => (
+                                <div key={index} className="flex flex-col md:flex-row gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <span className="text-lg font-bold text-gray-700 shrink-0">Dia {item.day}</span>
+                                    <div className="flex-1 space-y-2">
+                                        <input type="text" value={item.title} onChange={e => handleItineraryChange(index, 'title', e.target.value)} placeholder="Título do dia (ex: Chegada em Foz)" className="w-full border p-2 rounded-lg outline-none focus:border-primary-500"/>
+                                        <textarea rows={2} value={item.description} onChange={e => handleItineraryChange(index, 'description', e.target.value)} placeholder="Descrição detalhada das atividades do dia" className="w-full border p-2 rounded-lg outline-none focus:border-primary-500"/>
+                                    </div>
+                                    <button type="button" onClick={() => handleRemoveItineraryDay(index)} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 self-start"><Trash2 size={18}/></button>
+                                </div>
+                            ))}
+                            <button type="button" onClick={handleAddItineraryDay} className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
+                                <Plus size={18}/> Adicionar Dia ao Roteiro
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="h-px bg-gray-100 my-8"></div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Tags do Pacote</label>
+                            <PillInput 
+                                value={tripForm.tags || []} 
+                                onChange={(val) => {
+                                    setTripForm(prev => ({...prev, tags: val}));
+                                    saveCustomSuggestions('tags', val);
+                                }} 
+                                placeholder="Adicionar tag..." 
+                                suggestions={SUGGESTED_TAGS}
+                                customSuggestions={getCustomSuggestions('tags')}
+                                onDeleteCustomSuggestion={(item) => handleDeleteCustomSuggestion('tags', item)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Formas de Pagamento</label>
+                            <PillInput 
+                                value={tripForm.paymentMethods || []} 
+                                onChange={(val) => {
+                                    setTripForm(prev => ({...prev, paymentMethods: val}));
+                                    saveCustomSuggestions('paymentMethods', val);
+                                }} 
+                                placeholder="Adicionar forma de pagamento..." 
+                                suggestions={SUGGESTED_PAYMENTS}
+                                customSuggestions={getCustomSuggestions('paymentMethods')}
+                                onDeleteCustomSuggestion={(item) => handleDeleteCustomSuggestion('paymentMethods', item)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">O que está incluído</label>
+                            <PillInput 
+                                value={tripForm.included || []} 
+                                onChange={(val) => {
+                                    setTripForm(prev => ({...prev, included: val}));
+                                    saveCustomSuggestions('included', val);
+                                }} 
+                                placeholder="Adicionar item incluído..." 
+                                suggestions={SUGGESTED_INCLUDED}
+                                customSuggestions={getCustomSuggestions('included')}
+                                onDeleteCustomSuggestion={(item) => handleDeleteCustomSuggestion('included', item)}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">O que NÃO está incluído</label>
+                            <PillInput 
+                                value={tripForm.notIncluded || []} 
+                                onChange={(val) => {
+                                    setTripForm(prev => ({...prev, notIncluded: val}));
+                                    saveCustomSuggestions('notIncluded', val);
+                                }} 
+                                placeholder="Adicionar item não incluído..." 
+                                suggestions={SUGGESTED_NOT_INCLUDED}
+                                customSuggestions={getCustomSuggestions('notIncluded')}
+                                onDeleteCustomSuggestion={(item) => handleDeleteCustomSuggestion('notIncluded', item)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="h-px bg-gray-100 my-8"></div>
+
+                    <div className="flex flex-col gap-4">
+                        <label className="flex items-center text-gray-700">
+                            <input type="checkbox" name="is_active" checked={tripForm.is_active || false} onChange={handleTripFormChange} className="mr-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
+                            <span className="font-bold">Ativar Pacote (Publicar na ViajaStore)</span>
+                        </label>
+                        <label className="flex items-center text-gray-700">
+                            <input type="checkbox" name="featured" checked={tripForm.featured || false} onChange={handleTripFormChange} className="mr-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
+                            <span className="font-bold">Destaque Global (ViajaStore Home)</span>
+                        </label>
+                        <label className="flex items-center text-gray-700">
+                            <input type="checkbox" name="featuredInHero" checked={tripForm.featuredInHero || false} onChange={handleTripFormChange} className="mr-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
+                            <span className="font-bold">Destaque no Hero (Microsite da Agência)</span>
+                        </label>
+                        <label className="flex items-center text-gray-700">
+                            <input type="checkbox" name="popularNearSP" checked={tripForm.popularNearSP || false} onChange={handleTripFormChange} className="mr-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
+                            <span className="font-bold">Popular Perto de SP</span>
+                        </label>
+                    </div>
+
+                    <div className="flex gap-4 pt-8 border-t border-gray-100">
+                        <button type="submit" disabled={isSubmittingTrip} className="flex-1 bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                            {isSubmittingTrip ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} {isNewTrip ? 'Criar Pacote' : 'Salvar Alterações'}
+                        </button>
+                        <button type="button" onClick={() => setShowTripPreview(true)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors">
+                            <Eye size={18} className="mr-2"/> Prévia
+                        </button>
+                    </div>
+                </form>
+              ) : (
+                // Trip List
+                myTrips.length > 0 ? (
+                  <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : 'space-y-4'}`}>
+                      {filteredMyTrips.map(trip => (
+                          <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-5 relative">
+                              <img src={trip.images?.[0] || 'https://placehold.co/100x80/e2e8f0/94a3b8?text=Sem+Imagem'} alt={trip.title} className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />
+                              <div className="flex-1">
+                                  <h3 className="font-bold text-gray-900 text-lg line-clamp-1">{trip.title}</h3>
+                                  <p className="text-sm text-gray-500 line-clamp-1">{trip.destination} - {trip.durationDays} dias</p>
+                                  <div className="flex items-center gap-2 mt-2">
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase ${trip.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>{trip.is_active ? 'Ativo' : 'Inativo'}</span>
+                                      {trip.featured && <span className="px-2 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-50 text-amber-700">Destaque</span>}
+                                  </div>
+                              </div>
+                              <ActionsMenu 
+                                trip={trip} 
+                                onEdit={() => handleEditTrip(trip)} 
+                                onDuplicate={() => handleDuplicateTrip(trip)} 
+                                onDelete={() => deleteTrip(trip.id)}
+                                onToggleStatus={() => toggleTripStatus(trip.id)}
+                                fullAgencyLink={fullAgencyLink}
+                              />
+                          </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <Plane size={32} className="text-gray-300 mx-auto mb-4"/>
+                    <p className="text-gray-900 font-bold text-lg mb-2">Nenhum pacote cadastrado</p>
+                    <p className="text-gray-500 mb-6">Comece sua jornada criando seu primeiro pacote de viagem incrível!</p>
+                    <button onClick={() => { setTripForm({...defaultTripForm, agencyId: currentAgency?.agencyId || ''}); setIsNewTrip(true); setSearchParams({ tab: 'TRIPS', view: 'form' }); }} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors">
+                        <Plus size={18} className="mr-2"/> Criar Novo Pacote
+                    </button>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center animate-[fadeIn_0.3s]">
+                <Info size={32} className="text-blue-600 mx-auto mb-4"/>
+                <h3 className="text-xl font-bold text-blue-800">Sua agência está inativa!</h3>
+                <p className="text-blue-700 mt-2 mb-4">Para criar e gerenciar pacotes, ative sua assinatura.</p>
+                <button onClick={() => handleTabChange('SUBSCRIPTION')} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">
+                    Gerenciar Assinatura
+                </button>
+             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'SUBSCRIPTION' && currentAgency && (
+          <div className="animate-[fadeIn_0.3s]">
+              {currentAgency.subscriptionStatus !== 'ACTIVE' ? (
+                  <SubscriptionActivationView 
+                    agency={currentAgency} 
+                    onSelectPlan={handleSelectPlan} 
+                    activatingPlanId={activatingPlanId}
+                  />
+              ) : (
+                  <div className="max-w-xl mx-auto text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                      <CheckCircle size={32} className="text-green-500 mx-auto mb-4"/>
+                      <h2 className="text-2xl font-bold text-gray-900">Sua Assinatura está Ativa!</h2>
+                      <p className="text-gray-600 mt-2 text-lg">Plano: <span className="font-bold text-primary-600">{currentAgency.subscriptionPlan}</span></p>
+                      <p className="text-gray-500 mt-1 mb-6">Expira em: <span className="font-medium">{new Date(currentAgency.subscriptionExpiresAt).toLocaleDateString()}</span></p>
+                      
+                      <button onClick={() => showToast('Funcionalidade em desenvolvimento.', 'info')} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors">
+                          Gerenciar Pagamento
+                      </button>
+                      <p className="text-sm text-gray-400 mt-4">Você será notificado antes da renovação.</p>
+                  </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'REVIEWS' && currentAgency && (
+        <div className="space-y-8 animate-[fadeIn_0.3s]">
+          {isAgencyActive ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Avaliações de Clientes ({myReviews.length})</h2>
+              {myReviews.length > 0 ? (
+                <div className="space-y-6">
+                  {myReviews.map(review => (
+                    <div key={review.id} className="bg-gray-50 p-6 rounded-xl border border-gray-100 relative">
+                      <div className="absolute top-4 right-4 flex items-center gap-2">
+                          <button onClick={() => showToast('Funcionalidade em desenvolvimento.', 'info')} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" title="Responder avaliação"><MessageCircle size={16}/></button>
+                          <button onClick={() => showToast('Funcionalidade em desenvolvimento.', 'info')} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors" title="Excluir avaliação"><Trash2 size={16}/></button>
+                      </div>
+                      <div className="flex items-center gap-4 mb-4">
+                        <img src={review.clientAvatar || `https://ui-avatars.com/api/?name=${review.clientName || 'Cliente'}&background=random`} alt={review.clientName || 'Cliente'} className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{review.clientName}</p>
+                          <div className="flex text-amber-400 text-sm">
+                            {[...Array(5)].map((_,i) => <Star key={i} size={14} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-gray-700 italic">"{review.comment}"</p>
+                      {review.response && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <p className="text-xs font-bold text-gray-600 mb-2">Sua resposta:</p>
+                          <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <Star size={32} className="text-gray-300 mx-auto mb-4"/>
+                    <p className="text-gray-900 font-bold text-lg mb-2">Nenhuma avaliação ainda</p>
+                    <p className="text-gray-500 mb-6">Peça aos seus clientes para deixarem uma avaliação após a viagem!</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center animate-[fadeIn_0.3s]">
+                <Info size={32} className="text-blue-600 mx-auto mb-4"/>
+                <h3 className="text-xl font-bold text-blue-800">Sua agência está inativa!</h3>
+                <p className="text-blue-700 mt-2 mb-4">Para visualizar e gerenciar avaliações, ative sua assinatura.</p>
+                <button onClick={() => handleTabChange('SUBSCRIPTION')} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">
+                    Gerenciar Assinatura
+                </button>
+             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'SETTINGS' && currentAgency && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Configurações da Agência</h2>
+          <form onSubmit={handleSettingsSubmit} className="space-y-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">Informações Básicas</h3>
+            
+            <LogoUpload currentLogo={editFormData.logo} onUpload={(url) => { setEditFormData(prev => ({...prev, logo: url})); }} />
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Agência</label>
+              <input type="text" name="name" value={editFormData.name || ''} onChange={e => setEditFormData(prev => ({...prev, name: e.target.value}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+              <textarea name="description" value={editFormData.description || ''} onChange={e => setEditFormData(prev => ({...prev, description: e.target.value}))} rows={4} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">CNPJ</label>
+              <input type="text" name="cnpj" value={editFormData.cnpj || ''} onChange={e => setEditFormData(prev => ({...prev, cnpj: e.target.value}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Slug da Agência (URL Pública)</label>
+              <input type="text" name="slug" value={editFormData.slug || ''} onChange={e => setEditFormData(prev => ({...prev, slug: slugify(e.target.value || '')}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 bg-gray-50 font-mono text-primary-700" required />
+              <p className="text-xs text-gray-500 mt-1">Sua página será: viajastore.com/#/{editFormData.slug}</p>
+            </div>
+            
+            <h3 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2 pt-8">Contatos</h3>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label>
+              <input type="text" name="phone" value={editFormData.phone || ''} onChange={e => setEditFormData(prev => ({...prev, phone: e.target.value}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">WhatsApp</label>
+              <input type="text" name="whatsapp" value={editFormData.whatsapp || ''} onChange={e => setEditFormData(prev => ({...prev, whatsapp: e.target.value}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Website</label>
+              <input type="text" name="website" value={editFormData.website || ''} onChange={e => setEditFormData(prev => ({...prev, website: e.target.value}))} placeholder="https://seusite.com" className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+
+            <h3 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2 pt-8">Endereço</h3>
+            {/* Address fields */}
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">CEP</label>
+                <input type="text" name="address.zipCode" value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, zipCode: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Rua</label>
+                <input type="text" name="address.street" value={editFormData.address?.street || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, street: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Número</label>
+                <input type="text" name="address.number" value={editFormData.address?.number || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, number: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Complemento</label>
+                <input type="text" name="address.complement" value={editFormData.address?.complement || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, complement: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Bairro</label>
+                <input type="text" name="address.district" value={editFormData.address?.district || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, district: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Cidade</label>
+                <input type="text" name="address.city" value={editFormData.address?.city || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, city: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Estado</label>
+                <input type="text" name="address.state" value={editFormData.address?.state || ''} onChange={e => setEditFormData(prev => ({...prev, address: {...prev.address, state: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+
+
+            <h3 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2 pt-8">Configurações do Microsite</h3>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Modo do Hero</label>
+                <select name="heroMode" value={editFormData.heroMode || 'TRIPS'} onChange={e => setEditFormData(prev => ({...prev, heroMode: e.target.value as 'TRIPS' | 'STATIC'}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500">
+                    <option value="TRIPS">Carrossel de Viagens</option>
+                    <option value="STATIC">Banner Estático Personalizado</option>
+                </select>
+            </div>
+            {editFormData.heroMode === 'STATIC' && (
+                <>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Título do Hero</label>
+                        <input type="text" name="heroTitle" value={editFormData.heroTitle || ''} onChange={e => setEditFormData(prev => ({...prev, heroTitle: e.target.value}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Subtítulo do Hero</label>
+                        <textarea name="heroSubtitle" value={editFormData.heroSubtitle || ''} onChange={e => setEditFormData(prev => ({...prev, heroSubtitle: e.target.value}))} rows={2} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">URL do Banner do Hero</label>
+                        <div className="flex items-center gap-2">
+                            <input type="text" name="heroBannerUrl" value={editFormData.heroBannerUrl || ''} onChange={e => setEditFormData(prev => ({...prev, heroBannerUrl: e.target.value}))} className="flex-1 border p-3 rounded-lg outline-none focus:border-primary-500" />
+                            <label className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-gray-200 inline-flex items-center gap-2 transition-colors text-sm">
+                                {isUploadingBanner ? <Loader size={16} className="animate-spin"/> : <Upload size={16}/>} Upload
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e.target.files?.[0] as File, 'heroBannerUrl')} disabled={isUploadingBanner}/>
+                            </label>
+                        </div>
+                        {editFormData.heroBannerUrl && <img src={editFormData.heroBannerUrl} alt="Hero Banner Preview" className="mt-4 max-h-48 object-cover rounded-lg shadow-sm border border-gray-100"/>}
+                    </div>
+                </>
+            )}
+
+            <h3 className="text-xl font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2 pt-8">Dados Bancários</h3>
+            {/* Bank Info fields */}
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Banco</label>
+                <input type="text" name="bankInfo.bank" value={editFormData.bankInfo?.bank || ''} onChange={e => setEditFormData(prev => ({...prev, bankInfo: {...prev.bankInfo, bank: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Agência</label>
+                <input type="text" name="bankInfo.agency" value={editFormData.bankInfo?.agency || ''} onChange={e => setEditFormData(prev => ({...prev, bankInfo: {...prev.bankInfo, agency: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Conta</label>
+                <input type="text" name="bankInfo.account" value={editFormData.bankInfo?.account || ''} onChange={e => setEditFormData(prev => ({...prev, bankInfo: {...prev.bankInfo, account: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Chave Pix</label>
+                <input type="text" name="bankInfo.pixKey" value={editFormData.bankInfo?.pixKey || ''} onChange={e => setEditFormData(prev => ({...prev, bankInfo: {...prev.bankInfo, pixKey: e.target.value}}))} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" />
+            </div>
+
+            <div className="pt-8 border-t border-gray-100">
+              <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                {isSavingSettings ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Configurações
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showTripPreview && tripForm && currentAgency && (
+          <TripPreviewModal 
+            trip={tripForm} 
+            agency={currentAgency} 
+            onClose={() => setShowTripPreview(false)} 
+          />
+      )}
+
+      {showSubscriptionConfirmModal && selectedPlanForConfirmation && (
+          <SubscriptionConfirmationModal 
+            plan={selectedPlanForConfirmation} 
+            onClose={() => setShowSubscriptionConfirmModal(false)}
+            onConfirm={handleConfirmSubscription}
+            isSubmitting={!!activatingPlanId}
+          />
       )}
     </div>
   );

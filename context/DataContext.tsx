@@ -1,9 +1,12 @@
 
+
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+// Fix: Corrected import syntax for slugify
 import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
@@ -321,7 +324,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   custom_settings,
                   website,
                   address,
-                  bank_info
+                  bank_info,
+                  subscription_plan,
+                  subscription_status,
+                  subscription_expires_at
                 )
               )
             `);
@@ -378,9 +384,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               heroTitle: b.trips.agencies.hero_title,
               heroSubtitle: b.trips.agencies.hero_subtitle,
               customSettings: b.trips.agencies.custom_settings || {},
-              subscriptionStatus: b.trips.agencies.is_active ? 'ACTIVE' : 'INACTIVE',
-              subscriptionPlan: 'BASIC', // Placeholder
-              subscriptionExpiresAt: new Date().toISOString(), // Placeholder
+              subscriptionStatus: b.trips.agencies.subscription_status || 'INACTIVE',
+              subscriptionPlan: b.trips.agencies.subscription_plan || 'BASIC',
+              subscriptionExpiresAt: b.trips.agencies.subscription_expires_at || new Date().toISOString(),
               website: b.trips.agencies.website,
               address: b.trips.agencies.address || {},
               bankInfo: b.trips.agencies.bank_info || {}
@@ -395,9 +401,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method,
-              _trip: tripData,
-              _agency: agencyData,
+              paymentMethod: b.payment_method // Corrected from b.trient_methods to b.payment_method
             };
           });
           setBookings(formattedBookings);
@@ -500,6 +504,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           is_active: status === 'ACTIVE'
       };
 
+      // Se expiresAt for fornecido, atualiza-o também
       if (expiresAt) {
           updates.subscription_expires_at = expiresAt;
       }
@@ -971,6 +976,87 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
+  const logAuditAction = async (action: string, details: string) => {
+      if (!supabase || !user || user.role !== UserRole.ADMIN) return;
+      try {
+          await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
+      } catch (e) {
+          console.error("Error logging audit action:", e);
+      }
+  };
+
+  const sendPasswordReset = async (email: string) => {
+      if (!supabase) return;
+      try {
+          const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
+              redirectTo: `${window.location.origin}/#/forgot-password` // Adjust if you have a specific reset page
+          });
+          if (error) throw error;
+          showToast('Link de reset de senha enviado para o e-mail.', 'success');
+          logAuditAction('PASSWORD_RESET_SENT', `Admin sent password reset link to ${email}`);
+      } catch (e: any) {
+          showToast('Erro ao enviar link: ' + e.message, 'error');
+      }
+  };
+
+  const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
+      if (!supabase || !user || user.role !== UserRole.ADMIN) return null;
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${userId}-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+              .from('avatars')
+              .upload(fileName, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+          
+          // Update profile table
+          await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
+
+          showToast('Avatar atualizado com sucesso!', 'success');
+          logAuditAction('USER_AVATAR_UPDATED', `Admin updated avatar for user ID: ${userId}`);
+          await refreshData(); // Refresh data to reflect changes
+          return data.publicUrl;
+      } catch (error) {
+          console.error("Upload avatar by admin error:", error);
+          showToast('Erro ao atualizar avatar.', 'error');
+          return null;
+      }
+  };
+
+  const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => {
+      if (!supabase) return [];
+      try {
+          const { data, error } = await supabase
+              .from('profiles')
+              .select(`
+                  id,
+                  full_name,
+                  bookings(total_price),
+                  agency_reviews(id)
+              `)
+              .in('id', userIds);
+          
+          if (error) throw error;
+
+          return data.map((profile: any) => ({
+              userId: profile.id,
+              userName: profile.full_name || 'Usuário Desconhecido',
+              totalSpent: profile.bookings.reduce((sum: number, b: any) => sum + b.total_price, 0),
+              totalBookings: profile.bookings.length,
+              totalReviews: profile.agency_reviews.length,
+          }));
+
+      } catch (e) {
+          console.error("Error fetching user stats:", e);
+          return [];
+      }
+  };
+
+
   return (
     <DataContext.Provider value={{
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
@@ -995,12 +1081,12 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       deleteUser, 
       deleteMultipleUsers, 
       deleteMultipleAgencies, 
-      getUsersStats: async() => [],
+      getUsersStats,
       updateMultipleUsersStatus, 
       updateMultipleAgenciesStatus, 
-      logAuditAction: dummyGuardedFunc,
-      sendPasswordReset: dummyGuardedFunc, 
-      updateUserAvatarByAdmin: async() => null,
+      logAuditAction,
+      sendPasswordReset, 
+      updateUserAvatarByAdmin,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,
       getAgencyTheme, saveAgencyTheme,

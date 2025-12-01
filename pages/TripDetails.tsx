@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -159,7 +161,7 @@ const TripDetails: React.FC = () => {
             href={whatsappLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="fixed bottom-24 md:bottom-6 right-6 z-[60] p-4 bg-[#25D366] rounded-full text-white shadow-lg hover:bg-[#128C7E] hover:scale-110 transition-all lg:hidden animate-[scaleIn_0.5s]"
+            className="hidden md:flex fixed bottom-6 right-6 z-[60] p-4 bg-[#25D366] rounded-full text-white shadow-lg hover:bg-[#128C7E] hover:scale-110 transition-all lg:hidden animate-[scaleIn_0.5s]"
             title="Falar no WhatsApp"
         >
             <MessageCircle size={28} className="fill-current" />
@@ -361,7 +363,7 @@ const TripDetails: React.FC = () => {
 
             <div className="flex justify-between items-center mb-6 pb-6 border-t border-gray-100 pt-6">
               <span className="text-gray-600 font-medium">Total estimado</span>
-              <span className="font-bold text-2xl text-primary-600">R$ {totalPrice.toLocaleString()}</span>
+              <span className="font-bold text-2xl text-primary-600">R$ {totalPrice.toLocaleString('pt-BR')}</span>
             </div>
 
             {whatsappLink && (
@@ -411,7 +413,7 @@ const TripDetails: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-800 font-bold">Total a pagar</span>
-                <span className="text-xl font-extrabold text-primary-700">R$ {totalPrice.toLocaleString()}</span>
+                <span className="text-xl font-extrabold text-primary-700">R$ {totalPrice.toLocaleString('pt-BR')}</span>
               </div>
             </div>
 

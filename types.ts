@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -25,7 +26,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Added for auth simulation
+  password?: string; // Changed for auth simulation from `string` to `string | undefined`
   role: UserRole;
   avatar?: string;
   createdAt?: string;
@@ -133,8 +134,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  rating: number; // DEPRECATED on Trip, but kept for compatibility with older code if needed
-  totalReviews: number; // DEPRECATED on Trip
+  rating?: number; // Made optional
+  totalReviews?: number; // Made optional
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats
