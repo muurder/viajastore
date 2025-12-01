@@ -476,6 +476,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
+        // Fix: Use subscriptionExpiresAt to update the database
+        if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
+
 
         const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
         if (error) {

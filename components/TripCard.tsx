@@ -1,11 +1,10 @@
 
-
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+// Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
 import { buildWhatsAppLink } from '../utils/whatsapp';

@@ -1,15 +1,16 @@
 
-
-
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+// Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
+// Fix: Import AgencyLandingPage as default
+import AgencyLandingPage from '../pages/AgencyLandingPage';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -328,7 +329,7 @@ const Layout: React.FC = () => {
                   <div className="flex space-x-4">
                     <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Instagram size={20} /></a>
                     <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Facebook size={20} /></a>
-                    <a href="#" className="text-gray-400 hover:text-primary-600 transition-colors"><Twitter size={20} /></a>
+                    <a href="#" className="text-400 hover:text-primary-600 transition-colors"><Twitter size={20} /></a>
                   </div>
                 </div>
                 

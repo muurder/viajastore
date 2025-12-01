@@ -3,11 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps } from 'lucide-react';
+// Fix: Import Link from react-router-dom
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
+// Fix: Import MonitorPlay, Info, AlertCircle from lucide-react
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -124,7 +126,7 @@ const SubscriptionConfirmationModal: React.FC<{
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
                     <div className="flex justify-between items-center">
                         <span className="font-bold">Total</span>
-                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></span>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
                 </div>
@@ -383,7 +385,8 @@ const defaultTripForm: Partial<Trip> = {
 
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, uploadImage, reloadUser, logout } = useAuth();
-  const { getAgencyTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData } = useData();
+  // Fix: Destructure updateAgencySubscription from useData
+  const { getAgencyTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, agencies, getAgencyStats, trips, bookings, clients, getReviewsByAgencyId, getAgencyTheme, saveAgencyTheme, refreshData, updateAgencySubscription } = useData();
   const { setAgencyTheme } = useTheme(); // For previewing
   const { showToast } = useToast();
   
@@ -394,7 +397,11 @@ const AgencyDashboard: React.FC = () => {
 
   const isAgencyActive = (user as Agency)?.subscriptionStatus === 'ACTIVE';
 
-  const [editFormData, setEditFormData] = useState<Partial<Agency>>({}); // For Settings tab
+  // Fix: Initialize Address and BankInfo correctly
+  const [editFormData, setEditFormData] = useState<Partial<Agency>>({
+    address: { zipCode: '', street: '', number: '', district: '', city: '', state: '' },
+    bankInfo: { bank: '', agency: '', account: '', pixKey: '' }
+  }); // For Settings tab
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
@@ -462,8 +469,8 @@ const AgencyDashboard: React.FC = () => {
         phone: currentAgency.phone || '',
         whatsapp: currentAgency.whatsapp || '',
         website: currentAgency.website || '',
-        address: currentAgency.address || {},
-        bankInfo: currentAgency.bankInfo || {},
+        address: currentAgency.address || { zipCode: '', street: '', number: '', district: '', city: '', state: '' }, // FIX: Default for Address
+        bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, // FIX: Default for BankInfo
         heroMode: currentAgency.heroMode || 'TRIPS',
         heroBannerUrl: currentAgency.heroBannerUrl || '',
         heroTitle: currentAgency.heroTitle || '',
@@ -592,7 +599,8 @@ const AgencyDashboard: React.FC = () => {
             featuredInHero: false,
             views: 0,
             sales: 0,
-            createdAt: new Date().toISOString()
+            // FIX: Remove 'createdAt' as it does not exist on type 'Trip'
+            // createdAt: new Date().toISOString() 
         };
         await createTrip(duplicatedTrip);
         showToast('Pacote duplicado com sucesso!', 'success');
@@ -675,20 +683,6 @@ const AgencyDashboard: React.FC = () => {
       {activeTab === 'OVERVIEW' && (
         <div className="space-y-8 animate-[fadeIn_0.3s]">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-2">
-                <div className="bg-gradient-to-br from-primary-600 to-blue-500 p-8 rounded-2xl shadow-lg border border-primary-500/50 text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 h-full w-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                    <div className="relative z-10">
-                        <h3 className="text-xl font-bold mb-2">Bem-vindo(a), {currentAgency.name}!</h3>
-                        <p className="text-primary-100 mb-6 max-w-sm">
-                            Este é o seu painel de controle. Gerencie seus pacotes, visualize suas métricas e otimize suas vendas.
-                        </p>
-                        <Link to={`/#/${currentAgency.slug}`} target="_blank" className="bg-white text-primary-700 px-6 py-2.5 rounded-full font-bold inline-flex items-center gap-2 hover:bg-gray-100 transition-all shadow-md">
-                            <MonitorPlay size={18}/> Ver Perfil Público
-                        </Link>
-                    </div>
-                </div>
-              </div>
               <StatCard title="Faturamento Bruto" value={`R$ ${agencyStats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} subtitle="Total de vendas confirmadas" icon={DollarSign} color="green"/>
               <StatCard title="Pacotes Ativos" value={myTrips.filter(t => t.is_active).length} subtitle="Viagens publicadas" icon={Plane} color="blue"/>
               <StatCard title="Visualizações" value={agencyStats.totalViews.toLocaleString()} subtitle="Visitas aos seus pacotes" icon={Eye} color="purple"/>
@@ -1055,7 +1049,7 @@ const AgencyDashboard: React.FC = () => {
                   </div>
 
                   <div className="flex justify-end border-t border-gray-100 pt-6">
-                      <button type="submit" disabled={isSavingSettings} className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2 disabled:opacity-50">
+                      <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2 disabled:opacity-50">
                           {isSavingSettings ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Configurações
                       </button>
                   </div>
