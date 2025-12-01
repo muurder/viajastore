@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TripCard from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
-import { AgencyReview, Trip } from '../types';
+import { AgencyReview } from '../types';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -117,45 +117,6 @@ const AgencyLandingPage: React.FC = () => {
 
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
-  // 1. Stable Hero Trips State
-  const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
-
-  // 2. Fetch trips only when agency changes or loads
-  useEffect(() => {
-      if (!agency) return;
-      const trips = getAgencyPublicTrips(agency.agencyId).filter(t => t.is_active);
-      
-      setHeroTrips(prev => {
-          // If we already have trips for this agency, preserve order to avoid shuffle jump
-          if (prev.length > 0 && prev[0].agencyId === agency.agencyId) return prev;
-          if (trips.length === 0) return [];
-
-          const featured = trips.filter(t => t.featuredInHero);
-          const others = trips.filter(t => !t.featuredInHero);
-          const combined = [...featured, ...others];
-          
-          if (featured.length === 0) {
-              combined.sort(() => 0.5 - Math.random());
-          }
-          
-          return combined.slice(0, 5);
-      });
-  }, [agency?.agencyId, getAgencyPublicTrips]);
-
-  // 3. Carousel Logic (Standardized)
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    if (!heroTrips.length) return;
-    const id = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % heroTrips.length);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [heroTrips.length]);
-
-  const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentIndex] : null;
-  
-  // Other Data
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
   const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
@@ -198,13 +159,16 @@ const AgencyLandingPage: React.FC = () => {
       );
   }
 
+  const shuffledTrips = [...allTrips].sort(() => 0.5 - Math.random());
+  const currentHeroTrip = shuffledTrips.find(t => t.featuredInHero) || shuffledTrips[0] || null;
+  
   const agencyStats = {
       totalReviews: agencyReviews.length,
       averageRating: agencyReviews.length > 0 ? agencyReviews.reduce((acc, r) => acc + r.rating, 0) / agencyReviews.length : 0,
       totalClients: allTrips.reduce((acc, t) => acc + (t.sales || 0), 0)
   };
 
-  const filteredTrips = allTrips.filter(t => {
+  const filteredTrips = shuffledTrips.filter(t => {
       const matchesSearch = 
           t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.destination.toLowerCase().includes(searchTerm.toLowerCase());
@@ -300,166 +264,136 @@ const AgencyLandingPage: React.FC = () => {
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
       
-      {/* Hero Section */}
       <div 
+        key={agency.id}
         className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] md:min-h-[580px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
       >
-          {agency.heroMode === 'STATIC' ? (
-              <>
-                  <div className="absolute inset-0 z-0">
-                      <img 
-                        src={agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
-                        className="w-full h-full object-cover" 
-                        alt="Cover"
-                      />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-10 pointer-events-none"></div>
+          <div className="absolute inset-0 z-0">
+              <img 
+                src={heroBgImage} 
+                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
+                alt="Cover" 
+              />
+          </div>
+
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-20 pointer-events-none"></div>
+
+          <div className="absolute top-6 left-6 md:top-10 md:left-12 z-40 flex items-center gap-4 animate-[fadeInDown_0.5s]">
+              <div className="w-16 h-16 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-md shadow-xl overflow-hidden">
+                  <img 
+                    src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
+                    className="w-full h-full object-cover" 
+                    alt="Logo"
+                  />
+              </div>
+              <div>
+                  <h2 className="text-white font-bold text-lg shadow-black drop-shadow-md leading-tight">{agency.name}</h2>
+                  {agency.subscriptionStatus === 'ACTIVE' && (
+                      <span className="text-green-400 text-xs font-bold flex items-center gap-1 drop-shadow-md bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10 w-fit mt-1">
+                          <ShieldCheck size={12} fill="currentColor" /> Verificado
+                      </span>
+                  )}
+              </div>
+          </div>
+
+          <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   
-                  {/* Agency Header Badge */}
-                  <div className="absolute top-6 left-6 md:top-10 md:left-12 z-40 flex items-center gap-4 animate-[fadeInDown_0.5s]">
-                      <div className="w-16 h-16 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-md shadow-xl overflow-hidden">
-                          <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-full h-full object-cover" alt="Logo" />
-                      </div>
-                      <div>
-                          <h2 className="text-white font-bold text-lg shadow-black drop-shadow-md leading-tight">{agency.name}</h2>
-                          {agency.subscriptionStatus === 'ACTIVE' && (
-                              <span className="text-green-400 text-xs font-bold flex items-center gap-1 drop-shadow-md bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10 w-fit mt-1">
-                                  <ShieldCheck size={12} fill="currentColor" /> Verificado
-                              </span>
-                          )}
-                      </div>
-                  </div>
-
-                  <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
-                      <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24 max-w-2xl">
-                          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
-                              {agency.heroTitle || `Bem-vindo à ${agency.name}`}
-                          </h1>
-                          <p className="text-gray-200 text-lg md:text-xl font-light leading-relaxed mb-8 drop-shadow-md">
-                              {agency.heroSubtitle || agency.description || "As melhores experiências de viagem você encontra aqui."}
-                          </p>
-                          <button onClick={scrollToPackages} className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95">
-                              Ver Pacotes <ArrowDown size={18}/>
-                          </button>
-                      </div>
-                  </div>
-              </>
-          ) : (
-              // CAROUSEL MODE
-              currentHeroTrip ? (
-                  <div key={currentHeroTrip.id} className="absolute inset-0 w-full h-full animate-[fadeIn_0.4s_ease-out]">
-                      {/* Background Image */}
-                      <div className="absolute inset-0 z-0">
-                          <img 
-                            src={currentHeroTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"} 
-                            className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
-                            alt={currentHeroTrip.title} 
-                          />
-                      </div>
-                      
-                      {/* Gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-10 pointer-events-none"></div>
-
-                      {/* Agency Header Badge */}
-                      <div className="absolute top-6 left-6 md:top-10 md:left-12 z-40 flex items-center gap-4 animate-[fadeInDown_0.5s]">
-                          <div className="w-16 h-16 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-md shadow-xl overflow-hidden">
-                              <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-full h-full object-cover" alt="Logo" />
-                          </div>
-                          <div>
-                              <h2 className="text-white font-bold text-lg shadow-black drop-shadow-md leading-tight">{agency.name}</h2>
-                              {agency.subscriptionStatus === 'ACTIVE' && (
-                                  <span className="text-green-400 text-xs font-bold flex items-center gap-1 drop-shadow-md bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10 w-fit mt-1">
-                                      <ShieldCheck size={12} fill="currentColor" /> Verificado
+                  <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24">
+                      {agency.heroMode === 'TRIPS' && currentHeroTrip ? (
+                          <>
+                             <div className="flex flex-wrap items-center gap-3 mb-4">
+                                  <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
+                                      {currentHeroTrip.category.replace('_', ' ')}
                                   </span>
-                              )}
-                          </div>
-                      </div>
+                                  <span className="flex items-center text-gray-300 text-xs font-bold bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                                      <Clock size={12} className="mr-1.5 text-primary-400"/> {currentHeroTrip.durationDays} Dias
+                                  </span>
+                              </div>
 
-                      {/* Content Overlay */}
-                      <div className="relative z-20 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0 h-full flex items-center">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
-                              {/* Left Text */}
-                              <div className="text-white pt-8 lg:pt-0">
-                                  <div className="flex flex-wrap items-center gap-3 mb-4">
-                                      <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
-                                          {currentHeroTrip.category.replace('_', ' ')}
-                                      </span>
-                                      <span className="flex items-center text-gray-300 text-xs font-bold bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
-                                          <Clock size={12} className="mr-1.5 text-primary-400"/> {currentHeroTrip.durationDays} Dias
-                                      </span>
-                                  </div>
+                              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 text-white drop-shadow-xl leading-[1.1]">
+                                  {currentHeroTrip.title}
+                              </h1>
+                              
+                              <div className="flex items-center text-gray-200 text-lg font-medium mb-8 drop-shadow-md">
+                                  <MapPin size={20} className="mr-2 text-primary-400"/> 
+                                  {currentHeroTrip.destination}
+                              </div>
 
-                                  <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 text-white drop-shadow-xl leading-[1.1]">
-                                      {currentHeroTrip.title}
-                                  </h1>
-                                  
-                                  <div className="flex items-center text-gray-200 text-lg font-medium mb-8 drop-shadow-md">
-                                      <MapPin size={20} className="mr-2 text-primary-400"/> 
-                                      {currentHeroTrip.destination}
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-4">
-                                      <Link 
-                                        to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                                        className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                              <div className="flex flex-wrap gap-4">
+                                  <Link 
+                                    to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
+                                    className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                  >
+                                      Ver Detalhes <ArrowRight size={18}/>
+                                  </Link>
+                                  {agency.whatsapp && (
+                                      <button 
+                                        onClick={handleContact}
+                                        className="bg-[#25D366] hover:bg-[#128C7E] text-white px-8 py-3.5 rounded-full font-bold shadow-lg shadow-green-900/20 flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
                                       >
-                                          Ver Detalhes <ArrowRight size={18}/>
-                                      </Link>
-                                      {agency.whatsapp && (
-                                          <button 
-                                            onClick={handleContact}
-                                            className="bg-[#25D366] hover:bg-[#128C7E] text-white px-8 py-3.5 rounded-full font-bold shadow-lg shadow-green-900/20 flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
-                                          >
-                                              <MessageCircle size={20} className="fill-white/20" /> WhatsApp
-                                          </button>
-                                      )}
+                                          <MessageCircle size={20} className="fill-white/20" /> WhatsApp
+                                      </button>
+                                  )}
+                              </div>
+                          </>
+                      ) : (
+                          <>
+                              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
+                                  {agency.heroTitle || `Bem-vindo à ${agency.name}`}
+                              </h1>
+                              <p className="text-gray-200 text-lg md:text-xl font-light max-w-2xl leading-relaxed mb-8 drop-shadow-md">
+                                  {agency.heroSubtitle || agency.description || "As melhores experiências de viagem você encontra aqui."}
+                              </p>
+                              <button 
+                                onClick={scrollToPackages}
+                                className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                              >
+                                  Ver Pacotes <ArrowDown size={18}/>
+                              </button>
+                          </>
+                      )}
+                  </div>
+
+                  <div className="hidden lg:flex justify-end animate-[fadeIn_1s_ease-out]">
+                      {agency.heroMode === 'TRIPS' && currentHeroTrip && (
+                          <Link 
+                            to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
+                            className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
+                          >
+                              <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
+                                  <img 
+                                    src={currentHeroTrip.images[0]} 
+                                    alt={currentHeroTrip.title} 
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" 
+                                  />
+                                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10">
+                                      Destaque
                                   </div>
                               </div>
                               
-                              {/* Right Card */}
-                              <div className="hidden lg:flex justify-end">
-                                  <Link 
-                                    to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
-                                    className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
-                                  >
-                                      <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
-                                          <img 
-                                            src={currentHeroTrip.images[0]} 
-                                            alt={currentHeroTrip.title} 
-                                            className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" 
-                                          />
-                                          <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10">
-                                              Destaque
-                                          </div>
+                              <h3 className="font-bold text-white text-xl leading-tight line-clamp-2 mb-4 group-hover/card:text-primary-200 transition-colors drop-shadow-sm">
+                                  {currentHeroTrip.title}
+                              </h3>
+                              
+                              <div className="flex justify-between items-end pt-2 border-t border-white/10">
+                                  <div className="flex flex-col">
+                                      <p className="text-[10px] uppercase font-bold text-gray-300 mb-0.5 tracking-wider">A partir de</p>
+                                      <div className="flex items-baseline gap-1">
+                                          <span className="text-xs font-semibold text-gray-400">R$</span>
+                                          <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
                                       </div>
-                                      
-                                      <h3 className="font-bold text-white text-xl leading-tight line-clamp-2 mb-4 group-hover/card:text-primary-200 transition-colors drop-shadow-sm">
-                                          {currentHeroTrip.title}
-                                      </h3>
-                                      
-                                      <div className="flex justify-between items-end pt-2 border-t border-white/10">
-                                          <div className="flex flex-col">
-                                              <p className="text-[10px] uppercase font-bold text-gray-300 mb-0.5 tracking-wider">A partir de</p>
-                                              <div className="flex items-baseline gap-1">
-                                                  <span className="text-xs font-semibold text-gray-400">R$</span>
-                                                  <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
-                                              </div>
-                                          </div>
-                                          <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover/card:bg-primary-500 transition-colors">
-                                              <ArrowRight size={20} className="-rotate-45 group-hover/card:rotate-0 transition-transform duration-300"/>
-                                          </div>
-                                      </div>
-                                  </Link>
+                                  </div>
+                                  <div className="h-10 w-10 bg-primary-600 rounded-full flex items-center justify-center text-white shadow-lg group-hover/card:bg-primary-500 transition-colors">
+                                      <ArrowRight size={20} className="-rotate-45 group-hover/card:rotate-0 transition-transform duration-300"/>
+                                  </div>
                               </div>
-                          </div>
-                      </div>
+                          </Link>
+                      )}
                   </div>
-              ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-white bg-gray-900">
-                      <p>Carregando destaques...</p>
-                  </div>
-              )
-          )}
+
+              </div>
+          </div>
       </div>
 
       <div ref={reviewsSectionRef} className="sticky top-[64px] z-40 bg-gray-50/90 backdrop-blur-md border-b border-gray-200 shadow-sm -mt-6 pt-4">

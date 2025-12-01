@@ -7,8 +7,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 import Layout from './components/Layout';
 import Home from './pages/Home';
-// Fix: Changed import to named import to resolve potential tooling issues with default export recognition.
-import { TripDetails } from './pages/TripDetails'; 
+import TripList from './pages/TripList';
+import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 import AgencyDashboard from './pages/AgencyDashboard';

@@ -110,8 +110,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             heroSubtitle: agencyData.hero_subtitle,
             customSettings: agencyData.custom_settings || {},
             subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
-            subscriptionPlan: agencyData.subscription_plan || 'BASIC', 
-            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(), 
+            subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
+            subscriptionExpiresAt: new Date().toISOString(), 
             website: agencyData.website,
             phone: agencyData.phone,
             address: agencyData.address || {},
@@ -188,13 +188,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const safeSlug = slugify(userName + '-' + Math.floor(Math.random() * 1000));
               
               // Use RPC for safe creation even in ensureUserRecord
-              // FIX: Ensure parameters passed to create_agency RPC match its signature
               const { error: agencyError } = await supabase.rpc('create_agency', {
                   p_user_id: userId,
                   p_name: userName,
                   p_email: userEmail,
-                  p_phone: userPhone || '',    // Ensure phone is string
-                  p_whatsapp: userPhone || '', // Ensure whatsapp is string
+                  p_phone: userPhone,    // Pass phone to RPC
+                  p_whatsapp: userPhone, // Pass phone as whatsapp to RPC
                   p_slug: safeSlug
               });
 
@@ -440,8 +439,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      // 1. Only call Auth API to update email if it has actually changed
-      if (userData.email && userData.email.trim().toLowerCase() !== user.email?.trim().toLowerCase()) {
+      if (userData.email && userData.email !== user.email) {
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
       }
