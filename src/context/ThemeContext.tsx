@@ -170,8 +170,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
           if (error) throw error;
           await fetchThemes(); 
-          // FIX: Safely access id property using type assertion
-          return (data as ThemePalette)?.id || null;
+          return data ? data.id : null;
       } catch (error) {
           console.error("Error adding theme:", error);
           return null;

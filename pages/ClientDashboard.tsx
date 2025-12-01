@@ -1,11 +1,9 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address, AgencyReview, Agency } from '../types';
-// Fix: Use named import for TripCard as it's exported as such.
-import { TripCard } from '../components/TripCard';
+import TripCard from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
@@ -443,27 +441,8 @@ const ClientDashboard: React.FC = () => {
                                <div key={review.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                                    <div className="flex justify-between items-start mb-3">
                                        <div className="flex items-center gap-4">
-                                           {/* Display client avatar for their own review */}
-                                           <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden border border-gray-200">
-                                            {review.clientAvatar ? (
-                                                <img 
-                                                    src={review.clientAvatar} 
-                                                    alt={review.clientName || 'Viajante'} 
-                                                    className="w-full h-full object-cover" 
-                                                    onError={(e) => {
-                                                        // Fallback to ui-avatars if image fails
-                                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
-                                                    }}
-                                                />
-                                            ) : (
-                                                <img 
-                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`} 
-                                                    alt={review.clientName || 'Viajante'} 
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            )}
-                                           </div>
-                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? "fill-current" : "text-gray-300"} />)} </div> </div>
+                                           <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden border border-gray-200"> {review.agencyLogo ? <img src={review.agencyLogo} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-gray-200"/>} </div>
+                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)} </div> </div>
                                        </div>
                                        <div className="flex items-center gap-2">
                                           <button onClick={() => setEditingReview(review)} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" aria-label="Editar avaliação"><Edit size={16}/></button>

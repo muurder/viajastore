@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
-        // Handle AGENCY role (Check case-insensitive)
+        // Fix: Ensure AGENCY role check is case-insensitive for robustness
         if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
@@ -188,7 +188,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const safeSlug = slugify(userName + '-' + Math.floor(Math.random() * 1000));
               
               // Use RPC for safe creation even in ensureUserRecord
-              // FIX: Ensure p_phone and p_whatsapp can be null
               const { error: agencyError } = await supabase.rpc('create_agency', {
                   p_user_id: userId,
                   p_name: userName,
@@ -361,16 +360,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
         
         // Use RPC to bypass potential REST Schema Cache issues
-        // FIX: Ensure p_phone and p_whatsapp can be null
         const { error: agencyError } = await supabase.rpc('create_agency', {
             p_user_id: userId,
             p_name: data.name,
             p_email: data.email,
-            p_phone: data.phone,    // Pass phone to RPC
-            p_whatsapp: data.phone, // Pass phone as whatsapp to RPC
+            p_phone: data.phone,
+            p_whatsapp: data.phone,
             p_slug: safeSlug
         });
-
+        
         if (agencyError) {
             console.error("Supabase Agency RPC Insert Error:", agencyError);
             throw agencyError;
@@ -455,7 +453,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
-        // Fix: Use type assertion to correctly access bankInfo property for Agency type
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
         if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
         
@@ -485,8 +482,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
       }
 
-      // FIX: Ensure user object update is type-safe
-      setUser({ ...user, ...userData } as User | Client | Agency | Admin);
+      setUser({ ...user, ...userData } as any);
       return { success: true };
 
     } catch (error: any) {

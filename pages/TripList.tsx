@@ -1,10 +1,8 @@
 
 
-
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-// Fix: Use named import for TripCard as it's exported as such.
-import { TripCard, TripCardSkeleton } from '../components/TripCard';
+import TripCard, { TripCardSkeleton } from '../components/TripCard';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
 
@@ -182,9 +180,9 @@ const TripList: React.FC = () => {
     switch (sortParam) {
         case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
         case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
-        case 'RATING': result.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+        case 'RATING': result.sort((a, b) => b.rating - a.rating); break;
         default: // RELEVANCE
-           result.sort((a, b) => ((b.rating || 0) * 10 + (b.views || 0) / 100) - ((a.rating || 0) * 10 + (a.views || 0) / 100));
+           result.sort((a, b) => (b.rating * 10 + (b.views || 0) / 100) - (a.rating * 10 + (a.views || 0) / 100));
     }
 
     setFilteredTrips(result);
@@ -446,7 +444,7 @@ const TripList: React.FC = () => {
               </button>
 
               <div className="relative flex-1 sm:flex-initial min-w-[200px]">
-                <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <ArrowUpDown size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
                 <select 
                     value={sortParam}
                     onChange={(e) => updateUrl('sort', e.target.value)}
@@ -457,7 +455,7 @@ const TripList: React.FC = () => {
                     <option value="HIGH_PRICE">Maior Preço</option>
                     <option value="RATING">Melhor Avaliação</option>
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
               </div>
             </div>
           </div>
