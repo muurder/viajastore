@@ -11,7 +11,8 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-import { AdminDashboard } from './pages/AgencyDashboard'; // Fix: Import AdminDashboard as a named export
+// Corrected import path for AdminDashboard component
+import { AdminDashboard } from './pages/AdminDashboard'; 
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
@@ -36,7 +37,7 @@ const App: React.FC = () => {
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  <Route path="contact" element={<Contact />} />
+                  <Route path="contact" element="<Contact />" />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
                   <Route path="help" element={<Help />} />
