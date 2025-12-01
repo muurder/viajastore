@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -9,10 +8,12 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      external: ['jspdf'],
+      // CORREÇÃO DEFINITIVA: Adicionado 'jspdf-autotable' à lista de externos
+      external: ['jspdf', 'jspdf-autotable'], 
       output: {
         globals: {
-          jspdf: 'jsPDF'
+          jspdf: 'jsPDF',
+          'jspdf-autotable': 'jspdf_autotable' // Define o nome global para o importmap
         }
       }
     }
