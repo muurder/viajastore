@@ -435,12 +435,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
-    // ... existing updateUser implementation ...
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      if (userData.email && userData.email !== user.email) {
+      // FIX: Strict email comparison to prevent unnecessary Auth API calls and 429 errors
+      let shouldUpdateAuthEmail = false;
+      if (userData.email && user.email) {
+          const newEmail = userData.email.trim().toLowerCase();
+          const currentEmail = user.email.trim().toLowerCase();
+          if (newEmail !== currentEmail) {
+              shouldUpdateAuthEmail = true;
+          }
+      }
+
+      if (shouldUpdateAuthEmail && userData.email) {
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
       }
@@ -454,7 +463,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
-        // Fix: Use type assertion to correctly access bankInfo property for Agency type
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
         if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
         

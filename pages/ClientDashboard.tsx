@@ -35,6 +35,7 @@ const ClientDashboard: React.FC = () => {
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState<AgencyReview | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // New state for profile saving
 
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [uploading, setUploading] = useState(false);
@@ -161,6 +162,9 @@ const ClientDashboard: React.FC = () => {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+    
+    setIsSaving(true);
     const res = await updateUser({ 
         name: editForm.name, 
         email: editForm.email,
@@ -168,6 +172,8 @@ const ClientDashboard: React.FC = () => {
         cpf: editForm.cpf,
         address: addressForm
     });
+    
+    setIsSaving(false);
     if (res.success) showToast('Perfil atualizado com sucesso!', 'success');
     else showToast('Erro ao atualizar: ' + res.error, 'error');
   };
@@ -489,7 +495,9 @@ const ClientDashboard: React.FC = () => {
                           <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label> <input value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" /> </div>
                       </div>
                   </div>
-                  <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2"><Save size={18} /> Salvar Alterações</button>
+                  <button type="submit" disabled={isSaving} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSaving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
+                  </button>
                </form>
              </div>
            )}
