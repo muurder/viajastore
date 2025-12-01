@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -14,7 +15,8 @@ const normalizeText = (text: string) => {
     .replace(/[\u0300-\u036f]/g, "");
 };
 
-const TripList: React.FC = () => {
+// @FIX: Changed from default export to named export
+export const TripList: React.FC = () => {
   // Detect if we are in an agency microsite
   const { agencySlug } = useParams<{ agencySlug?: string }>();
   const { getPublicTrips, getAgencyPublicTrips, getAgencyBySlug, loading, trips } = useData();
@@ -180,9 +182,9 @@ const TripList: React.FC = () => {
     switch (sortParam) {
         case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
         case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
-        case 'RATING': result.sort((a, b) => b.rating - a.rating); break;
+        case 'RATING': result.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
         default: // RELEVANCE
-           result.sort((a, b) => (b.rating * 10 + (b.views || 0) / 100) - (a.rating * 10 + (a.views || 0) / 100));
+           result.sort((a, b) => ((b.rating || 0) * 10 + (b.views || 0) / 100) - ((a.rating || 0) * 10 + (a.views || 0) / 100));
     }
 
     setFilteredTrips(result);
@@ -347,147 +349,3 @@ const TripList: React.FC = () => {
                 {openFilterSections['duration'] && (
                     <div className="space-y-2">
                         {durationOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer group">
-                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 transition-all ${durationParam === opt.id ? 'border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
-                                    {durationParam === opt.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full" />}
-                                </div>
-                                <input 
-                                  type="radio" 
-                                  name="duration"
-                                  className="hidden"
-                                  checked={durationParam === opt.id}
-                                  onChange={() => updateUrl('duration', opt.id === durationParam ? null : opt.id)}
-                                />
-                                <span className={`text-sm ${durationParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
-                            </label>
-                        ))}
-                        {durationParam && <button onClick={() => updateUrl('duration', null)} className="text-xs text-red-500 font-bold hover:underline mt-2 ml-8 block">Limpar filtro</button>}
-                    </div>
-                )}
-             </div>
-
-             {/* D - Price */}
-             <div className="border-b border-gray-100 pb-4">
-                <button onClick={() => toggleAccordion('price')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
-                    <span>Preço por Pessoa</span>
-                    {openFilterSections['price'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                </button>
-                {openFilterSections['price'] && (
-                    <div className="space-y-2">
-                        {priceOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer group">
-                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 transition-all ${priceParam === opt.id ? 'border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
-                                    {priceParam === opt.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full" />}
-                                </div>
-                                <input 
-                                  type="radio" 
-                                  name="price"
-                                  className="hidden"
-                                  checked={priceParam === opt.id}
-                                  onChange={() => updateUrl('price', opt.id === priceParam ? null : opt.id)}
-                                />
-                                <span className={`text-sm ${priceParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
-                            </label>
-                        ))}
-                         {priceParam && <button onClick={() => updateUrl('price', null)} className="text-xs text-red-500 font-bold hover:underline mt-2 ml-8 block">Limpar filtro</button>}
-                    </div>
-                )}
-             </div>
-
-             {/* E - Popular Destinations (Global only) */}
-             {!currentAgency && (
-                 <div>
-                    <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
-                        <span>Destinos Populares</span>
-                        {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                    </button>
-                    {openFilterSections['dest'] && (
-                        <div className="flex flex-wrap gap-2">
-                            {popularDestinations.map(dest => {
-                                const isSelected = q === dest;
-                                return (
-                                    <button 
-                                      key={dest}
-                                      onClick={() => updateUrl('q', isSelected ? null : dest)}
-                                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${isSelected ? 'bg-primary-50 border-primary-200 text-primary-700 font-bold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        {dest}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                 </div>
-             )}
-
-             <button onClick={clearFilters} className="w-full py-3 text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl hover:bg-gray-50 hover:text-gray-800 transition-colors font-medium">
-               Limpar Todos os Filtros
-             </button>
-          </div>
-        </aside>
-
-        {showMobileFilters && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setShowMobileFilters(false)}></div>}
-
-        {/* Main Content */}
-        <div className="flex-1">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-            <div className="text-gray-600 text-sm">
-               Mostrando <span className="font-bold text-gray-900">{filteredTrips.length}</span> resultados
-            </div>
-            
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button 
-                  className="md:hidden flex-1 flex items-center justify-center text-gray-700 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm font-medium"
-                  onClick={() => setShowMobileFilters(true)}
-              >
-                  <Filter size={16} className="mr-2" /> Filtros
-              </button>
-
-              <div className="relative flex-1 sm:flex-initial min-w-[200px]">
-                <ArrowUpDown size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
-                <select 
-                    value={sortParam}
-                    onChange={(e) => updateUrl('sort', e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-transparent rounded-lg text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer hover:bg-gray-100 appearance-none"
-                >
-                    <option value="RELEVANCE">Mais Relevantes</option>
-                    <option value="LOW_PRICE">Menor Preço</option>
-                    <option value="HIGH_PRICE">Maior Preço</option>
-                    <option value="RATING">Melhor Avaliação</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
-            </div>
-          ) : (
-            filteredTrips.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredTrips.map(trip => (
-                        <TripCard key={trip.id} trip={trip} />
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-24 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm">
-                  <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Search className="text-gray-300" size={32} />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
-                  <p className="text-gray-500 mb-8 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
-                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors bg-primary-50 px-6 py-2.5 rounded-full">
-                    Limpar todos os filtros
-                  </button>
-                </div>
-            )
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default TripList;

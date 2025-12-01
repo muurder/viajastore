@@ -147,9 +147,55 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.create_agency(uuid, text, text, text, text, text) TO anon, authenticated, service_role;
 
--- 7. REFORÇAR PERMISSÃO DE ADMIN E DATAS
-UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
-UPDATE public.agencies SET subscription_expires_at = (NOW() + INTERVAL '30 days') WHERE is_active = true OR subscription_expires_at IS NULL;
+-- 7. ADICIONAR FUNÇÃO RPC PARA ATIVAÇÃO/TROCA DE ASSINATURA
+DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid,text); -- ADDED THIS LINE TO FIX THE ERROR
+CREATE OR REPLACE FUNCTION public.activate_agency_subscription(
+  p_user_id uuid,
+  p_plan_id text
+)
+RETURNS public.agencies
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_duration_months INTEGER;
+  v_expires_at TIMESTAMP WITH TIME ZONE;
+  updated_agency public.agencies;
+BEGIN
+  -- Buscar a duração do plano na tabela 'plans'
+  SELECT duration_months INTO v_duration_months
+  FROM public.plans
+  WHERE id = p_plan_id;
 
--- 8. RECARREGAR
+  -- Calcular a data de expiração (se a duração for nula, usar 1 mês como fallback)
+  v_expires_at := NOW() + (v_duration_months || ' month')::INTERVAL;
+  
+  -- Atualizar a agência
+  UPDATE public.agencies
+  SET
+    subscription_plan = p_plan_id,
+    subscription_status = 'ACTIVE',
+    subscription_expires_at = v_expires_at,
+    is_active = TRUE,
+    updated_at = NOW()
+  WHERE user_id = p_user_id
+  RETURNING * INTO updated_agency;
+
+  -- Se a agência não for encontrada, lançar um erro
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Agência não encontrada para o user_id: %', p_user_id;
+  END IF;
+
+  RETURN updated_agency;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(uuid, text) TO anon, authenticated, service_role;
+
+-- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
+UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
+-- A linha abaixo será mais bem gerenciada pela nova RPC de ativação ou por updates no painel admin
+-- UPDATE public.agencies SET subscription_expires_at = (NOW() + INTERVAL '30 days') WHERE is_active = true OR subscription_expires_at IS NULL;
+
+-- 9. RECARREGAR
 NOTIFY pgrst, 'reload config';

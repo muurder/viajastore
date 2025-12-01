@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -228,9 +230,8 @@ const AdminDashboard: React.FC = () => {
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
-        // FIX: The `updateAgencySubscription` in DataContext doesn't expect `expiresAt` directly.
-        // The Admin Dashboard modal manages `expiresAt` via RPC `activate_agency_subscription`.
-        await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan);
+        // FIX: Pass expiresAt to DataContext function
+        await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
     } catch (error) {
         // Toast is already handled in DataContext
     } finally {
@@ -238,7 +239,7 @@ const AdminDashboard: React.FC = () => {
         setModalType(null);
     }
   };
-  
+
   const addSubscriptionTime = (days: number) => {
       const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
       // If current is invalid or in the past, maybe start from now? 
@@ -246,7 +247,7 @@ const AdminDashboard: React.FC = () => {
       
       const newDate = new Date(baseDate);
       newDate.setDate(newDate.getDate() + days);
-      // FIX: Ensure correct ISO string format for datetime-local
+      // FIX: Ensure correct ISO string format for datetime-local (YYYY-MM-DDTHH:MM)
       setEditFormData({ ...editFormData, expiresAt: newDate.toISOString().slice(0, 16) });
   };
   
@@ -1012,9 +1013,75 @@ const AdminDashboard: React.FC = () => {
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Expiração</label>
                         <input 
                             type="datetime-local" 
-                            value={editFormData.expiresAt || ''}
+                            value={editFormData.expiresAt ? new Date(editFormData.expiresAt).toISOString().slice(0, 16) : ''}
                             onChange={e => setEditFormData({...editFormData, expiresAt: e.target.value})}
                             className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
                         />
                         <div className="flex gap-2 mt-2">
-                            <button type="button" onClick={() => addSubscriptionTime(30)} className="text-xs bg-gray-
+                            <button type="button" onClick={() => addSubscriptionTime(30)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+30 Dias</button>
+                            <button type="button" onClick={() => addSubscriptionTime(365)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+1 Ano</button>
+                        </div>
+                    </div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Assinatura</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_REVIEW' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
+                <form onSubmit={handleReviewUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nota</label><input type="number" min={1} max={5} value={editFormData.rating || ''} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea rows={4} value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_TRIP' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
+                <form onSubmit={handleTripUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={4} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Ativo</label><input type="checkbox" checked={editFormData.is_active || false} onChange={e => setEditFormData({...editFormData, is_active: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Destacado</label><input type="checkbox" checked={editFormData.featured || false} onChange={e => setEditFormData({...editFormData, featured: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'VIEW_STATS' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
+                {userStats.length > 0 ? (
+                    userStats.map(stats => (
+                        <div key={stats.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                            <h3 className="font-bold text-gray-900 text-lg mb-2">{stats.userName}</h3>
+                            <p className="text-sm text-gray-600 mb-1">Total Gasto: <span className="font-bold">R$ {stats.totalSpent.toLocaleString()}</span></p>
+                            <p className="text-sm text-gray-600 mb-1">Total de Reservas: <span className="font-bold">{stats.totalBookings}</span></p>
+                            <p className="text-sm text-gray-600">Total de Avaliações: <span className="font-bold">{stats.totalReviews}</span></p>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-500 text-sm py-4">Nenhum dado encontrado para os usuários selecionados.</p>
+                )}
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export { AdminDashboard };

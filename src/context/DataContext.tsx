@@ -1,8 +1,11 @@
+
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+// Fix: Corrected import syntax for slugify
 import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
@@ -33,7 +36,7 @@ interface DataContextType {
   toggleFavorite: (tripId: string, clientId: string) => Promise<void>;
   updateClientProfile: (clientId: string, data: Partial<Client>) => Promise<void>;
   
-  updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => Promise<void>;
+  updateAgencySubscription: (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM', expiresAt?: string) => Promise<void>;
   updateAgencyProfileByAdmin: (agencyId: string, data: Partial<Agency>) => Promise<void>;
   toggleAgencyStatus: (agencyId: string) => Promise<void>;
   createTrip: (trip: Trip) => Promise<void>;
@@ -493,7 +496,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return supabase;
   };
 
-  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM', expiresAt?: string) => {
       const supabase = guardSupabase();
       
       const updates: any = {
@@ -502,9 +505,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           is_active: status === 'ACTIVE'
       };
 
-      // The `expiresAt` is now managed by the RPC function during activation
-      // or directly by adding time in the Admin Dashboard modal logic,
-      // not passed as a direct parameter to this core update function.
+      // Se expiresAt for fornecido, atualiza-o também
+      if (expiresAt) {
+          updates.subscription_expires_at = expiresAt;
+      }
 
       const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId); 
       

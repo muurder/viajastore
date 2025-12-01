@@ -1,3 +1,5 @@
+
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -438,7 +440,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      // FIX: Normalize emails to avoid unnecessary Auth API calls and 429 errors.
+      // Fix: Normalize emails to avoid unnecessary Auth API calls and 429 errors.
       let shouldUpdateAuthEmail = false;
       if (userData.email && user.email) {
           const newEmail = userData.email.trim().toLowerCase();
