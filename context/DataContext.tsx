@@ -849,6 +849,128 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   
   const dummyGuardedFunc = async () => { if (!supabase) return; };
 
+  // New functions implemented to fix scope issues
+  const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
+    const supabase = guardSupabase();
+    const updates: any = {};
+    if (data.name) updates.full_name = data.name;
+    if (data.email) updates.email = data.email;
+    if (data.phone) updates.phone = data.phone;
+    if (data.cpf) updates.cpf = data.cpf;
+    if (data.status) updates.status = data.status;
+    if (data.address) updates.address = data.address;
+
+    const { error } = await supabase.from('profiles').update(updates).eq('id', clientId);
+    if (error) {
+        showToast('Erro ao atualizar perfil: ' + error.message, 'error');
+        throw error;
+    }
+    await refreshData();
+  };
+
+  const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
+    const supabase = guardSupabase();
+    const updates: any = {};
+    if (data.name) updates.name = data.name;
+    if (data.description) updates.description = data.description;
+    if (data.cnpj) updates.cnpj = data.cnpj;
+    if (data.slug) updates.slug = data.slug;
+    if (data.phone) updates.phone = data.phone;
+    if (data.whatsapp) updates.whatsapp = data.whatsapp;
+    if (data.website) updates.website = data.website;
+    if (data.address) updates.address = data.address;
+    if (data.bankInfo) updates.bank_info = data.bankInfo;
+
+    const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId);
+    if (error) {
+        showToast('Erro ao atualizar agência: ' + error.message, 'error');
+        throw error;
+    }
+    await refreshData();
+  };
+
+  const toggleAgencyStatus = async (agencyId: string) => {
+    const supabase = guardSupabase();
+    const agency = agencies.find(a => a.agencyId === agencyId);
+    if (!agency) return;
+    const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    
+    const { error } = await supabase.from('agencies').update({ 
+        is_active: newStatus === 'ACTIVE',
+        subscription_status: newStatus
+    }).eq('id', agencyId);
+    
+    if (error) {
+        showToast('Erro ao alterar status: ' + error.message, 'error');
+    } else {
+        showToast(`Agência ${newStatus === 'ACTIVE' ? 'ativada' : 'inativada'}.`, 'success');
+        await refreshData();
+    }
+  };
+
+  const deleteUser = async (userId: string, role: UserRole) => {
+      const supabase = guardSupabase();
+      try {
+          if (role === UserRole.AGENCY) {
+              await supabase.from('agencies').delete().eq('user_id', userId);
+          }
+          const { error } = await supabase.from('profiles').delete().eq('id', userId);
+          if (error) throw error;
+          
+          showToast('Usuário excluído do banco de dados.', 'success');
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir: ' + e.message, 'error');
+      }
+  };
+
+  const deleteMultipleUsers = async (userIds: string[]) => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('profiles').delete().in('id', userIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir usuários: ' + e.message, 'error');
+      }
+  };
+
+  const deleteMultipleAgencies = async (agencyIds: string[]) => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('agencies').delete().in('id', agencyIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir agências: ' + e.message, 'error');
+      }
+  };
+
+  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('profiles').update({ status }).in('id', userIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao atualizar status: ' + e.message, 'error');
+      }
+  };
+
+  const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('agencies').update({ 
+              is_active: status === 'ACTIVE',
+              subscription_status: status 
+          }).in('id', agencyIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao atualizar status: ' + e.message, 'error');
+      }
+  };
+
   return (
     <DataContext.Provider value={{
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
