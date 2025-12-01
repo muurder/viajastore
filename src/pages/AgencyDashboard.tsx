@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +8,7 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -354,7 +355,21 @@ const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose:
                 <div className="flex items-center text-sm text-gray-500 mb-6"><span>Home</span> <span className="mx-2">/</span> <span>Pacotes</span> <span className="mx-2">/</span> <span className="text-gray-900 font-medium">{trip.title || 'Sem Título'}</span></div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[300px] md:h-[400px]">
                     <div className="md:col-span-2 h-full"><img src={mainImage} className="w-full h-full object-cover" alt="Main" /></div>
-                    <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full"><img src={trip.images?.[1] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="1" /><img src={trip.images?.[2] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="2" /><img src={trip.images?.[3] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="3" /><img src={trip.images?.[4] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="4" /></div>
+                    <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
+                        {trip.images?.length && trip.images.length > 1 ? (
+                            trip.images.slice(1, 5).map((img, idx) => (
+                                <img key={idx} src={img} className="w-full h-full object-cover bg-gray-100" alt={`Imagem ${idx + 1}`} />
+                            ))
+                        ) : (
+                            // Fallback for when there are no additional images
+                            <>
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+1'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 1" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+2'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 2" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+3'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 3" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+4'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 4" />
+                            </>
+                        )}
+                    </div>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                     <div className="lg:col-span-2 space-y-10">

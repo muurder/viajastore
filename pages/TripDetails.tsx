@@ -1,9 +1,5 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-// Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -13,7 +9,7 @@ import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
   const { slug, agencySlug, tripSlug } = useParams<{ slug?: string; agencySlug?: string; tripSlug?: string }>();
-  // Handling both global route /viagem/:slug and microsite route /:agencySlug/viagem/:tripSlug
+  // Handling both global route /viagem/:slug and microsite route /:agencySlug/viagem/::tripSlug
   const activeTripSlug = tripSlug || slug;
   
   const { getTripBySlug, getTripById, agencies, toggleFavorite, clients, addBooking, loading, incrementTripViews, getAgencyBySlug } = useData();

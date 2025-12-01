@@ -1,6 +1,3 @@
-
-
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -298,11 +295,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 title, 
                 agency_id,
                 destination,
+                price,
                 start_date,
+                end_date,
                 duration_days,
+                category,
+                tags,
+                traveler_types,
+                itinerary,
+                payment_methods,
+                is_active,
+                rating,
+                totalReviews,
+                included,
+                not_included,
+                views_count,
+                sales_count,
+                featured,
+                featured_in_hero,
+                popular_near_sp,
                 trip_images (image_url),
                 agencies (
                   id,
+                  user_id,
                   name,
                   slug,
                   phone,
@@ -394,7 +409,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method
+              paymentMethod: b.payment_method, // Fix: Access payment_method directly
+              _trip: tripData,
+              _agency: agencyData
             };
           });
           setBookings(formattedBookings);

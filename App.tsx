@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -14,7 +15,7 @@ import AgencyProfile from './pages/AgencyProfile';
 import { AgencyDashboard } from './pages/AgencyDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
-import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import { ClientDashboard } from './pages/ClientDashboard'; // Fix: Import ClientDashboard as named export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 

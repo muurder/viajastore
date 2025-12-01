@@ -1,17 +1,12 @@
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-// Fix: Import Link from react-router-dom
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-// Fix: Import MonitorPlay, Info, AlertCircle from lucide-react
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -172,7 +167,7 @@ const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, on
             <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
             {isPublished ? (
                <>
-                 <a href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</a>
+                 <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link>
                  <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
                </>
             ) : (
@@ -356,4 +351,69 @@ const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose:
             <div className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex justify-between items-center shadow-md"><div className="flex items-center gap-2"><Eye size={18} className="text-primary-400"/><span className="font-bold">Modo de Visualização</span></div><button onClick={onClose} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><X size={16}/> Fechar</button></div>
             <div className="max-w-5xl mx-auto p-4 md:p-8 pb-20">
                 <div className="flex items-center text-sm text-gray-500 mb-6"><span>Home</span> <span className="mx-2">/</span> <span>Pacotes</span> <span className="mx-2">/</span> <span className="text-gray-900 font-medium">{trip.title || 'Sem Título'}</span></div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[300px] md:h-[400
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[300px] md:h-[400px]">
+                    <div className="md:col-span-2 h-full"><img src={mainImage} className="w-full h-full object-cover" alt="Main" /></div>
+                    <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
+                        {trip.images?.length && trip.images.length > 1 ? (
+                            trip.images.slice(1, 5).map((img, idx) => (
+                                <img key={idx} src={img} className="w-full h-full object-cover bg-gray-100" alt={`Imagem ${idx + 1}`} />
+                            ))
+                        ) : (
+                            // Fallback for when there are no additional images
+                            <>
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+1'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 1" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+2'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 2" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+3'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 3" />
+                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+4'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 4" />
+                            </>
+                        )}
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    <div className="lg:col-span-2 space-y-10">
+                        <div>
+                            <div className="flex flex-wrap items-center gap-3 mb-4">
+                                <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category || 'CATEGORIA'}</span>
+                                <div className="flex items-center text-amber-500 font-bold text-sm bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                                    <Star size={14} className="fill-current mr-1" />
+                                    {(trip.rating || 0).toFixed(1)}
+                                </div>
+                                {agency.subscriptionStatus === 'ACTIVE' && (
+                                    <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>
+                                )}
+                            </div>
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
+                                <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title || 'Título da Viagem'}</h1>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 mt-4">
+                                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination || 'Destino'}</div>
+                                <div className="flex items-center"><Clock className="text-primary-500 mr-2" size={18}/> {trip.durationDays || 0} Dias de Duração</div>
+                            </div>
+                            <div className="flex flex-wrap gap-4 mt-6">
+                                {trip.tags && trip.tags.length > 0 && (
+                                    <div className="flex items-start">
+                                        <Tag size={16} className="text-gray-400 mr-2 mt-1" />
+                                        <div className="flex flex-wrap gap-2">
+                                            {trip.tags.map((tag, i) => (
+                                                <span key={i} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-medium">{tag}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="h-px bg-gray-200"></div>
+                        <div className="text-gray-600">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
+                            {renderDescription(trip.description || 'Descrição da viagem...')}
+                        </div>
+                        <div className="space-y-4">
+                            <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <button onClick={() => toggleAccordion('included')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
+                                    <span>O que está incluído</span>
+                                    {openAccordion === 'included' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                                </button>
+                                {openAccordion === 'included' && (
+                                    <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s]">
+                                        {(trip.included && trip.included.length > 0 ? trip.included : ['Hospedagem', 'Passeios Guiados', 'Café da Manhã']).map((item, i) => (
+                                            <div key={i} className="flex items-start"><Check size={18} className="text-green-500 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-6
