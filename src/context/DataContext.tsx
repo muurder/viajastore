@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -73,6 +72,7 @@ interface DataContextType {
   saveAgencyTheme: (agencyId: string, colors: ThemeColors) => Promise<boolean>;
 
   refreshData: () => Promise<void>;
+  incrementTripViews: (tripId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -189,8 +189,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroSubtitle: a.hero_subtitle,
         customSettings: a.custom_settings || {},
         subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
-        subscriptionPlan: 'PREMIUM', // Placeholder, needs to join subscriptions
-        subscriptionExpiresAt: new Date().toISOString(), // Placeholder
+        subscriptionPlan: a.subscription_plan || 'BASIC', // Joined
+        subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), 
         website: a.website,
         phone: a.phone,
         address: a.address || {},
@@ -320,7 +320,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   custom_settings,
                   website,
                   address,
-                  bank_info
+                  bank_info,
+                  subscription_plan,
+                  subscription_status,
+                  subscription_expires_at
                 )
               )
             `);
@@ -347,7 +350,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
                itinerary: b.trips.itinerary || [],
-               // Fix: Corrected typo from b.trient_methods to b.trips.payment_methods
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
@@ -378,9 +380,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               heroTitle: b.trips.agencies.hero_title,
               heroSubtitle: b.trips.agencies.hero_subtitle,
               customSettings: b.trips.agencies.custom_settings || {},
-              subscriptionStatus: b.trips.agencies.is_active ? 'ACTIVE' : 'INACTIVE',
-              subscriptionPlan: 'BASIC', // Placeholder
-              subscriptionExpiresAt: new Date().toISOString(), // Placeholder
+              subscriptionStatus: b.trips.agencies.subscription_status || 'INACTIVE',
+              subscriptionPlan: b.trips.agencies.subscription_plan || 'BASIC',
+              subscriptionExpiresAt: b.trips.agencies.subscription_expires_at || new Date().toISOString(),
               website: b.trips.agencies.website,
               address: b.trips.agencies.address || {},
               bankInfo: b.trips.agencies.bank_info || {}
@@ -489,6 +491,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error('Supabase client not available.');
     }
     return supabase;
+  };
+
+  const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM') => {
+      const supabase = guardSupabase();
+      
+      const updates: any = {
+          subscription_status: status,
+          subscription_plan: plan,
+          is_active: status === 'ACTIVE'
+      };
+
+      // The `expiresAt` is now managed by the RPC function during activation
+      // or directly by adding time in the Admin Dashboard modal logic,
+      // not passed as a direct parameter to this core update function.
+
+      const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId); 
+      
+      if (error) {
+          showToast('Erro ao atualizar assinatura: ' + error.message, 'error');
+          throw error;
+      } else {
+          showToast('Assinatura atualizada com sucesso!', 'success');
+          await refreshData();
+      }
   };
 
   const toggleFavorite = async (tripId: string, clientId: string) => {
@@ -759,6 +785,18 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     }
 };
 
+  const incrementTripViews = async (tripId: string) => {
+      // Optimistic update
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, views: (t.views || 0) + 1 } : t));
+      
+      if (supabase) {
+          const { data } = await supabase.from('trips').select('views_count').eq('id', tripId).single();
+          if (data) {
+             await supabase.from('trips').update({ views_count: (data.views_count || 0) + 1 }).eq('id', tripId);
+          }
+      }
+  };
+
   // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
@@ -771,7 +809,27 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  const getAgencyStats = (agencyId: string) => { const agencyTrips = getAgencyTrips(agencyId); const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0); const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); const totalRevenue = agencyTrips.reduce((sum, trip) => sum + ((trip.sales || 0) * trip.price), 0); return { totalRevenue, totalViews, totalSales, conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 }; };
+  const getAgencyStats = (agencyId: string) => { 
+      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+      const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+
+      const agencyBookings = bookings.filter(b => {
+          if (b._agency?.agencyId === agencyId) return true;
+          const trip = trips.find(t => t.id === b.tripId);
+          return trip?.agencyId === agencyId;
+      });
+
+      const confirmedBookings = agencyBookings.filter(b => b.status === 'CONFIRMED');
+      const totalSales = confirmedBookings.length;
+      const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+
+      return { 
+          totalRevenue, 
+          totalViews, 
+          totalSales, 
+          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 
+      }; 
+  };
 
   const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
       const supabase = guardSupabase();
@@ -793,6 +851,209 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   
   const dummyGuardedFunc = async () => { if (!supabase) return; };
 
+  // New functions implemented to fix scope issues
+  const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
+    const supabase = guardSupabase();
+    const updates: any = {};
+    if (data.name) updates.full_name = data.name;
+    if (data.email) updates.email = data.email;
+    if (data.phone) updates.phone = data.phone;
+    if (data.cpf) updates.cpf = data.cpf;
+    if (data.status) updates.status = data.status;
+    if (data.address) updates.address = data.address;
+
+    const { error } = await supabase.from('profiles').update(updates).eq('id', clientId);
+    if (error) {
+        showToast('Erro ao atualizar perfil: ' + error.message, 'error');
+        throw error;
+    }
+    await refreshData();
+  };
+
+  const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
+    const supabase = guardSupabase();
+    const updates: any = {};
+    if (data.name) updates.name = data.name;
+    if (data.description) updates.description = data.description;
+    if (data.cnpj) updates.cnpj = data.cnpj;
+    if (data.slug) updates.slug = data.slug;
+    if (data.phone) updates.phone = data.phone;
+    if (data.whatsapp) updates.whatsapp = data.whatsapp;
+    if (data.website) updates.website = data.website;
+    if (data.address) updates.address = data.address;
+    if (data.bankInfo) updates.bank_info = data.bankInfo;
+
+    const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId);
+    if (error) {
+        showToast('Erro ao atualizar agência: ' + error.message, 'error');
+        throw error;
+    }
+    await refreshData();
+  };
+
+  const toggleAgencyStatus = async (agencyId: string) => {
+    const supabase = guardSupabase();
+    const agency = agencies.find(a => a.agencyId === agencyId);
+    if (!agency) return;
+    const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    
+    const { error } = await supabase.from('agencies').update({ 
+        is_active: newStatus === 'ACTIVE',
+        subscription_status: newStatus
+    }).eq('id', agencyId);
+    
+    if (error) {
+        showToast('Erro ao alterar status: ' + error.message, 'error');
+    } else {
+        showToast(`Agência ${newStatus === 'ACTIVE' ? 'ativada' : 'inativada'}.`, 'success');
+        await refreshData();
+    }
+  };
+
+  const deleteUser = async (userId: string, role: UserRole) => {
+      const supabase = guardSupabase();
+      try {
+          if (role === UserRole.AGENCY) {
+              await supabase.from('agencies').delete().eq('user_id', userId);
+          }
+          const { error } = await supabase.from('profiles').delete().eq('id', userId);
+          if (error) throw error;
+          
+          showToast('Usuário excluído do banco de dados.', 'success');
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir: ' + e.message, 'error');
+      }
+  };
+
+  const deleteMultipleUsers = async (userIds: string[]) => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('profiles').delete().in('id', userIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir usuários: ' + e.message, 'error');
+      }
+  };
+
+  const deleteMultipleAgencies = async (agencyIds: string[]) => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('agencies').delete().in('id', agencyIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao excluir agências: ' + e.message, 'error');
+      }
+  };
+
+  const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('profiles').update({ status }).in('id', userIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao atualizar status: ' + e.message, 'error');
+      }
+  };
+
+  const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('agencies').update({ 
+              is_active: status === 'ACTIVE',
+              subscription_status: status 
+          }).in('id', agencyIds);
+          if (error) throw error;
+          await refreshData();
+      } catch (e: any) {
+          showToast('Erro ao atualizar status: ' + e.message, 'error');
+      }
+  };
+
+  const logAuditAction = async (action: string, details: string) => {
+      if (!supabase || !user || user.role !== UserRole.ADMIN) return;
+      try {
+          await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
+      } catch (e) {
+          console.error("Error logging audit action:", e);
+      }
+  };
+
+  const sendPasswordReset = async (email: string) => {
+      if (!supabase) return;
+      try {
+          const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
+              redirectTo: `${window.location.origin}/#/forgot-password` // Adjust if you have a specific reset page
+          });
+          if (error) throw error;
+          showToast('Link de reset de senha enviado para o e-mail.', 'success');
+          logAuditAction('PASSWORD_RESET_SENT', `Admin sent password reset link to ${email}`);
+      } catch (e: any) {
+          showToast('Erro ao enviar link: ' + e.message, 'error');
+      }
+  };
+
+  const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
+      if (!supabase || !user || user.role !== UserRole.ADMIN) return null;
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${userId}-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+              .from('avatars')
+              .upload(fileName, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+          
+          // Update profile table
+          await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
+
+          showToast('Avatar atualizado com sucesso!', 'success');
+          logAuditAction('USER_AVATAR_UPDATED', `Admin updated avatar for user ID: ${userId}`);
+          await refreshData(); // Refresh data to reflect changes
+          return data.publicUrl;
+      } catch (error) {
+          console.error("Upload avatar by admin error:", error);
+          showToast('Erro ao atualizar avatar.', 'error');
+          return null;
+      }
+  };
+
+  const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => {
+      if (!supabase) return [];
+      try {
+          const { data, error } = await supabase
+              .from('profiles')
+              .select(`
+                  id,
+                  full_name,
+                  bookings(total_price),
+                  agency_reviews(id)
+              `)
+              .in('id', userIds);
+          
+          if (error) throw error;
+
+          return data.map((profile: any) => ({
+              userId: profile.id,
+              userName: profile.full_name || 'Usuário Desconhecido',
+              totalSpent: profile.bookings.reduce((sum: number, b: any) => sum + b.total_price, 0),
+              totalBookings: profile.bookings.length,
+              totalReviews: profile.agency_reviews.length,
+          }));
+
+      } catch (e) {
+          console.error("Error fetching user stats:", e);
+          return [];
+      }
+  };
+
+
   return (
     <DataContext.Provider value={{
       trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
@@ -803,10 +1064,10 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       deleteAgencyReview,
       updateAgencyReview,
       toggleFavorite, 
-      updateClientProfile: dummyGuardedFunc, 
-      updateAgencySubscription: dummyGuardedFunc, 
-      updateAgencyProfileByAdmin: dummyGuardedFunc, 
-      toggleAgencyStatus: dummyGuardedFunc,
+      updateClientProfile, 
+      updateAgencySubscription, 
+      updateAgencyProfileByAdmin, 
+      toggleAgencyStatus,
       createTrip, 
       updateTrip, 
       deleteTrip, 
@@ -814,19 +1075,19 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       toggleTripFeatureStatus,
       softDeleteEntity, 
       restoreEntity, 
-      deleteUser: dummyGuardedFunc, 
-      deleteMultipleUsers: dummyGuardedFunc, 
-      deleteMultipleAgencies: dummyGuardedFunc, 
-      getUsersStats: async() => [],
-      updateMultipleUsersStatus: dummyGuardedFunc, 
-      updateMultipleAgenciesStatus: dummyGuardedFunc, 
-      logAuditAction: dummyGuardedFunc,
-      sendPasswordReset: dummyGuardedFunc, 
-      updateUserAvatarByAdmin: async() => null,
+      deleteUser, 
+      deleteMultipleUsers, 
+      deleteMultipleAgencies, 
+      getUsersStats,
+      updateMultipleUsersStatus, 
+      updateMultipleAgenciesStatus, 
+      logAuditAction,
+      sendPasswordReset, 
+      updateUserAvatarByAdmin,
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,
       getAgencyTheme, saveAgencyTheme,
-      refreshData
+      refreshData, incrementTripViews
     }}>
       {children}
     </DataContext.Provider>

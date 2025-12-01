@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
@@ -148,7 +146,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (!supabase) return;
 
       try {
-          await supabase.from('themes').update({ is_active: false }).neq('id', '00000000-0000-0000-0000-000000000000'); 
+          // FIX: Deactivate all other themes by matching against the ID that is *not* the current one.
+          await supabase.from('themes').update({ is_active: false }).neq('id', themeId); 
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
           if (error) throw error;
           await fetchThemes();

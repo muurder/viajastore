@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -439,7 +438,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!user) return { success: false, error: 'Usuário não logado' };
     
     try {
-      if (userData.email && userData.email !== user.email) {
+      // FIX: Normalize emails to avoid unnecessary Auth API calls and 429 errors.
+      let shouldUpdateAuthEmail = false;
+      if (userData.email && user.email) {
+          const newEmail = userData.email.trim().toLowerCase();
+          const currentEmail = user.email.trim().toLowerCase();
+          // Only flag for update if they are genuinely different
+          if (newEmail !== currentEmail) {
+              shouldUpdateAuthEmail = true;
+          }
+      }
+
+      // 2. Only call Auth API if necessary
+      if (shouldUpdateAuthEmail && userData.email) {
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
       }

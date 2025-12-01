@@ -1,17 +1,17 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, ForwardRefExoticComponent, RefAttributes } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import TripCard from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader, LucideProps } from 'lucide-react';
 import { AgencyReview } from '../types';
 
 // Reuse Filters from Home
-const INTEREST_CHIPS = [
-  { label: 'Todos', id: 'chip-all' },
+// @FIX: Ensured all chips have a consistent 'icon' property to resolve type assignment error.
+const INTEREST_CHIPS: Array<{ label: string; id: string; icon?: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; }> = [
+  { label: 'Todos', id: 'chip-all', icon: Globe },
   { label: 'Praia', icon: Umbrella, id: 'chip-praia' },
   { label: 'Aventura', icon: Mountain, id: 'chip-aventura' },
   { label: 'Natureza', icon: TreePine, id: 'chip-natureza' },
@@ -437,6 +437,10 @@ const AgencyLandingPage: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide mb-8">
+                    {/* @FIX: The INTEREST_CHIPS array type was incorrectly inferred due to 'Todos' missing an 'icon'.
+                            The `map` function correctly handles the optional `Icon` property.
+                            The type definition for INTEREST_CHIPS was adjusted at the top of the file to fix this.
+                            No direct changes needed here, as the problem was in the definition. */}
                     {INTEREST_CHIPS.map(({label, icon: Icon}) => {
                         const isSelected = label === 'Todos' ? selectedInterests.length === 0 : selectedInterests.includes(label);
                         return (
@@ -584,68 +588,67 @@ const AgencyLandingPage: React.FC = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}</div>
-                                </div>
-                                
-                                {review.tripTitle && (
-                                    <div className="mb-4 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block">
-                                        Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
-                                    </div>
-                                )}
-
-                                <p className="text-gray-600 text-sm leading-relaxed mb-4">"{review.comment}"</p>
-                                
-                                {review.tags && review.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {review.tags.map(tag => (
-                                            <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
-                                        ))}
-                                    </div>
-                                )}
-                                
-                                {review.response && (
-                                    <div className="mt-4 pt-4 border-t border-gray-100">
-                                        <div className="bg-gray-50 p-4 rounded-lg">
-                                            <p className="text-xs font-bold text-gray-600 mb-2">Resposta da agência</p>
-                                            <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                    
+                                    {review.tripTitle && (
+                                        <div className="mb-4 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block">
+                                            Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    }) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500 italic">Esta agência ainda não recebeu nenhuma avaliação.</p></div>
-                    )}
-                </div>
-                <div className="lg:col-span-1">
-                    <div className="sticky top-28 bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
-                        {!user ? (
-                            <div className="text-center"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500 mb-4">Faça login para compartilhar sua experiência.</p><Link to="/#login" className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg w-full inline-block">Fazer Login</Link></div>
-                        ) : hasPurchased ? (
-                            myReview && !isEditingReview ? (
-                                <div className="space-y-4">
-                                    <h3 className="font-bold text-lg">Sua Avaliação</h3>
-                                    <div className="bg-primary-50 p-4 rounded-xl border border-primary-100"><div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-primary-800">Minha nota</span><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < myReview.rating ? "fill-current" : "text-gray-200"} />))}</div></div><p className="text-sm text-gray-700 italic">"{myReview.comment}"</p></div>
-                                    <button onClick={() => setIsEditingReview(true)} className="w-full bg-gray-100 text-gray-700 font-bold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200"><Edit size={16}/> Editar Avaliação</button>
+                                    )}
+
+                                    <p className="text-gray-600 text-sm leading-relaxed mb-4">"{review.comment}"</p>
+                                    
+                                    {review.tags && review.tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-4">
+                                            {review.tags.map(tag => (
+                                                <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    
+                                    {review.response && (
+                                        <div className="mt-4 pt-4 border-t border-gray-100">
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                                <p className="text-xs font-bold text-gray-600 mb-2">Resposta da agência</p>
+                                                <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ) : (
-                                <div>
-                                    <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
-                                    <ReviewForm 
-                                      key={isEditingReview ? (myReview?.id || 'edit_review_form') : 'new_review_form'} // Robust key for remounting
-                                      onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} 
-                                      isSubmitting={isSubmittingReview} 
-                                      initialRating={myReview?.rating || 5} // Provide default for initialRating
-                                      initialComment={myReview?.comment || ''} // Provide default for initialComment
-                                      initialTags={myReview?.tags || []} // Provide default for initialTags
-                                      submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
-                                    />
-                                    {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
-                                </div>
-                            )
-                        ) : (
-                            <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500">Você precisa ter comprado um pacote desta agência para poder avaliá-la.</p></div>
+                            );
+                        }) : (
+                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500 italic">Esta agência ainda não recebeu nenhuma avaliação.</p></div>
                         )}
+                    </div>
+                    <div className="lg:col-span-1">
+                        <div className="sticky top-28 bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
+                            {!user ? (
+                                <div className="text-center"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500 mb-4">Faça login para compartilhar sua experiência.</p><Link to="/#login" className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg w-full inline-block">Fazer Login</Link></div>
+                            ) : hasPurchased ? (
+                                myReview && !isEditingReview ? (
+                                    <div className="space-y-4">
+                                        <h3 className="font-bold text-lg">Sua Avaliação</h3>
+                                        <div className="bg-primary-50 p-4 rounded-xl border border-primary-100"><div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-primary-800">Minha nota</span><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < myReview.rating ? "fill-current" : "text-gray-200"} />))}</div></div><p className="text-sm text-gray-700 italic">"{myReview.comment}"</p></div>
+                                        <button onClick={() => setIsEditingReview(true)} className="w-full bg-gray-100 text-gray-700 font-bold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200"><Edit size={16}/> Editar Avaliação</button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
+                                        <ReviewForm 
+                                          key={isEditingReview ? (myReview?.id || 'edit_review_form') : 'new_review_form'} // Robust key for remounting
+                                          onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} 
+                                          isSubmitting={isSubmittingReview} 
+                                          initialRating={myReview?.rating || 5} // Provide default for initialRating
+                                          initialComment={myReview?.comment || ''} // Provide default for initialComment
+                                          initialTags={myReview?.tags || []} // Provide default for initialTags
+                                          submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
+                                        />
+                                        {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
+                                    </div>
+                                )
+                            ) : (
+                                <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500">Você precisa ter comprado um pacote desta agência para poder avaliá-la.</p></div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -25,7 +25,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Added for auth simulation
+  password?: string; // Changed for auth simulation from `string` to `string | undefined`
   role: UserRole;
   avatar?: string;
   createdAt?: string;
@@ -133,8 +133,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  rating?: number; // Removed DEPRECATED and made optional
-  totalReviews?: number; // Removed DEPRECATED and made optional
+  rating?: number; // Made optional
+  totalReviews?: number; // Made optional
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats
