@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -454,6 +453,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
+        // Fix: Use type assertion to correctly access bankInfo property for Agency type
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
         if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
         

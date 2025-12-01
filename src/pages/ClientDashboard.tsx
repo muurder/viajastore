@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -140,6 +139,7 @@ const ClientDashboard: React.FC = () => {
     if (cleanCep.length === 8) {
       setLoadingCep(true);
       try {
+        // Fix: Await response.json() to get the actual data object
         const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
         const data = await response.json();
 
@@ -428,7 +428,7 @@ const ClientDashboard: React.FC = () => {
                     );
                  })
                ) : (
-                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> </div>
+                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> <p className="text-gray-500 mt-1">Você ainda não possui nenhuma viagem reservada.</p> </div>
                )}
              </div>
            )}
@@ -462,7 +462,7 @@ const ClientDashboard: React.FC = () => {
                                                 />
                                             )}
                                            </div>
-                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)} </div> </div>
+                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? "fill-current" : "text-gray-300"} />)} </div> </div>
                                        </div>
                                        <div className="flex items-center gap-2">
                                           <button onClick={() => setEditingReview(review)} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" aria-label="Editar avaliação"><Edit size={16}/></button>

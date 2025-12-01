@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -537,7 +536,6 @@ const AgencyLandingPage: React.FC = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div className="flex gap-4"><ShieldCheck className="text-green-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Segurança Garantida</h4><p className="text-sm text-gray-500 mt-1">Agência verificada com CNPJ e suporte 24h durante a viagem.</p></div></div>
                                 <div className="flex gap-4"><Award className="text-blue-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Guias Especialistas</h4><p className="text-sm text-gray-500 mt-1">Profissionais locais que conhecem cada detalhe do destino.</p></div></div>
-                                {/* FIX: Removed duplicate 'className' attribute. */}
                                 <div className="flex gap-4"><ThumbsUp className="text-primary-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Melhor Custo-Benefício</h4><p className="text-sm text-gray-500 mt-1">Negociamos diretamente com hotéis e passeios para o melhor preço.</p></div></div>
                                 <div className="flex gap-4"><Heart className="text-red-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Feito com Carinho</h4><p className="text-sm text-gray-500 mt-1">Roteiros pensados nos mínimos detalhes para você só aproveitar.</p></div></div>
                             </div>

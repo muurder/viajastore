@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -347,7 +346,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                category: b.trips.category || 'PRAIA',
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
-               itinerary: b.trips.itinerary || [],
+               itinerary: b.itinerary || [],
                // Fix: Corrected typo from b.trient_methods to b.trips.payment_methods
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,

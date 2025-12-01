@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +17,8 @@ import {
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
+// FIX: Added explicit import for jspdf-autotable to ensure type augmentation.
+import 'jspdf-autotable';
 import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
@@ -75,7 +76,7 @@ const ActionMenu: React.FC<{ actions: { label: string; onClick: () => void; icon
                 <MoreVertical size={18} />
             </button>
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 teeming z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 teaming z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
                     <div className="py-1">
                         {actions.map((action, idx) => (
                             <button 
@@ -322,7 +323,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
+  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
   const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); } };
   
   const tripCategories = useMemo(() => Array.from(new Set(trips.map(t => t.category))), [trips]);
@@ -357,7 +358,18 @@ const AdminDashboard: React.FC = () => {
   };
 
 
-  const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.id)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
+  const downloadPdf = (type: 'users' | 'agencies') => { 
+    // FIX: Add `jsPDF` constructor type augmentation to ensure `autoTable` is recognized.
+    const doc = new (jsPDF as any)(); 
+    doc.setFontSize(18); 
+    doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); 
+    doc.setFontSize(11); 
+    doc.setTextColor(100); 
+    const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; 
+    const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.id)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); 
+    (doc as any).autoTable({ head: headers, body: data, startY: 30, }); 
+    doc.save(`relatorio_${type}.pdf`); 
+  };
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -445,7 +457,7 @@ const AdminDashboard: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllUsers} checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full object-cover" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
+                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                     {showUserTrash ? (
                                         <>
@@ -491,7 +503,7 @@ const AdminDashboard: React.FC = () => {
                                 {label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(agency.id, 'agency')}, 
                                 {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(agency.id, agency.role), variant: 'danger'}
                             ] : [
-                                { label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }},
+                                { label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone }); setModalType('EDIT_AGENCY'); }},
                                 { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus }); setModalType('MANAGE_SUB'); } },
                                 { label: agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência', icon: agency.subscriptionStatus === 'ACTIVE' ? Ban : CheckCircle, onClick: () => toggleAgencyStatus(agency.id) },
                                 { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') },
@@ -637,25 +649,7 @@ const AdminDashboard: React.FC = () => {
                         {filteredReviews.map(review => (
                             <tr key={review.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4 text-sm font-bold text-gray-900">{review.agencyName}</td>
-                                <td className="px-6 py-4 text-sm text-gray-700">
-                                    <div className="flex items-center gap-3">
-                                        {review.clientAvatar ? (
-                                            <img 
-                                                src={review.clientAvatar} 
-                                                alt={review.clientName || 'Viajante'} 
-                                                className="w-8 h-8 rounded-full object-cover border border-gray-200" 
-                                                onError={(e) => {
-                                                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
-                                                }}
-                                            />
-                                        ) : (
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase text-xs">
-                                                {review.clientName ? review.clientName.charAt(0) : 'V'}
-                                            </div>
-                                        )}
-                                        {review.clientName}
-                                    </div>
-                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-700">{review.clientName}</td>
                                 <td className="px-6 py-4 text-sm text-gray-700">{review.tripTitle || 'N/A'}</td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-1">
@@ -849,7 +843,7 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex gap-2">
                         <button onClick={() => handleMassUpdateUserStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
                         <button onClick={() => handleMassUpdateUserStatus('SUSPENDED')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100">Suspender</button>
-                        <button onClick={() => handleMassDeleteUsers()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
+                        <button onClick={handleMassDeleteUsers} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
                         <button onClick={handleViewStats} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100">Ver Stats</button>
                     </div>
                 )}
@@ -857,7 +851,7 @@ const AdminDashboard: React.FC = () => {
                     <div className="flex gap-2">
                         <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
                         <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100">Inativar</button>
-                        <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
+                        <button onClick={handleMassDeleteAgencies} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
                     </div>
                 )}
             </div>
@@ -1025,53 +1019,4 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
                 <form onSubmit={handleReviewUpdate} className="space-y-6">
                     <div><label className="block text-sm font-bold text-gray-700 mb-1">Nota</label><input type="number" min={1} max={5} value={editFormData.rating || ''} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea rows={4} value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
-                <form onSubmit={handleTripUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={4} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Ativo</label><input type="checkbox" checked={editFormData.is_active || false} onChange={e => setEditFormData({...editFormData, is_active: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Destacado</label><input type="checkbox" checked={editFormData.featured || false} onChange={e => setEditFormData({...editFormData, featured: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'VIEW_STATS' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
-                {userStats.length > 0 ? (
-                    userStats.map(stats => (
-                        <div key={stats.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
-                            <h3 className="font-bold text-gray-900 text-lg mb-2">{stats.userName}</h3>
-                            <p className="text-sm text-gray-600 mb-1">Total Gasto: <span className="font-bold">R$ {stats.totalSpent.toLocaleString()}</span></p>
-                            <p className="text-sm text-gray-600 mb-1">Total de Reservas: <span className="font-bold">{stats.totalBookings}</span></p>
-                            <p className="text-sm text-gray-600">Total de Avaliações: <span className="font-bold">{stats.totalReviews}</span></p>
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-center text-gray-500 text-sm py-4">Nenhum dado encontrado para os usuários selecionados.</p>
-                )}
-            </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export { AdminDashboard };
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label

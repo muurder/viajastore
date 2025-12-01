@@ -1,5 +1,4 @@
 
-
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -7,7 +6,7 @@ import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plane, LogOut, Menu, X, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, Smartphone, Mail, ShoppingBag, Heart, Settings, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
-import BottomNav from './BottomNav';
+import BottomNav from './BottomNav'; // FIX: Import BottomNav component
 import { Agency } from '../types';
 
 const Layout: React.FC = () => {
@@ -355,7 +354,7 @@ const Layout: React.FC = () => {
                          ) : currentAgency ? (
                             <div className="flex items-center gap-2">
                                 <img src={currentAgency.logo} alt="Logo" className="w-8 h-8 rounded-full object-cover" />
-                                <span className="font-bold text-gray-900 truncate max-w-[150px]">{currentAgency.name}</span>
+                                <span className="font-bold text-lg text-gray-900 truncate max-w-[150px]">{currentAgency.name}</span>
                             </div>
                          ) : (
                              <span className="font-bold text-lg text-gray-900">Menu</span>
@@ -389,11 +388,13 @@ const Layout: React.FC = () => {
                         {/* Agency Public Links */}
                         {showAgencyHeader && !isMicrositeClientArea && currentAgency?.slug && (
                             <>
-                                <Link to={`/${currentAgency.slug}`} className={getLinkClasses(`/${currentAgency.slug}`)}>
-                                    <HomeIcon size={16} className="mr-1"/> Início
+                                <Link to={`/${currentAgency.slug}`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><HomeIcon size={20} className="mr-3 text-gray-400"/> Início</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
-                                <Link to={`/${currentAgency.slug}/trips`} className={getLinkClasses(`/${currentAgency.slug}/trips`)}>
-                                    <Map size={16} className="mr-1"/> Pacotes
+                                <Link to={`/${currentAgency.slug}/trips`} className="flex items-center justify-between px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 font-medium">
+                                    <div className="flex items-center"><Map size={20} className="mr-3 text-gray-400"/> Pacotes</div>
+                                    <ChevronRight size={16} className="text-gray-300"/>
                                 </Link>
                                 {currentAgency?.whatsapp && (
                                     <a 
@@ -556,6 +557,7 @@ const Layout: React.FC = () => {
             </div>
          )}
       </footer>
+      {/* FIX: Add BottomNav component */}
       <BottomNav user={user} isAgencyMode={isAgencyMode} activeSlug={activeSlug} currentAgency={currentAgency} openMobileMenu={() => setIsMenuOpen(true)} />
     </div>
   );

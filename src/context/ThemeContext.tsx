@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
@@ -170,7 +169,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
           if (error) throw error;
           await fetchThemes(); 
-          return data ? data.id : null;
+          // FIX: Safely access id property using type assertion
+          return (data as ThemePalette)?.id || null;
       } catch (error) {
           console.error("Error adding theme:", error);
           return null;

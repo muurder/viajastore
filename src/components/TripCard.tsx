@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle, ArrowRight } from 'lucide-react';
