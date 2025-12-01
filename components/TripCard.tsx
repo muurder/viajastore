@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Trip } from '../types';
-import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
+import { MapPin, Star, Heart, Clock, MessageCircle, ArrowRight } from 'lucide-react'; // Added ArrowRight import
 // Fix: Ensure named imports for react-router-dom v6. If errors persist, verify react-router-dom package version and installation.
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -150,4 +149,24 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
         </h3>
 
         <div className="flex items-center text-sm text-gray-500 mb-4">
-          <Clock size={
+          <Clock size={16} className="mr-1.5 flex-shrink-0 text-gray-400 group-hover:text-primary-500 transition-colors" />
+          <span className="truncate">{trip.durationDays} dias</span>
+        </div>
+
+        {/* Pricing & CTA */}
+        <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-end">
+          <div className="flex flex-col">
+            <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5 tracking-wider">A partir de</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs font-semibold text-gray-400">R$</span>
+              <p className="text-xl font-extrabold text-primary-600 drop-shadow-sm">{trip.price.toLocaleString('pt-BR')}</p>
+            </div>
+          </div>
+          <div className="px-5 py-2.5 bg-primary-600 text-white rounded-full text-sm font-bold flex items-center group-hover:bg-primary-500 transition-colors shadow-lg shadow-primary-900/20">
+            Ver Pacote <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+};

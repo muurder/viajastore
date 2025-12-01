@@ -466,7 +466,7 @@ const Layout: React.FC = () => {
                                         <Link to={userProfileLink} className="flex items-center justify-center w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 text-center">
                                             Minha Conta
                                         </Link>
-                                        <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 text-center">
+                                        <Link to={getDashboardRoute()} className="flex items-center justify-center w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 text-center">
                                             Painel
                                         </Link>
                                     </div>
@@ -478,10 +478,10 @@ const Layout: React.FC = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 gap-4">
-                            <Link to={{ hash: 'login' }} className="flex items-center justify-center px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors">
+                            <Link to={{ hash: 'login' }} className="flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors">
                                 <LogIn size={18} className="mr-2"/> Entrar
                             </Link>
-                            <Link to={{ hash: 'signup' }} className="flex items-center justify-center px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">
+                            <Link to={{ hash: 'signup' }} className="flex items-center justify-center w-full px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/20">
                                 <UserPlus size={18} className="mr-2"/> Criar Conta
                             </Link>
                         </div>

@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .maybeSingle();
 
       if (profileData) {
-        // Fix: Ensure AGENCY role check is case-insensitive for robustness
+        // Handle AGENCY role (Check case-insensitive)
         if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
@@ -188,6 +188,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const safeSlug = slugify(userName + '-' + Math.floor(Math.random() * 1000));
               
               // Use RPC for safe creation even in ensureUserRecord
+              // FIX: Ensure p_phone and p_whatsapp can be null
               const { error: agencyError } = await supabase.rpc('create_agency', {
                   p_user_id: userId,
                   p_name: userName,
@@ -360,15 +361,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
         
         // Use RPC to bypass potential REST Schema Cache issues
+        // FIX: Ensure p_phone and p_whatsapp can be null
         const { error: agencyError } = await supabase.rpc('create_agency', {
             p_user_id: userId,
             p_name: data.name,
             p_email: data.email,
-            p_phone: data.phone,
-            p_whatsapp: data.phone,
+            p_phone: data.phone,    // Pass phone to RPC
+            p_whatsapp: data.phone, // Pass phone as whatsapp to RPC
             p_slug: safeSlug
         });
-        
+
         if (agencyError) {
             console.error("Supabase Agency RPC Insert Error:", agencyError);
             throw agencyError;
@@ -483,7 +485,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
       }
 
-      setUser({ ...user, ...userData } as any);
+      // FIX: Ensure user object update is type-safe
+      setUser({ ...user, ...userData } as User | Client | Agency | Admin);
       return { success: true };
 
     } catch (error: any) {

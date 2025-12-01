@@ -446,7 +446,7 @@ const TripList: React.FC = () => {
               </button>
 
               <div className="relative flex-1 sm:flex-initial min-w-[200px]">
-                <ArrowUpDown size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+                <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <select 
                     value={sortParam}
                     onChange={(e) => updateUrl('sort', e.target.value)}
@@ -457,7 +457,7 @@ const TripList: React.FC = () => {
                     <option value="HIGH_PRICE">Maior Preço</option>
                     <option value="RATING">Melhor Avaliação</option>
                 </select>
-                <ChevronDown size={14} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
           </div>

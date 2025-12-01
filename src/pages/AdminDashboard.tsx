@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -457,7 +458,7 @@ const AdminDashboard: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllUsers} checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
+                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENSO' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                     {showUserTrash ? (
                                         <>
@@ -1019,4 +1020,53 @@ const AdminDashboard: React.FC = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
                 <form onSubmit={handleReviewUpdate} className="space-y-6">
                     <div><label className="block text-sm font-bold text-gray-700 mb-1">Nota</label><input type="number" min={1} max={5} value={editFormData.rating || ''} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea rows={4} value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_TRIP' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
+                <form onSubmit={handleTripUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={4} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Ativo</label><input type="checkbox" checked={editFormData.is_active || false} onChange={e => setEditFormData({...editFormData, is_active: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Destacado</label><input type="checkbox" checked={editFormData.featured || false} onChange={e => setEditFormData({...editFormData, featured: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'VIEW_STATS' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
+                {userStats.length > 0 ? (
+                    userStats.map(stats => (
+                        <div key={stats.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                            <h3 className="font-bold text-gray-900 text-lg mb-2">{stats.userName}</h3>
+                            <p className="text-sm text-gray-600 mb-1">Total Gasto: <span className="font-bold">R$ {stats.totalSpent.toLocaleString()}</span></p>
+                            <p className="text-sm text-gray-600 mb-1">Total de Reservas: <span className="font-bold">{stats.totalBookings}</span></p>
+                            <p className="text-sm text-gray-600">Total de Avaliações: <span className="font-bold">{stats.totalReviews}</span></p>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-500 text-sm py-4">Nenhum dado encontrado para os usuários selecionados.</p>
+                )}
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export { AdminDashboard };
