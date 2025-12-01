@@ -12,11 +12,12 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, LucideProps
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
+import 'jspdf-autotable'; // Fix: Import jspdf-autotable
 import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
@@ -37,7 +38,9 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-const StatCard: React.FC<{ title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }> = ({ title, value, subtitle, icon: Icon, color }) => {
+// Fix: Define StatCard component locally
+interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
         green: 'bg-green-50 text-green-600',
         blue: 'bg-blue-50 text-blue-600',
@@ -56,7 +59,9 @@ const StatCard: React.FC<{ title: string; value: string | number; subtitle: stri
     );
 };
 
-const ActionMenu: React.FC<{ actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }> = ({ actions }) => {
+// Fix: Define ActionMenu component locally
+interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
+const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -821,3 +826,266 @@ const AdminDashboard: React.FC = () => {
             </button>
             <div className="relative">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 outline-none"/>
+            </div>
+        </div>
+      </div>
+      
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+        <button onClick={() => handleTabChange('OVERVIEW')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><LayoutGrid size={16}/> Visão Geral</button>
+        <button onClick={() => handleTabChange('USERS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'USERS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Users size={16}/> Usuários {deletedUsers.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedUsers.length}</span>}</button>
+        <button onClick={() => handleTabChange('AGENCIES')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'AGENCIES' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Briefcase size={16}/> Agências {deletedAgencies.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedAgencies.length}</span>}</button>
+        <button onClick={() => handleTabChange('TRIPS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Plane size={16}/> Viagens</button>
+        <button onClick={() => handleTabChange('REVIEWS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'REVIEWS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Star size={16}/> Avaliações</button>
+        <button onClick={() => handleTabChange('SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={16}/> Temas</button>
+      </div>
+
+      {/* Bulk Actions & View Toggles */}
+      {(activeTab === 'USERS' || activeTab === 'AGENCIES') && (
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+                <span className="text-gray-600 text-sm font-medium">Selecionados: <span className="font-bold">{activeTab === 'USERS' ? selectedUsers.length : selectedAgencies.length}</span></span>
+                {activeTab === 'USERS' && selectedUsers.length > 0 && (
+                    <div className="flex gap-2">
+                        <button onClick={() => handleMassUpdateUserStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
+                        <button onClick={() => handleMassUpdateUserStatus('SUSPENDED')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100">Suspender</button>
+                        <button onClick={() => handleMassDeleteUsers()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
+                        <button onClick={handleViewStats} className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100">Ver Stats</button>
+                    </div>
+                )}
+                {activeTab === 'AGENCIES' && selectedAgencies.length > 0 && (
+                    <div className="flex gap-2">
+                        <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
+                        <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100">Inativar</button>
+                        <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
+                    </div>
+                )}
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button onClick={() => { if (activeTab === 'USERS') setShowUserTrash(!showUserTrash); else setShowAgencyTrash(!showAgencyTrash); }} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${((activeTab === 'USERS' && showUserTrash) || (activeTab === 'AGENCIES' && showAgencyTrash)) ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    <Archive size={14}/> Lixeira
+                </button>
+                {((activeTab === 'USERS' && showUserTrash && deletedUsers.length > 0) || (activeTab === 'AGENCIES' && showAgencyTrash && deletedAgencies.length > 0)) && (
+                    <button onClick={() => handleEmptyTrash(activeTab === 'USERS' ? 'user' : 'agency')} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Esvaziar Lixeira</button>
+                )}
+              </div>
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                <button onClick={() => { if (activeTab === 'USERS') handleSetUserView('cards'); else handleSetAgencyView('cards'); }} className={`p-2 rounded-md ${((activeTab === 'USERS' && userView === 'cards') || (activeTab === 'AGENCIES' && agencyView === 'cards')) ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}><LayoutGrid size={18}/></button>
+                <button onClick={() => { if (activeTab === 'USERS') handleSetUserView('list'); else handleSetAgencyView('list'); }} className={`p-2 rounded-md ${((activeTab === 'USERS' && userView === 'list') || (activeTab === 'AGENCIES' && agencyView === 'list')) ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}><List size={18}/></button>
+              </div>
+            </div>
+        </div>
+      )}
+
+      {/* Filter Bar for Trips */}
+      {activeTab === 'TRIPS' && (
+        <div className="flex flex-wrap items-center gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2">
+                <Filter size={16} className="text-gray-500"/>
+                <span className="text-sm font-bold text-gray-700">Filtros:</span>
+            </div>
+            
+            <div className="w-48">
+                <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                    <option value="">Todas as Agências</option>
+                    {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
+                </select>
+            </div>
+            <div className="w-48">
+                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                    <option value="">Todas as Categorias</option>
+                    {tripCategories.map(category => <option key={category} value={category}>{category.replace('_', ' ')}</option>)}
+                </select>
+            </div>
+            {(agencyFilter || categoryFilter) && (
+                <button onClick={() => { setAgencyFilter(''); setCategoryFilter(''); }} className="text-sm font-bold text-red-500 hover:underline">Limpar Filtros</button>
+            )}
+        </div>
+      )}
+
+      {renderContent()}
+
+      {/* Modals */}
+      {modalType === 'EDIT_USER' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Usuário</h2>
+                
+                <div className="flex border-b border-gray-200 mb-6">
+                    <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'PROFILE' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Perfil</button>
+                    <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'SECURITY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Segurança</button>
+                    <button onClick={() => setModalTab('HISTORY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'HISTORY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Histórico</button>
+                </div>
+
+                {modalTab === 'PROFILE' && (
+                    <form onSubmit={handleUserUpdate} className="space-y-6">
+                        <div className="flex flex-col items-center gap-4 mb-6">
+                            <div className="relative w-24 h-24 rounded-full group">
+                                <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
+                                <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
+                                    {isUploadingAvatar ? <Loader className="animate-spin" size={20}/> : <Camera size={20} />}
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar}/>
+                                </label>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900">{editFormData.name}</h3>
+                        </div>
+
+                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Email</label><input type="email" value={editFormData.email || ''} onChange={e => setEditFormData({...editFormData, email: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                        <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                        <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                    </form>
+                )}
+                {modalTab === 'SECURITY' && (
+                    <div className="space-y-6">
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                            <p className="text-sm text-gray-700 font-medium">Resetar Senha</p>
+                            <button onClick={() => sendPasswordReset(selectedItem.email)} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
+                                <Key size={16}/> Enviar Link
+                            </button>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
+                            <p className="text-sm text-red-700 font-medium">Excluir Conta</p>
+                            <button onClick={() => handlePermanentDelete(selectedItem.id, selectedItem.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
+                                <Trash2 size={16}/> Excluir
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {modalTab === 'HISTORY' && (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+                        {auditLogs.filter(log => log.details.includes(selectedItem.email)).length > 0 ? (
+                            auditLogs.filter(log => log.details.includes(selectedItem.email)).map(log => (
+                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                    <p className="text-sm font-bold text-gray-900">{log.action}</p>
+                                    <p className="text-xs text-gray-600">{log.details}</p>
+                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-center text-gray-500 text-sm py-4">Nenhum histórico encontrado para este usuário.</p>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_AGENCY' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
+                <form onSubmit={handleAgencyUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={3} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({...editFormData, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Endereço (JSON)</label><textarea rows={2} value={JSON.stringify(editFormData.address || {}, null, 2)} onChange={e => { try { setEditFormData({...editFormData, address: JSON.parse(e.target.value)}); } catch (err) {} }} className="w-full border p-2.5 rounded-lg font-mono text-xs outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Info Bancária (JSON)</label><textarea rows={2} value={JSON.stringify(editFormData.bankInfo || {}, null, 2)} onChange={e => { try { setEditFormData({...editFormData, bankInfo: JSON.parse(e.target.value)}); } catch (err) {} }} className="w-full border p-2.5 rounded-lg font-mono text-xs outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'MANAGE_SUB' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
+                <p className="text-gray-600 mb-4">Agência: <span className="font-bold">{selectedItem.name}</span></p>
+                <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Plano Atual</label><select value={editFormData.plan || ''} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                        <option value="BASIC">BASIC</option>
+                        <option value="PREMIUM">PREMIUM</option>
+                    </select></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Status</label><select value={editFormData.status || ''} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                        <option value="PENDING">PENDING</option>
+                    </select></div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Expiração</label>
+                        <input 
+                            type="datetime-local" 
+                            value={editFormData.expiresAt ? new Date(editFormData.expiresAt).toISOString().slice(0, 16) : ''}
+                            onChange={e => setEditFormData({...editFormData, expiresAt: e.target.value})}
+                            className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+                        />
+                        <div className="flex gap-2 mt-2">
+                            <button type="button" onClick={() => addSubscriptionTime(30)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+30 Dias</button>
+                            <button type="button" onClick={() => addSubscriptionTime(365)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+1 Ano</button>
+                        </div>
+                    </div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Assinatura</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_REVIEW' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
+                <form onSubmit={handleReviewUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nota</label><input type="number" min={1} max={5} value={editFormData.rating || ''} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea rows={4} value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'EDIT_TRIP' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
+                <form onSubmit={handleTripUpdate} className="space-y-6">
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={4} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Ativo</label><input type="checkbox" checked={editFormData.is_active || false} onChange={e => setEditFormData({...editFormData, is_active: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Destacado</label><input type="checkbox" checked={editFormData.featured || false} onChange={e => setEditFormData({...editFormData, featured: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {modalType === 'VIEW_STATS' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
+                {userStats.length > 0 ? (
+                    userStats.map(stats => (
+                        <div key={stats.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                            <h3 className="font-bold text-gray-900 text-lg mb-2">{stats.userName}</h3>
+                            <p className="text-sm text-gray-600 mb-1">Total Gasto: <span className="font-bold">R$ {stats.totalSpent.toLocaleString()}</span></p>
+                            <p className="text-sm text-gray-600 mb-1">Total de Reservas: <span className="font-bold">{stats.totalBookings}</span></p>
+                            <p className="text-sm text-gray-600">Total de Avaliações: <span className="font-bold">{stats.totalReviews}</span></p>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-500 text-sm py-4">Nenhum dado encontrado para os usuários selecionados.</p>
+                )}
+            </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export { AdminDashboard };

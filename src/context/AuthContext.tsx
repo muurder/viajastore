@@ -1,6 +1,4 @@
 
-
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -476,6 +474,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
+        // Fix: Use subscriptionExpiresAt to update the database
+        if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
+
 
         const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
         if (error) {

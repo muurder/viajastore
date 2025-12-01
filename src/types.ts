@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -237,4 +236,14 @@ export interface UserStats {
   totalSpent: number;
   totalBookings: number;
   totalReviews: number;
+}
+
+// Fix: Add averageRating and totalReviews to DashboardStats
+export interface DashboardStats {
+  totalRevenue: number;
+  totalViews: number;
+  totalSales: number;
+  conversionRate: number;
+  averageRating?: number;
+  totalReviews?: number;
 }

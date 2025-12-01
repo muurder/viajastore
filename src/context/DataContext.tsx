@@ -1,19 +1,12 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 // Fix: Corrected import syntax for slugify
 import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
-
-interface DashboardStats {
-  totalRevenue: number;
-  totalViews: number;
-  totalSales: number;
-  conversionRate: number;
-}
 
 interface DataContextType {
   trips: Trip[];
@@ -810,7 +803,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  const getAgencyStats = (agencyId: string) => { 
+  const getAgencyStats = (agencyId: string): DashboardStats => { 
       const agencyTrips = trips.filter(t => t.agencyId === agencyId);
       const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
 
@@ -824,11 +817,19 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       const totalSales = confirmedBookings.length;
       const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
 
+      // Fix: Calculate averageRating and totalReviews
+      const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
+      const totalRatingSum = agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0);
+      const averageRating = agencyReviewsForStats.length > 0 ? totalRatingSum / agencyReviewsForStats.length : 0;
+      const totalReviewsCount = agencyReviewsForStats.length;
+
       return { 
           totalRevenue, 
           totalViews, 
           totalSales, 
-          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 
+          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0,
+          averageRating, // Fix: Add averageRating
+          totalReviews: totalReviewsCount, // Fix: Add totalReviews
       }; 
   };
 
