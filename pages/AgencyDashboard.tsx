@@ -416,4 +416,16 @@ const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose:
                                 {openAccordion === 'included' && (
                                     <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s]">
                                         {(trip.included && trip.included.length > 0 ? trip.included : ['Hospedagem', 'Passeios Guiados', 'Café da Manhã']).map((item, i) => (
-                                            <div key={i} className="flex items-start"><Check size={18} className="text-green-500 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-6
+                                            <div key={i} className="flex items-start"><Check size={18} className="text-green-500 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-600 text-sm">{item}</span></div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            {trip.notIncluded && trip.notIncluded.length > 0 && (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                    <button onClick={() => toggleAccordion('notIncluded')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
+                                        <span>O que NÃO está incluído</span>
+                                        {openAccordion === 'notIncluded' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                                    </button>
+                                    {openAccordion === 'notIncluded' && (
+                                        <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols
