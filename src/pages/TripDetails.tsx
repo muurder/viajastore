@@ -152,6 +152,25 @@ const TripDetails: React.FC = () => {
       e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
   };
 
+  const renderDescription = (desc: string) => {
+      const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
+      if (isHTML) {
+          const sanitizedDesc = desc.replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '');
+          return (
+              <div 
+                className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mt-6 [&>h3]:mb-3 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizedDesc }} 
+              />
+          );
+      }
+      return <p className="leading-relaxed whitespace-pre-line">{desc}</p>;
+  };
+
+  const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=60';
+  const galleryImages = trip.images && trip.images.length > 0 
+    ? trip.images.slice(1).concat([trip.images[0], trip.images[0]]).slice(0, 4)
+    : [mainImage, mainImage, mainImage, mainImage];
+
   return (
     <div className="max-w-6xl mx-auto pb-12 relative animate-[fadeIn_0.3s]">
       {/* Floating WhatsApp - HIDDEN on mobile (hidden md:flex) to avoid overlap with BottomNav */}
@@ -253,7 +272,7 @@ const TripDetails: React.FC = () => {
 
           <div className="text-gray-600">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
-            <div className="prose prose-blue text-gray-600 leading-relaxed max-w-none" dangerouslySetInnerHTML={{__html: trip.description}} />
+            {renderDescription(trip.description)}
           </div>
 
           {agency && !agencySlug && (
