@@ -1,14 +1,13 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut } from 'lucide-react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -35,7 +34,8 @@ interface ActionsMenuProps {
 interface NavButtonProps {
   tabId: string;
   label: string;
-  icon: any;
+  // FIX: Explicitly type the icon prop as a React Component from lucide-react.
+  icon: React.ComponentType<LucideProps>;
   activeTab: string;
   onClick: (tabId: string) => void;
   hasNotification?: boolean;
@@ -124,12 +124,16 @@ const SubscriptionConfirmationModal: React.FC<{
                 <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
                     <div className="flex justify-between items-center">
                         <span className="font-bold">Total</span>
-                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></span>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
                 </div>
                 <button onClick={onConfirm} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
-                    {isSubmitting ? <Loader size={18} className="animate-spin" /> : 'Confirmar Assinatura'}
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader size={18} className="animate-spin" /> Processando...
+                      </span>
+                    ) : 'Confirmar Assinatura'}
                 </button>
             </div>
         </div>
@@ -164,7 +168,7 @@ const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, on
             <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
             {isPublished ? (
                <>
-                 <a href={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</a>
+                 <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link>
                  <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
                </>
             ) : (
@@ -352,4 +356,128 @@ const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose:
                     <div className="md:col-span-2 h-full"><img src={mainImage} className="w-full h-full object-cover" alt="Main" /></div>
                     <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full"><img src={trip.images?.[1] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="1" /><img src={trip.images?.[2] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="2" /><img src={trip.images?.[3] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="3" /><img src={trip.images?.[4] || mainImage} className="w-full h-full object-cover bg-gray-100" alt="4" /></div>
                 </div>
-                <div className="grid grid
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    <div className="lg:col-span-2 space-y-10">
+                        <div>
+                            <div className="flex flex-wrap items-center gap-3 mb-4">
+                                <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category || 'CATEGORIA'}</span>
+                                <div className="flex items-center text-amber-500 font-bold text-sm bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                                    <Star size={14} className="fill-current mr-1" />
+                                    {(trip.rating || 0).toFixed(1)}
+                                </div>
+                                {agency.subscriptionStatus === 'ACTIVE' && (
+                                    <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>
+                                )}
+                            </div>
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
+                                <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight">{trip.title || 'Título da Viagem'}</h1>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 mt-4">
+                                <div className="flex items-center"><MapPin className="text-primary-500 mr-2" size={18}/> {trip.destination || 'Destino'}</div>
+                                <div className="flex items-center"><Clock className="text-primary-500 mr-2" size={18}/> {trip.durationDays || 0} Dias de Duração</div>
+                            </div>
+                            <div className="flex flex-wrap gap-4 mt-6">
+                                {trip.tags && trip.tags.length > 0 && (
+                                    <div className="flex items-start">
+                                        <Tag size={16} className="text-gray-400 mr-2 mt-1" />
+                                        <div className="flex flex-wrap gap-2">
+                                            {trip.tags.map((tag, i) => (
+                                                <span key={i} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-medium">{tag}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="h-px bg-gray-200"></div>
+                        <div className="text-gray-600">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
+                            {renderDescription(trip.description || 'Descrição da viagem...')}
+                        </div>
+                        <div className="space-y-4">
+                            <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <button onClick={() => toggleAccordion('included')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
+                                    <span>O que está incluído</span>
+                                    {openAccordion === 'included' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                                </button>
+                                {openAccordion === 'included' && (
+                                    <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s]">
+                                        {(trip.included && trip.included.length > 0 ? trip.included : ['Item incluído 1', 'Item incluído 2']).map((item, i) => (
+                                            <div key={i} className="flex items-start"><Check size={18} className="text-green-500 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-600 text-sm">{item}</span></div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            {trip.notIncluded && trip.notIncluded.length > 0 && (
+                                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                    <button onClick={() => toggleAccordion('notIncluded')} className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors font-bold text-gray-900">
+                                        <span>O que NÃO está incluído</span>
+                                        {openAccordion === 'notIncluded' ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
+                                    </button>
+                                    {openAccordion === 'notIncluded' && (
+                                        <div className="p-4 bg-white grid grid-cols-1 sm:grid-cols-2 gap-3 animate-[fadeIn_0.2s]">
+                                            {trip.notIncluded.map((item, i) => (
+                                                <div key={i} className="flex items-start"><X size={18} className="text-red-400 mr-2 mt-0.5 shrink-0" /> <span className="text-gray-600 text-sm">{item}</span></div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {trip.itinerary && trip.itinerary.length > 0 && (
+                            <section>
+                                <h3 className="text-xl font-bold text-gray-900 mb-6 border-b border-gray-100 pb-2">Roteiro</h3>
+                                <div className="space-y-6 relative before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-200">
+                                    {trip.itinerary.map((item, index) => (
+                                        <div key={index} className="relative pl-10">
+                                            <div className="absolute left-0 top-0 w-8 h-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center font-bold text-sm border-4 border-white shadow-sm z-10">
+                                                {item.day}
+                                            </div>
+                                            <h4 className="font-bold text-gray-900 text-lg mb-2">{item.title}</h4>
+                                            <p className="text-gray-600 text-sm leading-relaxed">{item.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                    </div>
+                    <div className="lg:col-span-1 relative">
+                        <div className="sticky top-4 bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+                            <div className="mb-6">
+                                <p className="text-sm text-gray-500 mb-1 font-medium">A partir de</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-4xl font-extrabold text-gray-900">R$ {(trip.price || 0).toLocaleString('pt-BR')}</span>
+                                    <span className="text-gray-500">/ pessoa</span>
+                                </div>
+                            </div>
+                            <div className="space-y-4 mb-6">
+                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                    <div className="text-xs font-bold text-gray-500 uppercase mb-1">Datas</div>
+                                    <div className="flex items-center font-bold text-gray-800">
+                                        <Calendar size={18} className="mr-2 text-primary-500" />
+                                        {new Date(trip.startDate || new Date()).toLocaleDateString('pt-BR')} - {new Date(trip.endDate || new Date()).toLocaleDateString('pt-BR')}
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                    <div className="text-xs font-bold text-gray-500 uppercase mb-1">Viajantes</div>
+                                    <select value={1} disabled className="w-full bg-transparent outline-none font-bold text-gray-800 cursor-not-allowed">
+                                        <option value={1}>1 Pessoa</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center mb-6 pb-6 border-t border-gray-100 pt-6">
+                                <span className="text-gray-600 font-medium">Total estimado</span>
+                                <span className="font-bold text-2xl text-primary-600">R$ {(trip.price || 0).toLocaleString('pt-BR')}</span>
+                            </div>
+                            <button disabled className="w-full bg-gray-200 text-gray-500 font-bold py-4 rounded-xl cursor-not-allowed text-center">Reservar Agora</button>
+                            <div className="mt-4 text-center space-y-2">
+                                <div className="flex items-center justify-center text-xs text-gray-500 font-medium gap-1"><ShieldCheck size={14} className="text-green-500" /> Garantia de Melhor Preço</div>
+                                <p className="text-gray-400 text-xs">Não cobramos taxas de reserva.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
