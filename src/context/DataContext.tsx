@@ -346,7 +346,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                category: b.trips.category || 'PRAIA',
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
-               itinerary: b.itinerary || [],
+               itinerary: b.trips.itinerary || [],
                // Fix: Corrected typo from b.trient_methods to b.trips.payment_methods
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,

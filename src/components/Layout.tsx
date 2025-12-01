@@ -1,4 +1,5 @@
 
+
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -462,7 +463,7 @@ const Layout: React.FC = () => {
                             {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
                                 <div className="space-y-2">
                                     <div className="grid grid-cols-2 gap-3">
-                                        <Link to={userProfileLink} className="flex items-center justify-center px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 text-center">
+                                        <Link to={userProfileLink} className="flex items-center justify-center w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 text-center">
                                             Minha Conta
                                         </Link>
                                         <Link to={getDashboardRoute()} className="flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 text-center">
