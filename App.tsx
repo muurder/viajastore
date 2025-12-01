@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -11,9 +12,9 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-import AgencyDashboard from './pages/AgencyDashboard';
-import { AdminDashboard } from './pages/AdminDashboard'; 
-import ClientDashboard from './pages/ClientDashboard';
+import { AgencyDashboard } from './pages/AgencyDashboard'; // Fix: Import AgencyDashboard as named export
+import { AdminDashboard } from './pages/AdminDashboard'; // Fix: AdminDashboard is a named export, its import is fine as is
+import AgencyLandingPage from './pages/AgencyLandingPage'; // Fix: Import AgencyLandingPage
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 

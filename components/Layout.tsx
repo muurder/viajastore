@@ -1,15 +1,15 @@
 
+
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-// Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
-// Fix: Import AgencyLandingPage as default
+// Fix: Import AgencyLandingPage
 import AgencyLandingPage from '../pages/AgencyLandingPage';
 
 const Layout: React.FC = () => {

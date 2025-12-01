@@ -12,7 +12,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps // Fix: Import LucideProps and AlertCircle
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -22,6 +22,7 @@ import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
+// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -99,7 +100,8 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
 
 // --- MAIN COMPONENT ---
 
-const AdminDashboard: React.FC = () => {
+// Fix: Export AdminDashboard directly
+export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
       agencies, trips, agencyReviews, clients, auditLogs, bookings,
@@ -464,7 +466,7 @@ const AdminDashboard: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllUsers} checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
+                            {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4"><Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENSO' ? 'SUSPENSO' : 'ATIVO'}</Badge></td><td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                     {showUserTrash ? (
                                         <>
@@ -958,134 +960,4 @@ const AdminDashboard: React.FC = () => {
                     </div>
                 )}
                 {modalTab === 'HISTORY' && (
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                        {auditLogs.filter(log => log.details.includes(selectedItem.email)).length > 0 ? (
-                            auditLogs.filter(log => log.details.includes(selectedItem.email)).map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-900">{log.action}</p>
-                                    <p className="text-xs text-gray-600">{log.details}</p>
-                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-center text-gray-500 text-sm py-4">Nenhum histórico encontrado para este usuário.</p>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_AGENCY' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-                <form onSubmit={handleAgencyUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={3} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({...editFormData, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Endereço (JSON)</label><textarea rows={2} value={JSON.stringify(editFormData.address || {}, null, 2)} onChange={e => { try { setEditFormData({...editFormData, address: JSON.parse(e.target.value)}); } catch (err) {} }} className="w-full border p-2.5 rounded-lg font-mono text-xs outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Info Bancária (JSON)</label><textarea rows={2} value={JSON.stringify(editFormData.bankInfo || {}, null, 2)} onChange={e => { try { setEditFormData({...editFormData, bankInfo: JSON.parse(e.target.value)}); } catch (err) {} }} className="w-full border p-2.5 rounded-lg font-mono text-xs outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'MANAGE_SUB' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
-                <p className="text-gray-600 mb-4">Agência: <span className="font-bold">{selectedItem.name}</span></p>
-                <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Plano Atual</label><select value={editFormData.plan || ''} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="BASIC">BASIC</option>
-                        <option value="PREMIUM">PREMIUM</option>
-                    </select></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Status</label><select value={editFormData.status || ''} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                        <option value="ACTIVE">ACTIVE</option>
-                        <option value="INACTIVE">INACTIVE</option>
-                        <option value="PENDING">PENDING</option>
-                    </select></div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Expiração</label>
-                        <input 
-                            type="datetime-local" 
-                            value={editFormData.expiresAt ? new Date(editFormData.expiresAt).toISOString().slice(0, 16) : ''}
-                            onChange={e => setEditFormData({...editFormData, expiresAt: e.target.value})}
-                            className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-                        />
-                        <div className="flex gap-2 mt-2">
-                            <button type="button" onClick={() => addSubscriptionTime(30)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+30 Dias</button>
-                            <button type="button" onClick={() => addSubscriptionTime(365)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-bold transition-colors">+1 Ano</button>
-                        </div>
-                    </div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Assinatura</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_REVIEW' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
-                <form onSubmit={handleReviewUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nota</label><input type="number" min={1} max={5} value={editFormData.rating || ''} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label><textarea rows={4} value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem</h2>
-                <form onSubmit={handleTripUpdate} className="space-y-6">
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug</label><input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg bg-gray-50 font-mono text-primary-700 outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || ''} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea rows={4} value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Ativo</label><input type="checkbox" checked={editFormData.is_active || false} onChange={e => setEditFormData({...editFormData, is_active: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
-                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Destacado</label><input type="checkbox" checked={editFormData.featured || false} onChange={e => setEditFormData({...editFormData, featured: e.target.checked})} className="ml-2 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" /></div>
-                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {modalType === 'VIEW_STATS' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuário</h2>
-                {userStats.length > 0 ? (
-                    userStats.map(stats => (
-                        <div key={stats.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
-                            <h3 className="font-bold text-gray-900 text-lg mb-2">{stats.userName}</h3>
-                            <p className="text-sm text-gray-600 mb-1">Total Gasto: <span className="font-bold">R$ {stats.totalSpent.toLocaleString()}</span></p>
-                            <p className="text-sm text-gray-600 mb-1">Total de Reservas: <span className="font-bold">{stats.totalBookings}</span></p>
-                            <p className="text-sm text-gray-600">Total de Avaliações: <span className="font-bold">{stats.totalReviews}</span></p>
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-center text-gray-500 text-sm py-4">Nenhum dado encontrado para os usuários selecionados.</p>
-                )}
-            </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export { AdminDashboard };
+                    <div className="space-y-3 max-h-[400px] overflow-

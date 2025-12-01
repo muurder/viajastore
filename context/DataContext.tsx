@@ -1,4 +1,6 @@
 
+
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -85,7 +87,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // FIX: Removed React.FC type annotation as this is a helper function, not a component.
+  // FIX: Moved useMockData inside DataProvider to have access to state setters.
   const useMockData = () => {
       setTrips(MOCK_TRIPS);
       setAgencies(MOCK_AGENCIES);
@@ -392,9 +394,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method,
-              _trip: tripData, // Attach trip data for easier access
-              _agency: agencyData // Attach agency data for easier access
+              paymentMethod: b.payment_method
             };
           });
           setBookings(formattedBookings);
