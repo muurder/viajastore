@@ -18,7 +18,7 @@ const BottomNav: React.FC = () => {
       }`}
     >
       <div className="relative">
-        <Icon size={20} className={`mb-0.5 ${active ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+        <Icon size={22} className={`mb-0.5 ${active ? 'stroke-[2.5px]' : 'stroke-2'}`} />
         {active && <div className="absolute -top-1 right-0 w-1.5 h-1.5 bg-primary-600 rounded-full md:hidden"></div>}
       </div>
       <span>{label}</span>
@@ -42,9 +42,9 @@ const BottomNav: React.FC = () => {
   };
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] h-[68px]">
-      <div className="grid grid-cols-4 h-full">
-        {/* 1. Home */}
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
+      <div className="grid grid-cols-4 h-[64px]">
+        {/* 1. Home - Discovery */}
         <NavItem
           to="/"
           icon={Home}
@@ -52,16 +52,15 @@ const BottomNav: React.FC = () => {
           active={pathname === '/'}
         />
 
-        {/* 2. Explorar (Viagens) */}
+        {/* 2. Explorar (Viagens) - Catalog */}
         <NavItem
           to="/trips"
           icon={Compass}
           label="Explorar"
-          // Active on list or details
           active={pathname.startsWith('/trips') || pathname.startsWith('/viagem')}
         />
 
-        {/* 3. Agências */}
+        {/* 3. Agências - Marketplace */}
         <NavItem
           to="/agencies"
           icon={Building}
@@ -69,7 +68,7 @@ const BottomNav: React.FC = () => {
           active={pathname.startsWith('/agencies') || pathname.startsWith('/agency/')}
         />
 
-        {/* 4. Conta (Dynamic Destination, Fixed Label) */}
+        {/* 4. Conta - Personal Area */}
         <NavItem
           to={getAccountLink()}
           icon={User}

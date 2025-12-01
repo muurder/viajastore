@@ -148,7 +148,7 @@ const Layout: React.FC = () => {
   const showAgencyHeader = isAgencyMode || isAgencyDashboard;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300 pb-[72px] md:pb-0">
+    <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300 pb-[80px] md:pb-0">
       {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
