@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +29,32 @@ interface ActionsMenuProps {
   onToggleStatus: () => void;
   fullAgencyLink: string;
 }
+
+// Extracted NavButton Component
+interface NavButtonProps {
+  tabId: string;
+  label: string;
+  icon: any;
+  activeTab: string;
+  onClick: (tabId: string) => void;
+  hasNotification?: boolean;
+}
+
+const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
+  <button 
+    onClick={() => onClick(tabId)} 
+    className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+  >
+    <Icon size={16} /> 
+    {label} 
+    {hasNotification && ( 
+      <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> 
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> 
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> 
+      </span> 
+    )} 
+  </button>
+);
 
 const SubscriptionActivationView: React.FC<{
   agency: Agency;
@@ -558,8 +585,6 @@ const AgencyDashboard: React.FC = () => {
       setIsSubmitting(false);
   };
 
-  const NavButton: React.FC<{tabId: string, label: string, icon: any}> = ({ tabId, label, icon: Icon }) => ( <button onClick={() => handleTabChange(tabId)} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}> <Icon size={16} /> {label} {tabId === 'OVERVIEW' && newSalesCount > 0 && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} </button> );
-
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
       {showPreview && ( <TripPreviewModal trip={tripForm} agency={myAgency} onClose={() => setShowPreview(false)} /> )}
@@ -570,10 +595,10 @@ const AgencyDashboard: React.FC = () => {
       {viewMode === 'LIST' ? (
         <>
           <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} />
-            <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} />
-            <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} />
-            <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} />
+            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} activeTab={activeTab} onClick={handleTabChange} hasNotification={newSalesCount > 0} />
+            <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+            <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} />
+            <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
           </div>
           
           <div className="animate-[fadeIn_0.3s]">

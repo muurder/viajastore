@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -72,6 +73,7 @@ interface DataContextType {
   saveAgencyTheme: (agencyId: string, colors: ThemeColors) => Promise<boolean>;
 
   refreshData: () => Promise<void>;
+  incrementTripViews: (tripId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -141,8 +143,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            rating: 0, 
-            totalReviews: 0,
+            rating: t.rating || 0, // Assuming rating might be present or default to 0
+            totalReviews: t.totalReviews || 0,
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -346,7 +348,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
                itinerary: b.trips.itinerary || [],
-               paymentMethods: b.trips.payment_methods || [],
+               paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
                totalReviews: b.trips.totalReviews || 0,
@@ -757,6 +759,18 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     }
 };
 
+  const incrementTripViews = async (tripId: string) => {
+      // Optimistic update
+      setTrips(prev => prev.map(t => t.id === tripId ? { ...t, views: (t.views || 0) + 1 } : t));
+      
+      if (supabase) {
+          const { data } = await supabase.from('trips').select('views_count').eq('id', tripId).single();
+          if (data) {
+             await supabase.from('trips').update({ views_count: (data.views_count || 0) + 1 }).eq('id', tripId);
+          }
+      }
+  };
+
   // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
@@ -769,7 +783,31 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  const getAgencyStats = (agencyId: string) => { const agencyTrips = getAgencyTrips(agencyId); const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0); const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0); const totalRevenue = agencyTrips.reduce((sum, trip) => sum + ((trip.sales || 0) * trip.price), 0); return { totalRevenue, totalViews, totalSales, conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 }; };
+  
+  // FIX: Updated getAgencyStats to calculate sales from BOOKINGS
+  const getAgencyStats = (agencyId: string) => { 
+      // Views from Trips
+      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+      const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+
+      // Sales & Revenue from Bookings
+      const agencyBookings = bookings.filter(b => {
+          if (b._agency?.agencyId === agencyId) return true;
+          const trip = trips.find(t => t.id === b.tripId);
+          return trip?.agencyId === agencyId;
+      });
+
+      const confirmedBookings = agencyBookings.filter(b => b.status === 'CONFIRMED');
+      const totalSales = confirmedBookings.length;
+      const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+
+      return { 
+          totalRevenue, 
+          totalViews, 
+          totalSales, 
+          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0 
+      }; 
+  };
 
   const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
       const supabase = guardSupabase();
@@ -824,7 +862,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       getPublicTrips, getAgencyPublicTrips, getAgencyTrips, getTripById, getTripBySlug, getAgencyBySlug,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, hasUserPurchasedTrip, getAgencyStats,
       getAgencyTheme, saveAgencyTheme,
-      refreshData
+      refreshData, incrementTripViews
     }}>
       {children}
     </DataContext.Provider>

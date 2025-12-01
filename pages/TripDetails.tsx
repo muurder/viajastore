@@ -12,7 +12,7 @@ const TripDetails: React.FC = () => {
   
   const activeTripSlug = tripSlug || slug;
 
-  const { getTripBySlug, addBooking, agencies, toggleFavorite, clients, loading, getAgencyBySlug } = useData();
+  const { getTripBySlug, addBooking, agencies, toggleFavorite, clients, loading, getAgencyBySlug, incrementTripViews } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -28,11 +28,13 @@ const TripDetails: React.FC = () => {
   useEffect(() => {
       if (trip) {
           document.title = `${trip.title} | ViajaStore`;
+          // Increment view count when details page loads
+          incrementTripViews(trip.id);
       }
       return () => {
           document.title = 'ViajaStore | O maior marketplace de viagens';
       };
-  }, [trip]);
+  }, [trip?.id]); // Only run when trip ID changes (avoids loop on views update)
   
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
@@ -104,8 +106,6 @@ const TripDetails: React.FC = () => {
     }
     
     const voucherCode = `VS-${Date.now().toString(36).toUpperCase()}`;
-    // Use UUID explicitly if needed, but addBooking in DataContext now handles randomUUID generation if not provided
-    // We can generate here to be sure
     const bookingId = crypto.randomUUID();
     
     addBooking({
@@ -136,7 +136,6 @@ const TripDetails: React.FC = () => {
   const renderDescription = (desc: string) => {
       const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>') || desc.includes('<strong>');
       if (isHTML) {
-          // Basic sanitization to prevent script injection. A proper library like DOMPurify would be better for production.
           const sanitizedDesc = desc.replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '');
           return (
               <div 
@@ -189,7 +188,7 @@ const TripDetails: React.FC = () => {
         <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
           {galleryImages.map((img, idx) => (
             <div key={idx} className="relative group overflow-hidden">
-                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" onError={handleImageError} />
+                <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={handleImageError} />
             </div>
           ))}
         </div>
