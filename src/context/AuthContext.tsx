@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -238,6 +237,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
 
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
+        console.log("Auth State Change:", event, session?.user?.email); // Debug log
         if (session?.user) {
           if (event === 'SIGNED_IN') {
              const pendingRole = localStorage.getItem('viajastore_pending_role');
@@ -252,7 +252,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              await fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
+          console.log("SIGNED_OUT event received, setting user to null."); // Debug log
           setUser(null);
+          localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+          // DataContext's useEffect on 'user' will handle refreshing other states.
         }
       });
 
@@ -302,10 +305,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
+      console.log("Logout function called, signing out from Supabase and setting user to null."); // Debug log
       await (supabase.auth as any).signOut();
+      setUser(null); // Explicitly setting user to null here ensures immediate UI update.
+      localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
     }
-    setUser(null);
-    localStorage.removeItem('viajastore_pending_role');
   };
 
   const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
@@ -459,7 +463,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
-        if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
+        
+        // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
+        // If the agency already has a slug, do NOT allow it to be updated via this path (UI is readOnly)
+        // If for some reason the agency *didn't* have a slug, but one is provided now, allow setting it.
+        // The `updateAgencyProfileByAdmin` function (DataContext) already handles this by not passing `slug`
+        // if it shouldn't be changed. So, we primarily rely on that.
+        // This `AuthContext.updateUser` should ideally not receive `slug` in userData if the UI is readOnly.
+        // However, if it does, we ensure it's not unintentionally changed by checking against the current user's slug.
+        if ( (user as Agency).slug === '' && (userData as Agency).slug) { // If user had no slug, but one is provided now
+          updates.slug = (userData as Agency).slug;
+        }
+        // If (user as Agency).slug exists, we assume the UI will send the existing slug or nothing.
+        // If a new slug is sent AND it's different, it implies a manual override, which is undesirable if UI is read-only.
+        // Given the UI is read-only, this block might become effectively unused for slug updates.
+        // The most robust way is for the UI not to include `slug` in `userData` at all if it's readOnly.
+
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
@@ -490,8 +509,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (userData.name) updates.full_name = userData.name;
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
-        if ((userData as Client).address) updates.address = (userData as Client).address;
         if (userData.avatar) updates.avatar_url = userData.avatar;
+        if (userData.address) updates.address = (userData as Client).address;
 
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;
