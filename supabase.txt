@@ -1,4 +1,5 @@
 
+
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -107,9 +108,11 @@ ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_trip_id_fkey;
 ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_client_id_fkey;
 ALTER TABLE public.trip_images DROP CONSTRAINT IF EXISTS trip_images_trip_id_fkey;
 ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_agency_id_fkey;
-ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey;
+ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey; -- Fix: ensure client_id fkey is handled
 ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_user_id_fkey;
 ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_trip_id_fkey;
+ALTER TABLE public.agency_themes DROP CONSTRAINT IF EXISTS agency_themes_agency_id_fkey;
+
 
 -- Recria com CASCADE
 ALTER TABLE public.agencies ADD CONSTRAINT agencies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
@@ -121,6 +124,7 @@ ALTER TABLE public.agency_reviews ADD CONSTRAINT agency_reviews_agency_id_fkey F
 ALTER TABLE public.agency_reviews ADD CONSTRAINT agency_reviews_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.favorites ADD CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.favorites ADD CONSTRAINT favorites_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
+ALTER TABLE public.agency_themes ADD CONSTRAINT agency_themes_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE;
 
 -- 6. CRIAR FUNÇÃO RPC DE CRIAÇÃO (Se não existir)
 CREATE OR REPLACE FUNCTION public.create_agency(
@@ -148,7 +152,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_agency(uuid, text, text, text, text, text) TO anon, authenticated, service_role;
 
 -- 7. ADICIONAR FUNÇÃO RPC PARA ATIVAÇÃO/TROCA DE ASSINATURA
-DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid,text); -- ADDED THIS LINE TO FIX THE ERROR
+DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid,text);
 CREATE OR REPLACE FUNCTION public.activate_agency_subscription(
   p_user_id uuid,
   p_plan_id text
@@ -164,11 +168,17 @@ DECLARE
   updated_agency public.agencies;
 BEGIN
   -- Buscar a duração do plano na tabela 'plans'
+  -- Assumindo que a tabela 'plans' tem colunas 'id' e 'duration_months'
   SELECT duration_months INTO v_duration_months
   FROM public.plans
   WHERE id = p_plan_id;
 
-  -- Calcular a data de expiração (se a duração for nula, usar 1 mês como fallback)
+  -- Se duration_months for NULL ou 0, usar 1 mês como fallback
+  IF v_duration_months IS NULL OR v_duration_months = 0 THEN
+      v_duration_months := 1;
+  END IF;
+
+  -- Calcular a data de expiração
   v_expires_at := NOW() + (v_duration_months || ' month')::INTERVAL;
   
   -- Atualizar a agência
@@ -192,10 +202,70 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(uuid, text) TO anon, authenticated, service_role;
 
+
+-- =============================================================================
+-- NOVO: TABELA DE LOGS DE ATIVIDADE CENTRALIZADA
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.activity_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL, -- Quem realizou a ação
+    agency_id uuid REFERENCES public.agencies(id) ON DELETE SET NULL, -- Se a ação está ligada a uma agência (ex: agência publicou uma viagem)
+    actor_email text NOT NULL, -- Email do ator (denormalizado para persistência)
+    actor_role text NOT NULL, -- Role do ator (CLIENT, AGENCY, ADMIN)
+    action_type text NOT NULL, -- Tipo de ação (ex: BOOKING_CREATED, TRIP_VIEWED, AGENCY_PROFILE_UPDATED)
+    details jsonb DEFAULT '{}'::jsonb, -- Detalhes específicos da ação (ex: {trip_id, new_status})
+    created_at timestamp with time zone DEFAULT now()
+);
+
+ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+
+-- RLS: Admin pode ver e gerenciar todos os logs
+CREATE POLICY "Admin Full Access Activity Logs" ON public.activity_logs
+FOR ALL
+USING ( public.is_admin() );
+
+-- RLS: Usuário autenticado pode ver seus próprios logs
+CREATE POLICY "Authenticated Users Can View Own Activity Logs" ON public.activity_logs
+FOR SELECT
+USING ( auth.uid() = user_id );
+
+-- RLS: Usuários autenticados podem inserir logs de suas próprias ações
+CREATE POLICY "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs
+FOR INSERT
+WITH CHECK ( auth.uid() = user_id OR public.is_admin() ); -- Admin também pode inserir logs para terceiros se necessário
+
+
+-- =============================================================================
+-- NOVO: FUNÇÃO RPC PARA INSERIR LOGS DE ATIVIDADE
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.log_activity(
+  p_user_id uuid,
+  p_actor_email text,
+  p_actor_role text,
+  p_action_type text,
+  p_details jsonb DEFAULT '{}'::jsonb,
+  p_agency_id uuid DEFAULT NULL
+)
+RETURNS public.activity_logs
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  new_log public.activity_logs;
+BEGIN
+  INSERT INTO public.activity_logs (user_id, agency_id, actor_email, actor_role, action_type, details)
+  VALUES (p_user_id, p_agency_id, p_actor_email, p_actor_role, p_action_type, p_details)
+  RETURNING * INTO new_log;
+  RETURN new_log;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uuid) TO anon, authenticated, service_role;
+
 -- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
 UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
--- A linha abaixo será mais bem gerenciada pela nova RPC de ativação ou por updates no painel admin
--- UPDATE public.agencies SET subscription_expires_at = (NOW() + INTERVAL '30 days') WHERE is_active = true OR subscription_expires_at IS NULL;
 
 -- 9. RECARREGAR
 NOTIFY pgrst, 'reload config';

@@ -1,11 +1,9 @@
-
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -13,7 +11,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck 
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -23,7 +21,6 @@ import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
-// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -40,7 +37,6 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-// Fix: Define StatCard component locally
 interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
@@ -61,7 +57,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Fix: Define ActionMenu component locally
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -99,13 +94,10 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     );
 };
 
-// --- MAIN COMPONENT ---
-
-// Fix: Export AdminDashboard directly
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
-      agencies, trips, agencyReviews, clients, auditLogs, bookings,
+      agencies, trips, agencyReviews, clients, auditLogs, bookings, activityLogs,
       updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, 
       deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
@@ -113,7 +105,6 @@ export const AdminDashboard: React.FC = () => {
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
       toggleAgencyStatus
   } = useData();
-  // Access previewMode from useTheme()
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, previewMode } = useTheme();
   const { showToast } = useToast();
   
@@ -145,9 +136,16 @@ export const AdminDashboard: React.FC = () => {
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
 
-  // New state for Edit User Modal
   const [modalTab, setModalTab] = useState('PROFILE');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  // NEW: State for Activity Log Filters
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [activityActorRoleFilter, setActivityActorRoleFilter] = useState<ActivityActorRole | 'ALL'>('ALL');
+  const [activityActionTypeFilter, setActivityActionTypeFilter] = useState<ActivityActionType | 'ALL'>('ALL');
+  const [activityStartDate, setActivityStartDate] = useState<string>('');
+  const [activityEndDate, setActivityEndDate] = useState<string>('');
+
 
   const handleSetAgencyView = (view: 'cards' | 'list') => {
     setAgencyView(view);
@@ -174,6 +172,12 @@ export const AdminDashboard: React.FC = () => {
       setSelectedAgencies([]);
       setShowAgencyTrash(false);
       setShowUserTrash(false);
+      // Reset activity log filters when changing tabs
+      setActivitySearchTerm('');
+      setActivityActorRoleFilter('ALL');
+      setActivityActionTypeFilter('ALL');
+      setActivityStartDate('');
+      setActivityEndDate('');
   };
 
   const handleRefresh = async () => {
@@ -221,7 +225,6 @@ export const AdminDashboard: React.FC = () => {
               if (type === 'user') {
                   await deleteMultipleUsers(itemsToDelete.map(i => i.id));
               } else {
-                  // FIX: Pass agencyId (PK) for deletion from agencies table, not user ID
                   await deleteMultipleAgencies(itemsToDelete.map(i => i.agencyId));
               }
           } catch (e: any) {
@@ -237,7 +240,6 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
-        // FIX: Pass expiresAt to DataContext function
         await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
     } catch (error) {
         // Toast is already handled in DataContext
@@ -249,12 +251,10 @@ export const AdminDashboard: React.FC = () => {
 
   const addSubscriptionTime = (days: number) => {
       const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
-      // If current is invalid or in the past, maybe start from now? 
       const baseDate = (current.getTime() > Date.now()) ? current : new Date();
       
       const newDate = new Date(baseDate);
       newDate.setDate(newDate.getDate() + days);
-      // FIX: Ensure correct ISO string format for datetime-local (YYYY-MM-DDTHH:MM)
       setEditFormData({ ...editFormData, expiresAt: newDate.toISOString().slice(0, 16) });
   };
   
@@ -290,7 +290,6 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
-        // Pass agencyId to updateAgencyProfileByAdmin
         await updateAgencyProfileByAdmin(selectedItem.agencyId, editFormData);
     } catch (error) {
         // Toast handled in context
@@ -308,7 +307,7 @@ export const AdminDashboard: React.FC = () => {
             comment: editFormData.comment,
             rating: editFormData.rating,
         });
-    } catch (error) {
+    }  catch (error) {
         // Toast handled in context
     } finally {
         setIsProcessing(false);
@@ -344,8 +343,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
-  const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); } };
+  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); logAuditAction('ADMIN_THEME_MANAGED', `Created new theme: ${newTheme.name} (ID: ${id})`); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
+  const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); logAuditAction('ADMIN_THEME_MANAGED', `Deleted theme: ${themeName} (ID: ${themeId})`); } };
   
   const tripCategories = useMemo(() => Array.from(new Set(trips.map(t => t.category))), [trips]);
   const platformRevenue = useMemo(() => activeAgencies.reduce((total, agency) => total + (agency.subscriptionStatus === 'ACTIVE' ? (agency.subscriptionPlan === 'PREMIUM' ? 199.90 : 99.90) : 0), 0), [activeAgencies]);
@@ -357,7 +356,6 @@ export const AdminDashboard: React.FC = () => {
   
   const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
   const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
-  // FIX: Update toggle to use agencyId (PK) instead of id (Auth ID)
   const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
 
@@ -379,8 +377,117 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const downloadPdf = (type: 'users' | 'agencies') => { 
+    const doc = new jsPDF(); 
+    doc.setFontSize(18); 
+    doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); 
+    doc.setFontSize(11); 
+    doc.setTextColor(100); 
+    const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; 
+    const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); 
+    (doc as any).autoTable({ head: headers, body: data, startY: 30, }); 
+    doc.save(`relatorio_${type}.pdf`); 
+  };
 
-  const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
+  // NEW: Filtered Activity Logs
+  const filteredActivityLogs = useMemo(() => {
+    let result = [...activityLogs];
+
+    if (activitySearchTerm) {
+      const searchLower = activitySearchTerm.toLowerCase();
+      result = result.filter(log => 
+        log.actor_email.toLowerCase().includes(searchLower) ||
+        log.user_name?.toLowerCase().includes(searchLower) ||
+        log.agency_name?.toLowerCase().includes(searchLower) ||
+        log.trip_title?.toLowerCase().includes(searchLower) ||
+        log.action_type.toLowerCase().includes(searchLower) ||
+        JSON.stringify(log.details).toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (activityActorRoleFilter !== 'ALL') {
+      result = result.filter(log => log.actor_role === activityActorRoleFilter);
+    }
+
+    if (activityActionTypeFilter !== 'ALL') {
+      // Fix: Direct comparison with activityActionTypeFilter which is already of type ActivityActionType | 'ALL'
+      result = result.filter(log => log.action_type === activityActionTypeFilter);
+    }
+
+    if (activityStartDate) {
+      const start = new Date(activityStartDate).getTime();
+      result = result.filter(log => new Date(log.created_at).getTime() >= start);
+    }
+
+    if (activityEndDate) {
+      const end = new Date(activityEndDate).setHours(23, 59, 59, 999); // End of the day
+      result = result.filter(log => new Date(log.created_at).getTime() <= end);
+    }
+
+    return result;
+  }, [activityLogs, activitySearchTerm, activityActorRoleFilter, activityActionTypeFilter, activityStartDate, activityEndDate]);
+
+
+  const exportActivityLogsToPdf = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Relatório de Atividades", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+
+    const headers = [
+      ["DATA", "ATOR", "PERFIL", "AÇÃO", "DETALHES"]
+    ];
+
+    const data = filteredActivityLogs.map(log => [
+      new Date(log.created_at).toLocaleString('pt-BR'),
+      log.user_name || log.actor_email,
+      log.actor_role,
+      log.action_type.replace(/_/g, ' '),
+      JSON.stringify(log.details)
+    ]);
+
+    (doc as any).autoTable({
+      head: headers,
+      body: data,
+      startY: 30,
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 'auto' },
+      }
+    });
+
+    doc.save("relatorio_atividades.pdf");
+    logAuditAction('ADMIN_ACTIVITY_EXPORTED', 'Exported activity logs to PDF');
+  };
+
+  const getActionIcon = (actionType: ActivityActionType) => {
+    switch (actionType) {
+      case 'TRIP_VIEWED': return <Eye size={16} className="text-blue-500" />;
+      case 'BOOKING_CREATED': return <ShoppingBag size={16} className="text-green-500" />;
+      case 'REVIEW_SUBMITTED': return <Star size={16} className="text-amber-500" />;
+      case 'FAVORITE_TOGGLED': return <Heart size={16} className="text-red-500" />; 
+      case 'TRIP_CREATED': return <Plane size={16} className="text-primary-500" />;
+      case 'TRIP_UPDATED': return <Edit3 size={16} className="text-primary-500" />;
+      case 'TRIP_DELETED': return <Trash2 size={16} className="text-red-500" />;
+      case 'TRIP_STATUS_TOGGLED': return <PauseCircle size={16} className="text-orange-500" />;
+      case 'AGENCY_PROFILE_UPDATED': return <Building size={16} className="text-purple-500" />;
+      case 'CLIENT_PROFILE_UPDATED': return <User size={16} className="text-purple-500" />;
+      case 'PASSWORD_RESET_INITIATED': return <Lock size={16} className="text-gray-500" />;
+      case 'ACCOUNT_DELETED': return <UserX size={16} className="text-red-500" />;
+      case 'ADMIN_ACTION': return <ShieldCheck size={16} className="text-blue-600" />;
+      case 'ADMIN_USER_MANAGED': return <Users size={16} className="text-blue-600" />;
+      case 'ADMIN_AGENCY_MANAGED': return <Briefcase size={16} className="text-blue-600" />;
+      case 'ADMIN_THEME_MANAGED': return <Palette size={16} className="text-blue-600" />;
+      case 'ADMIN_MOCK_DATA_MIGRATED': return <Database size={16} className="text-primary-600" />;
+      default: return <Activity size={16} className="text-gray-400" />;
+    }
+  };
+
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -397,21 +504,116 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Atividade Recente */}
+                {/* Atividade Recente - Agora com todos os logs */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                    {auditLogs.length > 0 ? (
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
+                        <button onClick={exportActivityLogsToPdf} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 flex items-center gap-1.5">
+                            <Download size={14}/> Exportar PDF
+                        </button>
+                    </div>
+                    
+                    {/* Activity Log Filters */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        <input 
+                            type="text" 
+                            placeholder="Buscar no log..." 
+                            value={activitySearchTerm} 
+                            onChange={e => setActivitySearchTerm(e.target.value)}
+                            className="flex-1 min-w-[150px] border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <select 
+                            value={activityActorRoleFilter} 
+                            onChange={e => setActivityActorRoleFilter(e.target.value as ActivityActorRole | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Perfis</option>
+                            <option value="CLIENT">Cliente</option>
+                            <option value="AGENCY">Agência</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                        <select 
+                            value={activityActionTypeFilter} 
+                            onChange={e => setActivityActionTypeFilter(e.target.value as ActivityActionType | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Eventos</option>
+                            <option value="TRIP_VIEWED">Viagem Visualizada</option>
+                            <option value="BOOKING_CREATED">Reserva Criada</option>
+                            <option value="REVIEW_SUBMITTED">Avaliação Enviada</option>
+                            <option value="FAVORITE_TOGGLED">Favorito Alterado</option>
+                            <option value="TRIP_CREATED">Viagem Criada</option>
+                            <option value="TRIP_UPDATED">Viagem Atualizada</option>
+                            <option value="TRIP_DELETED">Viagem Excluída</option>
+                            <option value="TRIP_STATUS_TOGGLED">Status da Viagem Alterado</option>
+                            <option value="TRIP_FEATURE_TOGGLED">Destaque da Viagem Alterado</option>
+                            <option value="AGENCY_PROFILE_UPDATED">Perfil da Agência Atualizado</option>
+                            <option value="AGENCY_STATUS_TOGGLED">Status da Agência Alterado</option>
+                            <option value="AGENCY_SUBSCRIPTION_UPDATED">Assinatura da Agência Atualizada</option>
+                            <option value="CLIENT_PROFILE_UPDATED">Perfil do Cliente Atualizado</option>
+                            <option value="PASSWORD_RESET_INITIATED">Reset de Senha Iniciado</option>
+                            <option value="ACCOUNT_DELETED">Conta Excluída</option>
+                            <option value="ADMIN_USER_MANAGED">Usuário (Admin) Gerenciado</option>
+                            <option value="ADMIN_AGENCY_MANAGED">Agência (Admin) Gerenciada</option>
+                            <option value="ADMIN_THEME_MANAGED">Tema (Admin) Gerenciado</option>
+                            <option value="ADMIN_MOCK_DATA_MIGRATED">Dados Mock Migrados (Admin)</option>
+                            <option value="ADMIN_ACTION">Ação Administrativa</option>
+                        </select>
+                        <input 
+                            type="date" 
+                            value={activityStartDate} 
+                            onChange={e => setActivityStartDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <input 
+                            type="date" 
+                            value={activityEndDate} 
+                            onChange={e => setActivityEndDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        {(activitySearchTerm || activityActorRoleFilter !== 'ALL' || activityActionTypeFilter !== 'ALL' || activityStartDate || activityEndDate) && (
+                            <button 
+                                onClick={() => { setActivitySearchTerm(''); setActivityActorRoleFilter('ALL'); setActivityActionTypeFilter('ALL'); setActivityStartDate(''); setActivityEndDate(''); }}
+                                className="text-red-500 text-sm font-bold hover:underline px-2"
+                            >
+                                Limpar Filtros
+                            </button>
+                        )}
+                    </div>
+
+
+                    {filteredActivityLogs.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                            {auditLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{log.action}</p>
-                                    <p className="text-xs text-gray-600 line-clamp-2">{log.details}</p>
-                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                            {filteredActivityLogs.map(log => (
+                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        {getActionIcon(log.action_type)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
+                                            {log.user_avatar && <img src={log.user_avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover"/>}
+                                            {log.user_name}
+                                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-600 line-clamp-2 mt-1">
+                                            <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
+                                            {log.trip_title && ` na viagem "${log.trip_title}"`}
+                                            {log.agency_name && ` da agência "${log.agency_name}"`}
+                                            {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
+                                            {log.details.action === 'restore' && ` (restaurado)`}
+                                            {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
+                                            {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
+                                            {log.details.rating && ` (nota: ${log.details.rating})`}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5">
+                                            <CalendarDays size={12} /> {new Date(log.created_at).toLocaleString('pt-BR')}
+                                        </p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente.</div>
+                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente encontrada.</div>
                     )}
                 </div>
 
@@ -458,7 +660,6 @@ export const AdminDashboard: React.FC = () => {
                         <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{c.name}</p>
                         <p className="text-sm text-gray-500 mb-4">{c.email}</p>
-                        {/* Fix: Changed 'SUSPENSO' to 'SUSPENDED' for comparison with UserRole.SUSPENDED */}
                         <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                       </div>
                     </div>
@@ -470,7 +671,6 @@ export const AdminDashboard: React.FC = () => {
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllUsers} checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4">
-                                {/* Fix: Changed 'SUSPENSO' to 'SUSPENDED' for comparison with UserRole.SUSPENDED */}
                                 <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                             </td><td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
@@ -742,7 +942,6 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                         </div>
                     ))}
-                    {/* Access previewMode from useTheme() */}
                     {previewMode && (
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-primary-500 ring-2 ring-primary-200 relative">
                             <h3 className="font-bold text-gray-900 text-lg mb-2">Tema em Prévia</h3>
@@ -772,21 +971,116 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Atividade Recente */}
+                {/* Atividade Recente - Agora com todos os logs */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                    {auditLogs.length > 0 ? (
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
+                        <button onClick={exportActivityLogsToPdf} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 flex items-center gap-1.5">
+                            <Download size={14}/> Exportar PDF
+                        </button>
+                    </div>
+                    
+                    {/* Activity Log Filters */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        <input 
+                            type="text" 
+                            placeholder="Buscar no log..." 
+                            value={activitySearchTerm} 
+                            onChange={e => setActivitySearchTerm(e.target.value)}
+                            className="flex-1 min-w-[150px] border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <select 
+                            value={activityActorRoleFilter} 
+                            onChange={e => setActivityActorRoleFilter(e.target.value as ActivityActorRole | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Perfis</option>
+                            <option value="CLIENT">Cliente</option>
+                            <option value="AGENCY">Agência</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                        <select 
+                            value={activityActionTypeFilter} 
+                            onChange={e => setActivityActionTypeFilter(e.target.value as ActivityActionType | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Eventos</option>
+                            <option value="TRIP_VIEWED">Viagem Visualizada</option>
+                            <option value="BOOKING_CREATED">Reserva Criada</option>
+                            <option value="REVIEW_SUBMITTED">Avaliação Enviada</option>
+                            <option value="FAVORITE_TOGGLED">Favorito Alterado</option>
+                            <option value="TRIP_CREATED">Viagem Criada</option>
+                            <option value="TRIP_UPDATED">Viagem Atualizada</option>
+                            <option value="TRIP_DELETED">Viagem Excluída</option>
+                            <option value="TRIP_STATUS_TOGGLED">Status da Viagem Alterado</option>
+                            <option value="TRIP_FEATURE_TOGGLED">Destaque da Viagem Alterado</option>
+                            <option value="AGENCY_PROFILE_UPDATED">Perfil da Agência Atualizado</option>
+                            <option value="AGENCY_STATUS_TOGGLED">Status da Agência Alterado</option>
+                            <option value="AGENCY_SUBSCRIPTION_UPDATED">Assinatura da Agência Atualizada</option>
+                            <option value="CLIENT_PROFILE_UPDATED">Perfil do Cliente Atualizado</option>
+                            <option value="PASSWORD_RESET_INITIATED">Reset de Senha Iniciado</option>
+                            <option value="ACCOUNT_DELETED">Conta Excluída</option>
+                            <option value="ADMIN_USER_MANAGED">Usuário (Admin) Gerenciado</option>
+                            <option value="ADMIN_AGENCY_MANAGED">Agência (Admin) Gerenciada</option>
+                            <option value="ADMIN_THEME_MANAGED">Tema (Admin) Gerenciado</option>
+                            <option value="ADMIN_MOCK_DATA_MIGRATED">Dados Mock Migrados (Admin)</option>
+                            <option value="ADMIN_ACTION">Ação Administrativa</option>
+                        </select>
+                        <input 
+                            type="date" 
+                            value={activityStartDate} 
+                            onChange={e => setActivityStartDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <input 
+                            type="date" 
+                            value={activityEndDate} 
+                            onChange={e => setActivityEndDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        {(activitySearchTerm || activityActorRoleFilter !== 'ALL' || activityActionTypeFilter !== 'ALL' || activityStartDate || activityEndDate) && (
+                            <button 
+                                onClick={() => { setActivitySearchTerm(''); setActivityActorRoleFilter('ALL'); setActivityActionTypeFilter('ALL'); setActivityStartDate(''); setActivityEndDate(''); }}
+                                className="text-red-500 text-sm font-bold hover:underline px-2"
+                            >
+                                Limpar Filtros
+                            </button>
+                        )}
+                    </div>
+
+
+                    {filteredActivityLogs.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                            {auditLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{log.action}</p>
-                                    <p className="text-xs text-gray-600 line-clamp-2">{log.details}</p>
-                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                            {filteredActivityLogs.map(log => (
+                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        {getActionIcon(log.action_type)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
+                                            {log.user_avatar && <img src={log.user_avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover"/>}
+                                            {log.user_name}
+                                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-600 line-clamp-2 mt-1">
+                                            <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
+                                            {log.trip_title && ` na viagem "${log.trip_title}"`}
+                                            {log.agency_name && ` da agência "${log.agency_name}"`}
+                                            {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
+                                            {log.details.action === 'restore' && ` (restaurado)`}
+                                            {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
+                                            {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
+                                            {log.details.rating && ` (nota: ${log.details.rating})`}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5">
+                                            <CalendarDays size={12} /> {new Date(log.created_at).toLocaleString('pt-BR')}
+                                        </p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente.</div>
+                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente encontrada.</div>
                     )}
                 </div>
 
@@ -839,7 +1133,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
         <button onClick={() => handleTabChange('OVERVIEW')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><LayoutGrid size={16}/> Visão Geral</button>
         <button onClick={() => handleTabChange('USERS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'USERS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Users size={16}/> Usuários {deletedUsers.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedUsers.length}</span>}</button>
@@ -1093,7 +1386,7 @@ export const AdminDashboard: React.FC = () => {
             <form onSubmit={handleTripUpdate} className="space-y-6">
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" min="0" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={editFormData.destination || ''} onChange={e => setEditFormData({...editFormData, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                 <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
             </form>
