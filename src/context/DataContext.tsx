@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -565,16 +566,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addBooking = async (booking: Booking): Promise<Booking | undefined> => { // Changed return type
+  const addBooking = async (booking: Booking): Promise<Booking | undefined> => { 
     const supabase = guardSupabase();
     let finalId = booking.id;
     
-    // Ensure booking ID is a valid UUID
     if (!finalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId)) {
         finalId = crypto.randomUUID();
     }
     
     try {
+      // Optimistic approach: Insert only, don't fetch relations if we already have them
       const { data, error } = await supabase.from('bookings').insert({
         id: finalId,
         trip_id: booking.tripId,
@@ -585,63 +586,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         passengers: booking.passengers,
         voucher_code: booking.voucherCode,
         payment_method: booking.paymentMethod
-      }).select(`
-        *,
-        _trip:trips (
-            id, 
-            title, 
-            slug,
-            description,
-            destination,
-            price,
-            start_date,
-            end_date,
-            duration_days,
-            category,
-            tags,
-            traveler_types,
-            itinerary,
-            payment_methods,
-            is_active,
-            rating,
-            totalReviews,
-            included,
-            not_included,
-            views_count,
-            sales_count,
-            featured,
-            featured_in_hero,
-            popular_near_sp,
-            images:trip_images (image_url),
-            _agency:agencies (
-                id,
-                user_id,
-                name,
-                slug,
-                phone,
-                whatsapp,
-                logo_url,
-                description,
-                is_active,
-                hero_mode,
-                hero_banner_url,
-                hero_title,
-                hero_subtitle,
-                custom_settings,
-                website,
-                address,
-                bank_info,
-                subscription_plan,
-                subscription_status,
-                subscription_expires_at
-            )
-        )
-      `).single();
+      }).select().single(); // Simple select, no joins
 
       if (error) throw error;
 
       if (data) {
-        // Map data from Supabase response to the Booking type
+        // Construct the full object combining DB response (for authoritative ID/dates)
+        // and the input `booking` object (for the relations we already know)
         const formattedData: Booking = {
           id: data.id,
           tripId: data.trip_id,
@@ -652,68 +603,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           passengers: data.passengers,
           voucherCode: data.voucher_code,
           paymentMethod: data.payment_method,
-          _trip: data._trip ? {
-            id: data._trip.id,
-            agencyId: data._trip.agency_id,
-            title: data._trip.title,
-            slug: data._trip.slug,
-            description: data._trip.description || '',
-            destination: data._trip.destination,
-            price: data._trip.price,
-            startDate: data._trip.start_date,
-            endDate: data._trip.end_date,
-            durationDays: data._trip.duration_days,
-            images: data._trip.images.map((img: any) => img.image_url),
-            category: data._trip.category,
-            tags: data._trip.tags || [],
-            travelerTypes: data._trip.traveler_types || [],
-            itinerary: data._trip.itinerary || [],
-            paymentMethods: data._trip.payment_methods || [],
-            is_active: data._trip.is_active || false,
-            rating: data._trip.rating || 0,
-            totalReviews: data._trip.totalReviews || 0,
-            included: data._trip.included || [],
-            notIncluded: data._trip.not_included || [],
-            views: data._trip.views_count || 0,
-            sales: data._trip.sales_count || 0,
-            featured: data._trip.featured || false,
-            featuredInHero: data._trip.featured_in_hero || false,
-            popularNearSP: data._trip.popular_near_sp || false,
-          } as Trip : undefined,
-          _agency: data._trip?._agency ? {
-            id: data._trip._agency.user_id,
-            agencyId: data._trip._agency.id,
-            name: data._trip._agency.name,
-            email: data._trip._agency.email,
-            role: UserRole.AGENCY, // Assuming UserRole is correctly imported
-            slug: data._trip._agency.slug,
-            logo: data._trip._agency.logo_url,
-            phone: data._trip._agency.phone,
-            whatsapp: data._trip._agency.whatsapp,
-            description: data._trip._agency.description || '',
-            is_active: data._trip._agency.is_active || false,
-            heroMode: data._trip._agency.hero_mode || 'TRIPS',
-            heroBannerUrl: data._trip._agency.hero_banner_url,
-            heroTitle: data._trip._agency.hero_title,
-            heroSubtitle: data._trip._agency.hero_subtitle,
-            customSettings: data._trip._agency.custom_settings || {},
-            subscriptionStatus: data._trip._agency.subscription_status || 'INACTIVE',
-            subscriptionPlan: data._trip._agency.subscription_plan || 'BASIC',
-            subscriptionExpiresAt: data._trip._agency.subscription_expires_at || new Date().toISOString(),
-            website: data._trip._agency.website,
-            address: data._trip._agency.address || {},
-            bankInfo: data._trip._agency.bank_info || {}
-          } as Agency : undefined,
+          // Use the nested objects passed in the argument to avoid extra DB roundtrip
+          _trip: booking._trip,
+          _agency: booking._agency,
         };
+        
         setBookings(prev => [...prev, formattedData]);
-        return formattedData; // Return the full formatted booking
+        return formattedData;
       }
     } catch (err: any) {
       console.error('Error adding booking:', err);
       showToast('Erro ao criar reserva: ' + err.message, 'error');
-      throw err; // Re-throw to be caught by TripDetails
+      throw err;
     }
-    return undefined; // Should not reach here if successful or error thrown
+    return undefined;
   };
   
   const addReview = async (review: Review) => {
@@ -821,7 +724,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const payload = {
       agency_id: trip.agencyId,
       title: trip.title,
-      slug: trip.slug, // Keep existing slug - it's readOnly in UI
+      slug: trip.slug,
       description: trip.description,
       destination: trip.destination,
       price: trip.price,
@@ -1020,10 +923,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     if (data.name) updates.name = data.name;
     if (data.description) updates.description = data.description;
     if (data.cnpj) updates.cnpj = data.cnpj;
-    // Fix: Do not allow slug to be changed via Admin UI after initial creation if it exists
-    if (data.slug && data.slug !== agencies.find(a => a.agencyId === agencyId)?.slug) {
-        updates.slug = data.slug;
-    }
+    if (data.slug) updates.slug = data.slug;
     if (data.phone) updates.phone = data.phone;
     if (data.whatsapp) updates.whatsapp = data.whatsapp;
     if (data.website) updates.website = data.website;

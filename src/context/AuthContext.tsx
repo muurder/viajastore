@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -305,10 +306,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
-      console.log("Logout function called, signing out from Supabase and setting user to null."); // Debug log
-      await (supabase.auth as any).signOut();
-      setUser(null); // Explicitly setting user to null here ensures immediate UI update.
-      localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+      console.log("Logout triggered.");
+      // Optimistic update: Clear state immediately for better UX
+      setUser(null);
+      localStorage.removeItem('viajastore_pending_role');
+      
+      // Perform signOut in background, don't await to block UI
+      try {
+        await (supabase.auth as any).signOut();
+      } catch (e) {
+        console.error("Background signout error:", e);
+      }
     }
   };
 
@@ -465,19 +473,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (userData.name) updates.name = userData.name;
         
         // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
-        // If the agency already has a slug, do NOT allow it to be updated via this path (UI is readOnly)
-        // If for some reason the agency *didn't* have a slug, but one is provided now, allow setting it.
-        // The `updateAgencyProfileByAdmin` function (DataContext) already handles this by not passing `slug`
-        // if it shouldn't be changed. So, we primarily rely on that.
-        // This `AuthContext.updateUser` should ideally not receive `slug` in userData if the UI is readOnly.
-        // However, if it does, we ensure it's not unintentionally changed by checking against the current user's slug.
-        if ( (user as Agency).slug === '' && (userData as Agency).slug) { // If user had no slug, but one is provided now
+        if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
           updates.slug = (userData as Agency).slug;
         }
-        // If (user as Agency).slug exists, we assume the UI will send the existing slug or nothing.
-        // If a new slug is sent AND it's different, it implies a manual override, which is undesirable if UI is read-only.
-        // Given the UI is read-only, this block might become effectively unused for slug updates.
-        // The most robust way is for the UI not to include `slug` in `userData` at all if it's readOnly.
 
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
@@ -493,7 +491,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
-        // Fix: Use subscriptionExpiresAt to update the database
         if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
 
 
