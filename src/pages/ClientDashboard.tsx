@@ -28,7 +28,7 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { bookings, getTripById, clients, agencies, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
@@ -214,8 +214,10 @@ const ClientDashboard: React.FC = () => {
 
   const generatePDF = () => {
       if (!selectedBooking) return;
-      const trip = selectedBooking._trip;
-      const agency = selectedBooking._agency; 
+      
+      // Dynamically resolve trip and agency from global state
+      const trip = getTripById(selectedBooking.tripId);
+      const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
 
       if (!trip) {
           showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
@@ -277,11 +279,21 @@ const ClientDashboard: React.FC = () => {
 
   const openWhatsApp = () => {
     if (!selectedBooking) return;
-    const phone = selectedBooking._agency?.phone || selectedBooking._agency?.whatsapp;
+    
+    // Dynamically resolve trip and agency from global state
+    const trip = getTripById(selectedBooking.tripId);
+    const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
+    
+    if (!trip || !agency) {
+        showToast('Não foi possível carregar os dados da viagem ou agência.', 'error');
+        return;
+    }
+
+    const phone = agency.phone || agency.whatsapp;
     if (!phone) return;
 
     const digits = phone.replace(/\D/g, '');
-    const tripTitle = selectedBooking._trip?.title || 'minha viagem';
+    const tripTitle = trip.title || 'minha viagem';
     const msg = `Olá! Tenho uma dúvida sobre minha viagem "${tripTitle}".`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -292,7 +304,7 @@ const ClientDashboard: React.FC = () => {
       setIsSubmitting(true);
       try {
           await addAgencyReview({
-              agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
+              agencyId: selectedBooking._trip?.agencyId || selectedBooking._trip?.agency_id, // Fallback if _trip is still present from `addBooking`
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
@@ -381,14 +393,16 @@ const ClientDashboard: React.FC = () => {
                <h2 className="text-2xl font-bold text-gray-900 mb-4">Minhas Viagens</h2>
                {myBookings.length > 0 ? (
                  myBookings.map(booking => {
-                    const trip = booking._trip || getTripById(booking.tripId);
-                    const agency = booking._agency; 
+                    // Dynamically resolve trip and agency from global state
+                    const trip = getTripById(booking.tripId);
+                    const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
+                    
                     if (!trip) return null;
                     
                     const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
                     const startDate = trip.startDate;
                     const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
-                    const agencySlugForNav = booking._agency?.slug;
+                    const agencySlugForNav = agency?.slug; // Use resolved agency
                     const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title);
 
                     return (
@@ -540,7 +554,7 @@ const ClientDashboard: React.FC = () => {
                 <div className="p-8 text-center">
                     <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
                     <p className="font-bold text-gray-900 text-lg">{user.name}</p>
-                    <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
+                    <p className="text-sm text-gray-500 mb-2">{getTripById(selectedBooking.tripId)?.title || 'Pacote de Viagem'}</p>
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
@@ -556,8 +570,9 @@ const ClientDashboard: React.FC = () => {
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3> <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> </div>
                   <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      {selectedBooking._agency?.logo_url && ( <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
-                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p> </div>
+                      {/* Dynamically get agency logo */}
+                      {agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo && ( <img src={agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
+                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.name || 'Parceiro ViajaStore'}</p> </div>
                   </div>
                   <form onSubmit={handleReviewSubmit}>
                       <div className="mb-6 text-center">

@@ -330,121 +330,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+        // OPTIMIZATION: Fetch only direct booking fields
         const { data, error } = await supabase
             .from('bookings')
-            .select(`
-              *, 
-              _trip:trips (
-                id, 
-                title, 
-                slug,
-                description,
-                destination,
-                price,
-                start_date,
-                end_date,
-                duration_days,
-                category,
-                tags,
-                traveler_types,
-                itinerary,
-                payment_methods,
-                is_active,
-                rating,
-                totalReviews,
-                included,
-                not_included,
-                views_count,
-                sales_count,
-                featured,
-                featured_in_hero,
-                popular_near_sp,
-                images:trip_images (image_url),
-                _agency:agencies (
-                  id,
-                  user_id,
-                  name,
-                  slug,
-                  phone,
-                  whatsapp,
-                  logo_url,
-                  description,
-                  is_active,
-                  hero_mode,
-                  hero_banner_url,
-                  hero_title,
-                  hero_subtitle,
-                  custom_settings,
-                  website,
-                  address,
-                  bank_info,
-                  subscription_plan,
-                  subscription_status,
-                  subscription_expires_at
-                )
-              )
-            `);
+            .select(`*`); // Removed nested selects for trips and agencies
 
         if (error) throw error;
 
         if (data) {
           const formattedBookings: Booking[] = data.map((b: any) => {
-            const images = b._trip?.images?.map((img: any) => img.image_url) || [];
-            
-            const tripData: Trip | undefined = b._trip ? {
-               id: b._trip.id,
-               agencyId: b._trip.agency_id,
-               title: b._trip.title,
-               slug: b._trip.slug,
-               description: b._trip.description || '',
-               destination: b._trip.destination,
-               price: b._trip.price,
-               startDate: b._trip.start_date,
-               endDate: b._trip.end_date,
-               durationDays: b._trip.duration_days,
-               images: images,
-               category: b._trip.category || 'PRAIA',
-               tags: b._trip.tags || [],
-               travelerTypes: b._trip.traveler_types || [],
-               itinerary: b._trip.itinerary || [],
-               paymentMethods: b._trip.payment_methods || [], 
-               is_active: b._trip.is_active || false,
-               rating: b._trip.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b._trip.totalReviews || 0,
-               included: b._trip.included || [],
-               notIncluded: b._trip.not_included || [],
-               views: b._trip.views_count || 0,
-               sales: b._trip.sales_count || 0,
-               featured: b._trip.featured || false,
-               featuredInHero: b._trip.featured_in_hero || false,
-               popularNearSP: b._trip.popular_near_sp || false
-            } as Trip : undefined;
-            
-            const agencyData: Agency | undefined = b._trip?._agency ? { // Access _agency from _trip
-              id: b._trip._agency.user_id, // This should be user_id, not id
-              agencyId: b._trip._agency.id, // Primary Key of agencies table
-              name: b._trip._agency.name,
-              email: b._trip._agency.email,
-              role: UserRole.AGENCY, // Assuming UserRole is correctly imported
-              slug: b._trip._agency.slug,
-              logo: b._trip._agency.logo_url,
-              phone: b._trip._agency.phone,
-              whatsapp: b._trip._agency.whatsapp,
-              description: b._trip._agency.description || '',
-              is_active: b._trip._agency.is_active || false,
-              heroMode: b._trip._agency.hero_mode || 'TRIPS',
-              heroBannerUrl: b._trip._agency.hero_banner_url,
-              heroTitle: b._trip._agency.hero_title,
-              heroSubtitle: b._trip._agency.hero_subtitle,
-              customSettings: b._trip._agency.custom_settings || {},
-              subscriptionStatus: b._trip._agency.subscription_status || 'INACTIVE',
-              subscriptionPlan: b._trip._agency.subscription_plan || 'BASIC',
-              subscriptionExpiresAt: b._trip._agency.subscription_expires_at || new Date().toISOString(),
-              website: b._trip._agency.website,
-              address: b._trip._agency.address || {},
-              bankInfo: b._trip._agency.bank_info || {}
-            } as Agency : undefined;
-
+            // No longer fetching nested trip/agency data here
             return {
               id: b.id,
               tripId: b.trip_id,
@@ -455,8 +350,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               passengers: b.passengers,
               voucherCode: b.voucher_code,
               paymentMethod: b.payment_method,
-              _trip: tripData,
-              _agency: agencyData
+              _trip: undefined, // Explicitly set to undefined, will be hydrated on demand
+              _agency: undefined // Explicitly set to undefined, will be hydrated on demand
             };
           });
           setBookings(formattedBookings);
@@ -678,7 +573,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         passengers: booking.passengers,
         voucher_code: booking.voucherCode,
         payment_method: booking.paymentMethod
-      }).select().single();
+      }).select().single(); // This is good, it returns the inserted data
 
       if (error) throw error;
 
@@ -697,7 +592,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           _agency: booking._agency, // Directly use passed agency data
         };
         
-        setBookings(prev => [...prev, formattedData]);
+        setBookings(prev => [...prev, formattedData]); // Optimistically add to state
         console.log(`Booking for trip ${booking.tripId} created successfully. Local state updated without extra DB fetch.`);
         logActivity('BOOKING_CREATED', { 
           bookingId: formattedData.id, 
@@ -1183,7 +1078,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
 
       const agencyBookings = bookings.filter(b => {
-          if (b._agency?.agencyId === agencyId) return true;
+          // Changed logic: bookings no longer have _agency pre-fetched.
+          // Need to find the trip first, then its agency.
           const trip = trips.find(t => t.id === b.tripId);
           return trip?.agencyId === agencyId;
       });
