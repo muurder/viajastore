@@ -1,5 +1,4 @@
 
-
 import { Agency, Client, Admin, Trip, Booking, Review, UserRole, Plan, TripCategory, TravelerType } from '../types';
 import { slugify } from '../utils/slugify';
 

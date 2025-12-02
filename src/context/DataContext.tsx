@@ -72,6 +72,25 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+// Moved outside DataProvider to prevent re-creation on every render
+const initializeMockData = (
+  setTrips: (t: Trip[]) => void, 
+  setAgencies: (a: Agency[]) => void, 
+  setBookings: (b: Booking[]) => void, 
+  setReviews: (r: Review[]) => void, 
+  setAgencyReviews: (ar: AgencyReview[]) => void, 
+  setClients: (c: Client[]) => void, 
+  setAuditLogs: (al: AuditLog[]) => void
+) => {
+    setTrips(MOCK_TRIPS);
+    setAgencies(MOCK_AGENCIES);
+    setBookings(MOCK_BOOKINGS);
+    setReviews(MOCK_REVIEWS);
+    setAgencyReviews([]);
+    setClients(MOCK_CLIENTS);
+    setAuditLogs([]);
+};
+
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -84,17 +103,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [clients, setClients] = useState<Client[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // FIX: Moved useMockData inside DataProvider to have access to state setters.
-  const useMockData = () => {
-      setTrips(MOCK_TRIPS);
-      setAgencies(MOCK_AGENCIES);
-      setBookings(MOCK_BOOKINGS);
-      setReviews(MOCK_REVIEWS);
-      setAgencyReviews([]);
-      setClients(MOCK_CLIENTS);
-      setAuditLogs([]);
-  };
 
   // --- DATA FETCHING ---
 
@@ -452,7 +460,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(true);
 
       if (!supabase) {
-        useMockData();
+        initializeMockData(setTrips, setAgencies, setBookings, setReviews, setAgencyReviews, setClients, setAuditLogs);
         setLoading(false);
         return;
       }
@@ -609,6 +617,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
         
         setBookings(prev => [...prev, formattedData]);
+        console.log(`Booking for trip ${booking.tripId} created successfully. Local state updated without extra DB fetch.`); // Added log for successful booking
         return formattedData;
       }
     } catch (err: any) {

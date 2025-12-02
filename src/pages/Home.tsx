@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -402,6 +403,7 @@ const Home: React.FC = () => {
               <div className="animate-[fadeIn_0.3s]">
                   <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
+                    {/* // Fixed: Used 'featuredGridTrips.length' instead of 'filteredTrips.length' */}
                     {!loading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{featuredGridTrips.length}</span>}
                   </h2>
               </div>

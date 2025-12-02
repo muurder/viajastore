@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           const agencyUser: Agency = {
             id: agencyData.user_id, // User ID (from auth)
-            agencyId: agencyData.id, // Agency PK
+            agencyId: agencyData.id, // Primary Key of agencies table
             name: agencyData.name,
             email: email,
             role: UserRole.AGENCY,
@@ -306,7 +306,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
-      console.log("Logout triggered.");
+      console.log("Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
       // Optimistic update: Clear state immediately for better UX
       setUser(null);
       localStorage.removeItem('viajastore_pending_role');
@@ -473,6 +473,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (userData.name) updates.name = userData.name;
         
         // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
+        // Only allow slug update if it's currently empty, or if an explicit (and rare) admin action is intended.
+        // For general user updates, slug should be read-only derived from name or immutable after creation.
+        // Assuming userData.slug is provided only if an update is intended.
         if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
           updates.slug = (userData as Agency).slug;
         }
