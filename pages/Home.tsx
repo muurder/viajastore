@@ -49,7 +49,6 @@ const Home: React.FC = () => {
     const shuffled = [...activeTrips];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        // Fix: Correct array destructuring for swap
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     return shuffled.slice(0, 5);
@@ -153,7 +152,6 @@ const Home: React.FC = () => {
         const shuffled = [...activeTrips];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            // Fix: Correct array destructuring for swap
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         return shuffled.slice(0, 9);
@@ -404,6 +402,7 @@ const Home: React.FC = () => {
               <div className="animate-[fadeIn_0.3s]">
                   <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
+                    {/* // Fixed: Used 'featuredGridTrips.length' instead of 'filteredTrips.length' */}
                     {!loading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{featuredGridTrips.length}</span>}
                   </h2>
               </div>

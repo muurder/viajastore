@@ -821,7 +821,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const payload = {
       agency_id: trip.agencyId,
       title: trip.title,
-      slug: trip.slug,
+      slug: trip.slug, // Keep existing slug - it's readOnly in UI
       description: trip.description,
       destination: trip.destination,
       price: trip.price,
@@ -1020,7 +1020,10 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     if (data.name) updates.name = data.name;
     if (data.description) updates.description = data.description;
     if (data.cnpj) updates.cnpj = data.cnpj;
-    if (data.slug) updates.slug = data.slug;
+    // Fix: Do not allow slug to be changed via Admin UI after initial creation if it exists
+    if (data.slug && data.slug !== agencies.find(a => a.agencyId === agencyId)?.slug) {
+        updates.slug = data.slug;
+    }
     if (data.phone) updates.phone = data.phone;
     if (data.whatsapp) updates.whatsapp = data.whatsapp;
     if (data.website) updates.website = data.website;

@@ -458,7 +458,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
-        if ((userData as Agency).slug) updates.slug = (userData as Agency).slug; 
+        // Logic for slug: only update if it's new (user.slug is empty) or if it's explicitly allowed to be changed (not the case here)
+        // Since agency slug is now readOnly, we don't expect it to change from userData.
+        // It will effectively be the same as user.slug, so the condition will prevent update.
+        if ((userData as Agency).slug && (userData as Agency).slug !== (user as Agency).slug) {
+          updates.slug = (userData as Agency).slug;
+        } else if (!(user as Agency).slug && (userData as Agency).slug) { // If user had no slug, but a new one is provided
+          updates.slug = (userData as Agency).slug;
+        }
+
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;

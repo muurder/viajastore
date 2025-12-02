@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -206,6 +205,7 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
   const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
+  // Fixed: Added return statement to make it a valid React functional component
   return (
     <div className="space-y-3">
       {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
@@ -262,126 +262,4 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <ToolbarButton cmd="justifyCenter" icon={AlignCenter} title="Centralizar" />
         <ToolbarButton cmd="justifyRight" icon={AlignRight} title="Alinhar Direita" />
         <Divider />
-        <ToolbarButton cmd="insertUnorderedList" icon={List} title="Lista com marcadores" />
-        <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista numerada" />
-        <Divider />
-        <button type="button" onClick={addLink} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Inserir Link"><LinkIcon size={18}/></button>
-        <button type="button" onClick={addImage} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Inserir Imagem"><ImageIcon size={18}/></button>
-        <div className="relative"><button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 text-gray-600 hover:text-primary-600 hover:bg-gray-100 rounded-lg" title="Emojis"><Smile size={18}/></button>{showEmojiPicker && (<div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 shadow-xl rounded-lg p-2 w-48 grid grid-cols-4 gap-1 z-20">{COMMON_EMOJIS.map(e => (<button key={e} type="button" onClick={() => addEmoji(e)} className="text-xl hover:bg-gray-100 p-1 rounded">{e}</button>))}</div>)}</div>
-      </div>
-      <div ref={contentRef} contentEditable onInput={handleInput} onPaste={handlePaste} className="w-full p-6 min-h-[300px] outline-none text-gray-800 prose prose-blue max-w-none [&>h2]:text-2xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-2 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-800 [&>h3]:mb-2 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>blockquote]:border-l-4 [&>blockquote]:border-primary-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>img]:max-w-full [&>img]:rounded-lg [&>img]:shadow-md [&>img]:my-4" />
-    </div>
-  );
-};
-
-const ImageManager: React.FC<{ images: string[]; onChange: (imgs: string[]) => void }> = ({ images, onChange }) => {
-  const [uploading, setUploading] = useState(false);
-  const { uploadImage } = useAuth();
-  const { showToast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (images.length + files.length > MAX_IMAGES) { showToast(`Você pode enviar no máximo ${MAX_IMAGES} imagens.`, 'error'); return; }
-    setUploading(true);
-    const newImages: string[] = [];
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const publicUrl = await uploadImage(file, 'trip-images');
-        if (publicUrl) newImages.push(publicUrl);
-      }
-      if (newImages.length > 0) onChange([...images, ...newImages]);
-      showToast(`${newImages.length} imagem(ns) enviada(s) com sucesso!`, 'success');
-    } catch (error: any) { showToast(error.message || 'Erro no upload.', 'error'); } finally { setUploading(false); if(fileInputRef.current) fileInputRef.current.value = ''; }
-  };
-  const isLimitReached = images.length >= MAX_IMAGES;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-end"><span className="text-sm font-bold text-gray-700">Gerenciar Fotos</span><span className="text-xs text-gray-400">{images.length}/{MAX_IMAGES} imagens (Máx)</span></div>
-      <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-xl transition-all group ${isLimitReached ? 'bg-gray-50 border-gray-200 cursor-not-allowed' : 'border-primary-200 bg-primary-50/50 hover:bg-primary-50 hover:border-primary-400 cursor-pointer'}`}>
-            <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploading || isLimitReached} />
-            {uploading ? <Loader className="animate-spin text-primary-600" /> : <Upload className="text-primary-400 group-hover:text-primary-600 transition-colors" />}
-            <span className="text-sm font-bold text-primary-600 mt-2">{uploading ? 'Enviando...' : (isLimitReached ? 'Limite de imagens atingido' : 'Adicionar Fotos')}</span>
-            <span className="text-xs text-gray-400 mt-1 hidden sm:inline">JPG, PNG, WEBP</span>
-      </label>
-      {images.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4 animate-[fadeIn_0.3s]">
-            {images.map((img, idx) => (
-                <div key={idx} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden group border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                  <img src={img} className="w-full h-full object-cover" alt={`Imagem ${idx+1}`} />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button type="button" onClick={() => onChange(images.filter((_, i) => i !== idx))} className="bg-red-600 text-white p-2 rounded-full transform scale-75 group-hover:scale-100 transition-transform shadow-lg" title="Remover"><Trash2 size={16} /></button>
-                  </div>
-                  {idx === 0 && <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white text-[10px] text-center py-1 font-bold">Capa Principal</div>}
-                </div>
-            ))}
-          </div>
-      )}
-    </div>
-  );
-};
-
-const LogoUpload: React.FC<{ currentLogo?: string; onUpload: (url: string) => void }> = ({ currentLogo, onUpload }) => {
-    const { uploadImage } = useAuth();
-    const [uploading, setUploading] = useState(false);
-    const { showToast } = useToast();
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
-        setUploading(true);
-        try { const url = await uploadImage(e.target.files[0], 'agency-logos'); if (url) { onUpload(url); showToast('Logo enviada com sucesso!', 'success'); } else showToast('Erro ao enviar logo.', 'error'); } catch (e) { showToast('Erro ao enviar logo.', 'error'); } finally { setUploading(false); }
-    };
-    return (
-        <div className="flex items-center gap-4"><div className="w-24 h-24 rounded-full border-2 border-gray-200 bg-gray-50 overflow-hidden relative group shrink-0"><img src={currentLogo || `https://ui-avatars.com/api/?name=Logo&background=random`} alt="Logo" className="w-full h-full object-cover" />{uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/60"><Loader className="animate-spin text-primary-600"/></div>}</div><div><label className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-gray-50 inline-flex items-center gap-2 transition-colors text-sm"><Upload size={16}/> Alterar Logomarca<input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} /></label><p className="text-xs text-gray-500 mt-2">JPG, PNG ou WEBP. Max 2MB.</p><button type="button" onClick={() => onUpload('')} className="text-xs text-red-500 hover:underline mt-1">Remover logo</button></div></div>
-    );
-};
-
-const TripPreviewModal: React.FC<{ trip: Partial<Trip>; agency: Agency; onClose: () => void }> = ({ trip, agency, onClose }) => {
-    const [openAccordion, setOpenAccordion] = useState<string | null>('included');
-    const toggleAccordion = (key: string) => setOpenAccordion(openAccordion === key ? null : key);
-    const renderDescription = (desc: string) => {
-        const isHTML = /<[a-z][\s\S]*>/i.test(desc) || desc.includes('<p>') || desc.includes('<ul>');
-        if (isHTML) return (<div className="prose prose-blue max-w-none text-gray-600 leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>h3]:text-xl [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>p]:mb-4 [&>a]:text-primary-600 [&>a]:underline" dangerouslySetInnerHTML={{ __html: desc }} />);
-        return <p className="leading-relaxed whitespace-pre-line">{desc}</p>;
-    };
-    const mainImage = trip.images && trip.images.length > 0 ? trip.images[0] : 'https://placehold.co/800x400/e2e8f0/94a3b8?text=Sem+Imagem';
-    return (
-        <div className="fixed inset-0 z-[100] bg-white overflow-y-auto animate-[fadeIn_0.2s]">
-            <div className="sticky top-0 z-50 bg-gray-900 text-white px-4 py-3 flex justify-between items-center shadow-md"><div className="flex items-center gap-2"><Eye size={18} className="text-primary-400"/><span className="font-bold">Modo de Visualização</span></div><button onClick={onClose} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"><X size={16}/> Fechar</button></div>
-            <div className="max-w-5xl mx-auto p-4 md:p-8 pb-20">
-                <div className="flex items-center text-sm text-gray-500 mb-6"><span>Home</span> <span className="mx-2">/</span> <span>Pacotes</span> <span className="mx-2">/</span> <span className="text-gray-900 font-medium">{trip.title || 'Sem Título'}</span></div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-3xl overflow-hidden mb-8 h-[300px] md:h-[400px]">
-                    <div className="md:col-span-2 h-full"><img src={mainImage} className="w-full h-full object-cover" alt="Main" /></div>
-                    <div className="md:col-span-2 grid grid-cols-2 gap-2 h-full">
-                        {trip.images?.length && trip.images.length > 1 ? (
-                            trip.images.slice(1, 5).map((img, idx) => (
-                                <img key={idx} src={img} className="w-full h-full object-cover bg-gray-100" alt={`Imagem ${idx + 1}`} />
-                            ))
-                        ) : (
-                            // Fallback for when there are no additional images
-                            <>
-                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+1'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 1" />
-                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+2'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 2" />
-                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+3'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 3" />
-                                <img src={'https://placehold.co/400x300/e2e8f0/94a3b8?text=Galeria+4'} className="w-full h-full object-cover bg-gray-100" alt="Placeholder 4" />
-                            </>
-                        )}
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    <div className="lg:col-span-2 space-y-10">
-                        <div>
-                            <div className="flex flex-wrap items-center gap-3 mb-4">
-                                <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category || 'CATEGORIA'}</span>
-                                <div className="flex items-center text-amber-500 font-bold text-sm bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                                    <Star size={14} className="fill-current mr-1" />
-                                    {(trip.rating || 0).toFixed(1)}
-                                </div>
-                                {agency.subscriptionStatus === 'ACTIVE' && (
-                                    <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>
-                                )}
-                            </div>
-                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-2">
-                                <h1 className="text
+        <ToolbarButton

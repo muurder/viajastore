@@ -3,8 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, Agency } from '../types';
-import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldCheck, CheckCircle, XCircle, Calendar, CreditCard, ChevronDown, ChevronUp, Check, X, Tag, Search } from 'lucide-react';
+import { Trip, Agency, Booking } from '../types'; // Import Booking type
+import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldCheck, CheckCircle, XCircle, Calendar, CreditCard, ChevronDown, ChevronUp, Check, X, Tag, Search, Loader } from 'lucide-react'; // Import Loader
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
@@ -24,6 +24,7 @@ const TripDetails: React.FC = () => {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [openAccordion, setOpenAccordion] = useState<string | null>('included');
+  const [isBookingProcessing, setIsBookingProcessing] = useState(false); // New state for booking processing
 
   useEffect(() => {
     if (activeTripSlug) {
@@ -114,27 +115,44 @@ const TripDetails: React.FC = () => {
           return;
       }
 
-      // Create a booking record
-      const bookingData = {
-          id: crypto.randomUUID(),
-          tripId: trip.id,
-          clientId: user.id,
-          date: new Date().toISOString(),
-          status: 'CONFIRMED' as const, 
-          totalPrice: totalPrice,
-          passengers: passengers,
-          voucherCode: `VS-${Math.floor(Math.random() * 100000)}`,
-          paymentMethod: 'PIX' as const 
-      };
-
-      await addBooking(bookingData);
-      setIsBookingModalOpen(false);
+      setIsBookingProcessing(true); // Start processing
       
-      const successLink = agencySlug 
-        ? `/${agencySlug}/checkout/success` 
-        : `/checkout/success`;
+      try {
+        // Create a booking record
+        const newBookingId = crypto.randomUUID();
+        const voucherCode = `VS-${Math.floor(Math.random() * 100000)}`;
+
+        const bookingData: Booking = {
+            id: newBookingId,
+            tripId: trip.id,
+            clientId: user.id,
+            date: new Date().toISOString(),
+            status: 'CONFIRMED', 
+            totalPrice: totalPrice,
+            passengers: passengers,
+            voucherCode: voucherCode,
+            paymentMethod: 'PIX', // Default payment method
+            _trip: trip, // Attach trip data for easier access in success page
+            _agency: agency // Attach agency data for easier access in success page
+        };
+
+        const createdBooking = await addBooking(bookingData); // addBooking now returns the created booking
+
+        setIsBookingModalOpen(false); // Close modal on success
+        showToast('Reserva realizada com sucesso!', 'success');
         
-      navigate(successLink);
+        const successLink = agencySlug 
+          ? `/${agencySlug}/checkout/success` 
+          : `/checkout/success`;
+          
+        navigate(successLink, { state: { booking: createdBooking } }); // Pass booking data to success page
+
+      } catch (error: any) {
+        showToast(`Erro ao criar reserva: ${error.message || 'Erro desconhecido'}`, 'error');
+        console.error("Booking failed:", error);
+      } finally {
+        setIsBookingProcessing(false); // End processing
+      }
   };
 
   const whatsappLink = buildWhatsAppLink(agency?.whatsapp || agency?.phone, trip);
@@ -375,8 +393,18 @@ const TripDetails: React.FC = () => {
                     Reserva indisponível para {user.role === 'ADMIN' ? 'Admins' : 'Agências'}
                 </button>
             ) : (
-                <button onClick={() => setIsBookingModalOpen(true)} className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary-500/30 active:scale-95">
-                Reservar Agora
+                <button 
+                  onClick={() => setIsBookingModalOpen(true)} 
+                  disabled={isBookingProcessing} // Disable button when processing
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary-500/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBookingProcessing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader size={20} className="animate-spin" /> Processando...
+                    </span>
+                  ) : (
+                    'Reservar Agora'
+                  )}
                 </button>
             )}
             
@@ -415,8 +443,16 @@ const TripDetails: React.FC = () => {
               </div>
             </div>
 
-            <button onClick={handleBooking} className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg">
-              Pagar e Confirmar Reserva
+            <button onClick={handleBooking} 
+                    disabled={isBookingProcessing} // Disable button in modal as well
+                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+              {isBookingProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader size={20} className="animate-spin" /> Processando...
+                </span>
+              ) : (
+                'Pagar e Confirmar Reserva'
+              )}
             </button>
           </div>
         </div>
