@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
 import { useAuth } from './AuthContext';
@@ -18,7 +17,7 @@ interface DataContextType {
   auditLogs: AuditLog[];
   loading: boolean;
   
-  addBooking: (booking: Booking) => Promise<void>;
+  addBooking: (booking: Booking) => Promise<Booking | undefined>; // Changed return type to Promise<Booking | undefined>
   addReview: (review: Review) => Promise<void>; // Legacy
   addAgencyReview: (review: Partial<AgencyReview>) => Promise<void>; // New
   deleteReview: (reviewId: string) => Promise<void>; // Legacy
@@ -291,16 +290,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .from('bookings')
             .select(`
               *, 
-              trips (
+              _trip:trips (
                 id, 
                 title, 
-                agency_id,
+                slug,
+                description,
                 destination,
+                price,
                 start_date,
+                end_date,
                 duration_days,
-                trip_images (image_url),
-                agencies (
+                category,
+                tags,
+                traveler_types,
+                itinerary,
+                payment_methods,
+                is_active,
+                rating,
+                totalReviews,
+                included,
+                not_included,
+                views_count,
+                sales_count,
+                featured,
+                featured_in_hero,
+                popular_near_sp,
+                images:trip_images (image_url),
+                _agency:agencies (
                   id,
+                  user_id,
                   name,
                   slug,
                   phone,
@@ -327,60 +345,60 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (data) {
           const formattedBookings: Booking[] = data.map((b: any) => {
-            const images = b.trips?.trip_images?.map((img: any) => img.image_url) || [];
+            const images = b._trip?.images?.map((img: any) => img.image_url) || [];
             
-            const tripData: Trip | undefined = b.trips ? {
-               id: b.trips.id,
-               agencyId: b.trips.agency_id,
-               title: b.trips.title,
-               slug: b.trips.slug,
-               description: b.trips.description || '',
-               destination: b.trips.destination,
-               price: b.trips.price,
-               startDate: b.trips.start_date,
-               endDate: b.trips.end_date,
-               durationDays: b.trips.duration_days,
+            const tripData: Trip | undefined = b._trip ? {
+               id: b._trip.id,
+               agencyId: b._trip.agency_id,
+               title: b._trip.title,
+               slug: b._trip.slug,
+               description: b._trip.description || '',
+               destination: b._trip.destination,
+               price: b._trip.price,
+               startDate: b._trip.start_date,
+               endDate: b._trip.end_date,
+               durationDays: b._trip.duration_days,
                images: images,
-               category: b.trips.category || 'PRAIA',
-               tags: b.trips.tags || [],
-               travelerTypes: b.trips.traveler_types || [],
-               itinerary: b.trips.itinerary || [],
-               paymentMethods: b.trips.payment_methods || [], 
-               is_active: b.trips.is_active || false,
-               rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b.trips.totalReviews || 0,
-               included: b.trips.included || [],
-               notIncluded: b.trips.not_included || [],
-               views: b.trips.views_count || 0,
-               sales: b.trips.sales_count || 0,
-               featured: b.trips.featured || false,
-               featuredInHero: b.trips.featured_in_hero || false,
-               popularNearSP: b.trips.popular_near_sp || false
+               category: b._trip.category || 'PRAIA',
+               tags: b._trip.tags || [],
+               travelerTypes: b._trip.traveler_types || [],
+               itinerary: b._trip.itinerary || [],
+               paymentMethods: b._trip.payment_methods || [], 
+               is_active: b._trip.is_active || false,
+               rating: b._trip.rating || 0, // Assuming rating might be present or default to 0
+               totalReviews: b._trip.totalReviews || 0,
+               included: b._trip.included || [],
+               notIncluded: b._trip.not_included || [],
+               views: b._trip.views_count || 0,
+               sales: b._trip.sales_count || 0,
+               featured: b._trip.featured || false,
+               featuredInHero: b._trip.featured_in_hero || false,
+               popularNearSP: b._trip.popular_near_sp || false
             } as Trip : undefined;
             
-            const agencyData: Agency | undefined = b.trips?.agencies ? {
-              id: b.trips.agencies.user_id, // This should be user_id, not id
-              agencyId: b.trips.agencies.id, // Primary Key of agencies table
-              name: b.trips.agencies.name,
-              email: b.trips.agencies.email,
-              role: UserRole.AGENCY,
-              slug: b.trips.agencies.slug,
-              logo: b.trips.agencies.logo_url,
-              phone: b.trips.agencies.phone,
-              whatsapp: b.trips.agencies.whatsapp,
-              description: b.trips.agencies.description || '',
-              is_active: b.trips.agencies.is_active || false,
-              heroMode: b.trips.agencies.hero_mode || 'TRIPS',
-              heroBannerUrl: b.trips.agencies.hero_banner_url,
-              heroTitle: b.trips.agencies.hero_title,
-              heroSubtitle: b.trips.agencies.hero_subtitle,
-              customSettings: b.trips.agencies.custom_settings || {},
-              subscriptionStatus: b.trips.agencies.subscription_status || 'INACTIVE',
-              subscriptionPlan: b.trips.agencies.subscription_plan || 'BASIC',
-              subscriptionExpiresAt: b.trips.agencies.subscription_expires_at || new Date().toISOString(),
-              website: b.trips.agencies.website,
-              address: b.trips.agencies.address || {},
-              bankInfo: b.trips.agencies.bank_info || {}
+            const agencyData: Agency | undefined = b._trip?._agency ? { // Access _agency from _trip
+              id: b._trip._agency.user_id, // This should be user_id, not id
+              agencyId: b._trip._agency.id, // Primary Key of agencies table
+              name: b._trip._agency.name,
+              email: b._trip._agency.email,
+              role: UserRole.AGENCY, // Assuming UserRole is correctly imported
+              slug: b._trip._agency.slug,
+              logo: b._trip._agency.logo_url,
+              phone: b._trip._agency.phone,
+              whatsapp: b._trip._agency.whatsapp,
+              description: b._trip._agency.description || '',
+              is_active: b._trip._agency.is_active || false,
+              heroMode: b._trip._agency.hero_mode || 'TRIPS',
+              heroBannerUrl: b._trip._agency.hero_banner_url,
+              heroTitle: b._trip._agency.hero_title,
+              heroSubtitle: b._trip._agency.hero_subtitle,
+              customSettings: b._trip._agency.custom_settings || {},
+              subscriptionStatus: b._trip._agency.subscription_status || 'INACTIVE',
+              subscriptionPlan: b._trip._agency.subscription_plan || 'BASIC',
+              subscriptionExpiresAt: b._trip._agency.subscription_expires_at || new Date().toISOString(),
+              website: b._trip._agency.website,
+              address: b._trip._agency.address || {},
+              bankInfo: b._trip._agency.bank_info || {}
             } as Agency : undefined;
 
             return {
@@ -392,7 +410,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method
+              paymentMethod: b.payment_method,
+              _trip: tripData,
+              _agency: agencyData
             };
           });
           setBookings(formattedBookings);
@@ -545,33 +565,155 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addBooking = async (booking: Booking) => {
+  const addBooking = async (booking: Booking): Promise<Booking | undefined> => { // Changed return type
     const supabase = guardSupabase();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let finalId = booking.id;
     
-    if (!finalId || !uuidRegex.test(finalId)) {
+    // Ensure booking ID is a valid UUID
+    if (!finalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId)) {
         finalId = crypto.randomUUID();
     }
+    
+    try {
+      const { data, error } = await supabase.from('bookings').insert({
+        id: finalId,
+        trip_id: booking.tripId,
+        client_id: booking.clientId,
+        created_at: booking.date,
+        status: booking.status,
+        total_price: booking.totalPrice,
+        passengers: booking.passengers,
+        voucher_code: booking.voucherCode,
+        payment_method: booking.paymentMethod
+      }).select(`
+        *,
+        _trip:trips (
+            id, 
+            title, 
+            slug,
+            description,
+            destination,
+            price,
+            start_date,
+            end_date,
+            duration_days,
+            category,
+            tags,
+            traveler_types,
+            itinerary,
+            payment_methods,
+            is_active,
+            rating,
+            totalReviews,
+            included,
+            not_included,
+            views_count,
+            sales_count,
+            featured,
+            featured_in_hero,
+            popular_near_sp,
+            images:trip_images (image_url),
+            _agency:agencies (
+                id,
+                user_id,
+                name,
+                slug,
+                phone,
+                whatsapp,
+                logo_url,
+                description,
+                is_active,
+                hero_mode,
+                hero_banner_url,
+                hero_title,
+                hero_subtitle,
+                custom_settings,
+                website,
+                address,
+                bank_info,
+                subscription_plan,
+                subscription_status,
+                subscription_expires_at
+            )
+        )
+      `).single();
 
-    const { error } = await supabase.from('bookings').insert({
-      id: finalId,
-      trip_id: booking.tripId,
-      client_id: booking.clientId,
-      created_at: booking.date,
-      status: booking.status,
-      total_price: booking.totalPrice,
-      passengers: booking.passengers,
-      voucher_code: booking.voucherCode,
-      payment_method: booking.paymentMethod
-    });
-    if (error) {
-      console.error('Error adding booking:', error);
-      showToast('Erro ao criar reserva: ' + error.message, 'error');
-    } else {
-      showToast('Reserva realizada com sucesso!', 'success');
-      setBookings(prev => [...prev, booking]);
+      if (error) throw error;
+
+      if (data) {
+        // Map data from Supabase response to the Booking type
+        const formattedData: Booking = {
+          id: data.id,
+          tripId: data.trip_id,
+          clientId: data.client_id,
+          date: data.created_at,
+          status: data.status,
+          totalPrice: data.total_price,
+          passengers: data.passengers,
+          voucherCode: data.voucher_code,
+          paymentMethod: data.payment_method,
+          _trip: data._trip ? {
+            id: data._trip.id,
+            agencyId: data._trip.agency_id,
+            title: data._trip.title,
+            slug: data._trip.slug,
+            description: data._trip.description || '',
+            destination: data._trip.destination,
+            price: data._trip.price,
+            startDate: data._trip.start_date,
+            endDate: data._trip.end_date,
+            durationDays: data._trip.duration_days,
+            images: data._trip.images.map((img: any) => img.image_url),
+            category: data._trip.category,
+            tags: data._trip.tags || [],
+            travelerTypes: data._trip.traveler_types || [],
+            itinerary: data._trip.itinerary || [],
+            paymentMethods: data._trip.payment_methods || [],
+            is_active: data._trip.is_active || false,
+            rating: data._trip.rating || 0,
+            totalReviews: data._trip.totalReviews || 0,
+            included: data._trip.included || [],
+            notIncluded: data._trip.not_included || [],
+            views: data._trip.views_count || 0,
+            sales: data._trip.sales_count || 0,
+            featured: data._trip.featured || false,
+            featuredInHero: data._trip.featured_in_hero || false,
+            popularNearSP: data._trip.popular_near_sp || false,
+          } as Trip : undefined,
+          _agency: data._trip?._agency ? {
+            id: data._trip._agency.user_id,
+            agencyId: data._trip._agency.id,
+            name: data._trip._agency.name,
+            email: data._trip._agency.email,
+            role: UserRole.AGENCY, // Assuming UserRole is correctly imported
+            slug: data._trip._agency.slug,
+            logo: data._trip._agency.logo_url,
+            phone: data._trip._agency.phone,
+            whatsapp: data._trip._agency.whatsapp,
+            description: data._trip._agency.description || '',
+            is_active: data._trip._agency.is_active || false,
+            heroMode: data._trip._agency.hero_mode || 'TRIPS',
+            heroBannerUrl: data._trip._agency.hero_banner_url,
+            heroTitle: data._trip._agency.hero_title,
+            heroSubtitle: data._trip._agency.hero_subtitle,
+            customSettings: data._trip._agency.custom_settings || {},
+            subscriptionStatus: data._trip._agency.subscription_status || 'INACTIVE',
+            subscriptionPlan: data._trip._agency.subscription_plan || 'BASIC',
+            subscriptionExpiresAt: data._trip._agency.subscription_expires_at || new Date().toISOString(),
+            website: data._trip._agency.website,
+            address: data._trip._agency.address || {},
+            bankInfo: data._trip._agency.bank_info || {}
+          } as Agency : undefined,
+        };
+        setBookings(prev => [...prev, formattedData]);
+        return formattedData; // Return the full formatted booking
+      }
+    } catch (err: any) {
+      console.error('Error adding booking:', err);
+      showToast('Erro ao criar reserva: ' + err.message, 'error');
+      throw err; // Re-throw to be caught by TripDetails
     }
+    return undefined; // Should not reach here if successful or error thrown
   };
   
   const addReview = async (review: Review) => {

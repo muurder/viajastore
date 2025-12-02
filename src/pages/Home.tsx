@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -262,7 +260,7 @@ const Home: React.FC = () => {
                       onChange={(e) => setSearch(e.target.value)}
                     />
                   </div>
-                  <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
+                  <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg hover:shadow-primary-500/30 active:scale-95 flex items-center justify-center">
                     <Search size={20} className="mr-2 md:hidden" /> Buscar
                   </button>
                 </form>
