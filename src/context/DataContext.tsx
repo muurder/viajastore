@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -6,6 +7,7 @@ import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
+import { LucideProps, Plus, LogOut, LayoutDashboard, Settings, Trash2, MessageCircle, Users, Briefcase, BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, Activity, X, Search, MoreVertical, DollarSign, ShoppingBag, Edit3, CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key, Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink, LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History as HistoryIcon, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck } from 'lucide-react'; // Added LucideProps and other icons
 
 interface DataContextType {
   trips: Trip[];
@@ -125,7 +127,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-      // FIX: Use a different variable name for data if needed, or simply check for error.
+      // FIX: Removed 'data' from destructuring if not directly used, to avoid potential conflict if it was implicitly used elsewhere.
+      // Insert operations typically return 'data' if .select() is used.
       const { error } = await supabase.rpc('log_activity', {
         p_user_id: user.id,
         p_actor_email: user.email,
@@ -988,7 +991,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       try {
           // FIX: Capture error from insert operation to ensure 'data' (if used elsewhere) is block-scoped correctly.
           // Also, improved error handling for the insert operation itself.
-          const { data, error } = await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
+          const { data: auditLogData, error } = await supabase.from('audit_logs').insert({ admin_email: user.email, action, details }).select().single();
           if (error) throw error;
           
           // Fix: Ensure 'ADMIN_ACTION' is a valid ActivityActionType
@@ -1018,20 +1021,20 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           const fileExt = file.name.split('.').pop();
           const fileName = `${userId}-${Date.now()}.${fileExt}`;
           
-          const { error: uploadError } = await supabase.storage
+          const { data, error: uploadError } = await supabase.storage
               .from('avatars')
               .upload(fileName, file, { upsert: true });
 
           if (uploadError) throw uploadError;
 
-          const { data } = supabase.storage.from('avatars').getPublicUrl(data.path);
+          const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(data.path);
           
-          await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
+          await supabase.from('profiles').update({ avatar_url: publicUrlData.publicUrl }).eq('id', userId);
 
           showToast('Avatar atualizado com sucesso!', 'success');
-          logActivity('ADMIN_USER_MANAGED', { action: 'avatar_updated', userId, newAvatarUrl: data.publicUrl });
+          logActivity('ADMIN_USER_MANAGED', { action: 'avatar_updated', userId, newAvatarUrl: publicUrlData.publicUrl });
           await refreshData();
-          return data.publicUrl;
+          return publicUrlData.publicUrl;
       } catch (error) {
           console.error("Upload avatar by admin error:", error);
           showToast('Erro ao atualizar avatar.', 'error');
@@ -1129,11 +1132,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       } catch (e) { return false; }
   };
   
-  // FIX: This dummy function needs to be a proper function that uses `supabase` in its body
-  // to avoid linter warnings/errors if it's called. Or better, just remove it if not needed.
-  // Given it's a dummy, the safest is to ensure it doesn't cause issues if called.
-  const dummyGuardedFunc = async () => { if (!supabase) return; /* Add some no-op or console.log */ console.log("Dummy guarded func called, supabase not available."); };
-
+  // Removed `dummyGuardedFunc` as it was unused and could lead to confusion.
 
   // Navigation Button component for Admin Dashboard
   interface NavButtonProps {
@@ -1301,8 +1300,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
                         onClick={async () => { // Make onClick async
                             setIsProcessing(true);
                             await migrateData();
-                            // FIX: Call logAuditAction here after successful migration
-                            logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Migrated mock data to database'); 
+                            logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Migrated mock data to database'); // Log the migration
                             await refreshData(); // Refresh data context after migration
                             setIsProcessing(false);
                         }} 
@@ -1361,7 +1359,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
                         <button onClick={handleMassUpdateUserStatus.bind(null, 'ACTIVE')} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-50 text-green-700 hover:bg-green-100 flex items-center gap-1"><UserCheck size={14}/> Ativar</button>
                         <button onClick={handleMassUpdateUserStatus.bind(null, 'SUSPENDED')} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1"><UserX size={14}/> Suspender</button>
                         <button onClick={handleViewStats} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 flex items-center gap-1"><StatsIcon size={14}/> Ver Estatísticas</button>
-                        <button onClick={handleMassDeleteUsers} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-1"><Trash2 size={14}/> Excluir</button>
                         <button onClick={downloadPdf.bind(null, 'users')} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-50 text-gray-700 hover:bg-gray-100 flex items-center gap-1"><Download size={14}/> Exportar PDF</button>
                     </div>
                 </div>
@@ -1638,7 +1635,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
                                 <p className="text-sm text-gray-600 flex items-center mb-3"><MapPin size={16} className="mr-2 text-primary-500"/> {trip.destination}</p>
                                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
                                 <span className="text-xl font-bold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</span>
-                                <Link to={getAgencyBySlug(agencies.find(a => a.agencyId === trip.agencyId)?.slug || '') ? `/${agencies.find(a => a.agencyId === trip.agencyId)?.slug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`} target="_blank" className="bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-primary-100 transition-colors">Ver Viagem</Link>
+                                {/* FIX: Ensure `getAgencyBySlug` is correctly called with the slug, and provide fallback if not found */}
+                                <Link to={agencies.find(a => a.agencyId === trip.agencyId)?.slug ? `/${agencies.find(a => a.agencyId === trip.agencyId)?.slug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`} target="_blank" className="bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-primary-100 transition-colors">Ver Viagem</Link>
                                 </div>
                             </div>
                         </div>
@@ -1718,7 +1716,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
             
             {auditLogs.length === 0 ? (
                 <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <History size={32} className="text-gray-300 mx-auto mb-4"/>
+                    <HistoryIcon size={32} className="text-gray-300 mx-auto mb-4"/>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhum log de auditoria</h3>
                     <p className="text-gray-500 mb-6">Nenhuma ação administrativa registrada ainda.</p>
                 </div>
@@ -1841,7 +1839,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
         <NavButton tabId="AGENCIES" label="Agências" icon={Briefcase} activeTab={activeTab} onClick={handleTabChange} hasNotification={deletedAgencies.length > 0} />
         <NavButton tabId="TRIPS" label="Viagens" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="AUDIT_LOGS" label="Logs de Auditoria" icon={History} activeTab={activeTab} onClick={handleTabChange} hasNotification={auditLogs.length > 0} />
+        <NavButton tabId="AUDIT_LOGS" label="Logs de Auditoria" icon={HistoryIcon} activeTab={activeTab} onClick={handleTabChange} hasNotification={auditLogs.length > 0} />
         <NavButton tabId="THEMES" label="Temas" icon={Palette} activeTab={activeTab} onClick={handleTabChange} />
       </div>
 
@@ -1999,4 +1997,3 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     </div>
   );
 };
-
