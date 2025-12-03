@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -11,8 +12,8 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-// Corrected import path for AdminDashboard component
-import { AdminDashboard } from './pages/AdminDashboard'; 
+// Corrected import path for MasterAdminDashboard component
+import { MasterAdminDashboard } from './pages/MasterAdminDashboard'; 
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
@@ -37,7 +38,7 @@ const App: React.FC = () => {
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  <Route path="contact" element="<Contact />" />
+                  <Route path="contact" element={<Contact />} />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
                   <Route path="help" element={<Help />} />
@@ -51,8 +52,9 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
-                  <Route path="agency/dashboard" element={<AdminDashboard />} />
-                  <Route path="admin/dashboard" element={<AdminDashboard />} />
+                  {/* Fix: Updated route element to MasterAdminDashboard */}
+                  <Route path="agency/dashboard" element={<MasterAdminDashboard />} /> 
+                  <Route path="admin/dashboard" element={<MasterAdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 
                   {/* --- AGENCY MODE ROUTES --- */}

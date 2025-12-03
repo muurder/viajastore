@@ -311,7 +311,7 @@ export const TripList: React.FC = () => {
                                   checked={selectedTravelerTypes.includes(type.id)} 
                                   onChange={() => toggleSelection('traveler', selectedTravelerTypes, type.id)} 
                                 />
-                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
+                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{type.label}</span>
                             </label>
                         ))}
                     </div>

@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -88,7 +89,7 @@ const initializeMockData = (
     setBookings(MOCK_BOOKINGS);
     setReviews(MOCK_REVIEWS);
     setAgencyReviews([]);
-    setClients(MOCK_CLIENTS);
+    setClients(MOCK_CLIENTS.map(client => ({ ...client, role: UserRole.CLIENT, email: client.email || `${client.name.toLowerCase().replace(' ', '')}@example.com`, favorites: client.favorites || [] }))); // Ensure role and email are set for mock clients
     setAuditLogs([]);
     setActivityLogs([]); // Initialize empty for mock
 };
