@@ -111,13 +111,13 @@ const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeT
     className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
   >
     <Icon size={16} /> 
-    {label} 
     {hasNotification && ( 
       <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> 
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> 
         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> 
       </span> 
     )} 
+    {label}
   </button>
 );
 
@@ -232,6 +232,7 @@ const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDupli
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
       <div className="flex items-center gap-2 justify-end">
+        {/* FIX: Moved title to button element */}
         <button onClick={() => onEdit(trip)} title={isPublished ? 'Gerenciar' : 'Editar'} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
         <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreVertical size={20} /></button>
       </div>
@@ -264,12 +265,12 @@ const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDupli
 interface ToolbarButtonProps {
   cmd?: string;
   icon: React.ComponentType<LucideProps>;
-  buttonTitle?: string; // Changed from 'title' to 'buttonTitle'
+  title?: string; // This title is for the HTML button element
   arg?: string;
   active?: boolean;
 }
 
-const ToolbarButton: React.FC<ToolbarButtonProps> = ({ cmd, icon: Icon, buttonTitle, arg, active = false }) => {
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ cmd, icon: Icon, title, arg, active = false }) => {
   const execCmd = (command: string, arg?: string) => {
     document.execCommand(command, false, arg);
     // Note: The parent RichTextEditor will handle onChange through its onInput handler.
@@ -280,7 +281,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ cmd, icon: Icon, buttonTi
       type="button"
       onClick={() => cmd && execCmd(cmd, arg)}
       className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`}
-      title={buttonTitle} // Use buttonTitle here
+      title={title}
     >
       <Icon size={18} />
     </button>
@@ -308,27 +309,27 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
   const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
   const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
-  // FIX: Passed buttonTitle prop to the button element instead of the Lucide Icon
   const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
   const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm flex flex-col">
       <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center sticky top-0 z-10">
-        <ToolbarButton cmd="bold" icon={Bold} buttonTitle="Negrito" />
-        <ToolbarButton cmd="italic" icon={Italic} buttonTitle="Itálico" />
-        <ToolbarButton cmd="underline" icon={Underline} buttonTitle="Sublinhado" />
+        <ToolbarButton cmd="bold" icon={Bold} title="Negrito" />
+        <ToolbarButton cmd="italic" icon={Italic} title="Itálico" />
+        <ToolbarButton cmd="underline" icon={Underline} title="Sublinhado" />
         <Divider />
-        <ToolbarButton cmd="formatBlock" arg="h2" icon={Heading1} buttonTitle="Título Grande" />
-        <ToolbarButton cmd="formatBlock" arg="h3" icon={Heading2} buttonTitle="Título Médio" />
-        <ToolbarButton cmd="formatBlock" arg="blockquote" icon={Quote} buttonTitle="Citação" />
+        <ToolbarButton cmd="formatBlock" arg="h2" icon={Heading1} title="Título Grande" />
+        <ToolbarButton cmd="formatBlock" arg="h3" icon={Heading2} title="Título Médio" />
+        <ToolbarButton cmd="formatBlock" arg="blockquote" icon={Quote} title="Citação" />
         <Divider />
-        <ToolbarButton cmd="justifyLeft" icon={AlignLeft} buttonTitle="Alinhar Esquerda" />
-        <ToolbarButton cmd="justifyCenter" icon={AlignCenter} buttonTitle="Centralizar" />
-        <ToolbarButton cmd="justifyRight" icon={AlignRight} buttonTitle="Alinhar Direita" />
+        <ToolbarButton cmd="justifyLeft" icon={AlignLeft} title="Alinhar Esquerda" />
+        <ToolbarButton cmd="justifyCenter" icon={AlignCenter} title="Centralizar" />
+        <ToolbarButton cmd="justifyRight" icon={AlignRight} title="Alinhar Direita" />
         <Divider />
-        <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} buttonTitle="Lista Ordenada" />
-        <ToolbarButton cmd="insertUnorderedList" icon={List} buttonTitle="Lista Não Ordenada" />
+        {/* Fix: RichTextEditor continues */}
+        <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista Ordenada" />
+        <ToolbarButton cmd="insertUnorderedList" icon={List} title="Lista Não Ordenada" />
         <button type="button" onClick={addLink} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100" title="Adicionar Link"><LinkIcon size={18}/></button>
         <button type="button" onClick={addImage} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100" title="Adicionar Imagem"><ImageIcon size={18}/></button>
         <Divider />

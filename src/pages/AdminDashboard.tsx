@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +14,7 @@ import {
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
   LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck 
 } from 'lucide-react';
-import { migrateData } from '../services/dataMigration';
+import { migrateData } from '../services/dataMigration'; // Import migrateData to call it
 import { useSearchParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -443,7 +444,7 @@ export const AdminDashboard: React.FC = () => {
       new Date(log.created_at).toLocaleString('pt-BR'),
       log.user_name || log.actor_email,
       log.actor_role,
-      log.action_type.replace(/_/g, ' '),
+      (log.action_type as string).replace(/_/g, ' '), // Cast to string before replace
       JSON.stringify(log.details)
     ]);
 
@@ -596,7 +597,7 @@ export const AdminDashboard: React.FC = () => {
                                             <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
                                         </p>
                                         <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                                            <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
+                                            <span className="font-semibold">{(log.action_type as string).replace(/_/g, ' ')}</span>
                                             {log.trip_title && ` na viagem "${log.trip_title}"`}
                                             {log.agency_name && ` da agência "${log.agency_name}"`}
                                             {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
@@ -625,7 +626,13 @@ export const AdminDashboard: React.FC = () => {
                         <br/>(Não use em produção!)
                     </p>
                     <button 
-                        onClick={migrateData} 
+                        onClick={async () => { // Make onClick async
+                            setIsProcessing(true);
+                            await migrateData();
+                            logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Migrated mock data to database'); // Log the migration
+                            await refreshData(); // Refresh data context after migration
+                            setIsProcessing(false);
+                        }} 
                         disabled={isProcessing}
                         className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
@@ -660,7 +667,7 @@ export const AdminDashboard: React.FC = () => {
                         <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{c.name}</p>
                         <p className="text-sm text-gray-500 mb-4">{c.email}</p>
-                        <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
+                        <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENSO' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                       </div>
                     </div>
                   ))}
@@ -671,7 +678,7 @@ export const AdminDashboard: React.FC = () => {
                         <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllUsers} checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuário</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Contato</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {filteredUsers.map(c => (<tr key={c.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedUsers.includes(c.id)} onChange={() => handleToggleUser(c.id)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-10 h-10 rounded-full" alt=""/><p className="font-bold text-gray-900 text-sm">{c.name}</p></div></td><td className="px-6 py-4"><p className="text-sm text-gray-600">{c.email}</p><p className="text-xs text-gray-400">{c.phone}</p></td><td className="px-6 py-4">
-                                <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
+                                <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENSO' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                             </td><td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                     {showUserTrash ? (
@@ -960,160 +967,6 @@ export const AdminDashboard: React.FC = () => {
                 </div>
             </div>
         );
-      default:
-        return (
-          <div className="space-y-8 animate-[fadeIn_0.3s]">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Receita Total" value={`R$ ${platformRevenue.toLocaleString()}`} subtitle="Receita bruta da plataforma" icon={DollarSign} color="green"/>
-                <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle="Parceiros verificados" icon={Briefcase} color="blue"/>
-                <StatCard title="Usuários Ativos" value={activeUsers.length} subtitle="Clientes da plataforma" icon={Users} color="purple"/>
-                <StatCard title="Pacotes Ativos" value={trips.length} subtitle="Viagens disponíveis" icon={Plane} color="amber"/>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Atividade Recente - Agora com todos os logs */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                        <button onClick={exportActivityLogsToPdf} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 flex items-center gap-1.5">
-                            <Download size={14}/> Exportar PDF
-                        </button>
-                    </div>
-                    
-                    {/* Activity Log Filters */}
-                    <div className="flex flex-wrap gap-3 mb-4">
-                        <input 
-                            type="text" 
-                            placeholder="Buscar no log..." 
-                            value={activitySearchTerm} 
-                            onChange={e => setActivitySearchTerm(e.target.value)}
-                            className="flex-1 min-w-[150px] border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        <select 
-                            value={activityActorRoleFilter} 
-                            onChange={e => setActivityActorRoleFilter(e.target.value as ActivityActorRole | 'ALL')}
-                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                        >
-                            <option value="ALL">Todos os Perfis</option>
-                            <option value="CLIENT">Cliente</option>
-                            <option value="AGENCY">Agência</option>
-                            <option value="ADMIN">Admin</option>
-                        </select>
-                        <select 
-                            value={activityActionTypeFilter} 
-                            onChange={e => setActivityActionTypeFilter(e.target.value as ActivityActionType | 'ALL')}
-                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                        >
-                            <option value="ALL">Todos os Eventos</option>
-                            <option value="TRIP_VIEWED">Viagem Visualizada</option>
-                            <option value="BOOKING_CREATED">Reserva Criada</option>
-                            <option value="REVIEW_SUBMITTED">Avaliação Enviada</option>
-                            <option value="FAVORITE_TOGGLED">Favorito Alterado</option>
-                            <option value="TRIP_CREATED">Viagem Criada</option>
-                            <option value="TRIP_UPDATED">Viagem Atualizada</option>
-                            <option value="TRIP_DELETED">Viagem Excluída</option>
-                            <option value="TRIP_STATUS_TOGGLED">Status da Viagem Alterado</option>
-                            <option value="TRIP_FEATURE_TOGGLED">Destaque da Viagem Alterado</option>
-                            <option value="AGENCY_PROFILE_UPDATED">Perfil da Agência Atualizado</option>
-                            <option value="AGENCY_STATUS_TOGGLED">Status da Agência Alterado</option>
-                            <option value="AGENCY_SUBSCRIPTION_UPDATED">Assinatura da Agência Atualizada</option>
-                            <option value="CLIENT_PROFILE_UPDATED">Perfil do Cliente Atualizado</option>
-                            <option value="PASSWORD_RESET_INITIATED">Reset de Senha Iniciado</option>
-                            <option value="ACCOUNT_DELETED">Conta Excluída</option>
-                            <option value="ADMIN_USER_MANAGED">Usuário (Admin) Gerenciado</option>
-                            <option value="ADMIN_AGENCY_MANAGED">Agência (Admin) Gerenciada</option>
-                            <option value="ADMIN_THEME_MANAGED">Tema (Admin) Gerenciado</option>
-                            <option value="ADMIN_MOCK_DATA_MIGRATED">Dados Mock Migrados (Admin)</option>
-                            <option value="ADMIN_ACTION">Ação Administrativa</option>
-                        </select>
-                        <input 
-                            type="date" 
-                            value={activityStartDate} 
-                            onChange={e => setActivityStartDate(e.target.value)}
-                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        <input 
-                            type="date" 
-                            value={activityEndDate} 
-                            onChange={e => setActivityEndDate(e.target.value)}
-                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                        />
-                        {(activitySearchTerm || activityActorRoleFilter !== 'ALL' || activityActionTypeFilter !== 'ALL' || activityStartDate || activityEndDate) && (
-                            <button 
-                                onClick={() => { setActivitySearchTerm(''); setActivityActorRoleFilter('ALL'); setActivityActionTypeFilter('ALL'); setActivityStartDate(''); setActivityEndDate(''); }}
-                                className="text-red-500 text-sm font-bold hover:underline px-2"
-                            >
-                                Limpar Filtros
-                            </button>
-                        )}
-                    </div>
-
-
-                    {filteredActivityLogs.length > 0 ? (
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                            {filteredActivityLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
-                                    <div className="flex-shrink-0">
-                                        {getActionIcon(log.action_type)}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
-                                            {log.user_avatar && <img src={log.user_avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover"/>}
-                                            {log.user_name}
-                                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
-                                        </p>
-                                        <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                                            <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
-                                            {log.trip_title && ` na viagem "${log.trip_title}"`}
-                                            {log.agency_name && ` da agência "${log.agency_name}"`}
-                                            {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
-                                            {log.details.action === 'restore' && ` (restaurado)`}
-                                            {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
-                                            {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
-                                            {log.details.rating && ` (nota: ${log.details.rating})`}
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5">
-                                            <CalendarDays size={12} /> {new Date(log.created_at).toLocaleString('pt-BR')}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente encontrada.</div>
-                    )}
-                </div>
-
-                {/* Migrar Dados Mock */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Database size={20} className="mr-2 text-primary-600"/> Ferramentas de Dados</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Use para popular seu banco de dados de desenvolvimento com informações de exemplo.
-                        <br/>(Não use em produção!)
-                    </p>
-                    <button 
-                        onClick={migrateData} 
-                        disabled={isProcessing}
-                        className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {isProcessing ? <Loader size={18} className="animate-spin" /> : <Sparkles size={18}/>} Migrar Dados Mock
-                    </button>
-                    {isMaster && (
-                        <div className="mt-4">
-                            <h4 className="text-sm font-bold text-red-600 flex items-center mb-2"><AlertOctagon size={16} className="mr-2"/> Ferramentas de Limpeza (Master Admin)</h4>
-                            <p className="text-xs text-gray-500 mb-3">
-                                CUIDADO! Estas ações são irreversíveis e APAGAM DADOS DO BANCO.
-                            </p>
-                            <div className="space-y-2">
-                                <button onClick={() => { if (window.confirm('Excluir TODOS os usuários (clientes e agências)?')) deleteMultipleUsers(clients.map(c => c.id)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todos os Usuários</button>
-                                <button onClick={() => { if (window.confirm('Excluir TODAS as agências e viagens?')) deleteMultipleAgencies(agencies.map(a => a.agencyId)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todas as Agências</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-          </div>
-        );
     }
   };
 
@@ -1175,243 +1028,4 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
                 <button onClick={() => { if (activeTab === 'USERS') handleSetUserView('cards'); else handleSetAgencyView('cards'); }} className={`p-2 rounded-md ${((activeTab === 'USERS' && userView === 'cards') || (activeTab === 'AGENCIES' && agencyView === 'cards')) ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}><LayoutGrid size={18}/></button>
-                <button onClick={() => { if (activeTab === 'USERS') handleSetUserView('list'); else handleSetAgencyView('list'); }} className={`p-2 rounded-md ${((activeTab === 'USERS' && userView === 'list') || (activeTab === 'AGENCIES' && agencyView === 'list')) ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`}><List size={18}/></button>
-              </div>
-            </div>
-        </div>
-      )}
-
-      {/* Filter Bar for Trips */}
-      {activeTab === 'TRIPS' && (
-        <div className="flex flex-wrap items-center gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-2">
-                <Filter size={16} className="text-gray-500"/>
-                <span className="text-sm font-bold text-gray-700">Filtros:</span>
-            </div>
-            
-            <div className="w-48">
-                <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                    <option value="">Todas as Agências</option>
-                    {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
-                </select>
-            </div>
-            <div className="w-48">
-                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                    <option value="">Todas as Categorias</option>
-                    {tripCategories.map(category => <option key={category} value={category}>{category.replace('_', ' ')}</option>)}
-                </select>
-            </div>
-            {(agencyFilter || categoryFilter) && (
-                <button onClick={() => { setAgencyFilter(''); setCategoryFilter(''); }} className="text-sm font-bold text-red-500 hover:underline">Limpar Filtros</button>
-            )}
-        </div>
-      )}
-
-      {renderContent()}
-
-      {/* Modals */}
-      {modalType === 'EDIT_USER' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Usuário</h2>
-                
-                <div className="flex border-b border-gray-200 mb-6">
-                    <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'PROFILE' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Perfil</button>
-                    <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'SECURITY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Segurança</button>
-                    <button onClick={() => setModalTab('HISTORY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'HISTORY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Histórico</button>
-                </div>
-
-                {modalTab === 'PROFILE' && (
-                    <form onSubmit={handleUserUpdate} className="space-y-6">
-                        <div className="flex flex-col items-center gap-4 mb-6">
-                            <div className="relative w-24 h-24 rounded-full group">
-                                <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
-                                <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
-                                    {isUploadingAvatar ? <Loader className="animate-spin" size={20}/> : <Camera size={20} />}
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar}/>
-                                </label>
-                            </div>
-                            <h3 className="text-xl font-bold text-gray-900">{editFormData.name}</h3>
-                        </div>
-
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Email</label><input type="email" value={editFormData.email || ''} onChange={e => setEditFormData({...editFormData, email: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-                    </form>
-                )}
-                {modalTab === 'SECURITY' && (
-                    <div className="space-y-6">
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
-                            <p className="text-sm text-gray-700 font-medium">Resetar Senha</p>
-                            <button onClick={() => sendPasswordReset(selectedItem.email)} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
-                                <Key size={16}/> Enviar Link
-                            </button>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
-                            <p className="text-sm text-red-700 font-medium">Excluir Conta</p>
-                            <button onClick={() => handlePermanentDelete(selectedItem.id, selectedItem.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
-                                <Trash2 size={16}/> Excluir
-                            </button>
-                        </div>
-                    </div>
-                )}
-                {modalTab === 'HISTORY' && (
-                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                        <p className="text-sm text-gray-500 text-center">Nenhum histórico disponível.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-      )}
-
-      {modalType === 'MANAGE_SUB' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
-            <div className="flex items-center gap-4 mb-6">
-                <img src={selectedItem.logo || `https://ui-avatars.com/api/?name=${selectedItem.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt=""/>
-                <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedItem.name}</h3>
-                    <p className="text-sm text-gray-500">{selectedItem.email}</p>
-                </div>
-            </div>
-            <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Plano</label>
-                    <select value={editFormData.plan} onChange={e => setEditFormData({...editFormData, plan: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
-                        <option value="BASIC">Básico</option>
-                        <option value="PREMIUM">Premium</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Status</label>
-                    <select value={editFormData.status} onChange={e => setEditFormData({...editFormData, status: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
-                        <option value="ACTIVE">Ativo</option>
-                        <option value="INACTIVE">Inativo</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Expira em</label>
-                    <div className="flex gap-2 items-center">
-                        <input type="datetime-local" value={editFormData.expiresAt?.slice(0, 16)} onChange={e => setEditFormData({...editFormData, expiresAt: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500"/>
-                        <button type="button" onClick={() => addSubscriptionTime(30)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+30d</button>
-                        <button type="button" onClick={() => addSubscriptionTime(365)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+1a</button>
-                    </div>
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Assinatura</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_AGENCY' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-            <form onSubmit={handleAgencyUpdate} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Nome</label>
-                    <input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label>
-                    <input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
-                    <textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label>
-                    <input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
-                    <input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label>
-                    <input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({...editFormData, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
-                    <input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, zipCode: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={editFormData.address?.street || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, street: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, number: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={editFormData.address?.city || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, city: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label><input value={editFormData.address?.state || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, state: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                    </div>
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_REVIEW' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
-            <form onSubmit={handleReviewUpdate} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label>
-                    <textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
-                    <input type="number" min="1" max="5" value={editFormData.rating || 0} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
-            <form onSubmit={handleTripUpdate} className="space-y-6">
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" min="0" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={editFormData.destination || ''} onChange={e => setEditFormData({...editFormData, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'VIEW_STATS' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuários</h2>
-            <div className="space-y-4">
-                {userStats.length > 0 ? userStats.map(stat => (
-                    <div key={stat.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                        <p className="font-bold text-gray-900 text-lg">{stat.userName}</p>
-                        <p className="text-sm text-gray-600">Total Gasto: R$ {stat.totalSpent.toLocaleString()}</p>
-                        <p className="text-sm text-gray-600">Total Reservas: {stat.totalBookings}</p>
-                        <p className="text-sm text-gray-600">Total Avaliações: {stat.totalReviews}</p>
-                    </div>
-                )) : <p className="text-sm text-gray-500 text-center">Nenhum dado disponível.</p>}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+                <button onClick={() => { if (activeTab === 'USERS') handleSetUserView('list'); else handleSetAgencyView('list'); }} className={`p-2 rounded-md ${((activeTab === 'USERS' && userView === 'list') || (activeTab === 'AGENCIES' && agencyView === 'list')) ? 'bg-white shadow text
