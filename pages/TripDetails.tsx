@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -9,7 +8,6 @@ import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldChe
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
-  // Fix: Use useParams
   const { slug, agencySlug, tripSlug } = useParams<{ slug?: string; agencySlug?: string; tripSlug?: string }>();
   // Handling both global route /viagem/:slug and microsite route /:agencySlug/viagem/:tripSlug
   const activeTripSlug = tripSlug || slug;
@@ -17,7 +15,6 @@ const TripDetails: React.FC = () => {
   const { getTripBySlug, getTripById, agencies, toggleFavorite, clients, addBooking, loading, incrementTripViews, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
-  // Fix: Use useNavigate
   const navigate = useNavigate();
 
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
@@ -82,7 +79,6 @@ const TripDetails: React.FC = () => {
   const handleToggleFavorite = () => {
       if (!user) {
           showToast('Faça login para favoritar.', 'info');
-          navigate('/#login');
           return;
       }
       if (user.role !== 'CLIENT') {

@@ -11,13 +11,12 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-// Corrected import path for MasterAdminDashboard component
-import { MasterAdminDashboard } from './pages/MasterAdminDashboard.tsx'; 
-import AgencyDashboard from './pages/AgencyDashboard'; 
-import ClientDashboard from './pages/ClientDashboard'; 
+// Corrected import path for AdminDashboard component
+import { AdminDashboard } from './pages/AdminDashboard'; 
+import AgencyLandingPage from './pages/AgencyLandingPage';
+import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
-import AgencyLandingPage from './pages/AgencyLandingPage'; // Import AgencyLandingPage here
 
 const App: React.FC = () => {
   return (
@@ -38,7 +37,7 @@ const App: React.FC = () => {
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  <Route path="contact" element={<Contact />} />
+                  <Route path="contact" element="<Contact />" />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
                   <Route path="help" element={<Help />} />
@@ -52,9 +51,8 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
-                  {/* Fix: Route for agency/dashboard now correctly points to AgencyDashboard */}
-                  <Route path="agency/dashboard" element={<AgencyDashboard />} /> 
-                  <Route path="admin/dashboard" element={<MasterAdminDashboard />} />
+                  <Route path="agency/dashboard" element={<AdminDashboard />} />
+                  <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 
                   {/* --- AGENCY MODE ROUTES --- */}

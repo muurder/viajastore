@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -238,6 +237,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
 
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
+        console.log("Auth State Change:", event, session?.user?.email); // Debug log
         if (session?.user) {
           if (event === 'SIGNED_IN') {
              const pendingRole = localStorage.getItem('viajastore_pending_role');
@@ -252,7 +252,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              await fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
+          console.log("SIGNED_OUT event received, setting user to null."); // Debug log
           setUser(null);
+          localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+          // DataContext's useEffect on 'user' will handle refreshing other states.
         }
       });
 
@@ -302,10 +305,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
-      await (supabase.auth as any).signOut();
+      console.log("Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
+      // Optimistic update: Clear state immediately for better UX
+      setUser(null);
+      localStorage.removeItem('viajastore_pending_role');
+      
+      // Perform signOut in background, don't await to block UI
+      try {
+        await (supabase.auth as any).signOut();
+      } catch (e) {
+        console.error("Background signout error:", e);
+      }
     }
-    setUser(null);
-    localStorage.removeItem('viajastore_pending_role');
   };
 
   const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
@@ -459,12 +470,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (user.role === UserRole.AGENCY) {
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
-        // Logic for slug: only update if it's new (user.slug is empty) or if it's explicitly allowed to be changed (not the case here)
-        // Since agency slug is now readOnly, we don't expect it to change from userData.
-        // It will effectively be the same as user.slug, so the condition will prevent update.
-        if ((userData as Agency).slug && (userData as Agency).slug !== (user as Agency).slug) {
-          updates.slug = (userData as Agency).slug;
-        } else if (!(user as Agency).slug && (userData as Agency).slug) { // If user had no slug, but a new one is provided
+        
+        // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
+        // Only allow slug update if it's currently empty, or if an explicit (and rare) admin action is intended.
+        // For general user updates, slug should be read-only derived from name or immutable after creation.
+        // Assuming userData.slug is provided only if an update is intended.
+        if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
           updates.slug = (userData as Agency).slug;
         }
 
@@ -482,7 +493,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
 
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
-        // Fix: Use subscriptionExpiresAt to update the database
         if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
 
 
@@ -498,8 +508,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (userData.name) updates.full_name = userData.name;
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
-        if ((userData as Client).address) updates.address = (userData as Client).address;
         if (userData.avatar) updates.avatar_url = userData.avatar;
+        if (userData.address) updates.address = (userData as Client).address;
 
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;

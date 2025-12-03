@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
@@ -231,4 +230,247 @@ export const TripList: React.FC = () => {
 
          {/* Content */}
          <div className="relative z-20 w-full max-w-7xl mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
-             <div className="flex-1
+             <div className="flex-1 text-center lg:text-left">
+                {currentAgency && (
+                    <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
+                        <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
+                    </Link>
+                )}
+                
+                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 mb-3">
+                    {currentAgency?.logo && (
+                        <img 
+                            src={currentAgency.logo} 
+                            alt={currentAgency.name} 
+                            className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg object-cover"
+                        />
+                    )}
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">
+                            {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
+                        </h1>
+                        <p className="text-gray-300 text-lg mt-2 font-light max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                            {currentAgency ? "Explore roteiros exclusivos selecionados para você." : "Centenas de destinos incríveis com as melhores tarifas do mercado."}
+                        </p>
+                    </div>
+                </div>
+             </div>
+
+             <div className="w-full lg:w-auto min-w-[320px]">
+                <div className="relative group/search">
+                   <div className="absolute inset-0 bg-white/20 backdrop-blur-md rounded-2xl transform transition-transform group-hover/search:scale-[1.02]"></div>
+                   <div className="relative bg-white rounded-2xl shadow-xl p-2 flex items-center">
+                       <MapPin className="text-primary-500 ml-3 shrink-0" size={20} />
+                       <input 
+                         type="text" 
+                         value={q}
+                         onChange={(e) => updateUrl('q', e.target.value || null)}
+                         placeholder="Qual seu próximo destino?"
+                         className="w-full pl-3 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium outline-none bg-transparent rounded-xl"
+                       />
+                       <button className="bg-primary-600 hover:bg-primary-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-primary-500/30">
+                           <Search size={20} />
+                       </button>
+                   </div>
+                </div>
+             </div>
+         </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-8 px-2">
+        {/* Sidebar Filters */}
+        <aside className={`
+          md:w-72 flex-shrink-0 bg-white md:bg-transparent p-6 md:p-0 
+          fixed md:static inset-0 z-40 overflow-y-auto transition-transform duration-300 scrollbar-hide
+          ${showMobileFilters ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          md:block h-full
+        `}>
+          <div className="flex justify-between items-center md:hidden mb-4">
+            <h2 className="text-xl font-bold">Filtros</h2>
+            <button onClick={() => setShowMobileFilters(false)}><X /></button>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-6 sticky top-24">
+             
+             {/* A - Traveler Type */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('traveler')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
+                    <span>Tipo de Viajante</span>
+                    {openFilterSections['traveler'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['traveler'] && (
+                    <div className="space-y-2">
+                        {travelerOptions.map(type => (
+                            <label key={type.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${selectedTravelerTypes.includes(type.id) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
+                                    {selectedTravelerTypes.includes(type.id) && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </div>
+                                <input 
+                                  type="checkbox" 
+                                  className="hidden" 
+                                  checked={selectedTravelerTypes.includes(type.id)} 
+                                  onChange={() => toggleSelection('traveler', selectedTravelerTypes, type.id)} 
+                                />
+                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{type.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                )}
+             </div>
+
+             {/* B - Style / Tags */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('style')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
+                    <span>Estilo de Viagem</span>
+                    {openFilterSections['style'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['style'] && (
+                    <div className="flex flex-wrap gap-2">
+                        {styleOptions.map(tag => (
+                            <button 
+                              key={tag}
+                              onClick={() => toggleSelection('tags', selectedTags, tag)}
+                              className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${selectedTags.includes(tag) ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold' : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'}`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
+                )}
+             </div>
+
+             {/* C - Duration */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('duration')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
+                    <span>Duração</span>
+                    {openFilterSections['duration'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['duration'] && (
+                    <div className="space-y-2">
+                        {durationOptions.map(opt => (
+                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${durationParam === opt.id ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
+                                    {durationParam === opt.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </div>
+                                <input 
+                                  type="radio" 
+                                  name="duration"
+                                  className="hidden" 
+                                  checked={durationParam === opt.id} 
+                                  onChange={() => updateUrl('duration', opt.id)} 
+                                />
+                                <span className={`text-sm ${durationParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                )}
+             </div>
+
+             {/* D - Price */}
+             <div className="border-b border-gray-100 pb-4">
+                <button onClick={() => toggleAccordion('price')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
+                    <span>Faixa de Preço</span>
+                    {openFilterSections['price'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                </button>
+                {openFilterSections['price'] && (
+                    <div className="space-y-2">
+                        {priceOptions.map(opt => (
+                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${priceParam === opt.id ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
+                                    {priceParam === opt.id && <div className="w-2 h-2 bg-white rounded-full" />}
+                                </div>
+                                <input 
+                                  type="radio" 
+                                  name="price"
+                                  className="hidden" 
+                                  checked={priceParam === opt.id} 
+                                  onChange={() => updateUrl('price', opt.id)} 
+                                />
+                                <span className={`text-sm ${priceParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                )}
+             </div>
+
+             {/* E - Popular Destinations (Only show if not in agency microsite mode) */}
+             {!agencySlug && (
+                <div>
+                   <button onClick={() => toggleAccordion('dest')} className="w-full flex justify-between items-center font-bold text-gray-900 mb-3 hover:text-primary-600 transition-colors">
+                       <span>Destinos Populares</span>
+                       {openFilterSections['dest'] ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                   </button>
+                   {openFilterSections['dest'] && (
+                       <div className="flex flex-wrap gap-2">
+                           {popularDestinations.map(dest => (
+                               <button 
+                                 key={dest}
+                                 onClick={() => updateUrl('q', dest)} // Set search term as destination filter
+                                 className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${q === dest ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold' : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'}`}
+                               >
+                                   {dest}
+                               </button>
+                           ))}
+                       </div>
+                   )}
+                </div>
+             )}
+
+             {/* Clear Filters Button */}
+             {(q || tagsParam || travelerParam || durationParam || priceParam || categoryParam) && (
+                <div className="pt-6 border-t border-gray-100">
+                    <button onClick={clearFilters} className="w-full text-red-600 font-bold hover:underline py-2.5 bg-red-50 rounded-xl flex items-center justify-center gap-2">
+                        <X size={16}/> Limpar Todos os Filtros
+                    </button>
+                </div>
+             )}
+          </div>
+        </aside>
+
+        {/* Mobile Filter Toggle */}
+        <button 
+          onClick={() => setShowMobileFilters(true)} 
+          className="md:hidden fixed bottom-24 right-4 z-[60] bg-primary-600 text-white p-4 rounded-full shadow-lg flex items-center gap-2 font-bold hover:bg-primary-700 transition-all active:scale-95 animate-[scaleIn_0.5s]"
+        >
+            <Filter size={20}/> Filtros
+        </button>
+
+        {/* Trip Cards */}
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-gray-900">
+              {currentAgency ? `Pacotes de ${currentAgency.name}` : 'Todas as Viagens'} ({filteredTrips.length})
+            </h2>
+            <select 
+              value={sortParam} 
+              onChange={(e) => updateUrl('sort', e.target.value)} 
+              className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="RELEVANCE">Relevância</option>
+              <option value="LOW_PRICE">Menor Preço</option>
+              <option value="HIGH_PRICE">Maior Preço</option>
+              <option value="RATING">Melhor Avaliação</option>
+            </select>
+          </div>
+
+          {filteredTrips.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">
+              {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+                <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Search className="text-gray-300" size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">Não encontramos resultados para sua busca. Tente ajustar os filtros ou buscar por termos mais genéricos.</p>
+                <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">
+                  Limpar todos os filtros
+                </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

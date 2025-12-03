@@ -28,7 +28,6 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  // FIX: Removed `tripImages` from useData destructuring. `getTripById` already provides images.
   const { bookings, getTripById, clients, agencies, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
   const { showToast } = useToast();
   
@@ -243,9 +242,10 @@ const ClientDashboard: React.FC = () => {
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
-        // Trip details are now direct on the trip object
+        // Fix: Access trip.startDate directly, remove trip.start_date
         const dateStr = trip.startDate;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
+        // Fix: Access trip.durationDays directly, remove trip.duration_days
         const duration = trip.durationDays;
         addField('Duração:', `${duration} Dias`);
         y += 5;
@@ -303,14 +303,12 @@ const ClientDashboard: React.FC = () => {
       if (!selectedBooking || isSubmitting) return;
       setIsSubmitting(true);
       try {
-          const trip = getTripById(selectedBooking.tripId);
           await addAgencyReview({
-              agencyId: trip?.agencyId, 
+              agencyId: selectedBooking._trip?.agencyId || selectedBooking._trip?.agency_id, // Fallback if _trip is still present from `addBooking`
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
-              comment: reviewForm.comment,
-              trip_id: selectedBooking.tripId // Associate review with the specific trip
+              comment: reviewForm.comment
           });
           setShowReviewModal(false);
           setSelectedBooking(null);
@@ -524,7 +522,7 @@ const ClientDashboard: React.FC = () => {
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Segurança</h2>
                   <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
                       <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
-                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
                       <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
                   </form>
                   <div className="mt-12 pt-8 border-t border-gray-100">
@@ -556,7 +554,7 @@ const ClientDashboard: React.FC = () => {
                 <div className="p-8 text-center">
                     <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
                     <p className="font-bold text-gray-900 text-lg">{user.name}</p>
-                    <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
+                    <p className="text-sm text-gray-500 mb-2">{getTripById(selectedBooking.tripId)?.title || 'Pacote de Viagem'}</p>
                     <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
@@ -572,8 +570,9 @@ const ClientDashboard: React.FC = () => {
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3> <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> </div>
                   <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      {selectedBooking._agency?.logo_url && ( <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
-                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p> </div>
+                      {/* Dynamically get agency logo */}
+                      {agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo && ( <img src={agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
+                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.name || 'Parceiro ViajaStore'}</p> </div>
                   </div>
                   <form onSubmit={handleReviewSubmit}>
                       <div className="mb-6 text-center">
