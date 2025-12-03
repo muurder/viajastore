@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
 import { ActivityActionType } from '../types'; // Import ActivityActionType
@@ -136,4 +135,33 @@ export const migrateData = async () => {
         }
 
         // Inserir Imagens
-        if (tripData && trip.images && trip.
+        if (tripData && trip.images && trip.images.length > 0) {
+            const imagesPayload = trip.images.map((url, index) => ({
+                trip_id: tripData.id,
+                image_url: url,
+                position: index
+            }));
+
+            const { error: imgError } = await supabase
+                .from('trip_images')
+                .insert(imagesPayload);
+            
+            if (imgError) {
+                log(`❌ Erro nas imagens da viagem ${trip.title}: ${imgError.message}`);
+            }
+        }
+        
+        successCount++;
+        log(`✅ Viagem salva: ${trip.title}`);
+    }
+
+    log(`\n🎉 ${successCount} de ${MOCK_TRIPS.length} viagens migradas com sucesso.`);
+
+  } catch (err: any) {
+    log(`\n❌ ERRO GERAL NA MIGRAÇÃO: ${err.message}`);
+    log('A migração foi interrompida. Verifique os logs e a configuração do Supabase.');
+  } finally {
+    log('\n🏁 Migração finalizada.');
+    alert('Migração finalizada! Verifique o console (F12) para ver os logs detalhados do processo.');
+  }
+};

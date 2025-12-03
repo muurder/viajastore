@@ -1020,7 +1020,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
 
           if (uploadError) throw uploadError;
 
-          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+          const { data } = supabase.storage.from('avatars').getPublicUrl(data.path);
           
           await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
 

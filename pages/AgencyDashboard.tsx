@@ -111,13 +111,13 @@ const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeT
     className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
   >
     <Icon size={16} /> 
+    {label} 
     {hasNotification && ( 
       <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> 
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> 
         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> 
       </span> 
     )} 
-    {label}
   </button>
 );
 
@@ -336,7 +336,7 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 relative" title="Adicionar Emoji">
           <Smile size={18} />
           {showEmojiPicker && (
-            <div className="absolute z-20 bg-white p-2 border border-gray-200 rounded-lg shadow-lg grid grid-cols-6 gap-1 top-full mt-2 left-0">
+            <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg grid grid-cols-6 gap-1 top-full mt-2 left-0">
               {COMMON_EMOJIS.map((emoji, idx) => (
                 <button key={idx} type="button" onClick={() => addEmoji(emoji)} className="p-1 text-lg hover:bg-gray-100 rounded-md">{emoji}</button>
               ))}
@@ -1446,7 +1446,7 @@ const AgencyDashboard: React.FC = () => {
 
               {/* Itinerary */}
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Roteiro Diário <Info size={16} className="ml-2 text-gray-500" title="Descreva cada dia da viagem"/></h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Roteiro Diário <Info size={16} className="ml-2 text-gray-500"/></h3>
                 <div className="space-y-4">
                   {itineraryDays.map((item, index) => (
                     <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-100 relative">

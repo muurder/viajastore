@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef, ForwardRefExoticComponent, RefAttributes } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -103,7 +101,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
-  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData, getTripById } = useData();
   const { setAgencyTheme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -121,7 +119,13 @@ const AgencyLandingPage: React.FC = () => {
 
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
   const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
-  const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
+  
+  // FIX: Dynamically resolve trip and agency for hasPurchased check
+  const hasPurchased = useMemo(() => user && agency ? bookings.some(b => {
+    const trip = getTripById(b.tripId);
+    return b.clientId === user.id && trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED';
+  }) : false, [bookings, user, agency, getTripById]);
+
   const myReview = useMemo(() => user ? agencyReviews.find(r => r.clientId === user.id) : undefined, [agencyReviews, user]);
 
   useEffect(() => {
@@ -609,7 +613,11 @@ const AgencyLandingPage: React.FC = () => {
                 <div className="lg:col-span-2 space-y-6">
                     <h2 className="text-2xl font-bold text-gray-900">Opinião de quem já viajou</h2>
                     {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => {
-                        const clientBookingsWithAgency = bookings.filter(b => b.clientId === review.clientId && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED').length;
+                        // FIX: Dynamically resolve trip and agency for clientBookingsWithAgency check
+                        const clientBookingsWithAgency = bookings.filter(b => {
+                          const trip = getTripById(b.tripId);
+                          return b.clientId === review.clientId && trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED'
+                        }).length;
                         return (
                             <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-start mb-4">
