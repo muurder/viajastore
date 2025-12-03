@@ -352,4 +352,311 @@ export const MasterAdminDashboard: React.FC = () => { // Renamed from AdminDashb
   const platformRevenue = useMemo(() => activeAgencies.reduce((total, agency) => total + (agency.subscriptionStatus === 'ACTIVE' ? (agency.subscriptionPlan === 'PREMIUM' ? 199.90 : 99.90) : 0), 0), [activeAgencies]);
 
   const filteredUsers = useMemo(() => (showUserTrash ? deletedUsers : activeUsers).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase())), [activeUsers, deletedUsers, showUserTrash, searchTerm]);
-  const filteredAgencies = useMemo(() => (showAgencyTrash ? deletedAgencies : activeAgencies).filter(a => a.name.toLowerCase().includes(searchTerm.
+  const filteredAgencies = useMemo(() => (showAgencyTrash ? deletedAgencies : activeAgencies).filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()) || (a.email && a.email.toLowerCase().includes(searchTerm.toLowerCase()))), [activeAgencies, deletedAgencies, showAgencyTrash, searchTerm]);
+  const filteredTrips = useMemo(() => trips.filter(t => (t.title.toLowerCase().includes(searchTerm.toLowerCase())) && (agencyFilter ? t.agencyId === agencyFilter : true) && (categoryFilter ? t.category === categoryFilter : true)), [trips, searchTerm, agencyFilter, categoryFilter]);
+  const filteredReviews = useMemo(() => agencyReviews.filter(r => r.comment.toLowerCase().includes(searchTerm.toLowerCase()) || r.agencyName?.toLowerCase().includes(searchTerm.toLowerCase())), [agencyReviews, searchTerm]);
+  
+  const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
+  const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
+  const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
+  const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
+
+  const handleMassDeleteUsers = async () => { if (window.confirm(`Excluir ${selectedUsers.length} usuários?`)) { await deleteMultipleUsers(selectedUsers); setSelectedUsers([]); showToast('Usuários excluídos.', 'success'); } };
+  const handleMassDeleteAgencies = async () => { if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) { await deleteMultipleAgencies(selectedAgencies); setSelectedAgencies([]); showToast('Agências excluídas.', 'success'); } };
+  const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus(selectedUsers, status); setSelectedUsers([]); showToast('Status atualizado.', 'success'); };
+  const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => { await updateMultipleAgenciesStatus(selectedAgencies, status); setSelectedAgencies([]); showToast('Status atualizado.', 'success'); };
+  const handleViewStats = async () => { const stats = await getUsersStats(selectedUsers); setUserStats(stats); setModalType('VIEW_STATS'); };
+  
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && selectedItem) {
+        setIsUploadingAvatar(true);
+        const newAvatarUrl = await updateUserAvatarByAdmin(selectedItem.id, e.target.files[0]);
+        if (newAvatarUrl) {
+            setEditFormData({ ...editFormData, avatar: newAvatarUrl });
+            setSelectedItem({ ...selectedItem, avatar: newAvatarUrl });
+        }
+        setIsUploadingAvatar(false);
+    }
+  };
+
+  const downloadPdf = (type: 'users' | 'agencies') => { 
+    const doc = new jsPDF(); 
+    doc.setFontSize(18); 
+    doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); 
+    doc.setFontSize(11); 
+    doc.setTextColor(100); 
+    const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; 
+    const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); 
+    (doc as any).autoTable({ head: headers, body: data, startY: 30, }); 
+    doc.save(`relatorio_${type}.pdf`); 
+  };
+
+  // NEW: Filtered Activity Logs
+  const filteredActivityLogs = useMemo(() => {
+    let result = [...activityLogs];
+
+    if (activitySearchTerm) {
+      const searchLower = activitySearchTerm.toLowerCase();
+      result = result.filter(log => 
+        log.actor_email.toLowerCase().includes(searchLower) ||
+        log.user_name?.toLowerCase().includes(searchLower) ||
+        log.agency_name?.toLowerCase().includes(searchLower) ||
+        log.trip_title?.toLowerCase().includes(searchLower) ||
+        log.action_type.toLowerCase().includes(searchLower) ||
+        JSON.stringify(log.details).toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (activityActorRoleFilter !== 'ALL') {
+      result = result.filter(log => log.actor_role === activityActorRoleFilter);
+    }
+
+    if (activityActionTypeFilter !== 'ALL') {
+      // Fix: Direct comparison with activityActionTypeFilter which is already of type ActivityActionType | 'ALL'
+      result = result.filter(log => log.action_type === activityActionTypeFilter);
+    }
+
+    if (activityStartDate) {
+      const start = new Date(activityStartDate).getTime();
+      result = result.filter(log => new Date(log.created_at).getTime() >= start);
+    }
+
+    if (activityEndDate) {
+      const end = new Date(activityEndDate).setHours(23, 59, 59, 999); // End of the day
+      result = result.filter(log => new Date(log.created_at).getTime() <= end);
+    }
+
+    return result;
+  }, [activityLogs, activitySearchTerm, activityActorRoleFilter, activityActionTypeFilter, activityStartDate, activityEndDate]);
+
+
+  const exportActivityLogsToPdf = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Relatório de Atividades", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+
+    const headers = [
+      ["DATA", "ATOR", "PERFIL", "AÇÃO", "DETALHES"]
+    ];
+
+    const data = filteredActivityLogs.map(log => [
+      new Date(log.created_at).toLocaleString('pt-BR'),
+      log.user_name || log.actor_email,
+      log.actor_role,
+      (log.action_type as string).replace(/_/g, ' '), // Cast to string before replace
+      JSON.stringify(log.details)
+    ]);
+
+    (doc as any).autoTable({
+      head: headers,
+      body: data,
+      startY: 30,
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 'auto' },
+      }
+    });
+
+    doc.save("relatorio_atividades.pdf");
+    logAuditAction('ADMIN_ACTIVITY_EXPORTED', 'Exported activity logs to PDF');
+  };
+
+  const getActionIcon = (actionType: ActivityActionType) => {
+    switch (actionType) {
+      case 'TRIP_VIEWED': return <Eye size={16} className="text-blue-500" />;
+      case 'BOOKING_CREATED': return <ShoppingBag size={16} className="text-green-500" />;
+      case 'REVIEW_SUBMITTED': return <Star size={16} className="text-amber-500" />;
+      case 'FAVORITE_TOGGLED': return <Heart size={16} className="text-red-500" />; 
+      case 'TRIP_CREATED': return <Plane size={16} className="text-primary-500" />;
+      case 'TRIP_UPDATED': return <Edit3 size={16} className="text-primary-500" />;
+      case 'TRIP_DELETED': return <Trash2 size={16} className="text-red-500" />;
+      case 'TRIP_STATUS_TOGGLED': return <PauseCircle size={16} className="text-orange-500" />;
+      case 'AGENCY_PROFILE_UPDATED': return <Building size={16} className="text-purple-500" />;
+      case 'CLIENT_PROFILE_UPDATED': return <User size={16} className="text-purple-500" />;
+      case 'PASSWORD_RESET_INITIATED': return <Lock size={16} className="text-gray-500" />;
+      case 'ACCOUNT_DELETED': return <UserX size={16} className="text-red-500" />;
+      case 'ADMIN_ACTION': return <ShieldCheck size={16} className="text-blue-600" />;
+      case 'ADMIN_USER_MANAGED': return <Users size={16} className="text-blue-600" />;
+      case 'ADMIN_AGENCY_MANAGED': return <Briefcase size={16} className="text-blue-600" />;
+      case 'ADMIN_THEME_MANAGED': return <Palette size={16} className="text-blue-600" />;
+      case 'ADMIN_MOCK_DATA_MIGRATED': return <Database size={16} className="text-primary-600" />;
+      default: return <Activity size={16} className="text-gray-400" />;
+    }
+  };
+
+
+  if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
+
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'OVERVIEW':
+        return (
+          <div className="space-y-8 animate-[fadeIn_0.3s]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard title="Receita Total" value={`R$ ${platformRevenue.toLocaleString()}`} subtitle="Receita bruta da plataforma" icon={DollarSign} color="green"/>
+                <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle="Parceiros verificados" icon={Briefcase} color="blue"/>
+                <StatCard title="Usuários Ativos" value={activeUsers.length} subtitle="Clientes da plataforma" icon={Users} color="purple"/>
+                <StatCard title="Pacotes Ativos" value={trips.length} subtitle="Viagens disponíveis" icon={Plane} color="amber"/>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Atividade Recente - Agora com todos os logs */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
+                        <button onClick={exportActivityLogsToPdf} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 flex items-center gap-1.5">
+                            <Download size={14}/> Exportar PDF
+                        </button>
+                    </div>
+                    
+                    {/* Activity Log Filters */}
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        <input 
+                            type="text" 
+                            placeholder="Buscar no log..." 
+                            value={activitySearchTerm} 
+                            onChange={e => setActivitySearchTerm(e.target.value)}
+                            className="flex-1 min-w-[150px] border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <select 
+                            value={activityActorRoleFilter} 
+                            onChange={e => setActivityActorRoleFilter(e.target.value as ActivityActorRole | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Perfis</option>
+                            <option value="CLIENT">Cliente</option>
+                            <option value="AGENCY">Agência</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                        <select 
+                            value={activityActionTypeFilter} 
+                            onChange={e => setActivityActionTypeFilter(e.target.value as ActivityActionType | 'ALL')}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        >
+                            <option value="ALL">Todos os Eventos</option>
+                            <option value="TRIP_VIEWED">Viagem Visualizada</option>
+                            <option value="BOOKING_CREATED">Reserva Criada</option>
+                            <option value="REVIEW_SUBMITTED">Avaliação Enviada</option>
+                            <option value="FAVORITE_TOGGLED">Favorito Alterado</option>
+                            <option value="TRIP_CREATED">Viagem Criada</option>
+                            <option value="TRIP_UPDATED">Viagem Atualizada</option>
+                            <option value="TRIP_DELETED">Viagem Excluída</option>
+                            <option value="TRIP_STATUS_TOGGLED">Status da Viagem Alterado</option>
+                            <option value="TRIP_FEATURE_TOGGLED">Destaque da Viagem Alterado</option>
+                            <option value="AGENCY_PROFILE_UPDATED">Perfil da Agência Atualizado</option>
+                            <option value="AGENCY_STATUS_TOGGLED">Status da Agência Alterado</option>
+                            <option value="AGENCY_SUBSCRIPTION_UPDATED">Assinatura da Agência Atualizada</option>
+                            <option value="CLIENT_PROFILE_UPDATED">Perfil do Cliente Atualizado</option>
+                            <option value="PASSWORD_RESET_INITIATED">Reset de Senha Iniciado</option>
+                            <option value="ACCOUNT_DELETED">Conta Excluída</option>
+                            <option value="ADMIN_USER_MANAGED">Usuário (Admin) Gerenciado</option>
+                            <option value="ADMIN_AGENCY_MANAGED">Agência (Admin) Gerenciada</option>
+                            <option value="ADMIN_THEME_MANAGED">Tema (Admin) Gerenciado</option>
+                            <option value="ADMIN_MOCK_DATA_MIGRATED">Dados Mock Migrados (Admin)</option>
+                            <option value="ADMIN_ACTION">Ação Administrativa</option>
+                        </select>
+                        <input 
+                            type="date" 
+                            value={activityStartDate} 
+                            onChange={e => setActivityStartDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        <input 
+                            type="date" 
+                            value={activityEndDate} 
+                            onChange={e => setActivityEndDate(e.target.value)}
+                            className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                        {(activitySearchTerm || activityActorRoleFilter !== 'ALL' || activityActionTypeFilter !== 'ALL' || activityStartDate || activityEndDate) && (
+                            <button 
+                                onClick={() => { setActivitySearchTerm(''); setActivityActorRoleFilter('ALL'); setActivityActionTypeFilter('ALL'); setActivityStartDate(''); setActivityEndDate(''); }}
+                                className="text-red-500 text-sm font-bold hover:underline px-2"
+                            >
+                                Limpar Filtros
+                            </button>
+                        )}
+                    </div>
+
+
+                    {filteredActivityLogs.length > 0 ? (
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+                            {filteredActivityLogs.map(log => (
+                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        {getActionIcon(log.action_type)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
+                                            {log.user_avatar && <img src={log.user_avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover"/>}
+                                            {log.user_name}
+                                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-600 line-clamp-2 mt-1">
+                                            <span className="font-semibold">{(log.action_type as string).replace(/_/g, ' ')}</span>
+                                            {log.trip_title && ` na viagem "${log.trip_title}"`}
+                                            {log.agency_name && ` da agência "${log.agency_name}"`}
+                                            {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
+                                            {log.details.action === 'restore' && ` (restaurado)`}
+                                            {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
+                                            {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
+                                            {log.details.rating && ` (nota: ${log.details.rating})`}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1.5">
+                                            <CalendarDays size={12} /> {new Date(log.created_at).toLocaleString('pt-BR')}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente encontrada.</div>
+                    )}
+                </div>
+
+                {/* Migrar Dados Mock */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Database size={20} className="mr-2 text-primary-600"/> Ferramentas de Dados</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                        Use para popular seu banco de dados de desenvolvimento com informações de exemplo.
+                        <br/>(Não use em produção!)
+                    </p>
+                    <button 
+                        onClick={async () => { // Make onClick async
+                            setIsProcessing(true);
+                            await migrateData();
+                            // logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Migrated mock data to database'); // Log moved inside dataMigration.ts
+                            await refreshData(); // Refresh data context after migration
+                            setIsProcessing(false);
+                        }} 
+                        disabled={isProcessing}
+                        className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader size={18} className="animate-spin" /> : <Sparkles size={18}/>} Migrar Dados Mock
+                    </button>
+                    {isMaster && (
+                        <div className="mt-4">
+                            <h4 className="text-sm font-bold text-red-600 flex items-center mb-2"><AlertOctagon size={16} className="mr-2"/> Ferramentas de Limpeza (Master Admin)</h4>
+                            <p className="text-xs text-gray-500 mb-3">
+                                CUIDADO! Estas ações são irreversíveis e APAGAM DADOS DO BANCO.
+                            </p>
+                            <div className="space-y-2">
+                                <button onClick={() => { if (window.confirm('Excluir TODOS os usuários (clientes e agências)?')) deleteMultipleUsers(clients.map(c => c.id)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todos os Usuários</button>
+                                <button onClick={() => { if (window.confirm('Excluir TODAS as agências e viagens?')) deleteMultipleAgencies(agencies.map(a => a.agencyId)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todas as Agências</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+        );
+      case 'USERS':
+        return (
+          <div className="animate-[fadeIn_0.3s]">
+            {userView === 'cards' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid
