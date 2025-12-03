@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -84,18 +83,20 @@ export interface Admin extends User {
 }
 
 // Updated Category List based on requirements (Removed SOZINHO)
-export type TripCategory = 
-  | 'PRAIA' 
-  | 'AVENTURA' 
-  | 'FAMILIA' 
-  | 'ROMANTICO' 
-  | 'URBANO' 
-  | 'NATUREZA' 
-  | 'CULTURA' 
-  | 'GASTRONOMICO' 
-  | 'VIDA_NOTURNA' 
-  | 'VIAGEM_BARATA' 
-  | 'ARTE';
+// Fix: Changed from type alias to string enum to enable runtime usage with Object.values
+export enum TripCategory { 
+  PRAIA = 'PRAIA', 
+  AVENTURA = 'AVENTURA', 
+  FAMILIA = 'FAMILIA', 
+  ROMANTICO = 'ROMANTICO', 
+  URBANO = 'URBANO', 
+  NATUREZA = 'NATUREZA', 
+  CULTURA = 'CULTURA', 
+  GASTRONOMICO = 'GASTRONOMICO', 
+  VIDA_NOTURNA = 'VIDA_NOTURNA', 
+  VIAGEM_BARATA = 'VIAGEM_BARATA', 
+  ARTE = 'ARTE',
+}
 
 // New Traveler Type definition
 export type TravelerType = 

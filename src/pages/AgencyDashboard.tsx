@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,11 +9,28 @@ import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
-// --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
+// --- STYLED COMPONENTS (LOCAL) ---
+// Fix: Added Badge component definition
+const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
+  const colors = {
+    green: 'bg-green-50 text-green-700 border-green-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    gray: 'bg-gray-50 text-gray-600 border-gray-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  };
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+      {children}
+    </span>
+  );
+};
+
 
 const MAX_IMAGES = 8;
 
@@ -323,7 +341,7 @@ export const AgencyDashboard: React.FC = () => {
 
   const [currentImages, setCurrentImages] = useState<string[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0); // Not fully implemented for supabase-js v2 upload, but kept for future
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
@@ -334,6 +352,9 @@ export const AgencyDashboard: React.FC = () => {
   const currentUserAgency = user && user.role === UserRole.AGENCY 
     ? agencies.find(a => a.id === user.id) 
     : undefined;
+  
+  // Fix: Add state for agency theme colors
+  const [agencyThemeColors, setAgencyThemeColors] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
 
   useEffect(() => {
     // If not authenticated or not an agency, redirect
@@ -348,7 +369,8 @@ export const AgencyDashboard: React.FC = () => {
       const loadAgencyTheme = async () => {
         const theme = await getAgencyTheme(currentUserAgency.agencyId);
         if (theme) {
-          setAgencyTheme(theme.colors);
+          setAgencyThemeColors(theme.colors); // Set initial state
+          setAgencyTheme(theme.colors); // Apply to global theme context
         }
       };
       loadAgencyTheme();
@@ -378,7 +400,7 @@ export const AgencyDashboard: React.FC = () => {
     setNewTripFormData({
       title: '', description: '', destination: '', price: 0,
       startDate: '', endDate: '', durationDays: 1,
-      category: 'PRAIA', tags: [], travelerTypes: [],
+      category: TripCategory.PRAIA, tags: [], travelerTypes: [], // Use enum for category
       itinerary: [], images: [], included: [], notIncluded: [],
       paymentMethods: [], is_active: true,
     });
@@ -590,13 +612,15 @@ export const AgencyDashboard: React.FC = () => {
     setModalType('THEME_SETTINGS');
   };
 
-  const handleSaveAgencyTheme = async (colors: ThemeColors) => {
+  // Fix: Adjusted handleSaveAgencyTheme to use `agencyThemeColors` state
+  const handleSaveAgencyTheme = async () => {
     if (!currentUserAgency) return;
     setIsProcessing(true);
     try {
-      const success = await saveAgencyTheme(currentUserAgency.agencyId, colors);
+      const success = await saveAgencyTheme(currentUserAgency.agencyId, agencyThemeColors);
       if (success) {
         showToast('Tema salvo com sucesso!', 'success');
+        setAgencyTheme(agencyThemeColors); // Update global theme context immediately
         await refreshData();
       } else {
         showToast('Erro ao salvar tema.', 'error');
@@ -823,7 +847,7 @@ export const AgencyDashboard: React.FC = () => {
                                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{review.comment}</p>
                                       </td>
                                       <td className="px-6 py-4 text-right">
-                                          <ActionMenu
+                                          <ActionsMenu
                                               actions={[
                                                   { label: 'Responder', icon: MessageSquare, onClick: () => showToast("Funcionalidade em desenvolvimento", "info") },
                                                   { label: 'Excluir', icon: Trash2, onClick: () => showToast("Funcionalidade em desenvolvimento", "info"), variant: 'danger' }
@@ -930,7 +954,7 @@ export const AgencyDashboard: React.FC = () => {
                     value={currentUserAgency.customSettings?.tags || []}
                     onChange={(newTags) => updateAgencyProfileByAdmin(currentUserAgency.agencyId, { customSettings: { ...currentUserAgency.customSettings, tags: newTags } })}
                     placeholder="Adicionar nova tag..."
-                    suggestions={SUGGESTED_TAGS}
+                    suggestions={currentUserAgency.customSettings?.tags || SUGGESTED_TAGS} // Use agency custom tags
                     onDeleteCustomSuggestion={(itemToDelete) => {
                       const updatedTags = (currentUserAgency.customSettings?.tags || []).filter(t => t !== itemToDelete);
                       updateAgencyProfileByAdmin(currentUserAgency.agencyId, { customSettings: { ...currentUserAgency.customSettings, tags: updatedTags } });
@@ -1315,19 +1339,25 @@ export const AgencyDashboard: React.FC = () => {
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
                     <div className="flex gap-2 items-center">
-                        <input type="color" value={currentUserAgency.colors?.primary || '#3b82f6'} onChange={e => handleSaveAgencyTheme({...currentUserAgency.colors, primary: e.target.value} as ThemeColors)} className="w-8 h-8 rounded-full border" />
-                        <input value={currentUserAgency.colors?.primary || '#3b82f6'} onChange={e => handleSaveAgencyTheme({...currentUserAgency.colors, primary: e.target.value} as ThemeColors)} className="flex-1 border p-2.5 rounded-lg text-sm font-mono" />
+                        {/* Fix: Bind to agencyThemeColors state */}
+                        <input type="color" value={agencyThemeColors.primary} onChange={e => setAgencyThemeColors(prev => ({...prev, primary: e.target.value}))} className="w-8 h-8 rounded-full border" />
+                        <input value={agencyThemeColors.primary} onChange={e => setAgencyThemeColors(prev => ({...prev, primary: e.target.value}))} className="flex-1 border p-2.5 rounded-lg text-sm font-mono" />
                     </div>
                 </div>
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
                     <div className="flex gap-2 items-center">
-                        <input type="color" value={currentUserAgency.colors?.secondary || '#f97316'} onChange={e => handleSaveAgencyTheme({...currentUserAgency.colors, secondary: e.target.value} as ThemeColors)} className="w-8 h-8 rounded-full border" />
-                        <input value={currentUserAgency.colors?.secondary || '#f97316'} onChange={e => handleSaveAgencyTheme({...currentUserAgency.colors, secondary: e.target.value} as ThemeColors)} className="flex-1 border p-2.5 rounded-lg text-sm font-mono" />
+                        {/* Fix: Bind to agencyThemeColors state */}
+                        <input type="color" value={agencyThemeColors.secondary} onChange={e => setAgencyThemeColors(prev => ({...prev, secondary: e.target.value}))} className="w-8 h-8 rounded-full border" />
+                        <input value={agencyThemeColors.secondary} onChange={e => setAgencyThemeColors(prev => ({...prev, secondary: e.target.value}))} className="flex-1 border p-2.5 rounded-lg text-sm font-mono" />
                     </div>
                 </div>
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                    <button onClick={() => showToast("Funcionalidade em desenvolvimento", "info")} className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2">
+                    {/* Fix: Trigger handleSaveAgencyTheme with a dedicated button */}
+                    <button onClick={handleSaveAgencyTheme} disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2">
+                        {isProcessing ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Tema
+                    </button>
+                    <button onClick={() => showToast("Funcionalidade em desenvolvimento", "info")} className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2 mt-2">
                         <Palette size={18}/> Ver Temas Pré-definidos
                     </button>
                 </div>

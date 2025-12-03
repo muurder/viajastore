@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +14,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck 
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck, ArrowRight, Bold, Italic, Underline, Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, Quote, Smile, Link as LinkIcon, Image as ImageIcon
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -121,6 +122,74 @@ const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeT
     )} 
   </button>
 );
+
+const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const execCmd = (command: string, arg?: string) => {
+    document.execCommand(command, false, arg);
+    if (contentRef.current) onChange(contentRef.current.innerHTML);
+  };
+  useEffect(() => {
+    if (contentRef.current && contentRef.current.innerHTML !== value && document.activeElement !== contentRef.current) contentRef.current.innerHTML = value;
+    if (value === '' && contentRef.current) contentRef.current.innerHTML = '';
+  }, [value]);
+  const handleInput = () => contentRef.current && onChange(contentRef.current.innerHTML);
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const text = e.clipboardData.getData('text/plain');
+      document.execCommand('insertText', false, text);
+      if (contentRef.current) onChange(contentRef.current.innerHTML);
+  };
+  const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
+  const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
+  const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
+  // Fix: ToolbarButton definition updated to accept an `onClick` prop
+  const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false, onClick }: any) => (<button type="button" onClick={() => onClick ? onClick() : (cmd && execCmd(cmd, arg))} className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`} title={title}><Icon size={18}/></button>);
+  const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
+  const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm flex flex-col">
+      <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center sticky top-0 z-10">
+        <ToolbarButton cmd="bold" icon={Bold} title="Negrito" />
+        <ToolbarButton cmd="italic" icon={Italic} title="Itálico" />
+        <ToolbarButton cmd="underline" icon={Underline} title="Sublinhado" />
+        <Divider />
+        <ToolbarButton cmd="formatBlock" arg="h2" icon={Heading1} title="Título Grande" />
+        <ToolbarButton cmd="formatBlock" arg="h3" icon={Heading2} title="Título Médio" />
+        <ToolbarButton cmd="formatBlock" arg="blockquote" icon={Quote} title="Citação" />
+        <Divider />
+        <ToolbarButton cmd="justifyLeft" icon={AlignLeft} title="Alinhar Esquerda" />
+        <ToolbarButton cmd="justifyCenter" icon={AlignCenter} title="Centralizar" />
+        <ToolbarButton cmd="justifyRight" icon={AlignRight} title="Alinhar Direita" />
+        <Divider />
+        {/* Fix: Pass addImage and addLink functions as onClick prop */}
+        <ToolbarButton icon={ImageIcon} title="Inserir Imagem" onClick={addImage} />
+        <ToolbarButton icon={LinkIcon} title="Inserir Link" onClick={addLink} />
+        <ToolbarButton icon={Smile} title="Inserir Emoji" onClick={() => setShowEmojiPicker(!showEmojiPicker)} />
+      </div>
+      <div
+        ref={contentRef}
+        contentEditable
+        onInput={handleInput}
+        onPaste={handlePaste}
+        className="flex-1 p-4 outline-none min-h-[150px] resize-y overflow-auto text-gray-800 prose max-w-none"
+        data-placeholder="Descreva a experiência em detalhes..."
+        role="textbox"
+        aria-multiline="true"
+        aria-label="Editor de texto rico para descrição"
+      />
+      {showEmojiPicker && (
+        <div className="absolute bottom-full left-0 mb-2 p-3 bg-white border border-gray-200 rounded-xl shadow-lg flex flex-wrap gap-2 animate-[fadeInUp_0.1s]">
+          {COMMON_EMOJIS.map(emoji => (
+            <button key={emoji} type="button" onClick={() => addEmoji(emoji)} className="text-xl p-1 hover:bg-gray-100 rounded-md">{emoji}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 export const AdminDashboard: React.FC = () => {
@@ -379,7 +448,7 @@ export const AdminDashboard: React.FC = () => {
   const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); logAuditAction('ADMIN_THEME_MANAGED', `Created new theme: ${newTheme.name} (ID: ${id})`); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
   const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); logAuditAction('ADMIN_THEME_MANAGED', `Deleted theme: ${themeName} (ID: ${themeId})`); } };
   
-  const tripCategories = useMemo(() => Array.from(new Set(trips.map(t => t.category))), [trips]);
+  const tripCategories = useMemo(() => Object.values(TripCategory), []); // Fix: Use Object.values with the enum
   const platformRevenue = useMemo(() => activeAgencies.reduce((total, agency) => total + (agency.subscriptionStatus === 'ACTIVE' ? (agency.subscriptionPlan === 'PREMIUM' ? 199.90 : 99.90) : 0), 0), [activeAgencies]);
 
   const filteredUsers = useMemo(() => (showUserTrash ? deletedUsers : activeUsers).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase())), [activeUsers, deletedUsers, showUserTrash, searchTerm]);
@@ -1076,161 +1145,6 @@ export const AdminDashboard: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-gray-400 text-sm">Nenhuma avaliação recebida ainda.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        } else {
-            // Master Admin Overview
-            return (
-                <div className="space-y-8 animate-[fadeIn_0.3s]">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <StatCard title="Receita Total" value={`R$ ${platformRevenue.toLocaleString()}`} subtitle="Receita bruta da plataforma" icon={DollarSign} color="green"/>
-                        <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle="Parceiros verificados" icon={Briefcase} color="blue"/>
-                        <StatCard title="Usuários Ativos" value={activeUsers.length} subtitle="Clientes da plataforma" icon={Users} color="purple"/>
-                        <StatCard title="Pacotes Ativos" value={trips.length} subtitle="Viagens disponíveis" icon={Plane} color="amber"/>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Atividade Recente */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-gray-900 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                                <button onClick={exportActivityLogsToPdf} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 flex items-center gap-1.5">
-                                    <Download size={14}/> Exportar PDF
-                                </button>
-                            </div>
-                            
-                            {/* Activity Log Filters */}
-                            <div className="flex flex-wrap gap-3 mb-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar no log..." 
-                                    value={activitySearchTerm} 
-                                    onChange={e => setActivitySearchTerm(e.target.value)}
-                                    className="flex-1 min-w-[150px] border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                                />
-                                <select 
-                                    value={activityActorRoleFilter} 
-                                    onChange={e => setActivityActorRoleFilter(e.target.value as ActivityActorRole | 'ALL')}
-                                    className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                                >
-                                    <option value="ALL">Todos os Perfis</option>
-                                    <option value="CLIENT">Cliente</option>
-                                    <option value="AGENCY">Agência</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
-                                <select 
-                                    value={activityActionTypeFilter} 
-                                    onChange={e => setActivityActionTypeFilter(e.target.value as ActivityActionType | 'ALL')}
-                                    className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                                >
-                                    <option value="ALL">Todos os Eventos</option>
-                                    <option value="TRIP_VIEWED">Viagem Visualizada</option>
-                                    <option value="BOOKING_CREATED">Reserva Criada</option>
-                                    <option value="REVIEW_SUBMITTED">Avaliação Enviada</option>
-                                    <option value="FAVORITE_TOGGLED">Favorito Alterado</option>
-                                    <option value="TRIP_CREATED">Viagem Criada</option>
-                                    <option value="TRIP_UPDATED">Viagem Atualizada</option>
-                                    <option value="TRIP_DELETED">Viagem Excluída</option>
-                                    <option value="TRIP_STATUS_TOGGLED">Status da Viagem Alterado</option>
-                                    <option value="TRIP_FEATURE_TOGGLED">Destaque da Viagem Alterado</option>
-                                    <option value="AGENCY_PROFILE_UPDATED">Perfil da Agência Atualizado</option>
-                                    <option value="AGENCY_STATUS_TOGGLED">Status da Agência Alterado</option>
-                                    <option value="AGENCY_SUBSCRIPTION_UPDATED">Assinatura da Agência Atualizada</option>
-                                    <option value="CLIENT_PROFILE_UPDATED">Perfil do Cliente Atualizado</option>
-                                    <option value="PASSWORD_RESET_INITIATED">Reset de Senha Iniciado</option>
-                                    <option value="ACCOUNT_DELETED">Conta Excluída</option>
-                                    <option value="ADMIN_USER_MANAGED">Usuário (Admin) Gerenciado</option>
-                                    <option value="ADMIN_AGENCY_MANAGED">Agência (Admin) Gerenciada</option>
-                                    <option value="ADMIN_THEME_MANAGED">Tema (Admin) Gerenciado</option>
-                                    <option value="ADMIN_MOCK_DATA_MIGRATED">Dados Mock Migrados (Admin)</option>
-                                    <option value="ADMIN_ACTION">Ação Administrativa</option>
-                                </select>
-                                <input 
-                                    type="date" 
-                                    value={activityStartDate} 
-                                    onChange={e => setActivityStartDate(e.target.value)}
-                                    className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                                />
-                                <input 
-                                    type="date" 
-                                    value={activityEndDate} 
-                                    onChange={e => setActivityEndDate(e.target.value)}
-                                    className="border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
-                                />
-                                {(activitySearchTerm || activityActorRoleFilter !== 'ALL' || activityActionTypeFilter !== 'ALL' || activityStartDate || activityEndDate) && (
-                                    <button 
-                                        onClick={() => { setActivitySearchTerm(''); setActivityActorRoleFilter('ALL'); setActivityActionTypeFilter('ALL'); setActivityStartDate(''); setActivityEndDate(''); }}
-                                        className="text-red-500 text-sm font-bold hover:underline px-2"
-                                    >
-                                        Limpar Filtros
-                                    </button>
-                                )}
-                            </div>
-
-
-                            {filteredActivityLogs.length > 0 ? (
-                                <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                                    {filteredActivityLogs.map(log => (
-                                        <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
-                                            <div className="flex-shrink-0">
-                                                {getActionIcon(log.action_type)}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
-                                                    {log.user_avatar && <img src={log.user_avatar} alt="Avatar" className="w-5 h-5 rounded-full object-cover"/>}
-                                                    {log.user_name}
-                                                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
-                                                </p>
-                                                <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                                                    <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
-                                                    {log.trip_title && ` na viagem "${log.trip_title}"`}
-                                                    {log.agency_name && ` da agência "${log.agency_name}"`}
-                                                    {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
-                                                    {log.details.action === 'restore' && ` (restaurado)`}
-                                                    {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
-                                                    {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
-                                                    {log.details.rating && ` (nota: ${log.details.rating})`}
-                                                </p>
-                                                <p className="text-[10px] text-gray-400 mt-1 flex items-center">
-                                                    <CalendarDays size={12} className="mr-1"/> {new Date(log.created_at).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade encontrada com os filtros selecionados.</div>
-                            )}
-                        </div>
-
-                        {/* Migrar Dados Mock */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Database size={20} className="mr-2 text-primary-600"/> Ferramentas de Dados</h3>
-                            <p className="text-sm text-gray-600 mb-4">
-                                Use para popular seu banco de dados de desenvolvimento com informações de exemplo.
-                                <br/>(Não use em produção!)
-                            </p>
-                            <button 
-                                onClick={migrateData} 
-                                disabled={isProcessing}
-                                className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isProcessing ? <Loader size={18} className="animate-spin" /> : <Sparkles size={18}/>} Migrar Dados Mock
-                            </button>
-                            {isMaster && (
-                                <div className="mt-4">
-                                    <h4 className="text-sm font-bold text-red-600 flex items-center mb-2"><AlertOctagon size={16} className="mr-2"/> Ferramentas de Limpeza (Master Admin)</h4>
-                                    <p className="text-xs text-gray-500 mb-3">
-                                        CUIDADO! Estas ações são irreversíveis e APAGAM DADOS DO BANCO.
-                                    </p>
-                                    <div className="space-y-2">
-                                        <button onClick={() => { if (window.confirm('Excluir TODOS os usuários (clientes e agências)?')) deleteMultipleUsers(clients.map(c => c.id)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todos os Usuários</button>
-                                        <button onClick={() => { if (window.confirm('Excluir TODAS as agências e viagens?')) deleteMultipleAgencies(agencies.map(a => a.agencyId)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todas as Agências</button>
-                                    </div>
-                                </div>
                             )}
                         </div>
                     </div>
