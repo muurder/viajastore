@@ -703,7 +703,7 @@ export const AdminDashboard: React.FC = () => {
                     {filteredActivityLogs.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
                             {filteredActivityLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
+                                <div key={log.id as string} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
                                     <div className="flex-shrink-0">
                                         {getActionIcon(log.action_type)}
                                     </div>
@@ -929,7 +929,7 @@ export const AdminDashboard: React.FC = () => {
                                                 <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
                                                 <p className="text-xs text-gray-500">{trip.destination}</p>
                                             </div>
-                                        </div>
+                                        </div> {/* <-- DIV FECHADA ADICIONADA AQUI */}
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-700">
                                         {agency ? (
@@ -1452,4 +1452,22 @@ export const AdminDashboard: React.FC = () => {
                             <p className="font-bold text-gray-900 text-lg sm:col-span-3">{stats.userName}</p>
                             <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Gasto</p><p className="font-bold text-gray-900">R$ {stats.totalSpent.toLocaleString('pt-BR')}</p></div>
                             <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Reservas</p><p className="font-bold text-gray-900">{stats.totalBookings}</p></div>
-                            <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Aval
+                            <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Avaliações</p><p className="font-bold text-gray-900">{stats.totalReviews}</p></div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-center py-8 text-gray-500">Nenhum dado de estatística disponível para os usuários selecionados.</div>
+                )}
+                <div className="flex justify-end">
+                    <button onClick={() => downloadPdf('users')} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700 transition-colors"><Download size={18}/> Exportar PDF</button>
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+export default AdminDashboard;

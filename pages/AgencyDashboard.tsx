@@ -4,11 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, ArrowRight, MessageCircle as MessageCircleIcon } from 'lucide-react'; // Fix: Import MessageCircle
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, ArrowRight, MessageCircle } from 'lucide-react'; // Fix: Import MessageCircle
 
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
@@ -29,6 +29,45 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
       {children}
     </span>
   );
+};
+
+// Fix: Renamed to GenericActionMenuProps to avoid collision
+interface GenericActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
+// Fix: Renamed to GenericActionMenu
+const GenericActionMenu: React.FC<GenericActionMenuProps> = ({ actions }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <MoreHorizontal size={18} />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
+                    <div className="py-1">
+                        {actions.map((action, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => { action.onClick(); setIsOpen(false); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                <action.icon size={16} /> {action.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 
@@ -76,43 +115,91 @@ const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeT
   </button>
 );
 
-// Generic ActionMenu (for reviews, etc.) - copied from AdminDashboard.tsx
-interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
-const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    return (
-        <div className="relative" ref={menuRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <MoreHorizontal size={18} />
-            </button>
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
-                    <div className="py-1">
-                        {actions.map((action, idx) => (
-                            <button 
-                                key={idx} 
-                                onClick={() => { action.onClick(); setIsOpen(false); }}
-                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
-                            >
-                                <action.icon size={16} /> {action.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+// Fix: Moved outside AgencyDashboard component
+const SubscriptionActivationView: React.FC<{
+  agency: Agency;
+  onSelectPlan: (plan: Plan) => void;
+  activatingPlanId: string | null;
+}> = ({ agency, onSelectPlan, activatingPlanId }) => {
+  return (
+    <div className="max-w-4xl mx-auto text-center py-12 animate-[fadeIn_0.3s]">
+      <div className="bg-red-50 p-4 rounded-full inline-block border-4 border-red-100 mb-4">
+        <CreditCard size={32} className="text-red-500" />
+      </div>
+      <h1 className="text-3xl font-bold text-gray-900">Ative sua conta de agência</h1>
+      <p className="text-gray-500 mt-2 mb-8">
+        Olá, {agency.name}! Para começar a vender e gerenciar seus pacotes, escolha um dos nossos planos de assinatura.
+      </p>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        {PLANS.map(plan => {
+          const isLoading = activatingPlanId === plan.id;
+          const isPremium = plan.id === 'PREMIUM';
+          return (
+            <div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all shadow-sm hover:shadow-xl relative overflow-hidden ${isPremium ? 'border-primary-500' : 'border-gray-200 hover:border-primary-300'}`}>
+              {isPremium && <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-md">Recomendado</div>}
+              <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+              <p className="text-3xl font-extrabold text-primary-600 mt-2">
+                R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span>
+              </p>
+              <ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8 text-left">
+                {plan.features.map((f, i) => (
+                  <li key={i} className="flex gap-3 items-start">
+                    <CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0" /> 
+                    <span className="leading-snug">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <button 
+                onClick={() => onSelectPlan(plan)}
+                disabled={!!activatingPlanId}
+                className="w-full py-3 rounded-xl font-bold transition-colors bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader size={16} className="animate-spin" /> Processando...
+                  </span>
+                ) : 'Selecionar Plano'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
+
+// Fix: Moved outside AgencyDashboard component
+const SubscriptionConfirmationModal: React.FC<{
+  plan: Plan;
+  onClose: () => void;
+  onConfirm: () => void;
+  isSubmitting: boolean;
+}> = ({ plan, onClose, onConfirm, isSubmitting }) => {
+  return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-bold mb-4">Confirmar Assinatura</h3>
+                <p className="mb-6">Você está prestes a ativar o <span className="font-bold">{plan.name}</span>.</p>
+                <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                    <div className="flex justify-between items-center">
+                        <span className="font-bold">Total</span>
+                        <span className="text-2xl font-bold text-primary-600">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Cobrança mensal</p>
+                </div>
+                <button onClick={onConfirm} disabled={isSubmitting} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader size={18} className="animate-spin" /> Processando...
+                      </span>
+                    ) : 'Confirmar Assinatura'}
+                </button>
+            </div>
+        </div>
+  );
+};
+
 
 // Fix: Renamed to TripActionsMenu
 const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
@@ -491,7 +578,7 @@ export const AgencyDashboard: React.FC = () => {
     } finally {
         setIsUploadingImage(false);
         setImageUploadProgress(0); // Reset
-        if (imageInputRef.current) event.target.value = ''; // Clear input // Fix: event.target.value
+        if (imageInputRef.current) imageInputRef.current.value = ''; // Clear input
     }
   };
 
@@ -683,7 +770,7 @@ export const AgencyDashboard: React.FC = () => {
               </div>
               {/* Últimas Avaliações */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MessageCircleIcon size={20} className="mr-2 text-amber-600"/> Últimas Avaliações</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MessageCircle size={20} className="mr-2 text-amber-600"/> Últimas Avaliações</h3>
                   {myReviews.length > 0 ? (
                       <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
                           {myReviews.slice(0,5).map(review => (
@@ -803,9 +890,9 @@ export const AgencyDashboard: React.FC = () => {
                                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{review.comment}</p>
                                       </td>
                                       <td className="px-6 py-4 text-right">
-                                          <ActionMenu // Fix: Using generic ActionMenu
+                                          <GenericActionMenu // Fix: Using generic ActionMenu
                                               actions={[
-                                                  { label: 'Responder', icon: MessageCircleIcon, onClick: () => showToast("Funcionalidade em desenvolvimento", "info") },
+                                                  { label: 'Responder', icon: MessageCircle, onClick: () => showToast("Funcionalidade em desenvolvimento", "info") },
                                                   { label: 'Excluir', icon: Trash2, onClick: () => showToast("Funcionalidade em desenvolvimento", "info"), variant: 'danger' }
                                               ]}
                                           />
@@ -1032,7 +1119,7 @@ export const AgencyDashboard: React.FC = () => {
                         ))}
                         {currentImages.length < MAX_IMAGES && (
                             <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer text-gray-500 hover:border-primary-500 hover:text-primary-600 transition-colors">
-                                {isUploadingImage ? <Loader className="animate-spin" size={30}/> : <Plus size={30}/>}
+                                {isUploadingImage ? <Loader className="animate-spin" size={20}/> : <Plus size={30}/>}
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} ref={imageInputRef} disabled={isUploadingImage}/>
                             </label>
                         )}
@@ -1264,12 +1351,12 @@ export const AgencyDashboard: React.FC = () => {
                               <button
                                   key={plan.id}
                                   onClick={() => handleSelectPlan(plan)}
-                                  disabled={isCurrent || !!isActivatingPlan}
+                                  disabled={isCurrent || !!activatingPlanId}
                                   className={`relative p-5 rounded-xl border-2 text-left transition-all ${isCurrent ? 'border-green-500 bg-green-50 text-green-800' : 'border-gray-200 hover:border-primary-500 hover:shadow-md'}`}
                               >
                                   {isCurrent && <span className="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Atual</span>}
                                   <p className="font-bold text-lg">{plan.name}</p>
-                                  <p className="text-primary-600 text-xl font-extrabold">R$ {plan.price.toFixed(2)} <span className="text-sm font-normal text-gray-400">/mês</span></p>
+                                  <p className="text-primary-600 text-xl font-extrabold">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p>
                                   <p className="text-xs text-gray-500 mt-2">{plan.features[0]}</p>
                                   {!isCurrent && (
                                       <span className="mt-3 block text-sm font-bold text-primary-600 flex items-center gap-2">
