@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -9,7 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard, MessageCircle } from 'lucide-react'; 
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard, MessageCircle, User, Palette } from 'lucide-react'; 
 import { supabase } from '../services/supabase';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
@@ -263,37 +262,29 @@ const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDupli
   );
 };
 
-const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[]; customSuggestions?: string[]; onDeleteCustomSuggestion?: (item: string) => void; }> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
-  const [inputValue, setInputValue] = useState('');
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputValue.trim() !== '') {
-      e.preventDefault();
-      if (!value.includes(inputValue.trim())) onChange([...value, inputValue.trim()]);
-      setInputValue('');
-    }
+interface ToolbarButtonProps {
+  cmd?: string;
+  icon: React.ComponentType<LucideProps>;
+  title?: string; // This title is for the HTML button element
+  arg?: string;
+  active?: boolean;
+}
+
+const ToolbarButton: React.FC<ToolbarButtonProps> = ({ cmd, icon: Icon, title, arg, active = false }) => {
+  const execCmd = (command: string, arg?: string) => {
+    document.execCommand(command, false, arg);
+    // Note: The parent RichTextEditor will handle onChange through its onInput handler.
   };
-  const handleAdd = (item: string) => !value.includes(item) && onChange([...value, item]);
-  const handleRemove = (itemToRemove: string) => onChange(value.filter(item => item !== itemToRemove));
-  const handleDeleteCustom = (e: React.MouseEvent, item: string) => {
-      e.stopPropagation();
-      if (window.confirm(`Remover "${item}" das suas sugestões salvas?`)) onDeleteCustomSuggestion?.(item);
-  };
-  const availableSuggestions = suggestions.filter(s => !value.includes(s));
-  const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
   return (
-    <div className="space-y-3">
-      {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
-        <div className="flex flex-wrap gap-2">
-            {availableSuggestions.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded-md hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all flex items-center gap-1"><Plus size={10} /> {s}</button>))}
-            {availableCustom.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-100 transition-all flex items-center gap-1 group relative pr-6"><Plus size={10} /> {s}<span onClick={(e) => handleDeleteCustom(e, s)} className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-300 hover:text-red-500 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity" title="Remover sugestão salva"><X size={10} /></span></button>))}
-        </div>
-      )}
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"/>
-      <div className="flex flex-wrap gap-2 min-h-[2rem]">
-        {value.map((item, index) => (<div key={index} className="flex items-center bg-primary-50 text-primary-800 border border-primary-100 text-sm font-bold px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]"><span>{item}</span><button type="button" onClick={() => handleRemove(item)} className="ml-2 text-primary-400 hover:text-red-500"><X size={14} /></button></div>))}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={() => cmd && execCmd(cmd, arg)}
+      className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`}
+      title={title}
+    >
+      <Icon size={18} />
+    </button>
   );
 };
 
@@ -318,7 +309,6 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
   const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
   const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
-  const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false }: any) => (<button type="button" onClick={() => cmd && execCmd(cmd, arg)} className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`} title={title}><Icon size={18}/></button>);
   const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
   const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
 
@@ -407,7 +397,7 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', description: '', destination: '', price: 0,
     startDate: '', endDate: '', durationDays: 1, images: [],
-    category: 'PRAIA', tags: [], travelerTypes: [], // FIX: Ensure travelerTypes is typed correctly
+    category: 'PRAIA', tags: [], travelerTypes: [] as TravelerType[],
     itinerary: [], paymentMethods: [], included: [], notIncluded: [],
     is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
   });
@@ -547,7 +537,7 @@ const AgencyDashboard: React.FC = () => {
     setTripForm({
       title: '', description: '', destination: '', price: 0,
       startDate: '', endDate: '', durationDays: 1, images: [],
-      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
+      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [] as TravelerType[],
       itinerary: [{ day: 1, title: '', description: '' }], paymentMethods: agency.customSettings?.paymentMethods || [], included: agency.customSettings?.included || [], notIncluded: agency.customSettings?.notIncluded || [],
       is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
     });
@@ -814,10 +804,10 @@ const AgencyDashboard: React.FC = () => {
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-        <button onClick={() => handleTabChange('OVERVIEW')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><LayoutDashboard size={16}/> Visão Geral</button>
-        <button onClick={() => handleTabChange('TRIPS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Plane size={16}/> Minhas Viagens</button>
-        <button onClick={() => handleTabChange('REVIEWS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'REVIEWS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Star size={16}/> Avaliações ({myReviews.length})</button>
-        <button onClick={() => handleTabChange('SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Settings size={16}/> Configurações</button>
+        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={LayoutDashboard} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="TRIPS" label="Minhas Viagens" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} hasNotification={myReviews.length > 0} />
+        <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
       </div>
 
       {activeTab === 'OVERVIEW' && (
@@ -991,10 +981,10 @@ const AgencyDashboard: React.FC = () => {
       {activeTab === 'SETTINGS' && (
         <div className="animate-[fadeIn_0.3s]">
           <div className="flex border-b border-gray-200 mb-6 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-            <button onClick={() => handleSettingsTabChange('PROFILE')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'PROFILE' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><User size={14}/> Perfil da Agência</button>
-            <button onClick={() => handleSettingsTabChange('HERO')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'HERO' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><MonitorPlay size={14}/> Página Principal</button>
-            <button onClick={() => handleSettingsTabChange('SUBSCRIPTION')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><CreditCard size={14}/> Assinatura</button>
-            <button onClick={() => handleSettingsTabChange('THEME')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'THEME' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={14}/> Tema do Microsite</button>
+            <NavButton tabId="PROFILE" label="Perfil da Agência" icon={User} activeTab={settingsTab} onClick={handleSettingsTabChange} />
+            <NavButton tabId="HERO" label="Página Principal" icon={MonitorPlay} activeTab={settingsTab} onClick={handleSettingsTabChange} />
+            <NavButton tabId="SUBSCRIPTION" label="Assinatura" icon={CreditCard} activeTab={settingsTab} onClick={handleSettingsTabChange} />
+            <NavButton tabId="THEME" label="Tema do Microsite" icon={Palette} activeTab={settingsTab} onClick={handleSettingsTabChange} />
           </div>
 
           {settingsTab === 'PROFILE' && (
@@ -1115,7 +1105,7 @@ const AgencyDashboard: React.FC = () => {
                             <PillInput 
                                 value={customSuggestionsForm.paymentMethods} 
                                 onChange={newMethods => setCustomSuggestionsForm({...customSuggestionsForm, paymentMethods: newMethods})} 
-                                placeholder="Adicione as formas de pagamento que você aceita"
+                                placeholder="Adicione formas de pagamento (ex: Pix, Cartão)"
                                 suggestions={SUGGESTED_PAYMENTS}
                             />
                         </div>

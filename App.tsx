@@ -12,7 +12,7 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 // Corrected import path for MasterAdminDashboard component
-import { MasterAdminDashboard } from './pages/MasterAdminDashboard'; 
+import { MasterAdminDashboard } from './pages/MasterAdminDashboard.tsx'; 
 import AgencyDashboard from './pages/AgencyDashboard'; 
 import ClientDashboard from './pages/ClientDashboard'; 
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
