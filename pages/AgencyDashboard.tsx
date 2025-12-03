@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -141,5 +142,3 @@ const SubscriptionActivationView: React.FC<{
               <p className="text-3xl font-extrabold text-primary-600 mt-2">
                 R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span>
               </p>
-              <ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8 text-left">
-                {plan.features.map
