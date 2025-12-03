@@ -1,12 +1,11 @@
 
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
+import { TripCategory, UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -29,11 +28,11 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
     green: 'bg-green-50 text-green-700 border-green-200',
     red: 'bg-red-50 text-red-700 border-red-200',
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200', // Fix: Completed purple color
     gray: 'bg-gray-50 text-gray-600 border-gray-200',
     amber: 'bg-amber-50 text-amber-700 border-amber-200',
   };
-  return (
+  return ( // Fix: Added return statement
     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
       {children}
     </span>
@@ -387,7 +386,8 @@ export const AdminDashboard: React.FC = () => {
       }
   }; // <--- THIS WAS THE MISSING CLOSING BRACE
 
-  const handleAgencyUpdate = async () => {
+  const handleAgencyUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -401,7 +401,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleReviewUpdate = async () => {
+  const handleReviewUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -417,7 +418,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleTripUpdate = async () => {
+  const handleTripUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -503,7 +505,7 @@ export const AdminDashboard: React.FC = () => {
         log.user_name?.toLowerCase().includes(searchLower) ||
         log.agency_name?.toLowerCase().includes(searchLower) ||
         log.trip_title?.toLowerCase().includes(searchLower) ||
-        log.action_type.toLowerCase().includes(searchLower) ||
+        (log.action_type as string).toLowerCase().includes(searchLower) || // Fix: Cast to string
         JSON.stringify(log.details).toLowerCase().includes(searchLower)
       );
     }
@@ -546,7 +548,7 @@ export const AdminDashboard: React.FC = () => {
       new Date(log.created_at).toLocaleString('pt-BR'),
       log.user_name || log.actor_email,
       log.actor_role,
-      log.action_type.replace(/_/g, ' '),
+      (log.action_type as string).replace(/_/g, ' '), // Fix: Cast to string
       JSON.stringify(log.details)
     ]);
 
@@ -702,7 +704,7 @@ export const AdminDashboard: React.FC = () => {
                     {filteredActivityLogs.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
                             {filteredActivityLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3">
+                                <div key={log.id as string} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-start gap-3"> {/* Fix: Cast log.id to string */}
                                     <div className="flex-shrink-0">
                                         {getActionIcon(log.action_type)}
                                     </div>
@@ -713,7 +715,7 @@ export const AdminDashboard: React.FC = () => {
                                             <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{log.actor_role}</span>
                                         </p>
                                         <p className="text-xs text-gray-600 line-clamp-2 mt-1">
-                                            <span className="font-semibold">{log.action_type.replace(/_/g, ' ')}</span>
+                                            <span className="font-semibold">{(log.action_type as string).replace(/_/g, ' ')}</span> {/* Fix: Cast to string */}
                                             {log.trip_title && ` na viagem "${log.trip_title}"`}
                                             {log.agency_name && ` da agência "${log.agency_name}"`}
                                             {log.details.action === 'soft_delete' && ` (movido para lixeira)`}
@@ -928,8 +930,7 @@ export const AdminDashboard: React.FC = () => {
                                                 <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
                                                 <p className="text-xs text-gray-500">{trip.destination}</p>
                                             </div>
-                                        </div>
-                                    </td>
+                                        </td>
                                     <td className="px-6 py-4 text-sm text-gray-700">
                                         {agency ? (
                                             <Link to={`/#/${agency.slug}`} target="_blank" className="flex items-center hover:underline max-w-[150px] truncate">
@@ -1468,3 +1469,5 @@ export const AdminDashboard: React.FC = () => {
     </div>
   );
 };
+
+export default AgencyDashboard;

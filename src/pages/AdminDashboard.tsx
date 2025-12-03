@@ -1,11 +1,10 @@
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
+import { TripCategory, UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -370,7 +369,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleUserUpdate = async () => {
+  const handleUserUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+      e.preventDefault(); // Prevent default form submission
       if (!selectedItem) return;
       setIsProcessing(true);
       try {
@@ -385,7 +385,8 @@ export const AdminDashboard: React.FC = () => {
       }
   }; // <--- THIS WAS THE MISSING CLOSING BRACE
 
-  const handleAgencyUpdate = async () => {
+  const handleAgencyUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -399,7 +400,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleReviewUpdate = async () => {
+  const handleReviewUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -415,7 +417,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleTripUpdate = async () => {
+  const handleTripUpdate = async (e: React.FormEvent) => { // Added e: React.FormEvent parameter
+    e.preventDefault(); // Prevent default form submission
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
@@ -1449,20 +1452,4 @@ export const AdminDashboard: React.FC = () => {
                             <p className="font-bold text-gray-900 text-lg sm:col-span-3">{stats.userName}</p>
                             <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Gasto</p><p className="font-bold text-gray-900">R$ {stats.totalSpent.toLocaleString('pt-BR')}</p></div>
                             <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Reservas</p><p className="font-bold text-gray-900">{stats.totalBookings}</p></div>
-                            <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Avaliações</p><p className="font-bold text-gray-900">{stats.totalReviews}</p></div>
-                        </div>
-                    ))
-                ) : (
-                    <div className="text-center py-8 text-gray-500">Nenhum dado de estatística disponível para os usuários selecionados.</div>
-                )}
-                <div className="flex justify-end">
-                    <button onClick={() => downloadPdf('users')} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700 transition-colors"><Download size={18}/> Exportar PDF</button>
-                </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-};
+                            <div><p className="text-xs font-bold text-gray-500 uppercase mb-1">Total Aval
