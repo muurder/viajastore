@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef, ForwardRefExoticComponent, RefAttributes } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -582,4 +583,146 @@ const AgencyLandingPage: React.FC = () => {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div className="flex gap-4"><ShieldCheck className="text-green-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Segurança Garantida</h4><p className="text-sm text-gray-500 mt-1">Agência verificada com CNPJ e suporte 24h durante a viagem.</p></div></div>
                                 <div className="flex gap-4"><Award className="text-blue-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Guias Especialistas</h4><p className="text-sm text-gray-500 mt-1">Profissionais locais que conhecem cada detalhe do destino.</p></div></div>
-                                <div className="flex gap-4"><ThumbsUp className="text-primary-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Melhor Custo-Benefício</h4><p
+                                <div className="flex gap-4"><ThumbsUp className="text-primary-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Melhor Custo-Benefício</h4><p className="text-sm text-gray-500 mt-1">Negociamos diretamente com hotéis e passeios para o melhor preço.</p></div></div>
+                                <div className="flex gap-4"><Heart className="text-red-500 flex-shrink-0" size={24} /><div><h4 className="font-bold text-gray-900">Feito com Carinho</h4><p className="text-sm text-gray-500 mt-1">Roteiros pensados nos mínimos detalhes para você só aproveitar.</p></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200">
+                            <h4 className="font-bold text-gray-900 mb-4">Contatos</h4>
+                            <ul className="space-y-3 text-sm text-gray-600">
+                                {agency.whatsapp && (<li className="flex items-center gap-3"><div className="bg-green-100 p-2 rounded-full text-green-600"><Smartphone size={16}/></div><span>{agency.whatsapp}</span></li>)}
+                                {agency.email && (<li className="flex items-center gap-3"><div className="bg-blue-100 p-2 rounded-full text-blue-600"><Mail size={16}/></div><span className="truncate">{agency.email}</span></li>)}
+                                <li className="flex items-center gap-3"><div className="bg-gray-200 p-2 rounded-full text-gray-600"><ShieldCheck size={16}/></div><span>CNPJ: {agency.cnpj}</span></li>
+                            </ul>
+                        </div>
+                        {agency.address && ( <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200"><h4 className="font-bold text-gray-900 mb-4">Localização</h4><p className="text-sm text-gray-600 mb-4">{agency.address.street}, {agency.address.number}<br/>{agency.address.district} - {agency.address.city}/{agency.address.state}</p><div className="w-full h-32 bg-gray-200 rounded-xl flex items-center justify-center text-gray-400 text-xs font-bold uppercase tracking-widest border border-gray-300">Mapa da Região</div></div>)}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {activeTab === 'REVIEWS' && (
+            <div className="max-w-4xl mx-auto animate-[fadeIn_0.3s] mt-8 grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="lg:col-span-2 space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Opinião de quem já viajou</h2>
+                    {agencyReviews.filter(r => r.clientId !== user?.id).length > 0 ? agencyReviews.filter(r => r.clientId !== user?.id).map((review) => {
+                        const clientBookingsWithAgency = bookings.filter(b => b.clientId === review.clientId && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED').length;
+                        return (
+                            <div key={review.id} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 uppercase overflow-hidden border border-gray-200">
+                                            {review.clientAvatar ? (
+                                                <img 
+                                                    src={review.clientAvatar} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover" 
+                                                    onError={(e) => {
+                                                        // Fallback to ui-avatars if image fails
+                                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`;
+                                                    }}
+                                                />
+                                            ) : (
+                                                <img 
+                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(review.clientName || 'V')}&background=random`} 
+                                                    alt={review.clientName || 'Viajante'} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Viajante'}</p>
+                                            <div className="text-xs text-gray-400 flex items-center gap-2 flex-wrap">
+                                                <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="font-medium text-green-600">Compra Verificada</span>
+                                                {clientBookingsWithAgency > 1 && (
+                                                    <>
+                                                        <span className="text-gray-300">•</span>
+                                                        <span className="font-medium text-gray-500">{clientBookingsWithAgency} viagens com esta agência</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}</div>
+                                </div>
+                                
+                                {review.tripTitle && (
+                                    <div className="mb-4 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block">
+                                        Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
+                                    </div>
+                                )}
+
+                                <p className="text-gray-600 text-sm leading-relaxed mb-4">"{review.comment}"</p>
+                                
+                                {review.tags && review.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        {review.tags.map(tag => (
+                                            <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                {review.response && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <p className="text-xs font-bold text-gray-600 mb-2">Resposta da agência</p>
+                                            <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }) : (
+                        <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500 italic">Esta agência ainda não recebeu nenhuma avaliação.</p></div>
+                    )}
+                </div>
+                <div className="lg:col-span-1">
+                    <div className="sticky top-28 bg-white rounded-2xl border border-gray-200 shadow-lg p-6">
+                        {!user ? (
+                            <div className="text-center"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500 mb-4">Faça login para compartilhar sua experiência.</p><Link to="/#login" className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg w-full inline-block">Fazer Login</Link></div>
+                        ) : hasPurchased ? (
+                            myReview && !isEditingReview ? (
+                                <div className="space-y-4">
+                                    <h3 className="font-bold text-lg">Sua Avaliação</h3>
+                                    <div className="bg-primary-50 p-4 rounded-xl border border-primary-100"><div className="flex justify-between items-center mb-2"><span className="text-sm font-bold text-primary-800">Minha nota</span><div className="flex text-amber-400">{[...Array(5)].map((_, i) => ( <Star key={i} size={14} className={i < myReview.rating ? "fill-current" : "text-gray-200"} />))}</div></div><p className="text-sm text-gray-700 italic">"{myReview.comment}"</p></div>
+                                    <button onClick={() => setIsEditingReview(true)} className="w-full bg-gray-100 text-gray-700 font-bold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200"><Edit size={16}/> Editar Avaliação</button>
+                                </div>
+                            ) : (
+                                <div>
+                                    <h3 className="font-bold text-lg mb-4">{isEditingReview ? "Editar sua avaliação" : "Deixe sua avaliação"}</h3>
+                                    <ReviewForm 
+                                      key={isEditingReview ? (myReview?.id || 'edit_review_form') : 'new_review_form'} // Robust key for remounting
+                                      onSubmit={isEditingReview ? handleReviewUpdate : handleReviewSubmit} 
+                                      isSubmitting={isSubmittingReview} 
+                                      initialRating={myReview?.rating || 5} // Provide default for initialRating
+                                      initialComment={myReview?.comment || ''} // Provide default for initialComment
+                                      initialTags={myReview?.tags || []} // Provide default for initialTags
+                                      submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
+                                    />
+                                    {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
+                                </div>
+                            )
+                        ) : (
+                            <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500">Você precisa ter comprado um pacote desta agência para poder avaliá-la.</p></div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+
+      <div className="text-center pt-12 pb-4 border-t border-gray-200">
+          <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold transition-colors text-xs uppercase tracking-widest">
+              <Globe size={12} className="mr-2" /> Voltar para ViajaStore
+          </Link>
+      </div>
+    </div>
+  );
+};
+
+export default AgencyLandingPage;

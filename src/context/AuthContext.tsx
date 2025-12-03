@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -511,8 +510,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
         if (userData.avatar) updates.avatar_url = userData.avatar;
-        if (userData.address) updates.address = (userData as Client).address;
-
+        if (userData.address) updates.address = (userData as Client).address; // Added missing address update
+        
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;
       }

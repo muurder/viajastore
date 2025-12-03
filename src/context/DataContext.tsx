@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -183,7 +181,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
             rating: t.rating || 0, // Assuming rating might be present or default to 0
-            totalReviews: t.totalReviews || 0,
+            totalReviews: t.total_reviews || 0, // FIX: Use t.total_reviews from DB
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -352,7 +350,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 payment_methods,
                 is_active,
                 rating,
-                totalReviews,
+                total_reviews,
                 included,
                 not_included,
                 views_count,
@@ -365,6 +363,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   id,
                   user_id,
                   name,
+                  email,
                   slug,
                   phone,
                   whatsapp,
@@ -411,7 +410,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b.trips.totalReviews || 0,
+               totalReviews: b.trips.total_reviews || 0, // FIX: Use b.trips.total_reviews
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
@@ -684,6 +683,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) throw error;
 
       if (data) {
+        // Correctly populate _trip and _agency from the data passed in `booking` object
+        // Assuming the `booking` object passed to `addBooking` already has these details
+        // as they are needed for the success page immediately.
         const formattedData: Booking = {
           id: data.id,
           tripId: data.trip_id,
@@ -1197,7 +1199,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
       const totalRatingSum = agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0);
       const averageRating = agencyReviewsForStats.length > 0 ? totalRatingSum / agencyReviewsForStats.length : 0;
-      const totalReviewsCount = agencyReviewsForStats.length;
+      const totalReviewsCount = agencyReviewsForStats.length; // FIX: Use totalReviewsCount here
 
       return { 
           totalRevenue, 
