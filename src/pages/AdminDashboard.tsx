@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -384,7 +383,7 @@ export const AdminDashboard: React.FC = () => {
           setIsProcessing(false);
           setModalType(null);
       }
-  };
+  }; // <--- THIS WAS THE MISSING CLOSING BRACE
 
   const handleAgencyUpdate = async () => {
     if (!selectedItem) return;

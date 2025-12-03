@@ -1,6 +1,7 @@
 
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType, TripCategory } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -175,7 +176,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     .sort((a: any, b: any) => a.position - b.position)
                     .map((img: any) => img.image_url) 
                 : [],
-            category: t.category || 'PRAIA',
+            category: t.category as TripCategory || TripCategory.PRAIA,
             tags: t.tags || [],
             travelerTypes: t.traveler_types || [],
             itinerary: t.itinerary || [],
@@ -404,7 +405,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                endDate: b.trips.end_date,
                durationDays: b.trips.duration_days,
                images: images,
-               category: b.trips.category || 'PRAIA',
+               category: b.trips.category as TripCategory || TripCategory.PRAIA,
                tags: b.trips.tags || [],
                travelerTypes: b.trips.traveler_types || [],
                itinerary: b.trips.itinerary || [],
