@@ -1,8 +1,167 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
 import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
-import { useNavigate } => navigate('/client/dashboard/PROFILE');
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
+
+interface AuthModalProps {
+  initialView: 'login' | 'signup';
+  onClose: () => void;
+  agencyContext?: Agency;
+}
+
+const AuthModal: React.FC<AuthModalProps> = ({ initialView, onClose, agencyContext }) => {
+  const [view, setView] = useState(initialView);
+  
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s]"
+      onClick={onClose}
+    >
+      <div 
+        className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-[scaleIn_0.3s]"
+        onClick={e => e.stopPropagation()}
+      >
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 bg-gray-100 p-2 rounded-full transition-colors"
+          aria-label="Fechar modal"
+        >
+          <X size={20} />
+        </button>
+
+        {view === 'login' 
+          ? <LoginView setView={setView} onClose={onClose} agencyContext={agencyContext} /> 
+          : <SignupView setView={setView} onClose={onClose} agencyContext={agencyContext} />}
+      </div>
+    </div>
+  );
+};
+
+// --- LOGIN VIEW ---
+const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
+    const { login, loginWithGoogle } = useAuth();
+    const navigate = useNavigate();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+        const result = await login(email, password);
+        if (result.success) {
+            onClose();
+        } else {
+            setError(result.error || 'Falha no login.');
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <div className="p-8 md:p-10">
+            {agencyContext && (
+                <div className="text-center mb-4">
+                    <img src={agencyContext.logo} className="w-14 h-14 rounded-full mx-auto mb-2 border-2 border-gray-100" alt={`${agencyContext.name} logo`} />
+                    <p className="text-xs text-gray-500">Acessando <span className="font-bold text-gray-700">{agencyContext.name}</span></p>
+                </div>
+            )}
+            <h2 className="text-2xl font-bold text-center text-gray-900">Bem-vindo de volta!</h2>
+            <p className="text-center text-sm text-gray-500 mt-2 mb-6">Faça login para continuar.</p>
+            
+            {/* Login View: Generic Google Login (checks existing account) */}
+            <GoogleButton label="Entrar com Google" onClick={() => loginWithGoogle()} />
+
+            <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
+                <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">ou com email</span></div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
+                    </div>
+                </div>
+                <div>
+                    <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required minLength={6}/>
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}><Eye size={18}/></button>
+                    </div>
+                </div>
+                {error && <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle size={16}/> {error}</p>}
+                <button type="submit" disabled={isLoading} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                    {isLoading ? 'Entrando...' : 'Entrar'}
+                </button>
+            </form>
+            <p className="text-center text-sm mt-6">
+                Não tem uma conta? <button onClick={() => setView('signup')} className="font-bold text-primary-600 hover:underline">Cadastre-se</button>
+            </p>
+        </div>
+    );
+};
+
+// --- SIGNUP VIEW ---
+const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
+    const { register, loginWithGoogle } = useAuth();
+    const { showToast } = useToast();
+    const navigate = useNavigate();
+    
+    const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cpf: '', phone: '' }); // Removed cnpj from formData
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setError('');
+    };
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (formData.password !== formData.confirmPassword) return setError('As senhas não coincidem.');
+        if (formData.password.length < 6) return setError('A senha deve ter no mínimo 6 caracteres.');
+        
+        setIsLoading(true);
+        const role = activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY;
+        const result = await register(formData, role);
+        
+        if (result.success) {
+            onClose();
+            // Show toast based on message
+            if (result.message) {
+                // If userId is present, it means the user is also signed in.
+                // Otherwise, it's just an info message (e.g., email verification).
+                showToast(result.message, result.userId ? 'success' : 'info'); 
+            } else {
+                showToast('Conta criada com sucesso!', 'success');
+            }
+
+            if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
+                if (result.role === UserRole.AGENCY) {
+                    navigate('/agency/dashboard');
+                } else if (result.role === UserRole.CLIENT) {
+                    navigate('/client/dashboard/PROFILE');
                 }
             } else {
                 // If not immediately signed in (e.g., email verification needed), navigate to home
@@ -64,8 +223,8 @@ import { useNavigate } => navigate('/client/dashboard/PROFILE');
                     </div>
                 )}
                 
-                <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
-                <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" minLength={6}/>
+                <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" minLength={6}/>
                 
                 {error && <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle size={16}/> {error}</p>}
 
