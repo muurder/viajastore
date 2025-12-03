@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -122,7 +123,7 @@ const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeT
 
 
 export const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth(); // Destructure authLoading
   const { 
       agencies, trips, agencyReviews, clients, auditLogs, bookings, activityLogs,
       updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, 
@@ -522,6 +523,11 @@ export const AdminDashboard: React.FC = () => {
 
   // FIX: AdminDashboard should be accessible by both ADMIN and AGENCY users.
   // The content displayed then depends on the user's role.
+  // Add loading check here to prevent premature "Acesso negado" message
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
+  }
+
   if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.AGENCY)) {
     return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
   }
@@ -644,5 +650,85 @@ export const AdminDashboard: React.FC = () => {
                                             {log.details.action === 'permanent_delete' && ` (excluído permanentemente)`}
                                             {log.details.newStatus && ` (novo status: ${log.details.newStatus})`}
                                             {log.details.rating && ` (nota: ${log.details.rating})`}
-                                        </p>
-                                        <p className="text-[10px] text-gray-400 mt-1 flex items-center
+                                                </p>
+                                                <p className="text-[10px] text-gray-400 mt-1 flex items-center">
+                                                    <CalendarDays size={12} className="mr-1"/> {new Date(log.created_at).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade encontrada com os filtros selecionados.</div>
+                            )}
+                        </div>
+
+                        {/* Migrar Dados Mock */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Database size={20} className="mr-2 text-primary-600"/> Ferramentas de Dados</h3>
+                            <p className="text-sm text-gray-600 mb-4">
+                                Use para popular seu banco de dados de desenvolvimento com informações de exemplo.
+                                <br/>(Não use em produção!)
+                            </p>
+                            <button 
+                                onClick={migrateData} 
+                                disabled={isProcessing}
+                                className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isProcessing ? <Loader size={18} className="animate-spin" /> : <Sparkles size={18}/>} Migrar Dados Mock
+                            </button>
+                            {isMaster && (
+                                <div className="mt-4">
+                                    <h4 className="text-sm font-bold text-red-600 flex items-center mb-2"><AlertOctagon size={16} className="mr-2"/> Ferramentas de Limpeza (Master Admin)</h4>
+                                    <p className="text-xs text-gray-500 mb-3">
+                                        CUIDADO! Estas ações são irreversíveis e APAGAM DADOS DO BANCO.
+                                    </p>
+                                    <div className="space-y-2">
+                                        <button onClick={() => { if (window.confirm('Excluir TODOS os usuários (clientes e agências)?')) deleteMultipleUsers(clients.map(c => c.id)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todos os Usuários</button>
+                                        <button onClick={() => { if (window.confirm('Excluir TODAS as agências e viagens?')) deleteMultipleAgencies(agencies.map(a => a.agencyId)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todas as Agências</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <h1 className="text-3xl font-bold text-gray-900">{isAgencyUser ? 'Meu Painel de Agência' : 'Painel Master'}</h1>
+        <div className="flex flex-wrap gap-3">
+            <button onClick={handleRefresh} disabled={isProcessing} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
+                {isProcessing ? <Loader size={18} className="animate-spin mr-2"/> : <RefreshCw size={18} className="mr-2"/>}
+                Atualizar Dados
+            </button>
+            <div className="relative">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 outline-none"/>
+            </div>
+        </div>
+      </div>
+      
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={LayoutGrid} activeTab={activeTab} onClick={handleTabChange} />
+        {isMaster && <NavButton tabId="USERS" label={`Usuários ${deletedUsers.length > 0 ? `(${deletedUsers.length})` : ''}`} icon={Users} activeTab={activeTab} onClick={handleTabChange} hasNotification={deletedUsers.length > 0} />}
+        {isMaster && <NavButton tabId="AGENCIES" label={`Agências ${deletedAgencies.length > 0 ? `(${deletedAgencies.length})` : ''}`} icon={Briefcase} activeTab={activeTab} onClick={handleTabChange} hasNotification={deletedAgencies.length > 0} />}
+        <NavButton tabId="TRIPS" label="Viagens" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
+        {isMaster && <NavButton tabId="SETTINGS" label="Temas" icon={Palette} activeTab={activeTab} onClick={handleTabChange} />}
+      </div>
+
+      {/* Bulk Actions & View Toggles */}
+      {(activeTab === 'USERS' || activeTab === 'AGENCIES') && isMaster && (
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+                <span className="text-gray-600 text-sm font-medium">Selecionados: <span className="font-bold">{activeTab === 'USERS' ? selectedUsers.length : selectedAgencies.length}</span></span>
+                {activeTab === 'USERS' && selectedUsers.length > 0 && (
+                    <div className="flex gap-2">
+                        <button onClick={() => handleMassUpdateUserStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
+                        <button onClick={()

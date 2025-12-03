@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -205,7 +206,6 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
   const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
-  // Fixed: Added return statement to make it a valid React functional component
   return (
     <div className="space-y-3">
       {(availableSuggestions.length > 0 || availableCustom.length > 0) && (

@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -12,7 +12,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, ShieldCheck
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, CalendarDays, User, Building, MapPin, Clock, Heart, ShieldCheck 
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -22,7 +22,6 @@ import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
-// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -39,7 +38,6 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-// Fix: Define StatCard component locally
 interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
@@ -60,7 +58,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Fix: Define ActionMenu component locally
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -98,13 +95,37 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     );
 };
 
-// --- MAIN COMPONENT ---
+// FIX: NavButton component definition to ensure correct typing and usage
+interface NavButtonProps {
+  tabId: string;
+  label: string;
+  icon: React.ComponentType<LucideProps>;
+  activeTab: string;
+  onClick: (tabId: string) => void;
+  hasNotification?: boolean;
+}
 
-// Fix: Export AdminDashboard directly
+const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
+  <button 
+    onClick={() => onClick(tabId)} 
+    className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+  >
+    <Icon size={16} /> 
+    {label} 
+    {hasNotification && ( 
+      <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> 
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> 
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> 
+      </span> 
+    )} 
+  </button>
+);
+
+
 export const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth(); // Destructure authLoading
   const { 
-      agencies, trips, agencyReviews, clients, auditLogs, bookings,
+      agencies, trips, agencyReviews, clients, auditLogs, bookings, activityLogs,
       updateAgencySubscription, toggleTripStatus, toggleTripFeatureStatus, deleteAgencyReview, 
       deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
@@ -112,7 +133,6 @@ export const AdminDashboard: React.FC = () => {
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
       toggleAgencyStatus
   } = useData();
-  // Access previewMode from useTheme()
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, previewMode } = useTheme();
   const { showToast } = useToast();
   
@@ -144,9 +164,16 @@ export const AdminDashboard: React.FC = () => {
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
 
-  // New state for Edit User Modal
   const [modalTab, setModalTab] = useState('PROFILE');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  // NEW: State for Activity Log Filters
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [activityActorRoleFilter, setActivityActorRoleFilter] = useState<ActivityActorRole | 'ALL'>('ALL');
+  const [activityActionTypeFilter, setActivityActionTypeFilter] = useState<ActivityActionType | 'ALL'>('ALL');
+  const [activityStartDate, setActivityStartDate] = useState<string>('');
+  const [activityEndDate, setActivityEndDate] = useState<string>('');
+
 
   const handleSetAgencyView = (view: 'cards' | 'list') => {
     setAgencyView(view);
@@ -173,6 +200,12 @@ export const AdminDashboard: React.FC = () => {
       setSelectedAgencies([]);
       setShowAgencyTrash(false);
       setShowUserTrash(false);
+      // Reset activity log filters when changing tabs
+      setActivitySearchTerm('');
+      setActivityActorRoleFilter('ALL');
+      setActivityActionTypeFilter('ALL');
+      setActivityStartDate('');
+      setActivityEndDate('');
   };
 
   const handleRefresh = async () => {
@@ -236,7 +269,6 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
-        // FIX: Pass expiresAt to DataContext function
         await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
     } catch (error) {
         // Toast is already handled in DataContext
@@ -248,7 +280,6 @@ export const AdminDashboard: React.FC = () => {
 
   const addSubscriptionTime = (days: number) => {
       const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
-      // If current is invalid or in the past, maybe start from now? 
       const baseDate = (current.getTime() > Date.now()) ? current : new Date();
       
       const newDate = new Date(baseDate);
@@ -281,6 +312,7 @@ export const AdminDashboard: React.FC = () => {
           showToast('Erro ao atualizar usuário.', 'error');
       } finally {
           setIsProcessing(false);
+          setModalType(null);
       }
   };
 
@@ -306,7 +338,7 @@ export const AdminDashboard: React.FC = () => {
             comment: editFormData.comment,
             rating: editFormData.rating,
         });
-    } catch (error) {
+    }  catch (error) {
         // Toast handled in context
     } finally {
         setIsProcessing(false);
@@ -318,7 +350,8 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
-        await updateTrip({ ...selectedItem, ...editFormData });
+        // @FIX: Ensure price is a number before passing to updateTrip
+        await updateTrip({ ...selectedItem, ...editFormData, price: Number(editFormData.price) });
         showToast('Viagem atualizada!', 'success');
     } catch (error) {
         showToast('Erro ao atualizar viagem.', 'error');
@@ -342,8 +375,8 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
-  const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); } };
+  const handleAddTheme = async (e: React.FormEvent) => { e.preventDefault(); if (!newThemeForm.name) { showToast('O nome do tema é obrigatório.', 'error'); return; } setIsProcessing(true); const newTheme: Partial<ThemePalette> = { name: newThemeForm.name, colors: { primary: newThemeForm.primary, secondary: newThemeForm.secondary, background: '#f9fafb', text: '#111827' } }; const id = await addTheme(newTheme); if (id) { showToast('Tema adicionado com sucesso!', 'success'); setNewThemeForm({ name: '', primary: '#3b82f6', secondary: '#f97316' }); logAuditAction('ADMIN_THEME_MANAGED', `Created new theme: ${newTheme.name} (ID: ${id})`); } else { showToast('Erro ao adicionar tema.', 'error'); } setIsProcessing(false); };
+  const handleDeleteTheme = async (themeId: string, themeName: string) => { if (window.confirm(`Tem certeza que deseja excluir o tema "${themeName}"?`)) { await deleteTheme(themeId); showToast('Tema excluído com sucesso!', 'success'); logAuditAction('ADMIN_THEME_MANAGED', `Deleted theme: ${themeName} (ID: ${themeId})`); } };
   
   const tripCategories = useMemo(() => Array.from(new Set(trips.map(t => t.category))), [trips]);
   const platformRevenue = useMemo(() => activeAgencies.reduce((total, agency) => total + (agency.subscriptionStatus === 'ACTIVE' ? (agency.subscriptionPlan === 'PREMIUM' ? 199.90 : 99.90) : 0), 0), [activeAgencies]);
@@ -355,7 +388,6 @@ export const AdminDashboard: React.FC = () => {
   
   const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
   const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
-  // FIX: Update toggle to use agencyId (PK) instead of id (Auth ID)
   const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
 
@@ -378,7 +410,17 @@ export const AdminDashboard: React.FC = () => {
   };
 
 
-  const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
+  const downloadPdf = (type: 'users' | 'agencies') => { 
+    const doc = new jsPDF(); 
+    doc.setFontSize(18); 
+    doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); 
+    doc.setFontSize(11); 
+    doc.setTextColor(100); 
+    const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; 
+    const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); 
+    (doc as any).autoTable({ head: headers, body: data, startY: 30, }); 
+    doc.save(`relatorio_${type}.pdf`); 
+  };
 
   if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
@@ -1015,105 +1057,4 @@ export const AdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-            <form onSubmit={handleAgencyUpdate} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Nome</label>
-                    <input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label>
-                    <input value={editFormData.slug || ''} onChange={e => setEditFormData({...editFormData, slug: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
-                    <textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label>
-                    <input value={editFormData.cnpj || ''} onChange={e => setEditFormData({...editFormData, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
-                    <input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label>
-                    <input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({...editFormData, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
-                    <input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div className="border-t pt-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, zipCode: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={editFormData.address?.street || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, street: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, number: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={editFormData.address?.city || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, city: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label><input value={editFormData.address?.state || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, state: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                    </div>
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_REVIEW' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
-            <form onSubmit={handleReviewUpdate} className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label>
-                    <textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
-                    <input type="number" min="1" max="5" value={editFormData.rating || 0} onChange={e => setEditFormData({...editFormData, rating: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
-            <form onSubmit={handleTripUpdate} className="space-y-6">
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={editFormData.destination || ''} onChange={e => setEditFormData({...editFormData, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'VIEW_STATS' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Estatísticas de Usuários</h2>
-            <div className="space-y-4">
-                {userStats.length > 0 ? userStats.map(stat => (
-                    <div key={stat.userId} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                        <p className="font-bold text-gray-900 text-lg">{stat.userName}</p>
-                        <p className="text-sm text-gray-600">Total Gasto: R$ {stat.totalSpent.toLocaleString()}</p>
-                        <p className="text-sm text-gray-600">Total Reservas: {stat.totalBookings}</p>
-                        <p className="text-sm text-gray-600">Total Avaliações: {stat.totalReviews}</p>
-                    </div>
-                )) : <p className="text-sm text-gray-500 text-center">Nenhum dado disponível.</p>}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+            <form onSubmit={handleAgencyUpdate} className="space-y-6
