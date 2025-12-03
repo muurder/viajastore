@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -126,6 +125,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+      // FIX: Use a different variable name for data if needed, or simply check for error.
       const { error } = await supabase.rpc('log_activity', {
         p_user_id: user.id,
         p_actor_email: user.email,
@@ -1106,7 +1106,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           totalReviews: totalReviewsCount,
       }; 
   };
-
+  
   const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
       const supabase = guardSupabase();
       try {

@@ -356,6 +356,96 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   );
 };
 
+// PillInput Component definition for AgencyDashboard.tsx
+interface PillInputProps {
+  value: string[];
+  onChange: (newValues: string[]) => void;
+  placeholder?: string;
+  suggestions?: string[];
+  customSuggestions?: string[];
+}
+
+const PillInput: React.FC<PillInputProps> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [] }) => {
+  const [inputValue, setInputValue] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addPill = (pill: string) => {
+    const trimmedPill = pill.trim();
+    if (trimmedPill && !value.includes(trimmedPill)) {
+      onChange([...value, trimmedPill]);
+      setInputValue('');
+    }
+  };
+
+  const removePill = (pill: string) => {
+    onChange(value.filter(p => p !== pill));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && inputValue) {
+      e.preventDefault();
+      addPill(inputValue);
+      setShowSuggestions(false);
+    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
+      e.preventDefault();
+      removePill(value[value.length - 1]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const allSuggestions = useMemo(() => {
+    const combined = [...new Set([...suggestions, ...customSuggestions])];
+    return combined.filter(s => 
+      s.toLowerCase().includes(inputValue.toLowerCase()) && !value.includes(s)
+    );
+  }, [inputValue, value, suggestions, customSuggestions]);
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap gap-2 p-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white">
+        {value.map((pill, index) => (
+          <span key={index} className="flex items-center bg-primary-50 text-primary-700 px-2.5 py-1 rounded-full text-xs font-medium">
+            {pill}
+            <button type="button" onClick={() => removePill(pill)} className="ml-1 text-primary-600 hover:text-primary-800">
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={e => {
+            setInputValue(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 100)} // Delay to allow click on suggestion
+          placeholder={placeholder}
+          className="flex-1 min-w-[100px] outline-none bg-transparent text-sm p-1"
+        />
+      </div>
+
+      {showSuggestions && allSuggestions.length > 0 && (
+        <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+          {allSuggestions.map((s, index) => (
+            <button
+              type="button"
+              key={index}
+              onMouseDown={() => addPill(s)} // Use onMouseDown to prevent blur before click
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const AgencyDashboard: React.FC = () => {
   const { user, reloadUser, logout } = useAuth();
@@ -1356,7 +1446,7 @@ const AgencyDashboard: React.FC = () => {
 
               {/* Itinerary */}
               <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Roteiro Diário <Info size={16} className="ml-2 text-gray-500" title="Descreva cada dia da viagem"/></h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Roteiro Diário <Info size={16} className="ml-2 text-gray-500" /></h3>
                 <div className="space-y-4">
                   {itineraryDays.map((item, index) => (
                     <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-100 relative">

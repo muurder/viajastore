@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -522,7 +524,7 @@ const ClientDashboard: React.FC = () => {
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">Segurança</h2>
                   <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
                       <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
-                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
                       <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
                   </form>
                   <div className="mt-12 pt-8 border-t border-gray-100">
