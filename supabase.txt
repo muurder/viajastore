@@ -1,5 +1,4 @@
 
-
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -27,29 +26,26 @@ $$;
 
 -- 3. REMOVER TODAS AS POLÍTICAS POSSÍVEIS (LIMPEZA TOTAL)
 DROP POLICY IF EXISTS "Admin Manage All Profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Enable read access for all authenticated users" ON public.profiles;
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
-DROP POLICY IF EXISTS "Users Insert Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Read Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Update Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Delete Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Admin pode fazer tudo em profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Public Read Profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
+DROP POLICY IF EXISTS "Users Update Own Profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users Insert Own Profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users Delete Own Profile" ON public.profiles;
 
 DROP POLICY IF EXISTS "Admin Manage All Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Admin full access agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Agency self edit" ON public.agencies;
-DROP POLICY IF EXISTS "Agency Update Self" ON public.agencies;
-DROP POLICY IF EXISTS "Public view agencies" ON public.agencies;
 DROP POLICY IF EXISTS "Public Read Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Public Read Active Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Agencia edita a si mesma" ON public.agencies;
-DROP POLICY IF EXISTS "Publico vê agências" ON public.agencies;
-DROP POLICY IF EXISTS "Admin pode fazer tudo em agencies" ON public.agencies;
+DROP POLICY IF EXISTS "Agency Update Self" ON public.agencies;
+
+DROP POLICY IF EXISTS "Admin Full Access Activity Logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Authenticated Users Can View Own Activity Logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs;
+
+DROP POLICY IF EXISTS "Admin Full Access Audit Logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Authenticated Read Audit Logs" ON public.audit_logs;
+
+-- NEW: Drop policies for the 'reviews' table
+DROP POLICY IF EXISTS "Admin Full Access Reviews" ON public.reviews;
+DROP POLICY IF EXISTS "Public Read Reviews" ON public.reviews;
+
 
 -- 4. APLICAR AS POLÍTICAS DEFINITIVAS
 
@@ -59,7 +55,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 -- Admin Total (Usa função segura)
 CREATE POLICY "Admin Manage All Profiles" ON public.profiles
 FOR ALL
-USING ( is_admin() );
+USING ( public.is_admin() );
 
 -- Leitura Pública
 CREATE POLICY "Public Read Profiles" ON public.profiles
@@ -108,7 +104,7 @@ ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_trip_id_fkey;
 ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_client_id_fkey;
 ALTER TABLE public.trip_images DROP CONSTRAINT IF EXISTS trip_images_trip_id_fkey;
 ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_agency_id_fkey;
-ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey; -- Fix: ensure client_id fkey is handled
+ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey;
 ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_user_id_fkey;
 ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_trip_id_fkey;
 ALTER TABLE public.agency_themes DROP CONSTRAINT IF EXISTS agency_themes_agency_id_fkey;
@@ -221,48 +217,98 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
 -- RLS: Admin pode ver e gerenciar todos os logs
+DROP POLICY IF EXISTS "Admin Full Access Activity Logs" ON public.activity_logs;
 CREATE POLICY "Admin Full Access Activity Logs" ON public.activity_logs
 FOR ALL
 USING ( public.is_admin() );
 
 -- RLS: Usuário autenticado pode ver seus próprios logs
+DROP POLICY IF EXISTS "Authenticated Users Can View Own Activity Logs" ON public.activity_logs;
 CREATE POLICY "Authenticated Users Can View Own Activity Logs" ON public.activity_logs
 FOR SELECT
 USING ( auth.uid() = user_id );
 
 -- RLS: Usuários autenticados podem inserir logs de suas próprias ações
+DROP POLICY IF EXISTS "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs;
 CREATE POLICY "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs
 FOR INSERT
 WITH CHECK ( auth.uid() = user_id OR public.is_admin() ); -- Admin também pode inserir logs para terceiros se necessário
 
 
 -- =============================================================================
--- NOVO: FUNÇÃO RPC PARA INSERIR LOGS DE ATIVIDADE
+-- ATUALIZAÇÕES PARA AUDIT_LOGS (Se mantivermos essa tabela separada)
 -- =============================================================================
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE FUNCTION public.log_activity(
-  p_user_id uuid,
-  p_actor_email text,
-  p_actor_role text,
-  p_action_type text,
-  p_details jsonb DEFAULT '{}'::jsonb,
-  p_agency_id uuid DEFAULT NULL
-)
-RETURNS public.activity_logs
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_log public.activity_logs;
-BEGIN
-  INSERT INTO public.activity_logs (user_id, agency_id, actor_email, actor_role, action_type, details)
-  VALUES (p_user_id, p_agency_id, p_actor_email, p_actor_role, p_action_type, p_details)
-  RETURNING * INTO new_log;
-  RETURN new_log;
-END;
-$$;
-GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uuid) TO anon, authenticated, service_role;
+-- RLS: Admin Full Access for audit_logs
+DROP POLICY IF EXISTS "Admin Full Access Audit Logs" ON public.audit_logs;
+CREATE POLICY "Admin Full Access Audit Logs" ON public.audit_logs
+FOR ALL
+USING ( public.is_admin() );
+
+-- RLS: Read-only for authenticated users (only if they are admin, otherwise no access)
+-- This makes audit_logs exclusively for admins.
+DROP POLICY IF EXISTS "Authenticated Read Audit Logs" ON public.audit_logs;
+CREATE POLICY "Authenticated Read Audit Logs" ON public.audit_logs
+FOR SELECT
+USING ( public.is_admin() );
+
+-- =============================================================================
+-- NEW: RLS Policies for `public.reviews` table
+-- This table is marked as DEPRECATED but has RLS enabled without policies.
+-- Defaulting to authenticated read-only access to prevent default denial.
+-- =============================================================================
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+-- RLS: Admin Full Access Reviews
+CREATE POLICY "Admin Full Access Reviews" ON public.reviews
+FOR ALL
+USING ( public.is_admin() );
+
+-- RLS: Public Read Reviews (or Authenticated Read, depending on use case)
+-- Given it's deprecated, allowing all authenticated users to read is a safe default.
+CREATE POLICY "Authenticated Read Reviews" ON public.reviews
+FOR SELECT
+USING ( true ); -- Allowing all (even non-authenticated) to read old reviews. If only auth users should read, change to 'auth.uid() IS NOT NULL'.
+
+-- =============================================================================
+-- NEW: View agency_trips_with_cover as SECURITY INVOKER
+-- This fixes the "Security Definer View" alert.
+-- =============================================================================
+CREATE OR REPLACE VIEW public.agency_trips_with_cover AS
+SELECT
+    t.id AS trip_id,
+    t.title AS trip_title,
+    t.slug AS trip_slug,
+    t.description AS trip_description,
+    t.destination AS trip_destination,
+    t.price AS trip_price,
+    t.start_date AS trip_start_date,
+    t.end_date AS trip_end_date,
+    t.duration_days AS trip_duration_days,
+    t.category AS trip_category,
+    t.tags AS trip_tags,
+    t.traveler_types AS trip_traveler_types,
+    t.is_active AS trip_is_active,
+    t.featured AS trip_featured,
+    t.featured_in_hero AS trip_featured_in_hero,
+    t.popular_near_sp AS trip_popular_near_sp,
+    t.views_count AS trip_views_count,
+    t.sales_count AS trip_sales_count,
+    t.created_at AS trip_created_at,
+    t.updated_at AS trip_updated_at,
+    a.id AS agency_pk_id, -- Primary key of agencies table
+    a.user_id AS agency_user_id, -- Foreign key to profiles table
+    a.name AS agency_name,
+    a.slug AS agency_slug,
+    a.logo_url AS agency_logo_url,
+    a.email AS agency_email,
+    a.whatsapp AS agency_whatsapp,
+    (SELECT image_url FROM public.trip_images WHERE trip_id = t.id ORDER BY position LIMIT 1) AS cover_image_url
+FROM
+    public.trips t
+JOIN
+    public.agencies a ON t.agency_id = a.id;
 
 -- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
 UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';

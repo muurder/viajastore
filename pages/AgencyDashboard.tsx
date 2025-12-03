@@ -1,19 +1,18 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-// Fix: Use namespace import for react-router-dom and update references
-import * as ReactRouter from 'react-router-dom'; 
+import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
+import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
-// Fix: Add missing supabase import
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard } from 'lucide-react'; // Added Briefcase, LayoutDashboard
 import { supabase } from '../services/supabase';
 
-// --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) - Copied from AdminDashboard.tsx to adhere to "no new files" ---
+// --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
 // Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
@@ -70,7 +69,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     return (
         <div className="relative" ref={menuRef}>
             <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <MoreHorizontal size={18} />
+                <MoreVertical size={18} />
             </button>
             {isOpen && (
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
@@ -211,7 +210,16 @@ const SubscriptionConfirmationModal: React.FC<{
 };
 
 
-const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
+// Extracted Action Menu for Trips
+interface TripActionsMenuProps { 
+  trip: Trip; 
+  onEdit: (trip: Trip) => void; 
+  onDuplicate: (trip: Trip) => void; 
+  onDelete: (tripId: string) => void; 
+  onToggleStatus: (tripId: string) => void; 
+  fullAgencyLink: string; 
+}
+const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isPublished = trip.is_active;
@@ -229,8 +237,8 @@ const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, on
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
       <div className="flex items-center gap-2 justify-end">
-        <button onClick={onEdit} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
-        <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreHorizontal size={20} /></button>
+        <button onClick={() => onEdit(trip)} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
+        <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreVertical size={20} /></button>
       </div>
       {isOpen && (
         <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
@@ -238,19 +246,18 @@ const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, on
             <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
             {isPublished ? (
                <>
-                 {/* Fix: Use ReactRouter.Link */}
-                 <ReactRouter.Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</ReactRouter.Link>
-                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
+                 <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link>
+                 <button onClick={() => { onToggleStatus(trip.id); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
                </>
             ) : (
                <>
-                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"><PlayCircle size={16} className="mr-3 text-green-500"/> {trip.is_active === false ? 'Publicar' : 'Retomar vendas'}</button>
-                 <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button>
+                 <button onClick={() => { onToggleStatus(trip.id); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"><PlayCircle size={16} className="mr-3 text-green-500"/> {trip.is_active === false ? 'Publicar' : 'Retomar vendas'}</button>
+                 <button onClick={() => { onEdit(trip); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button>
                </>
             )}
-            <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"><Copy size={16} className="mr-3 text-gray-400"/> Duplicar</button>
+            <button onClick={() => { onDuplicate(trip); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"><Copy size={16} className="mr-3 text-gray-400"/> Duplicar</button>
             <div className="border-t border-gray-100 mt-1 pt-1">
-                <button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button>
+                <button onClick={() => { onDelete(trip.id); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button>
             </div>
           </div>
         </div>
@@ -277,7 +284,6 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
   const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
-  // Fixed: Added return statement to make it a valid React functional component
   return (
     <div className="space-y-3">
       {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
@@ -337,8 +343,8 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         {/* Fix: RichTextEditor continues */}
         <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista Ordenada" />
         <ToolbarButton cmd="insertUnorderedList" icon={List} title="Lista Não Ordenada" />
-        <ToolbarButton cmd="createLink" icon={LinkIcon} title="Adicionar Link" onClick={addLink} />
-        <ToolbarButton cmd="insertImage" icon={ImageIcon} title="Adicionar Imagem" onClick={addImage} />
+        <button type="button" onClick={addLink} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100" title="Adicionar Link"><LinkIcon size={18}/></button>
+        <button type="button" onClick={addImage} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100" title="Adicionar Imagem"><ImageIcon size={18}/></button>
         <Divider />
         <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 relative" title="Adicionar Emoji">
           <Smile size={18} />
@@ -373,8 +379,7 @@ const AgencyDashboard: React.FC = () => {
     refreshData, incrementTripViews, getAgencyTheme, saveAgencyTheme,
   } = useData();
   const { showToast } = useToast();
-  // Fix: Use ReactRouter.useNavigate
-  const navigate = ReactRouter.useNavigate();
+  const navigate = useNavigate();
 
   // Redirect if not an agency or not logged in as agency
   useEffect(() => {
@@ -384,12 +389,10 @@ const AgencyDashboard: React.FC = () => {
   }, [user, navigate]);
 
   const agency = user as Agency;
-  // Fix: Use ReactRouter.useParams
-  const { agencySlug } = ReactRouter.useParams<{ agencySlug?: string }>(); // Not directly used but to clarify context
+  const { agencySlug } = useParams<{ agencySlug?: string }>(); // Not directly used but to clarify context
 
-  // Fix: Use ReactRouter.useSearchParams
-  const [searchParams, setSearchParams] = ReactRouter.useSearchParams();
-  const activeTab = (searchParams.get('tab')?.toUpperCase() as any) || 'OVERVIEW';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRIPS' | 'REVIEWS' | 'SETTINGS'>((searchParams.get('tab')?.toUpperCase() as any) || 'OVERVIEW');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
@@ -449,7 +452,6 @@ const AgencyDashboard: React.FC = () => {
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab')?.toUpperCase();
     if (tabFromUrl && ['OVERVIEW', 'TRIPS', 'REVIEWS', 'SETTINGS'].includes(tabFromUrl)) {
-      // Fix: Use the setter function setActiveTab correctly
       setActiveTab(tabFromUrl as 'OVERVIEW' | 'TRIPS' | 'REVIEWS' | 'SETTINGS');
     }
     // For SETTINGS tab, also check sub-tab
@@ -507,7 +509,6 @@ const AgencyDashboard: React.FC = () => {
 
 
   const handleTabChange = (tab: 'OVERVIEW' | 'TRIPS' | 'REVIEWS' | 'SETTINGS') => {
-    // Fix: Use the setter function setActiveTab correctly
     setActiveTab(tab);
     setSearchParams({ tab: tab.toLowerCase() });
   };
@@ -805,10 +806,9 @@ const AgencyDashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900">Painel da Agência</h1>
         <div className="flex flex-wrap gap-3">
-            {/* Fix: Use ReactRouter.Link */}
-            <ReactRouter.Link to={`/${agency.slug}`} target="_blank" className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors">
+            <Link to={`/${agency.slug}`} target="_blank" className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors">
                 <ExternalLink size={18} className="mr-2"/> Ver Página Pública
-            </ReactRouter.Link>
+            </Link>
             <button onClick={handleLogout} className="bg-red-50 text-red-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-red-100 transition-colors">
                 <LogOut size={18} className="mr-2"/> Sair
             </button>
@@ -826,13 +826,9 @@ const AgencyDashboard: React.FC = () => {
       {activeTab === 'OVERVIEW' && (
         <div className="space-y-8 animate-[fadeIn_0.3s]">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Fix: Pass icon component correctly */}
             <StatCard title="Viagens Ativas" value={myTrips.length} subtitle="Pacotes disponíveis para venda" icon={Briefcase} color="blue"/>
-            {/* Fix: Pass icon component correctly */}
             <StatCard title="Receita Estimada" value={`R$ ${myStats.totalRevenue.toLocaleString('pt-BR')}`} subtitle="Total de vendas confirmadas" icon={DollarSign} color="green"/>
-            {/* Fix: Pass icon component correctly */}
             <StatCard title="Avaliação Média" value={myStats.averageRating?.toFixed(1) || '0.0'} subtitle={`${myStats.totalReviews} avaliações`} icon={Star} color="amber"/>
-            {/* Fix: Pass icon component correctly */}
             <StatCard title="Conversão" value={myStats.conversionRate.toFixed(1)} subtitle="Visualizações para vendas" icon={BarChart2} color="purple"/>
           </div>
 
@@ -875,8 +871,7 @@ const AgencyDashboard: React.FC = () => {
                                         <span className="flex items-center"><ShoppingBag size={12} className="mr-1"/> {trip.sales || 0}</span>
                                     </div>
                                 </div>
-                                {/* Fix: Use ReactRouter.Link */}
-                                <ReactRouter.Link to={`/agency/dashboard?tab=TRIPS`} className="text-primary-600 text-xs font-bold hover:underline">Ver</ReactRouter.Link>
+                                <Link to={`/agency/dashboard?tab=TRIPS`} className="text-primary-600 text-xs font-bold hover:underline">Ver</Link>
                             </div>
                         ))}
                     </div>
@@ -895,330 +890,4 @@ const AgencyDashboard: React.FC = () => {
             <button onClick={handleCreateNewTrip} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-colors"><Plus size={18} className="mr-2"/> Nova Viagem</button>
           </div>
           {myTrips.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {myTrips.map(trip => (
-                <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-                  <div className="relative h-48 w-full">
-                    <img src={trip.images[0] || 'https://placehold.co/400x300/e2e8f0/e2e8f0'} alt={trip.title} className="w-full h-full object-cover"/>
-                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase">{trip.category.replace('_', ' ')}</div>
-                    <div className="absolute top-3 right-3 flex items-center gap-2">
-                        {trip.is_active ? (
-                            <span className="bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">ATIVO</span>
-                        ) : (
-                            <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">INATIVO</span>
-                        )}
-                        <span className="relative inline-block">
-                           <button onClick={() => {}} className="p-1.5 rounded-full bg-white/80 hover:bg-white backdrop-blur-sm text-gray-600 hover:text-gray-900 transition-colors shadow-sm"><MoreHorizontal size={18} /></button>
-                           {/* Action Menu for each trip */}
-                           <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-10 overflow-hidden">
-                                <div className="py-1">
-                                    {/* Fix: Use ReactRouter.Link */}
-                                    <ReactRouter.Link to={`/${agency.slug}/viagem/${trip.slug || trip.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors"><Eye size={16} className="mr-3 text-gray-400"/> Ver público</ReactRouter.Link>
-                                    <button onClick={() => handleEditTrip(trip)} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button>
-                                    <button onClick={() => handleToggleTripStatus(trip.id)} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-orange-600 transition-colors">{trip.is_active ? <PauseCircle size={16} className="mr-3"/> : <PlayCircle size={16} className="mr-3"/>} {trip.is_active ? 'Pausar Vendas' : 'Publicar Viagem'}</button>
-                                    <button onClick={() => handleDuplicateTrip(trip)} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors"><Copy size={16} className="mr-3"/> Duplicar</button>
-                                    <div className="border-t border-gray-100 mt-1 pt-1">
-                                        <button onClick={() => handleDeleteTrip(trip.id)} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button>
-                                    </div>
-                                </div>
-                           </div>
-                        </span>
-                    </div>
-                  </div>
-                  <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{trip.title}</h3>
-                    <p className="text-sm text-gray-600 flex items-center mb-3"><MapPin size={16} className="mr-2 text-primary-500"/> {trip.destination}</p>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-                      <span className="text-xl font-bold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</span>
-                      <button onClick={() => handleEditTrip(trip)} className="bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-primary-100 transition-colors">Gerenciar</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-              <Plane size={32} className="text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem cadastrada</h3>
-              <p className="text-gray-500 mb-6">Comece a vender criando seu primeiro pacote!</p>
-              <button onClick={handleCreateNewTrip} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold flex items-center mx-auto hover:bg-primary-700 transition-colors"><Plus size={18} className="mr-2"/> Criar Primeira Viagem</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'REVIEWS' && (
-        <div className="animate-[fadeIn_0.3s]">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Avaliações ({myReviews.length})</h2>
-          {myReviews.length > 0 ? (
-            <div className="space-y-6">
-              {myReviews.map(review => (
-                <div key={review.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <img src={review.clientAvatar || `https://ui-avatars.com/api/?name=${review.clientName || 'V'}`} className="w-10 h-10 rounded-full object-cover border border-gray-200" alt=""/>
-                      <div>
-                        <p className="font-bold text-gray-900 text-sm">{review.clientName}</p>
-                        <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                    <div className="flex text-amber-400">
-                      {[...Array(5)].map((_, i) => <Star key={i} size={14} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)}
-                    </div>
-                  </div>
-                  {review.tripTitle && (
-                      <div className="mb-4 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block">
-                          Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
-                      </div>
-                  )}
-                  <p className="text-gray-700 text-sm leading-relaxed mb-4">"{review.comment}"</p>
-                  {review.tags && review.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-4">
-                          {review.tags.map(tag => (
-                              <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
-                          ))}
-                      </div>
-                  )}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    {review.response ? (
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-xs font-bold text-gray-600 mb-2">Sua Resposta:</p>
-                        <p className="text-sm text-gray-700 italic">"{review.response}"</p>
-                      </div>
-                    ) : (
-                      <button className="text-primary-600 text-sm font-bold hover:underline">Responder Avaliação</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-              <Star size={32} className="text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma avaliação recebida</h3>
-              <p className="text-gray-500 mb-6">Compartilhe suas viagens para começar a receber feedback!</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'SETTINGS' && (
-        <div className="animate-[fadeIn_0.3s]">
-          <div className="flex border-b border-gray-200 mb-6 bg-white rounded-xl shadow-sm overflow-x-auto scrollbar-hide">
-              <button onClick={() => handleSettingsTabChange('PROFILE')} className={`flex-1 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'PROFILE' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><User size={16} className="inline mr-2"/> Perfil</button>
-              <button onClick={() => handleSettingsTabChange('HERO')} className={`flex-1 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'HERO' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><MonitorPlay size={16} className="inline mr-2"/> Página Inicial</button>
-              <button onClick={() => handleSettingsTabChange('THEME')} className={`flex-1 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'THEME' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Palette size={16} className="inline mr-2"/> Tema</button>
-              <button onClick={() => handleSettingsTabChange('SUBSCRIPTION')} className={`flex-1 py-3 text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><CreditCard size={16} className="inline mr-2"/> Assinatura</button>
-          </div>
-
-          {settingsTab === 'PROFILE' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Dados da Agência</h3>
-                  <form onSubmit={handleProfileUpdate} className="space-y-6">
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug da URL (ex: `/minha-agencia`)</label><input value={profileForm.slug} onChange={e => setProfileForm({...profileForm, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={profileForm.cnpj} onChange={e => setProfileForm({...profileForm, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={profileForm.website} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div className="border-t pt-6"><h4 className="text-lg font-bold text-gray-900 mb-4">Endereço</h4><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={profileForm.address.zipCode} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, zipCode: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={profileForm.address.street} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, street: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={profileForm.address.number} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, number: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Complemento</label><input value={profileForm.address.complement || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, complement: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bairro</label><input value={profileForm.address.district} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, district: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={profileForm.address.city} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, city: e.target.value}})} className="w-full border p-2 rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado (UF)</label><input value={profileForm.address.state} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, state: e.target.value}})} className="w-full border p-2 rounded-lg" /></div></div></div>
-                      <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Perfil</button>
-                  </form>
-              </div>
-          )}
-
-          {settingsTab === 'HERO' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Página Inicial (Microsite)</h3>
-                  <form onSubmit={handleHeroSettingsUpdate} className="space-y-6">
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Modo da Página Inicial</label><select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500"><option value="TRIPS">Carrossel de Viagens</option><option value="STATIC">Imagem Estática</option></select></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">URL da Imagem de Banner</label><input value={heroForm.heroBannerUrl} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://exemplo.com/banner.jpg" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Banner</label><input value={heroForm.heroTitle} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Banner</label><textarea value={heroForm.heroSubtitle} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Configurações</button>
-                  </form>
-              </div>
-          )}
-
-          {settingsTab === 'THEME' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Tema do Microsite</h3>
-                  <form onSubmit={handleSaveAgencyTheme} className="space-y-6">
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Cor Primária</label>
-                          <div className="flex gap-2 items-center">
-                              <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-10 h-10 rounded-lg border"/>
-                              <input type="text" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                          </div>
-                      </div>
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Cor Secundária</label>
-                          <div className="flex gap-2 items-center">
-                              <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-10 h-10 rounded-lg border"/>
-                              <input type="text" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                          </div>
-                      </div>
-                      <div className="flex gap-4">
-                        <button type="submit" disabled={isSavingSettings} className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar e Aplicar</button>
-                        <button type="button" onClick={handlePreviewTheme} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2">Prévia</button>
-                        <button type="button" onClick={handleResetThemePreview} className="flex-1 bg-red-50 text-red-700 py-3 rounded-lg font-bold hover:bg-red-100 flex items-center justify-center gap-2">Resetar</button>
-                      </div>
-                  </form>
-              </div>
-          )}
-
-          {settingsTab === 'SUBSCRIPTION' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h3>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {PLANS.map(plan => {
-                      const currentPlan = agency.subscriptionPlan === plan.id;
-                      const expiresDate = new Date(agency.subscriptionExpiresAt).toLocaleDateString('pt-BR');
-                      const isActive = agency.subscriptionStatus === 'ACTIVE';
-
-                      return (
-                        <div key={plan.id} className={`bg-gray-50 p-6 rounded-xl border ${currentPlan ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-200'} relative`}>
-                          {currentPlan && <span className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">PLANO ATUAL</span>}
-                          <h4 className="font-bold text-gray-900 text-xl">{plan.name}</h4>
-                          <p className="text-3xl font-extrabold text-primary-600 mt-2">R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span></p>
-                          <ul className="mt-6 space-y-3 text-gray-600 text-sm mb-6 text-left">
-                            {plan.features.map((f, i) => (<li key={i} className="flex gap-3 items-start"><CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0" /> <span className="leading-snug">{f}</span></li>))}
-                          </ul>
-                          {currentPlan ? (
-                            <p className={`text-sm font-bold ${isActive ? 'text-green-600' : 'text-red-600'}`}>
-                              {isActive ? `Ativo. Expira em: ${expiresDate}` : `Inativo. Expirou em: ${expiresDate}`}
-                            </p>
-                          ) : (
-                            <button 
-                              onClick={() => handleSelectPlan(plan)}
-                              disabled={isProcessing}
-                              className="w-full py-3 rounded-xl font-bold transition-colors bg-primary-600 text-white hover:bg-primary-700 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              {isProcessing ? <Loader size={16} className="animate-spin" /> : 'Mudar para este plano'}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-              </div>
-          )}
-        </div>
-      )}
-
-      {/* New/Edit Trip Modal */}
-      {(isNewTripModalOpen || isEditTripModalOpen) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => { setIsNewTripModalOpen(false); setIsEditTripModalOpen(false); setEditingTrip(null); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingTrip ? 'Editar Viagem' : 'Criar Nova Viagem'}</h2>
-            
-            <form onSubmit={handleSaveTrip} className="space-y-6">
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">Informações Básicas</h3>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Título da Viagem</label><input value={tripForm.title || ''} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição Detalhada</label><textarea value={tripForm.description || ''} onChange={e => setTripForm({...tripForm, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço por Pessoa</label><input type="number" min="0" value={tripForm.price || ''} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Data de Início</label><input type="datetime-local" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Data de Fim</label><input type="datetime-local" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              </div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Duração (dias)</label><input type="number" min="1" value={tripForm.durationDays || 1} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              
-              <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
-                  <select value={tripForm.category || 'PRAIA'} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required>
-                      {Object.values(['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA', 'VIAGEM_BARATA', 'ARTE']).map(cat => (
-                          <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
-                      ))}
-                  </select>
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Imagens ({tripForm.images?.length || 0}/{MAX_IMAGES})</h3>
-              <div className="grid grid-cols-3 gap-4">
-                {(tripForm.images || []).map((img, index) => (
-                    <div key={index} className="relative h-24 rounded-lg overflow-hidden border border-gray-200">
-                        <img src={img} alt="Trip image" className="w-full h-full object-cover"/>
-                        <button type="button" onClick={()={() => handleRemoveTripImage(index)}} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X size={14}/></button>
-                    </div>
-                ))}
-                {(tripForm.images?.length || 0) < MAX_IMAGES && (
-                    <label className="h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer hover:border-primary-500 transition-colors">
-                        {uploadingImage ? <Loader size={20} className="animate-spin"/> : <Plus size={20}/>}
-                        <input type="file" className="hidden" onChange={handleTripImageUpload} accept="image/*" disabled={uploadingImage}/>
-                    </label>
-                )}
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Tags & Tipos de Viajante</h3>
-              <PillInput value={tripForm.tags || []} onChange={val => setTripForm({...tripForm, tags: val})} placeholder="Adicionar tags (ex: Trilhas, Praia, Gastronomia)" suggestions={SUGGESTED_TAGS} customSuggestions={agency.customSettings?.tags} onDeleteCustomSuggestion={(tagToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tagToRemove) || [] }))}/>
-              <PillInput value={tripForm.travelerTypes || []} onChange={val => setTripForm({...tripForm, travelerTypes: val as TravelerType[]})} placeholder="Adicionar tipo de viajante (ex: Casal, Família)" suggestions={SUGGESTED_TRAVELERS} />
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Itinerário</h3>
-              {itineraryDays.map((item, index) => (
-                  <div key={index} className="space-y-2 bg-gray-50 p-4 rounded-lg border border-gray-100 relative">
-                      <h4 className="font-bold text-gray-900">Dia {item.day}</h4>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Dia</label><input value={item.title} onChange={e => updateItineraryDay(index, 'title', e.target.value)} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição do Dia</label><textarea value={item.description} onChange={e => updateItineraryDay(index, 'description', e.target.value)} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      {itineraryDays.length > 1 && (<button type="button" onClick={() => removeItineraryDay(index)} className="absolute top-3 right-3 text-red-500 hover:text-red-700"><X size={18}/></button>)}
-                  </div>
-              ))}
-              <button type="button" onClick={addItineraryDay} className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2"><Plus size={18}/> Adicionar Dia</button>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Detalhes Adicionais</h3>
-              <PillInput value={tripForm.included || []} onChange={val => setTripForm({...tripForm, included: val})} placeholder="Itens incluídos (ex: Café da manhã, Transfer)" suggestions={SUGGESTED_INCLUDED} customSuggestions={agency.customSettings?.included} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, included: prev.included?.filter(i => i !== itemToRemove) || [] }))}/>
-              <PillInput value={tripForm.notIncluded || []} onChange={val => setTripForm({...tripForm, notIncluded: val})} placeholder="Itens não incluídos (ex: Passagem aérea, Bebidas)" suggestions={SUGGESTED_NOT_INCLUDED} customSuggestions={agency.customSettings?.notIncluded} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, notIncluded: prev.notIncluded?.filter(i => i !== itemToRemove) || [] }))}/>
-              <PillInput value={tripForm.paymentMethods || []} onChange={val => setTripForm({...tripForm, paymentMethods: val})} placeholder="Métodos de pagamento (ex: Pix, Cartão de Crédito)" suggestions={SUGGESTED_PAYMENTS} customSuggestions={agency.customSettings?.paymentMethods} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, paymentMethods: prev.paymentMethods?.filter(i => i !== itemToRemove) || [] }))}/>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Configurações de Visibilidade</h3>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.is_active || false} onChange={e => setTripForm({...tripForm, is_active: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Viagem Ativa (visível ao público)</span></label>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.featured || false} onChange={e => setTripForm({...tripForm, featured: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Destaque Global (aparece na Home ViajaStore)</span></label>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.featuredInHero || false} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Destaque na Home da Minha Agência</span></label>
-              
-              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> {editingTrip ? 'Salvar Alterações' : 'Criar Viagem'}</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Helper for PillInput
-const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[]; customSuggestions?: string[]; onDeleteCustomSuggestion?: (item: string) => void; }> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
-  const [inputValue, setInputValue] = useState('');
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputValue.trim() !== '') {
-      e.preventDefault();
-      if (!value.includes(inputValue.trim())) onChange([...value, inputValue.trim()]);
-      setInputValue('');
-    }
-  };
-  const handleAdd = (item: string) => !value.includes(item) && onChange([...value, item]);
-  const handleRemove = (itemToRemove: string) => onChange(value.filter(item => item !== itemToRemove));
-  const handleDeleteCustom = (e: React.MouseEvent, item: string) => {
-      e.stopPropagation();
-      if (window.confirm(`Remover "${item}" das suas sugestões salvas?`)) onDeleteCustomSuggestion?.(item);
-  };
-  const availableSuggestions = suggestions.filter(s => !value.includes(s));
-  const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
-
-  return (
-    <div className="space-y-3">
-      {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
-        <div className="flex flex-wrap gap-2">
-            {availableSuggestions.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded-md hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all flex items-center gap-1"><Plus size={10} /> {s}</button>))}
-            {availableCustom.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-100 transition-all flex items-center gap-1 group relative pr-6"><Plus size={10} /> {s}<span onClick={(e) => handleDeleteCustom(e, s)} className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-300 hover:text-red-500 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity" title="Remover sugestão salva"><X size={10} /></span></button>))}
-        </div>
-      )}
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"/>
-      <div className="flex flex-wrap gap-2 min-h-[2rem]">
-        {value.map((item, index) => (<div key={index} className="flex items-center bg-primary-50 text-primary-800 border border-primary-100 text-sm font-bold px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]"><span>{item}</span><button type="button" onClick={() => handleRemove(item)} className="ml-2 text-primary-400 hover:text-red-500"><X size={14} /></button></div>))}
-      </div>
-    </div>
-  );
-};
-
-export default AgencyDashboard;
+            <

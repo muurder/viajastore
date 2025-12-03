@@ -1,91 +1,124 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import TripCard, { TripCardSkeleton } from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader, LucideProps, Plus, Trash2, Copy, Eye, PauseCircle, PlayCircle, Settings, LogOut, ExternalLink, Calendar, CreditCard, X, Briefcase, LayoutDashboard } from 'lucide-react';
-import { AgencyReview, Trip, Agency, Plan, UserRole, ThemeColors } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard } from 'lucide-react'; // Added Briefcase, LayoutDashboard
+import { supabase } from '../services/supabase';
 
-// --- Reusable Review Form Component ---
-interface ReviewFormProps {
-  onSubmit: (rating: number, comment: string, tags: string[]) => void;
-  isSubmitting: boolean;
-  initialRating: number;
-  initialComment: string;
-  initialTags: string[];
-  submitButtonText: string;
-}
+// --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) - Copied from AdminDashboard.tsx to adhere to "no new files" ---
 
-const SUGGESTED_TAGS_REVIEW = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios', 'Pontualidade'];
-
-const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initialRating, initialComment, initialTags, submitButtonText }) => {
-  const [rating, setRating] = useState(initialRating);
-  const [comment, setComment] = useState(initialComment);
-  const [tags, setTags] = useState(initialTags);
-
-  const toggleTag = (tag: string) => {
-    setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
+  const colors = {
+    green: 'bg-green-50 text-green-700 border-green-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    gray: 'bg-gray-50 text-gray-600 border-gray-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
   };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(rating, comment, tags);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Sua nota</label>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button type="button" key={star} onClick={() => setRating(star)} className="focus:outline-none transition-transform hover:scale-110">
-              <Star size={28} className={star <= rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
-            </button>
-          ))}
-        </div>
-      </div>
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Seu comentário</label>
-        <textarea
-          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none transition-colors"
-          placeholder="Conte como foi sua experiência com a agência..."
-          value={comment}
-          onChange={e => setComment(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">O que você mais gostou?</label>
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTED_TAGS_REVIEW.map(tag => (
-            <button
-              type="button"
-              key={tag}
-              onClick={() => toggleTag(tag)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </div>
-      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-        {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-        {submitButtonText}
-      </button>
-    </form>
+    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+      {children}
+    </span>
   );
 };
 
-// --- Agency-Specific Dashboard Components ---
+interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
+    const bgColors = {
+        green: 'bg-green-50 text-green-600',
+        blue: 'bg-blue-50 text-blue-600',
+        purple: 'bg-purple-50 text-purple-600',
+        amber: 'bg-amber-50 text-amber-600',
+    };
+    return (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${bgColors[color]} group-hover:scale-105 transition-transform`}><Icon size={24}/></div>
+            </div>
+            <p className="text-sm text-gray-500 font-medium">{title}</p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{value}</h3>
+            <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
+        </div>
+    );
+};
+
+interface ActionsMenuProps { trip: Trip; onEdit: () => void; onDuplicate: () => void; onDelete: () => void; onToggleStatus: () => void; fullAgencyLink: string; }
+const ActionMenu: React.FC<ActionsMenuProps> = ({ actions }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <MoreVertical size={18} />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
+                    <div className="py-1">
+                        {actions.map((action, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => { action.onClick(); setIsOpen(false); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                <action.icon size={16} /> {action.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const MAX_IMAGES = 8;
+
+const SUGGESTED_TAGS = ['Ecoturismo', 'História', 'Relaxamento', 'Esportes Radicais', 'Luxo', 'Econômico', 'All Inclusive', 'Pet Friendly', 'Acessível', 'LGBTQIA+'];
+const SUGGESTED_TRAVELERS = ['SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'];
+const SUGGESTED_PAYMENTS = ['Pix', 'Cartão de Crédito (até 12x)', 'Boleto Bancário', 'Transferência', 'Dinheiro'];
+const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
+const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
+
+// Extracted NavButton Component
+interface NavButtonProps {
+  tabId: string;
+  label: string;
+  icon: React.ComponentType<LucideProps>;
+  activeTab: string;
+  onClick: (tabId: string) => void;
+  hasNotification?: boolean;
+}
+
+const NavButton: React.FC<NavButtonProps> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
+  <button 
+    onClick={() => onClick(tabId)} 
+    className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+  >
+    <Icon size={16} /> 
+    {label} 
+    {hasNotification && ( 
+      <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> 
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> 
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> 
+      </span> 
+    )} 
+  </button>
+);
 
 const SubscriptionActivationView: React.FC<{
   agency: Agency;
@@ -193,7 +226,7 @@ const AgencyDashboard: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>(); // Not directly used but to clarify context
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab')?.toUpperCase() as any) || 'OVERVIEW';
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'TRIPS' | 'REVIEWS' | 'SETTINGS'>((searchParams.get('tab')?.toUpperCase() as any) || 'OVERVIEW');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
@@ -245,7 +278,8 @@ const AgencyDashboard: React.FC = () => {
     paymentMethods: agency.customSettings?.paymentMethods || [],
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [themeForm, setThemeForm] = useState<ThemeColors>(agency.colors); // Assuming agency.colors is available for current theme
+  // Fix: Initialize themeForm with a default value, will be updated by useEffect
+  const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' }); 
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
 
   // Handle URL tab changes
@@ -293,6 +327,20 @@ const AgencyDashboard: React.FC = () => {
       });
     }
   }, [agency]);
+
+  // Fix: Fetch and set agency's custom theme when component mounts or agency changes
+  useEffect(() => {
+    const fetchAgencyCustomTheme = async () => {
+      if (agency?.agencyId) {
+        const agencyTheme = await getAgencyTheme(agency.agencyId);
+        if (agencyTheme) {
+          setThemeForm(agencyTheme.colors);
+        }
+      }
+    };
+    fetchAgencyCustomTheme();
+  }, [agency?.agencyId, getAgencyTheme]);
+
 
   const handleTabChange = (tab: 'OVERVIEW' | 'TRIPS' | 'REVIEWS' | 'SETTINGS') => {
     setActiveTab(tab);
@@ -612,38 +660,10 @@ const AgencyDashboard: React.FC = () => {
       {activeTab === 'OVERVIEW' && (
         <div className="space-y-8 animate-[fadeIn_0.3s]">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-blue-50 text-blue-600"><Briefcase size={24}/></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium">Viagens Ativas</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.length}</h3>
-              <p className="text-xs text-gray-400 mt-2">Pacotes disponíveis para venda</p>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-green-50 text-green-600"><DollarSign size={24}/></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium">Receita Estimada</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {myStats.totalRevenue.toLocaleString('pt-BR')}</h3>
-              <p className="text-xs text-gray-400 mt-2">Total de vendas confirmadas</p>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Star size={24}/></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium">Avaliação Média</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myStats.averageRating?.toFixed(1) || '0.0'} / 5</h3>
-              <p className="text-xs text-gray-400 mt-2">{myStats.totalReviews} avaliações</p>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-purple-50 text-purple-600"><BarChart2 size={24}/></div>
-              </div>
-              <p className="text-sm text-gray-500 font-medium">Conversão</p>
-              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myStats.conversionRate.toFixed(1)}%</h3>
-              <p className="text-xs text-gray-400 mt-2">Visualizações para vendas</p>
-            </div>
+            <StatCard title="Viagens Ativas" value={myTrips.length} subtitle="Pacotes disponíveis para venda" icon={Briefcase} color="blue"/>
+            <StatCard title="Receita Estimada" value={`R$ ${myStats.totalRevenue.toLocaleString('pt-BR')}`} subtitle="Total de vendas confirmadas" icon={DollarSign} color="green"/>
+            <StatCard title="Avaliação Média" value={myStats.averageRating?.toFixed(1) || '0.0'} subtitle={`${myStats.totalReviews} avaliações`} icon={Star} color="amber"/>
+            <StatCard title="Conversão" value={myStats.conversionRate.toFixed(1)} subtitle="Visualizações para vendas" icon={BarChart2} color="purple"/>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -823,7 +843,7 @@ const AgencyDashboard: React.FC = () => {
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                   <h3 className="text-2xl font-bold text-gray-900 mb-6">Dados da Agência</h3>
                   <form onSubmit={handleProfileUpdate} className="space-y-6">
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Slug da URL (ex: `/minha-agencia`)</label><input value={profileForm.slug} onChange={e => setProfileForm({...profileForm, slug: slugify(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label><input value={profileForm.cnpj} onChange={e => setProfileForm({...profileForm, cnpj: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
@@ -924,109 +944,4 @@ const AgencyDashboard: React.FC = () => {
             
             <form onSubmit={handleSaveTrip} className="space-y-6">
               <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4">Informações Básicas</h3>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Título da Viagem</label><input value={tripForm.title || ''} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição Detalhada</label><textarea value={tripForm.description || ''} onChange={e => setTripForm({...tripForm, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço por Pessoa</label><input type="number" min="0" value={tripForm.price || ''} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Data de Início</label><input type="datetime-local" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Data de Fim</label><input type="datetime-local" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              </div>
-              <div><label className="block text-sm font-bold text-gray-700 mb-1">Duração (dias)</label><input type="number" min="1" value={tripForm.durationDays || 1} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required/></div>
-              
-              <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Categoria</label>
-                  <select value={tripForm.category || 'PRAIA'} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required>
-                      {Object.values(['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA', 'VIAGEM_BARATA', 'ARTE']).map(cat => (
-                          <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
-                      ))}
-                  </select>
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Imagens ({tripForm.images?.length || 0}/{MAX_IMAGES})</h3>
-              <div className="grid grid-cols-3 gap-4">
-                {(tripForm.images || []).map((img, index) => (
-                    <div key={index} className="relative h-24 rounded-lg overflow-hidden border border-gray-200">
-                        <img src={img} alt="Trip image" className="w-full h-full object-cover"/>
-                        <button type="button" onClick={() => handleRemoveTripImage(index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X size={14}/></button>
-                    </div>
-                ))}
-                {(tripForm.images?.length || 0) < MAX_IMAGES && (
-                    <label className="h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-500 cursor-pointer hover:border-primary-500 transition-colors">
-                        {uploadingImage ? <Loader size={20} className="animate-spin"/> : <Plus size={20}/>}
-                        <input type="file" className="hidden" onChange={handleTripImageUpload} accept="image/*" disabled={uploadingImage}/>
-                    </label>
-                )}
-              </div>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Tags & Tipos de Viajante</h3>
-              <PillInput value={tripForm.tags || []} onChange={val => setTripForm({...tripForm, tags: val})} placeholder="Adicionar tags (ex: Trilhas, Praia, Gastronomia)" suggestions={SUGGESTED_TAGS} customSuggestions={agency.customSettings?.tags} onDeleteCustomSuggestion={(tagToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tagToRemove) || [] }))}/>
-              <PillInput value={tripForm.travelerTypes || []} onChange={val => setTripForm({...tripForm, travelerTypes: val as TravelerType[]})} placeholder="Adicionar tipo de viajante (ex: Casal, Família)" suggestions={SUGGESTED_TRAVELERS} />
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Itinerário</h3>
-              {itineraryDays.map((item, index) => (
-                  <div key={index} className="space-y-2 bg-gray-50 p-4 rounded-lg border border-gray-100 relative">
-                      <h4 className="font-bold text-gray-900">Dia {item.day}</h4>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Dia</label><input value={item.title} onChange={e => updateItineraryDay(index, 'title', e.target.value)} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição do Dia</label><textarea value={item.description} onChange={e => updateItineraryDay(index, 'description', e.target.value)} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      {itineraryDays.length > 1 && (<button type="button" onClick={() => removeItineraryDay(index)} className="absolute top-3 right-3 text-red-500 hover:text-red-700"><X size={18}/></button>)}
-                  </div>
-              ))}
-              <button type="button" onClick={addItineraryDay} className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2"><Plus size={18}/> Adicionar Dia</button>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Detalhes Adicionais</h3>
-              <PillInput value={tripForm.included || []} onChange={val => setTripForm({...tripForm, included: val})} placeholder="Itens incluídos (ex: Café da manhã, Transfer)" suggestions={SUGGESTED_INCLUDED} customSuggestions={agency.customSettings?.included} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, included: prev.included?.filter(i => i !== itemToRemove) || [] }))}/>
-              <PillInput value={tripForm.notIncluded || []} onChange={val => setTripForm({...tripForm, notIncluded: val})} placeholder="Itens não incluídos (ex: Passagem aérea, Bebidas)" suggestions={SUGGESTED_NOT_INCLUDED} customSuggestions={agency.customSettings?.notIncluded} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, notIncluded: prev.notIncluded?.filter(i => i !== itemToRemove) || [] }))}/>
-              <PillInput value={tripForm.paymentMethods || []} onChange={val => setTripForm({...tripForm, paymentMethods: val})} placeholder="Métodos de pagamento (ex: Pix, Cartão de Crédito)" suggestions={SUGGESTED_PAYMENTS} customSuggestions={agency.customSettings?.paymentMethods} onDeleteCustomSuggestion={(itemToRemove) => setCustomSuggestionsForm(prev => ({ ...prev, paymentMethods: prev.paymentMethods?.filter(i => i !== itemToRemove) || [] }))}/>
-
-              <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 mb-4 mt-8">Configurações de Visibilidade</h3>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.is_active || false} onChange={e => setTripForm({...tripForm, is_active: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Viagem Ativa (visível ao público)</span></label>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.featured || false} onChange={e => setTripForm({...tripForm, featured: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Destaque Global (aparece na Home ViajaStore)</span></label>
-              <label className="flex items-center gap-3"><input type="checkbox" checked={tripForm.featuredInHero || false} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="w-5 h-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/> <span className="text-gray-700 font-medium">Destaque na Home da Minha Agência</span></label>
-              
-              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> {editingTrip ? 'Salvar Alterações' : 'Criar Viagem'}</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Helper for PillInput
-const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[]; customSuggestions?: string[]; onDeleteCustomSuggestion?: (item: string) => void; }> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
-  const [inputValue, setInputValue] = useState('');
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && inputValue.trim() !== '') {
-      e.preventDefault();
-      if (!value.includes(inputValue.trim())) onChange([...value, inputValue.trim()]);
-      setInputValue('');
-    }
-  };
-  const handleAdd = (item: string) => !value.includes(item) && onChange([...value, item]);
-  const handleRemove = (itemToRemove: string) => onChange(value.filter(item => item !== itemToRemove));
-  const handleDeleteCustom = (e: React.MouseEvent, item: string) => {
-      e.stopPropagation();
-      if (window.confirm(`Remover "${item}" das suas sugestões salvas?`)) onDeleteCustomSuggestion?.(item);
-  };
-  const availableSuggestions = suggestions.filter(s => !value.includes(s));
-  const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
-
-  return (
-    <div className="space-y-3">
-      {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
-        <div className="flex flex-wrap gap-2">
-            {availableSuggestions.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded-md hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all flex items-center gap-1"><Plus size={10} /> {s}</button>))}
-            {availableCustom.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-100 transition-all flex items-center gap-1 group relative pr-6"><Plus size={10} /> {s}<span onClick={(e) => handleDeleteCustom(e, s)} className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-300 hover:text-red-500 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity" title="Remover sugestão salva"><X size={10} /></span></button>))}
-        </div>
-      )}
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"/>
-      <div className="flex flex-wrap gap-2 min-h-[2rem]">
-        {value.map((item, index) => (<div key={index} className="flex items-center bg-primary-50 text-primary-800 border border-primary-100 text-sm font-bold px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]"><span>{item}</span><button type="button" onClick={() => handleRemove(item)} className="ml-2 text-primary-400 hover:text-red-500"><X size={14} /></button></div>))}
-      </div>
-    </div>
-  );
-};
-
-export default AgencyDashboard;
+              <div><label className="block text-sm font-bold text-gray-700 mb-1">Título da Viagem</label><input value={tripForm.title || ''} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border

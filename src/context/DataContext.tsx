@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -147,12 +148,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
+      // OPTIMIZATION: Fetch only direct fields and trip_images for performance.
+      // Agency details will be looked up from the 'agencies' state.
       const { data, error } = await supabase
         .from('trips')
         .select(`
           *,
-          trip_images (image_url),
-          agencies (name, logo_url)
+          trip_images (image_url, position)
         `);
 
       if (error) throw error;

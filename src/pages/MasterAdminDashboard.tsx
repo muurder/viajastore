@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -627,7 +626,7 @@ export const MasterAdminDashboard: React.FC = () => {
                         <br/>(Não use em produção!)
                     </p>
                     <button 
-                        onClick={migrateData} 
+                        onClick={() => { migrateData(); logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Initiated mock data migration'); }} 
                         disabled={isProcessing}
                         className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
@@ -1094,7 +1093,7 @@ export const MasterAdminDashboard: React.FC = () => {
                         <br/>(Não use em produção!)
                     </p>
                     <button 
-                        onClick={migrateData} 
+                        onClick={() => { migrateData(); logAuditAction('ADMIN_MOCK_DATA_MIGRATED', 'Initiated mock data migration'); }} 
                         disabled={isProcessing}
                         className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
@@ -1225,7 +1224,7 @@ export const MasterAdminDashboard: React.FC = () => {
                 </div>
 
                 {modalTab === 'PROFILE' && (
-                    <form onSubmit={handleUserUpdate} className="space-y-6">
+                    <form onSubmit={(e) => { e.preventDefault(); handleUserUpdate(); }} className="space-y-6">
                         <div className="flex flex-col items-center gap-4 mb-6">
                             <div className="relative w-24 h-24 rounded-full group">
                                 <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
@@ -1315,7 +1314,7 @@ export const MasterAdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-            <form onSubmit={handleAgencyUpdate} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleAgencyUpdate(); }} className="space-y-6">
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Nome</label>
                     <input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
@@ -1365,7 +1364,7 @@ export const MasterAdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
-            <form onSubmit={handleReviewUpdate} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleReviewUpdate(); }} className="space-y-6">
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label>
                     <textarea value={editFormData.comment || ''} onChange={e => setEditFormData({...editFormData, comment: e.target.value})} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
@@ -1385,7 +1384,7 @@ export const MasterAdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
-            <form onSubmit={handleTripUpdate} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleTripUpdate(); }} className="space-y-6">
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                 <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" min="0" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>

@@ -1,8 +1,8 @@
+
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
-// Fix: Use namespace import for react-router-dom and update references
-import * as ReactRouter from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
@@ -45,8 +45,7 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   const [imgError, setImgError] = useState(false);
   
   // Context awareness for link generation
-  // Fix: Use ReactRouter.useParams
-  const { agencySlug } = ReactRouter.useParams<{ agencySlug?: string }>();
+  const { agencySlug } = useParams<{ agencySlug?: string }>();
 
   // Determine the link target based on context
   // If we are inside an agency route, keep the context. If global, keep global.
@@ -109,8 +108,7 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
     : trip.images[0];
 
   return (
-    // Fix: Use ReactRouter.Link
-    <ReactRouter.Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
+    <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
       <div className="relative h-48 w-full overflow-hidden bg-gray-100">
         <img 
           src={displayImage} 
@@ -187,7 +185,7 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
           </div>
         </div>
       </div>
-    </ReactRouter.Link>
+    </Link>
   );
 };
 

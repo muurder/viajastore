@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
-// Fix: Use namespace import for react-router-dom and update references
-import * as ReactRouter from 'react-router-dom';
+import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
@@ -17,11 +17,9 @@ const normalizeText = (text: string) => {
 // @FIX: Changed from default export to named export
 export const TripList: React.FC = () => {
   // Detect if we are in an agency microsite
-  // Fix: Use ReactRouter.useParams
-  const { agencySlug } = ReactRouter.useParams<{ agencySlug?: string }>();
+  const { agencySlug } = useParams<{ agencySlug?: string }>();
   const { getPublicTrips, getAgencyPublicTrips, getAgencyBySlug, loading, trips } = useData();
-  // Fix: Use ReactRouter.useSearchParams
-  const [searchParams, setSearchParams] = ReactRouter.useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // Try to get agency if in microsite mode
   const currentAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
@@ -208,8 +206,7 @@ export const TripList: React.FC = () => {
           <div className="text-center py-20">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Agência não encontrada</h2>
               <p className="text-gray-500 mb-6">O endereço que você tentou acessar não existe.</p>
-              {/* Fix: Use ReactRouter.Link */}
-              <ReactRouter.Link to="/agencies" className="text-primary-600 font-bold hover:underline">Voltar para lista de agências</ReactRouter.Link>
+              <Link to="/agencies" className="text-primary-600 font-bold hover:underline">Voltar para lista de agências</Link>
           </div>
       );
   }
@@ -235,10 +232,9 @@ export const TripList: React.FC = () => {
          <div className="relative z-20 w-full max-w-7xl mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
              <div className="flex-1 text-center lg:text-left">
                 {currentAgency && (
-                    {/* Fix: Use ReactRouter.Link */}
-                    <ReactRouter.Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
+                    <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
                         <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
-                    </ReactRouter.Link>
+                    </Link>
                 )}
                 
                 <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 mb-3">
@@ -315,7 +311,7 @@ export const TripList: React.FC = () => {
                                   checked={selectedTravelerTypes.includes(type.id)} 
                                   onChange={() => toggleSelection('traveler', selectedTravelerTypes, type.id)} 
                                 />
-                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{type.label}</span>
+                                <span className={`text-sm ${selectedTravelerTypes.includes(type.id) ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
                             </label>
                         ))}
                     </div>
