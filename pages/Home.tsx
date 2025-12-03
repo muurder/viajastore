@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
 import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+// Fix: Use namespace import for react-router-dom and update references
+import * as ReactRouter from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const INTEREST_CHIPS = [
@@ -27,7 +28,8 @@ const normalizeText = (text: string) => {
 
 const Home: React.FC = () => {
   const { trips, agencies, loading } = useData();
-  const navigate = useNavigate();
+  // Fix: Use ReactRouter.useNavigate
+  const navigate = ReactRouter.useNavigate();
   const [search, setSearch] = useState('');
   
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -273,7 +275,8 @@ const Home: React.FC = () => {
                  <div className="w-full max-w-sm h-96 bg-gray-800/50 backdrop-blur-sm rounded-3xl animate-pulse border border-white/10"></div>
               ) : currentHeroTrip ? (
                 /* Glassmorphism Card Style - Adjusted to be lighter and more translucent */
-                <Link 
+                {/* Fix: Use ReactRouter.Link */}
+                <ReactRouter.Link 
                   to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} 
                   key={currentHeroTrip.id} 
                   className="block w-full max-w-sm bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-black/40 hover:border-white/30 hover:scale-[1.02] transition-all duration-300 animate-[fadeIn_0.5s_ease-out] group/card relative z-10"
@@ -320,7 +323,7 @@ const Home: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                </Link>
+                </ReactRouter.Link>
               ) : (
                  <div className="w-full max-w-sm text-center bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-10 shadow-xl">
                     <p className="text-gray-300 font-medium">Nenhum pacote em destaque no momento.</p>
@@ -440,14 +443,16 @@ const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
          <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 border-b border-gray-100 pb-4">
             <h2 className="text-2xl font-bold text-gray-900">Agências Verificadas</h2>
-            <Link to="/agencies" className="text-sm font-bold text-gray-500 hover:text-primary-600 flex items-center">Ver todas <ArrowRight size={14} className="ml-1"/></Link>
+            {/* Fix: Use ReactRouter.Link */}
+            <ReactRouter.Link to="/agencies" className="text-sm font-bold text-gray-500 hover:text-primary-600 flex items-center">Ver todas <ArrowRight size={14} className="ml-1"/></ReactRouter.Link>
          </div>
          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {activeAgencies.map(agency => (
-                <Link key={agency.id} to={`/${agency.slug}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center group">
+                {/* Fix: Use ReactRouter.Link */}
+                <ReactRouter.Link key={agency.id} to={`/${agency.slug}`} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center flex flex-col items-center group">
                     <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full mb-4 object-cover border-2 border-gray-100 group-hover:border-primary-100 transition-colors"/>
                     <h3 className="font-bold text-gray-900 text-sm line-clamp-1 group-hover:text-primary-600 transition-colors">{agency.name}</h3>
-                </Link>
+                </ReactRouter.Link>
             ))}
          </div>
       </div>

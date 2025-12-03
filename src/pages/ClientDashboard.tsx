@@ -28,7 +28,7 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, agencies, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { bookings, getTripById, clients, agencies, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData, tripImages } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
@@ -242,10 +242,9 @@ const ClientDashboard: React.FC = () => {
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
-        // Fix: Access trip.startDate directly, remove trip.start_date
+        // Trip details are now direct on the trip object
         const dateStr = trip.startDate;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        // Fix: Access trip.durationDays directly, remove trip.duration_days
         const duration = trip.durationDays;
         addField('Duração:', `${duration} Dias`);
         y += 5;
@@ -303,12 +302,14 @@ const ClientDashboard: React.FC = () => {
       if (!selectedBooking || isSubmitting) return;
       setIsSubmitting(true);
       try {
+          const trip = getTripById(selectedBooking.tripId);
           await addAgencyReview({
-              agencyId: selectedBooking._trip?.agencyId || selectedBooking._trip?.agency_id, // Fallback if _trip is still present from `addBooking`
+              agencyId: trip?.agencyId, 
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
-              comment: reviewForm.comment
+              comment: reviewForm.comment,
+              trip_id: selectedBooking.tripId // Associate review with the specific trip
           });
           setShowReviewModal(false);
           setSelectedBooking(null);
@@ -575,34 +576,4 @@ const ClientDashboard: React.FC = () => {
                       <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.name || 'Parceiro ViajaStore'}</p> </div>
                   </div>
                   <form onSubmit={handleReviewSubmit}>
-                      <div className="mb-6 text-center">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
-                          <div className="flex justify-center gap-2"> {[1, 2, 3, 4, 5].map((star) => ( <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"> <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /> </button> ))} </div>
-                      </div>
-                      <div className="mb-6">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
-                          <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
-                      </div>
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"> {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18}/>} Enviar Avaliação</button>
-                  </form>
-              </div>
-          </div>
-      )}
-
-      {showEditReviewModal && editingReview && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setEditingReview(null)}>
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                  <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Editar Avaliação</h3><button onClick={() => setEditingReview(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
-                  <form onSubmit={handleEditReviewSubmit}>
-                      <div className="mb-6 text-center"><label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label><div className="flex justify-center gap-2">{[1, 2, 3, 4, 5].map((star) => (<button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"><Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /></button>))}</div></div>
-                      <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label><textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/></div>
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">{isSubmitting ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Alterações</button>
-                  </form>
-              </div>
-          </div>
-      )}
-    </div>
-  );
-};
-
-export default ClientDashboard;
+                      <div className="

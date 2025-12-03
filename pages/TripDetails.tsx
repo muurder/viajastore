@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+// Fix: Use namespace import for react-router-dom and update references
+import * as ReactRouter from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -8,14 +9,16 @@ import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldChe
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
-  const { slug, agencySlug, tripSlug } = useParams<{ slug?: string; agencySlug?: string; tripSlug?: string }>();
+  // Fix: Use ReactRouter.useParams
+  const { slug, agencySlug, tripSlug } = ReactRouter.useParams<{ slug?: string; agencySlug?: string; tripSlug?: string }>();
   // Handling both global route /viagem/:slug and microsite route /:agencySlug/viagem/:tripSlug
   const activeTripSlug = tripSlug || slug;
   
   const { getTripBySlug, getTripById, agencies, toggleFavorite, clients, addBooking, loading, incrementTripViews, getAgencyBySlug } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const navigate = useNavigate();
+  // Fix: Use ReactRouter.useNavigate
+  const navigate = ReactRouter.useNavigate();
 
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
   const [agency, setAgency] = useState<Agency | undefined>(undefined);
@@ -69,9 +72,10 @@ const TripDetails: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Viagem não encontrada</h2>
             <p className="text-gray-500 mb-8 max-w-md">O pacote que você procura não existe ou não pertence a esta agência.</p>
-            <Link to={agencySlug ? `/${agencySlug}/trips` : "/trips"} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
+            {/* Fix: Use ReactRouter.Link */}
+            <ReactRouter.Link to={agencySlug ? `/${agencySlug}/trips` : "/trips"} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors">
               Voltar
-            </Link>
+            </ReactRouter.Link>
         </div>
     );
   }
@@ -79,6 +83,7 @@ const TripDetails: React.FC = () => {
   const handleToggleFavorite = () => {
       if (!user) {
           showToast('Faça login para favoritar.', 'info');
+          navigate('/#login');
           return;
       }
       if (user.role !== 'CLIENT') {
@@ -185,9 +190,11 @@ const TripDetails: React.FC = () => {
       )}
 
       <div className="flex items-center text-sm text-gray-500 mb-6">
-          <Link to={homeLink} className="hover:text-primary-600 flex items-center"><ArrowLeft size={12} className="mr-1"/> {homeLabel}</Link> 
+          {/* Fix: Use ReactRouter.Link */}
+          <ReactRouter.Link to={homeLink} className="hover:text-primary-600 flex items-center"><ArrowLeft size={12} className="mr-1"/> {homeLabel}</ReactRouter.Link> 
           <span className="mx-2">/</span>
-          <Link to={tripsLink} className="hover:text-primary-600">{tripsLabel}</Link>
+          {/* Fix: Use ReactRouter.Link */}
+          <ReactRouter.Link to={tripsLink} className="hover:text-primary-600">{tripsLabel}</ReactRouter.Link>
           <span className="mx-2">/</span>
           <span className="text-gray-900 font-medium truncate max-w-[200px]">{trip.title}</span>
       </div>
@@ -280,9 +287,10 @@ const TripDetails: React.FC = () => {
                    <p className="text-xs text-gray-500 uppercase font-bold mb-1">Organizado por</p>
                    <h4 className="text-xl font-bold text-gray-900 mb-1">{agency.name}</h4>
                    <p className="text-sm text-gray-600 line-clamp-1 mb-3">{agency.description}</p>
-                   <Link to={`/${agency.slug || agency.agencyId}`} className="text-primary-600 text-sm font-bold hover:underline">
+                   {/* Fix: Use ReactRouter.Link */}
+                   <ReactRouter.Link to={`/${agency.slug || agency.agencyId}`} className="text-primary-600 text-sm font-bold hover:underline">
                      Ver perfil da agência &rarr;
-                   </Link>
+                   </ReactRouter.Link>
                 </div>
              </div>
           )}
