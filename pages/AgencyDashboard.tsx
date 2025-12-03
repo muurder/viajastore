@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -322,6 +320,7 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
   const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
   const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
+  // FIX: Pass the `title` prop to the button element instead of the Lucide Icon
   const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false }: any) => (<button type="button" onClick={() => cmd && execCmd(cmd, arg)} className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`} title={title}><Icon size={18}/></button>);
   const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
   const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
@@ -411,7 +410,7 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', description: '', destination: '', price: 0,
     startDate: '', endDate: '', durationDays: 1, images: [],
-    category: 'PRAIA', tags: [], travelerTypes: [],
+    category: 'PRAIA', tags: [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
     itinerary: [], paymentMethods: [], included: [], notIncluded: [],
     is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
   });
@@ -551,7 +550,7 @@ const AgencyDashboard: React.FC = () => {
     setTripForm({
       title: '', description: '', destination: '', price: 0,
       startDate: '', endDate: '', durationDays: 1, images: [],
-      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [],
+      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
       itinerary: [{ day: 1, title: '', description: '' }], paymentMethods: agency.customSettings?.paymentMethods || [], included: agency.customSettings?.included || [], notIncluded: agency.customSettings?.notIncluded || [],
       is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
     });
@@ -1008,7 +1007,7 @@ const AgencyDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Agência</label>
-                    <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                    <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
@@ -1128,7 +1127,7 @@ const AgencyDashboard: React.FC = () => {
                             <PillInput 
                                 value={customSuggestionsForm.notIncluded} 
                                 onChange={newNotIncluded => setCustomSuggestionsForm({...customSuggestionsForm, notIncluded: newNotIncluded})} 
-                                placeholder="Adicione itens que geralmente não estão incluídos"
+                                placeholder="Adicione o que não está incluído (ex: passagens aéreas)"
                                 suggestions={SUGGESTED_NOT_INCLUDED}
                             />
                         </div>
@@ -1320,10 +1319,10 @@ const AgencyDashboard: React.FC = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Tipos de Viajantes</label>
                 <PillInput 
                     value={tripForm.travelerTypes || []} 
-                    onChange={types => setTripForm({...tripForm, travelerTypes: types})} 
+                    onChange={types => setTripForm({...tripForm, travelerTypes: types as TravelerType[]})} // FIX: Explicitly cast to TravelerType[]
                     placeholder="Adicione tipos de viajantes (ex: casal, sozinho)"
                     suggestions={SUGGESTED_TRAVELERS}
-                    customSuggestions={agency.customSettings?.travelerTypes} // Assuming this could exist
+                    // FIX: Removed invalid customSuggestions prop as 'travelerTypes' is not in Agency.customSettings
                 />
               </div>
               
