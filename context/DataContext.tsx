@@ -1,9 +1,9 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
-// Fix: Corrected import syntax for slugify
 import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
@@ -14,10 +14,11 @@ interface DataContextType {
   reviews: Review[]; // Legacy Trip Reviews (Deprecated)
   agencyReviews: AgencyReview[]; // New Agency Reviews
   clients: Client[];
-  auditLogs: AuditLog[];
+  auditLogs: AuditLog[]; // Admin specific audit logs
+  activityLogs: ActivityLog[]; // Consolidated logs
   loading: boolean;
   
-  addBooking: (booking: Booking) => Promise<void>;
+  addBooking: (booking: Booking) => Promise<Booking | undefined>;
   addReview: (review: Review) => Promise<void>; // Legacy
   addAgencyReview: (review: Partial<AgencyReview>) => Promise<void>; // New
   deleteReview: (reviewId: string) => Promise<void>; // Legacy
@@ -71,6 +72,27 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+// Moved outside DataProvider to prevent re-creation on every render
+const initializeMockData = (
+  setTrips: (t: Trip[]) => void, 
+  setAgencies: (a: Agency[]) => void, 
+  setBookings: (b: Booking[]) => void, 
+  setReviews: (r: Review[]) => void, 
+  setAgencyReviews: (ar: AgencyReview[]) => void, 
+  setClients: (c: Client[]) => void, 
+  setAuditLogs: (al: AuditLog[]) => void,
+  setActivityLogs: (al: ActivityLog[]) => void // New: for activity logs
+) => {
+    setTrips(MOCK_TRIPS);
+    setAgencies(MOCK_AGENCIES);
+    setBookings(MOCK_BOOKINGS);
+    setReviews(MOCK_REVIEWS);
+    setAgencyReviews([]);
+    setClients(MOCK_CLIENTS);
+    setAuditLogs([]);
+    setActivityLogs([]); // Initialize empty for mock
+};
+
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -81,18 +103,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [reviews, setReviews] = useState<Review[]>([]);
   const [agencyReviews, setAgencyReviews] = useState<AgencyReview[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]); // Admin specific audit logs
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]); // Consolidated logs
   const [loading, setLoading] = useState(true);
 
-  // FIX: Moved useMockData inside DataProvider to have access to state setters.
-  const useMockData = () => {
-      setTrips(MOCK_TRIPS);
-      setAgencies(MOCK_AGENCIES);
-      setBookings(MOCK_BOOKINGS);
-      setReviews(MOCK_REVIEWS);
-      setAgencyReviews([]);
-      setClients(MOCK_CLIENTS);
-      setAuditLogs([]);
+  // --- HELPER PARA LOGS DE ATIVIDADE ---
+  const logActivity = async (actionType: ActivityActionType, details: any = {}, relatedAgencyId: string | null = null) => {
+    if (!supabase || !user) return; // Only log if Supabase and user are available
+    
+    // Determine actor_role
+    let actorRole: ActivityActorRole = user.role as ActivityActorRole;
+    if (user.email === 'juannicolas1@gmail.com') { // Master Admin check
+      actorRole = 'ADMIN';
+    } else if (user.role === UserRole.AGENCY) {
+      actorRole = 'AGENCY';
+      // If agency-related action, ensure relatedAgencyId is set
+      relatedAgencyId = (user as Agency).agencyId;
+    } else if (user.role === UserRole.CLIENT) {
+      actorRole = 'CLIENT';
+    }
+
+    try {
+      const { error } = await supabase.rpc('log_activity', {
+        p_user_id: user.id,
+        p_actor_email: user.email,
+        p_actor_role: actorRole,
+        p_action_type: actionType,
+        p_details: details,
+        p_agency_id: relatedAgencyId,
+      });
+      if (error) {
+        console.error("Error logging activity:", error);
+      }
+    } catch (err) {
+      console.error("Error calling log_activity RPC:", err);
+    }
   };
 
   // --- DATA FETCHING ---
@@ -137,7 +182,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
             rating: t.rating || 0, // Assuming rating might be present or default to 0
-            totalReviews: t.totalReviews || 0,
+            // Fix: Use t.total_reviews from DB column, not 'totalReviews'
+            totalReviews: t.total_reviews || 0, 
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -306,7 +352,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 payment_methods,
                 is_active,
                 rating,
-                totalReviews,
+                total_reviews,
                 included,
                 not_included,
                 views_count,
@@ -319,6 +365,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   id,
                   user_id,
                   name,
+                  email,
                   slug,
                   phone,
                   whatsapp,
@@ -365,7 +412,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b.trips.totalReviews || 0,
+               // Fix: Use b.trips.total_reviews from DB column, not 'totalReviews'
+               totalReviews: b.trips.total_reviews || 0, 
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
@@ -422,6 +470,52 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // NEW: Fetch all activity logs
+  const fetchActivityLogs = async () => {
+    if (!supabase) {
+      setActivityLogs([]);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select(`
+          *,
+          user_name:profiles (full_name, avatar_url),
+          agency_name:agencies (name, logo_url),
+          trip_title:trips (title)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching activity logs:", error);
+        throw error;
+      }
+
+      if (data) {
+        const formattedLogs: ActivityLog[] = data.map((log: any) => ({
+          id: log.id,
+          user_id: log.user_id,
+          agency_id: log.agency_id,
+          actor_email: log.actor_email,
+          actor_role: log.actor_role,
+          action_type: log.action_type,
+          details: log.details,
+          created_at: log.created_at,
+          user_name: log.user_name?.full_name || log.actor_email,
+          user_avatar: log.user_name?.avatar_url,
+          agency_name: log.agency_name?.name,
+          agency_logo: log.agency_name?.logo_url,
+          trip_title: log.trip_title?.title,
+        }));
+        setActivityLogs(formattedLogs);
+      }
+    } catch (err) {
+      console.warn("Supabase unavailable or activity_logs query failed, defaulting to empty.", err);
+      setActivityLogs([]);
+    }
+  };
+
   const fetchAuditLogs = async () => {
       if (!supabase) {
         setAuditLogs([]);
@@ -450,7 +544,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(true);
 
       if (!supabase) {
-        useMockData();
+        initializeMockData(setTrips, setAgencies, setBookings, setReviews, setAgencyReviews, setClients, setAuditLogs, setActivityLogs);
         setLoading(false);
         return;
       }
@@ -459,7 +553,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchTrips(), 
         fetchAgencies(), 
         fetchAgencyReviews(),
-        fetchBookings()
+        fetchBookings(),
+        fetchActivityLogs() // NEW: Fetch activity logs
       ];
       
       if (user && user.role === UserRole.CLIENT) {
@@ -514,7 +609,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           is_active: status === 'ACTIVE'
       };
 
-      // Se expiresAt for fornecido, atualiza-o também
       if (expiresAt) {
           updates.subscription_expires_at = expiresAt;
       }
@@ -527,6 +621,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
           showToast('Assinatura atualizada com sucesso!', 'success');
           await refreshData();
+          logActivity('AGENCY_SUBSCRIPTION_UPDATED', { agencyId, newStatus: status, newPlan: plan, expiresAt }, agencyId);
       }
   };
 
@@ -546,6 +641,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const { error } = await supabase.from('favorites').delete().eq('user_id', clientId).eq('trip_id', tripId);
             if (error) throw error;
             showToast('Removido dos favoritos', 'info');
+            logActivity('FAVORITE_TOGGLED', { tripId, action: 'removed' });
         } else {
             const { error } = await supabase.from('favorites').insert({ user_id: clientId, trip_id: tripId });
             if (error) {
@@ -556,6 +652,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             }
             showToast('Adicionado aos favoritos', 'success');
+            logActivity('FAVORITE_TOGGLED', { tripId, action: 'added' });
         }
     } catch (error: any) {
         console.error('Error toggling favorite:', error);
@@ -564,33 +661,64 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const addBooking = async (booking: Booking) => {
+  const addBooking = async (booking: Booking): Promise<Booking | undefined> => { 
     const supabase = guardSupabase();
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let finalId = booking.id;
     
-    if (!finalId || !uuidRegex.test(finalId)) {
+    if (!finalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(finalId)) {
         finalId = crypto.randomUUID();
     }
+    
+    console.log(`Attempting to add booking for trip ${booking.tripId} with ${booking.passengers} passengers.`); // Added log
+    try {
+      const { data, error } = await supabase.from('bookings').insert({
+        id: finalId,
+        trip_id: booking.tripId,
+        client_id: booking.clientId,
+        created_at: booking.date,
+        status: booking.status,
+        total_price: booking.totalPrice,
+        passengers: booking.passengers,
+        voucher_code: booking.voucherCode,
+        payment_method: booking.paymentMethod
+      }).select().single(); // This is good, it returns the inserted data
 
-    const { error } = await supabase.from('bookings').insert({
-      id: finalId,
-      trip_id: booking.tripId,
-      client_id: booking.clientId,
-      created_at: booking.date,
-      status: booking.status,
-      total_price: booking.totalPrice,
-      passengers: booking.passengers,
-      voucher_code: booking.voucherCode,
-      payment_method: booking.paymentMethod
-    });
-    if (error) {
-      console.error('Error adding booking:', error);
-      showToast('Erro ao criar reserva: ' + error.message, 'error');
-    } else {
-      showToast('Reserva realizada com sucesso!', 'success');
-      setBookings(prev => [...prev, booking]);
+      if (error) throw error;
+
+      if (data) {
+        // Correctly populate _trip and _agency from the data passed in `booking` object
+        // Assuming the `booking` object passed to `addBooking` already has these details
+        // as they are needed for the success page immediately.
+        const formattedData: Booking = {
+          id: data.id,
+          tripId: data.trip_id,
+          clientId: data.client_id,
+          date: data.created_at,
+          status: data.status,
+          totalPrice: data.total_price,
+          passengers: data.passengers,
+          voucherCode: data.voucher_code,
+          paymentMethod: data.payment_method,
+          _trip: booking._trip, // Directly use passed trip data
+          _agency: booking._agency, // Directly use passed agency data
+        };
+        
+        setBookings(prev => [...prev, formattedData]); // Optimistically add to state
+        console.log(`Booking for trip ${booking.tripId} created successfully. Local state updated without extra DB fetch.`);
+        logActivity('BOOKING_CREATED', { 
+          bookingId: formattedData.id, 
+          tripId: formattedData.tripId, 
+          totalPrice: formattedData.totalPrice, 
+          passengers: formattedData.passengers 
+        });
+        return formattedData;
+      }
+    } catch (err: any) {
+      console.error('Error adding booking:', err);
+      showToast('Erro ao criar reserva: ' + err.message, 'error');
+      throw err;
     }
+    return undefined;
   };
   
   const addReview = async (review: Review) => {
@@ -619,6 +747,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
           showToast('Avaliação da agência enviada!', 'success');
           await refreshData();
+          logActivity('REVIEW_SUBMITTED', { 
+            reviewId: data.id, 
+            agencyId: review.agencyId, 
+            tripId: review.trip_id, 
+            rating: review.rating 
+          });
       }
   };
 
@@ -635,6 +769,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
         showToast('Avaliação atualizada!', 'success');
         await refreshData();
+        logActivity('REVIEW_UPDATED', { reviewId, newRating: data.rating, newComment: data.comment });
     }
   };
 
@@ -645,13 +780,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     else {
         showToast('Avaliação excluída.', 'success');
         await refreshData();
+        logActivity('REVIEW_DELETED', { reviewId });
     }
   };
 
   const createTrip = async (trip: Trip) => {
     const supabase = guardSupabase();
     
-    // Explicitly build the payload to avoid inserting extra fields like 'rating'
     const payload = {
       agency_id: trip.agencyId,
       title: trip.title,
@@ -681,7 +816,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     if (error) throw error;
 
-    // Handle images
     if (trip.images && trip.images.length > 0) {
         const imagePayload = trip.images.map((url, i) => ({ trip_id: data.id, image_url: url, position: i }));
         const { error: imgError } = await supabase.from('trip_images').insert(imagePayload);
@@ -689,12 +823,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     await refreshData();
+    logActivity('TRIP_CREATED', { tripId: data.id, title: data.title }, data.agency_id);
   };
 
   const updateTrip = async (trip: Trip) => {
     const supabase = guardSupabase();
     
-    // Explicitly build the payload to avoid inserting extra fields like 'rating'
     const payload = {
       agency_id: trip.agencyId,
       title: trip.title,
@@ -718,14 +852,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       popular_near_sp: trip.popularNearSP,
       views_count: trip.views || 0,
       sales_count: trip.sales || 0,
-      updated_at: new Date().toISOString() // Good practice to update this
+      updated_at: new Date().toISOString()
     };
 
     const { error } = await supabase.from('trips').update(payload).eq('id', trip.id);
 
     if (error) throw error;
 
-    // Manage images: delete all then re-insert
     await supabase.from('trip_images').delete().eq('trip_id', trip.id);
     if (trip.images && trip.images.length > 0) {
         const imagePayload = trip.images.map((url, i) => ({ trip_id: trip.id, image_url: url, position: i }));
@@ -734,14 +867,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     await refreshData();
+    logActivity('TRIP_UPDATED', { tripId: trip.id, title: trip.title }, trip.agencyId);
   };
   
   const deleteTrip = async (tripId: string) => {
     const supabase = guardSupabase();
-    // Cascade delete should handle trip_images
+    const trip = trips.find(t => t.id === tripId);
     const { error } = await supabase.from('trips').delete().eq('id', tripId);
     if (error) throw error;
     await refreshData();
+    logActivity('TRIP_DELETED', { tripId, title: trip?.title }, trip?.agencyId);
   };
 
   const toggleTripStatus = async (tripId: string) => {
@@ -752,6 +887,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) showToast('Erro: ' + error.message, 'error');
     else showToast(`Viagem ${!trip.is_active ? 'publicada' : 'pausada'}.`, 'success');
     await refreshData();
+    logActivity('TRIP_STATUS_TOGGLED', { tripId, title: trip.title, newStatus: !trip.is_active }, trip.agencyId);
   };
 
   const toggleTripFeatureStatus = async (tripId: string) => {
@@ -762,13 +898,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) showToast('Erro: ' + error.message, 'error');
     else showToast(`Viagem ${!trip.featured ? 'destacada' : 'removida dos destaques'}.`, 'success');
     await refreshData();
+    logActivity('TRIP_FEATURE_TOGGLED', { tripId, title: trip.title, newStatus: !trip.featured }, trip.agencyId);
   };
 
   const softDeleteEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const supabase = guardSupabase();
     try {
         const { error } = await supabase
-            .from('profiles') // Always soft-delete the profile
+            .from('profiles')
             .update({ deleted_at: new Date().toISOString() })
             .eq('id', id);
         
@@ -776,6 +913,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         showToast(`${table === 'profiles' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
         await refreshData();
+        logActivity('ADMIN_USER_MANAGED', { action: 'soft_delete', entityType: table, entityId: id });
     } catch (error: any) {
         showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
     }
@@ -785,7 +923,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     const supabase = guardSupabase();
     try {
         const { error } = await supabase
-            .from('profiles') // Always restore the profile
+            .from('profiles')
             .update({ deleted_at: null })
             .eq('id', id);
         
@@ -793,86 +931,24 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
 
         showToast(`${table === 'profiles' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
         await refreshData();
+        logActivity('ADMIN_USER_MANAGED', { action: 'restore', entityType: table, entityId: id });
     } catch (error: any) {
         showToast(`Erro ao restaurar: ${error.message}`, 'error');
     }
 };
 
   const incrementTripViews = async (tripId: string) => {
-      // Optimistic update
       setTrips(prev => prev.map(t => t.id === tripId ? { ...t, views: (t.views || 0) + 1 } : t));
       
       if (supabase) {
-          const { data } = await supabase.from('trips').select('views_count').eq('id', tripId).single();
+          const { data } = await supabase.from('trips').select('views_count, agency_id').eq('id', tripId).single();
           if (data) {
              await supabase.from('trips').update({ views_count: (data.views_count || 0) + 1 }).eq('id', tripId);
+             logActivity('TRIP_VIEWED', { tripId }, data.agency_id);
           }
       }
   };
 
-  // --- GETTERS (DERIVED STATE) ---
-  const getPublicTrips = () => trips; 
-  const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
-  const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
-  
-  const getTripById = (id: string | undefined) => trips.find(t => t.id === id);
-  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug);
-  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug);
-  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
-  const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
-  const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
-  const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  const getAgencyStats = (agencyId: string): DashboardStats => { 
-      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-      const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
-
-      const agencyBookings = bookings.filter(b => {
-          if (b._agency?.agencyId === agencyId) return true;
-          const trip = trips.find(t => t.id === b.tripId);
-          return trip?.agencyId === agencyId;
-      });
-
-      const confirmedBookings = agencyBookings.filter(b => b.status === 'CONFIRMED');
-      const totalSales = confirmedBookings.length;
-      const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-
-      // Fix: Calculate averageRating and totalReviews
-      const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
-      const totalRatingSum = agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0);
-      const averageRating = agencyReviewsForStats.length > 0 ? totalRatingSum / agencyReviewsForStats.length : 0;
-      const totalReviewsCount = agencyReviewsForStats.length;
-
-      return { 
-          totalRevenue, 
-          totalViews, 
-          totalSales, 
-          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0,
-          averageRating, // Fix: Add averageRating
-          totalReviews: totalReviewsCount, // Fix: Add totalReviews
-      }; 
-  };
-
-  const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
-      const supabase = guardSupabase();
-      try {
-          const { data, error } = await supabase.from('agency_themes').select('colors').eq('agency_id', agencyId).maybeSingle();
-          if (error) throw error;
-          return data ? { agencyId, ...data } : null;
-      } catch (e) { return null; }
-  };
-  
-  const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
-      const supabase = guardSupabase();
-      try {
-          const { error } = await supabase.from('agency_themes').upsert({ agency_id: agencyId, colors: colors }, { onConflict: 'agency_id' });
-          if (error) throw error;
-          return true;
-      } catch (e) { return false; }
-  };
-  
-  const dummyGuardedFunc = async () => { if (!supabase) return; };
-
-  // New functions implemented to fix scope issues
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
     const supabase = guardSupabase();
     const updates: any = {};
@@ -882,6 +958,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     if (data.cpf) updates.cpf = data.cpf;
     if (data.status) updates.status = data.status;
     if (data.address) updates.address = data.address;
+    if (data.avatar) updates.avatar_url = data.avatar;
 
     const { error } = await supabase.from('profiles').update(updates).eq('id', clientId);
     if (error) {
@@ -889,6 +966,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
         throw error;
     }
     await refreshData();
+    logActivity('CLIENT_PROFILE_UPDATED', { clientId, changes: Object.keys(data) });
   };
 
   const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
@@ -903,6 +981,12 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     if (data.website) updates.website = data.website;
     if (data.address) updates.address = data.address;
     if (data.bankInfo) updates.bank_info = data.bankInfo;
+    if (data.logo) updates.logo_url = data.logo;
+    if (data.heroMode) updates.hero_mode = data.heroMode;
+    if (data.heroBannerUrl) updates.hero_banner_url = data.heroBannerUrl;
+    if (data.heroTitle) updates.hero_title = data.heroTitle;
+    if (data.heroSubtitle) updates.hero_subtitle = data.heroSubtitle;
+    if (data.customSettings) updates.custom_settings = data.customSettings;
 
     const { error } = await supabase.from('agencies').update(updates).eq('id', agencyId);
     if (error) {
@@ -910,6 +994,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
         throw error;
     }
     await refreshData();
+    logActivity('AGENCY_PROFILE_UPDATED', { agencyId, changes: Object.keys(data) }, agencyId);
   };
 
   const toggleAgencyStatus = async (agencyId: string) => {
@@ -928,6 +1013,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     } else {
         showToast(`Agência ${newStatus === 'ACTIVE' ? 'ativada' : 'inativada'}.`, 'success');
         await refreshData();
+        logActivity('AGENCY_STATUS_TOGGLED', { agencyId, newStatus }, agencyId);
     }
   };
 
@@ -935,13 +1021,19 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       const supabase = guardSupabase();
       try {
           if (role === UserRole.AGENCY) {
-              await supabase.from('agencies').delete().eq('user_id', userId);
+              // Get agency ID from user ID
+              const { data: agencyData } = await supabase.from('agencies').select('id').eq('user_id', userId).single();
+              if (agencyData) {
+                await supabase.from('agencies').delete().eq('user_id', userId);
+                logActivity('ADMIN_AGENCY_MANAGED', { action: 'permanent_delete', agencyId: agencyData.id }, agencyData.id);
+              }
           }
           const { error } = await supabase.from('profiles').delete().eq('id', userId);
           if (error) throw error;
           
           showToast('Usuário excluído do banco de dados.', 'success');
           await refreshData();
+          logActivity('ADMIN_USER_MANAGED', { action: 'permanent_delete', userId });
       } catch (e: any) {
           showToast('Erro ao excluir: ' + e.message, 'error');
       }
@@ -953,6 +1045,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           const { error } = await supabase.from('profiles').delete().in('id', userIds);
           if (error) throw error;
           await refreshData();
+          logActivity('ADMIN_USER_MANAGED', { action: 'mass_delete', userIds });
       } catch (e: any) {
           showToast('Erro ao excluir usuários: ' + e.message, 'error');
       }
@@ -961,9 +1054,11 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const deleteMultipleAgencies = async (agencyIds: string[]) => {
       const supabase = guardSupabase();
       try {
-          const { error } = await supabase.from('agencies').delete().in('id', agencyIds);
+          // Fix: Ensure correct ID is passed for deletion from agencies table
+          const { error } = await supabase.from('agencies').delete().in('id', agencyIds); 
           if (error) throw error;
           await refreshData();
+          logActivity('ADMIN_AGENCY_MANAGED', { action: 'mass_delete', agencyIds });
       } catch (e: any) {
           showToast('Erro ao excluir agências: ' + e.message, 'error');
       }
@@ -975,6 +1070,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           const { error } = await supabase.from('profiles').update({ status }).in('id', userIds);
           if (error) throw error;
           await refreshData();
+          logActivity('ADMIN_USER_MANAGED', { action: 'mass_status_update', userIds, newStatus: status });
       } catch (e: any) {
           showToast('Erro ao atualizar status: ' + e.message, 'error');
       }
@@ -989,6 +1085,7 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           }).in('id', agencyIds);
           if (error) throw error;
           await refreshData();
+          logActivity('ADMIN_AGENCY_MANAGED', { action: 'mass_status_update', agencyIds, newStatus: status });
       } catch (e: any) {
           showToast('Erro ao atualizar status: ' + e.message, 'error');
       }
@@ -998,6 +1095,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       if (!supabase || !user || user.role !== UserRole.ADMIN) return;
       try {
           await supabase.from('audit_logs').insert({ admin_email: user.email, action, details });
+          // Fix: Ensure 'ADMIN_ACTION' is a valid ActivityActionType
+          logActivity('ADMIN_ACTION' as ActivityActionType, { action, details });
       } catch (e) {
           console.error("Error logging audit action:", e);
       }
@@ -1007,11 +1106,11 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       if (!supabase) return;
       try {
           const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
-              redirectTo: `${window.location.origin}/#/forgot-password` // Adjust if you have a specific reset page
+              redirectTo: `${window.location.origin}/#/forgot-password`
           });
           if (error) throw error;
           showToast('Link de reset de senha enviado para o e-mail.', 'success');
-          logAuditAction('PASSWORD_RESET_SENT', `Admin sent password reset link to ${email}`);
+          logActivity('PASSWORD_RESET_INITIATED', { targetEmail: email });
       } catch (e: any) {
           showToast('Erro ao enviar link: ' + e.message, 'error');
       }
@@ -1031,12 +1130,11 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
 
           const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
           
-          // Update profile table
           await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
 
           showToast('Avatar atualizado com sucesso!', 'success');
-          logAuditAction('USER_AVATAR_UPDATED', `Admin updated avatar for user ID: ${userId}`);
-          await refreshData(); // Refresh data to reflect changes
+          logActivity('ADMIN_USER_MANAGED', { action: 'avatar_updated', userId, newAvatarUrl: data.publicUrl });
+          await refreshData();
           return data.publicUrl;
       } catch (error) {
           console.error("Upload avatar by admin error:", error);
@@ -1075,9 +1173,71 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   };
 
 
+  // --- GETTERS (DERIVED STATE) ---
+  const getPublicTrips = () => trips; 
+  const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
+  const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
+  
+  const getTripById = (id: string | undefined) => trips.find(t => t.id === id);
+  const getTripBySlug = (slug: string) => trips.find(t => t.slug === slug);
+  const getAgencyBySlug = (slug: string) => agencies.find(a => a.slug === slug);
+  const getReviewsByTripId = (tripId: string) => reviews.filter(r => r.tripId === tripId);
+  const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
+  const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
+  const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+  const getAgencyStats = (agencyId: string): DashboardStats => { 
+      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+      const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+
+      const agencyBookings = bookings.filter(b => {
+          // Changed logic: bookings no longer have _agency pre-fetched.
+          // Need to find the trip first, then its agency.
+          const trip = trips.find(t => t.id === b.tripId);
+          return trip?.agencyId === agencyId;
+      });
+
+      const confirmedBookings = agencyBookings.filter(b => b.status === 'CONFIRMED');
+      const totalSales = confirmedBookings.length;
+      const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+
+      const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
+      const totalRatingSum = agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0);
+      const averageRating = agencyReviewsForStats.length > 0 ? totalRatingSum / agencyReviewsForStats.length : 0;
+      const totalReviewsCount = agencyReviewsForStats.length; // FIX: Use totalReviewsCount here
+
+      return { 
+          totalRevenue, 
+          totalViews, 
+          totalSales, 
+          conversionRate: totalViews > 0 ? (totalSales / totalViews) * 100 : 0,
+          averageRating,
+          totalReviews: totalReviewsCount,
+      }; 
+  };
+
+  const getAgencyTheme = async (agencyId: string): Promise<AgencyTheme | null> => {
+      const supabase = guardSupabase();
+      try {
+          const { data, error } = await supabase.from('agency_themes').select('colors').eq('agency_id', agencyId).maybeSingle();
+          if (error) throw error;
+          return data ? { agencyId, ...data } : null;
+      } catch (e) { return null; }
+  };
+  
+  const saveAgencyTheme = async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
+      const supabase = guardSupabase();
+      try {
+          const { error } = await supabase.from('agency_themes').upsert({ agency_id: agencyId, colors: colors }, { onConflict: 'agency_id' });
+          if (error) throw error;
+          return true;
+      } catch (e) { return false; }
+  };
+  
+  const dummyGuardedFunc = async () => { if (!supabase) return; };
+
   return (
     <DataContext.Provider value={{
-      trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, loading,
+      trips, agencies, bookings, reviews, agencyReviews, clients, auditLogs, activityLogs, loading,
       addBooking,
       addReview,
       addAgencyReview,

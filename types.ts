@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -245,4 +246,48 @@ export interface DashboardStats {
   conversionRate: number;
   averageRating?: number;
   totalReviews?: number;
+}
+
+// --- NOVO: TIPOS PARA LOGS DE ATIVIDADE ---
+export type ActivityActorRole = 'CLIENT' | 'AGENCY' | 'ADMIN';
+export type ActivityActionType =
+  | 'TRIP_VIEWED'
+  | 'BOOKING_CREATED'
+  | 'BOOKING_CANCELLED'
+  | 'REVIEW_SUBMITTED'
+  | 'REVIEW_UPDATED'
+  | 'REVIEW_DELETED'
+  | 'FAVORITE_TOGGLED'
+  | 'TRIP_CREATED'
+  | 'TRIP_UPDATED'
+  | 'TRIP_DELETED'
+  | 'TRIP_STATUS_TOGGLED'
+  | 'TRIP_FEATURE_TOGGLED'
+  | 'AGENCY_PROFILE_UPDATED'
+  | 'AGENCY_STATUS_TOGGLED'
+  | 'AGENCY_SUBSCRIPTION_UPDATED'
+  | 'CLIENT_PROFILE_UPDATED'
+  | 'PASSWORD_RESET_INITIATED'
+  | 'ACCOUNT_DELETED'
+  | 'ADMIN_USER_MANAGED'
+  | 'ADMIN_AGENCY_MANAGED'
+  | 'ADMIN_THEME_MANAGED'
+  | 'ADMIN_MOCK_DATA_MIGRATED'
+  | 'ADMIN_ACTION';
+
+export interface ActivityLog {
+  id: string;
+  user_id: string | null;
+  agency_id: string | null; // Nullable if not agency-related
+  actor_email: string;
+  actor_role: ActivityActorRole;
+  action_type: ActivityActionType;
+  details: any; // JSONB field
+  created_at: string;
+  // Campos adicionais (denormalizados/join) para exibição:
+  user_name?: string;
+  user_avatar?: string;
+  agency_name?: string;
+  agency_logo?: string;
+  trip_title?: string;
 }
