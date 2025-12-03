@@ -8,12 +8,11 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard, MessageCircle } from 'lucide-react'; // Added Briefcase, LayoutDashboard
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard, MessageCircle } from 'lucide-react'; 
 import { supabase } from '../services/supabase';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
-// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -30,7 +29,6 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-// Fix: Define StatCard component locally
 interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
@@ -51,7 +49,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Fix: Define ActionMenu component locally
 interface ActionsMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionsMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -102,7 +99,6 @@ const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gor
 interface NavButtonProps {
   tabId: string;
   label: string;
-  // FIX: Explicitly type the icon prop as a React Component from lucide-react.
   icon: React.ComponentType<LucideProps>;
   activeTab: string;
   onClick: (tabId: string) => void;
@@ -236,7 +232,8 @@ const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDupli
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
       <div className="flex items-center gap-2 justify-end">
-        <button onClick={() => onEdit(trip)} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
+        {/* FIX: Moved title to button element */}
+        <button onClick={() => onEdit(trip)} title={isPublished ? 'Gerenciar' : 'Editar'} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
         <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreVertical size={20} /></button>
       </div>
       {isOpen && (
@@ -320,7 +317,7 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
   const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
   const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
   const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
-  // FIX: Pass the `title` prop to the button element instead of the Lucide Icon
+  // FIX: Passed title prop to the button element instead of the Lucide Icon
   const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false }: any) => (<button type="button" onClick={() => cmd && execCmd(cmd, arg)} className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`} title={title}><Icon size={18}/></button>);
   const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
   const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
@@ -376,7 +373,7 @@ const AgencyDashboard: React.FC = () => {
     agencies, trips, agencyReviews, getAgencyTrips, getReviewsByAgencyId,
     getAgencyStats, updateAgencySubscription, updateAgencyProfileByAdmin,
     createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-    refreshData, incrementTripViews, getAgencyTheme, saveAgencyTheme,
+    refreshData, getAgencyTheme, saveAgencyTheme,
   } = useData();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -410,12 +407,12 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', description: '', destination: '', price: 0,
     startDate: '', endDate: '', durationDays: 1, images: [],
-    category: 'PRAIA', tags: [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
+    category: 'PRAIA', tags: [], travelerTypes: [],
     itinerary: [], paymentMethods: [], included: [], notIncluded: [],
     is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
   });
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  // Removed `newImageFile` as it was unused.
   const [itineraryDays, setItineraryDays] = useState([{ day: 1, title: '', description: '' }]);
 
   // Settings tab states
@@ -444,7 +441,7 @@ const AgencyDashboard: React.FC = () => {
     paymentMethods: agency.customSettings?.paymentMethods || [],
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  // Fix: Initialize themeForm with a default value, will be updated by useEffect
+  // FIX: Initialize themeForm with a default value, will be updated by useEffect
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' }); 
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
 
@@ -550,7 +547,7 @@ const AgencyDashboard: React.FC = () => {
     setTripForm({
       title: '', description: '', destination: '', price: 0,
       startDate: '', endDate: '', durationDays: 1, images: [],
-      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
+      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [],
       itinerary: [{ day: 1, title: '', description: '' }], paymentMethods: agency.customSettings?.paymentMethods || [], included: agency.customSettings?.included || [], notIncluded: agency.customSettings?.notIncluded || [],
       is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
     });
@@ -1319,10 +1316,9 @@ const AgencyDashboard: React.FC = () => {
                 <label className="block text-sm font-bold text-gray-700 mb-2">Tipos de Viajantes</label>
                 <PillInput 
                     value={tripForm.travelerTypes || []} 
-                    onChange={types => setTripForm({...tripForm, travelerTypes: types as TravelerType[]})} // FIX: Explicitly cast to TravelerType[]
+                    onChange={types => setTripForm({...tripForm, travelerTypes: types as TravelerType[]})} 
                     placeholder="Adicione tipos de viajantes (ex: casal, sozinho)"
                     suggestions={SUGGESTED_TRAVELERS}
-                    // FIX: Removed invalid customSuggestions prop as 'travelerTypes' is not in Agency.customSettings
                 />
               </div>
               

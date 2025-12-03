@@ -13,10 +13,11 @@ import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 // Corrected import path for MasterAdminDashboard component
 import { MasterAdminDashboard } from './pages/MasterAdminDashboard'; 
-import AgencyDashboard from './pages/AgencyDashboard'; // Corrected: Import AgencyDashboard
-import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import AgencyDashboard from './pages/AgencyDashboard'; 
+import ClientDashboard from './pages/ClientDashboard'; 
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
+import AgencyLandingPage from './pages/AgencyLandingPage'; // Import AgencyLandingPage here
 
 const App: React.FC = () => {
   return (

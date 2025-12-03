@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -10,7 +9,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard } from 'lucide-react'; // Added Briefcase, LayoutDashboard
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreVertical, PauseCircle, PlayCircle, Plane, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Briefcase, LayoutDashboard, MessageCircle } from 'lucide-react'; 
 import { supabase } from '../services/supabase';
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
@@ -234,7 +233,8 @@ const TripActionsMenu: React.FC<TripActionsMenuProps> = ({ trip, onEdit, onDupli
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
       <div className="flex items-center gap-2 justify-end">
-        <button onClick={() => onEdit(trip)} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
+        {/* FIX: Moved title to button element */}
+        <button onClick={() => onEdit(trip)} title={isPublished ? 'Gerenciar' : 'Editar'} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
         <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreVertical size={20} /></button>
       </div>
       {isOpen && (
@@ -373,7 +373,7 @@ const AgencyDashboard: React.FC = () => {
     agencies, trips, agencyReviews, getAgencyTrips, getReviewsByAgencyId,
     getAgencyStats, updateAgencySubscription, updateAgencyProfileByAdmin,
     createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus,
-    refreshData, incrementTripViews, getAgencyTheme, saveAgencyTheme,
+    refreshData, getAgencyTheme, saveAgencyTheme,
   } = useData();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -407,12 +407,12 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({
     title: '', description: '', destination: '', price: 0,
     startDate: '', endDate: '', durationDays: 1, images: [],
-    category: 'PRAIA', tags: [], travelerTypes: [],
+    category: 'PRAIA', tags: [], travelerTypes: [], // FIX: Ensure travelerTypes is typed correctly
     itinerary: [], paymentMethods: [], included: [], notIncluded: [],
     is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
   });
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  // Removed `newImageFile` as it was unused.
   const [itineraryDays, setItineraryDays] = useState([{ day: 1, title: '', description: '' }]);
 
   // Settings tab states
@@ -441,7 +441,7 @@ const AgencyDashboard: React.FC = () => {
     paymentMethods: agency.customSettings?.paymentMethods || [],
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  // Fix: Initialize themeForm with a default value, will be updated by useEffect
+  // FIX: Initialize themeForm with a default value, will be updated by useEffect
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' }); 
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
 
@@ -547,7 +547,7 @@ const AgencyDashboard: React.FC = () => {
     setTripForm({
       title: '', description: '', destination: '', price: 0,
       startDate: '', endDate: '', durationDays: 1, images: [],
-      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [],
+      category: 'PRAIA', tags: agency.customSettings?.tags || [], travelerTypes: [] as TravelerType[], // FIX: Ensure travelerTypes is typed correctly
       itinerary: [{ day: 1, title: '', description: '' }], paymentMethods: agency.customSettings?.paymentMethods || [], included: agency.customSettings?.included || [], notIncluded: agency.customSettings?.notIncluded || [],
       is_active: false, featured: false, featuredInHero: false, popularNearSP: false,
     });
@@ -957,4 +957,477 @@ const AgencyDashboard: React.FC = () => {
                           Avaliação do pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
                       </div>
                   )}
-                  <p
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4">"{review.comment}"</p>
+                  
+                  {review.tags && review.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                          {review.tags.map(tag => (
+                              <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
+                          ))}
+                      </div>
+                  )}
+                  
+                  {review.response && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                          <div className="bg-gray-50 p-4 rounded-lg">
+                              <p className="text-xs font-bold text-gray-600 mb-2">Resposta da agência</p>
+                              <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                          </div>
+                      </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+              <Star size={32} className="text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma avaliação recebida</h3>
+              <p className="text-gray-500 mb-6">Incentive seus clientes a deixar uma avaliação para você!</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'SETTINGS' && (
+        <div className="animate-[fadeIn_0.3s]">
+          <div className="flex border-b border-gray-200 mb-6 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+            <button onClick={() => handleSettingsTabChange('PROFILE')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'PROFILE' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><User size={14}/> Perfil da Agência</button>
+            <button onClick={() => handleSettingsTabChange('HERO')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'HERO' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><MonitorPlay size={14}/> Página Principal</button>
+            <button onClick={() => handleSettingsTabChange('SUBSCRIPTION')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'SUBSCRIPTION' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><CreditCard size={14}/> Assinatura</button>
+            <button onClick={() => handleSettingsTabChange('THEME')} className={`flex items-center gap-2 py-3 px-5 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${settingsTab === 'THEME' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={14}/> Tema do Microsite</button>
+          </div>
+
+          {settingsTab === 'PROFILE' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Dados da Agência</h2>
+              <form onSubmit={handleProfileUpdate} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Agência</label>
+                    <input type="text" value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+                    <textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={4} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">CNPJ</label>
+                    <input type="text" value={profileForm.cnpj} onChange={e => setProfileForm({...profileForm, cnpj: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" placeholder="00.000.000/0000-00"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Slug (URL do Microsite)</label>
+                    <input type="text" value={profileForm.slug} readOnly className="w-full border p-3 rounded-lg outline-none bg-gray-100 text-gray-600 cursor-not-allowed" title="O slug é gerado automaticamente e não pode ser alterado diretamente."/>
+                    <p className="text-xs text-gray-500 mt-1">Seu microsite estará disponível em <span className="font-mono text-primary-600">viajastore.com/<span className="font-bold">{profileForm.slug}</span></span></p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label>
+                    <input type="text" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">WhatsApp</label>
+                    <input type="text" value={profileForm.whatsapp} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Website</label>
+                    <input type="url" value={profileForm.website} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                  </div>
+                </div>
+
+                <div className="border-t pt-8">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Endereço Fiscal</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">CEP</label>
+                            <input type="text" value={profileForm.address?.zipCode || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, zipCode: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Rua</label>
+                            <input type="text" value={profileForm.address?.street || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, street: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Número</label>
+                            <input type="text" value={profileForm.address?.number || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, number: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Complemento</label>
+                            <input type="text" value={profileForm.address?.complement || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, complement: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Bairro</label>
+                            <input type="text" value={profileForm.address?.district || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, district: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div className="md:col-span-3">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Cidade</label>
+                            <input type="text" value={profileForm.address?.city || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, city: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Estado (UF)</label>
+                            <input type="text" value={profileForm.address?.state || ''} onChange={e => setProfileForm({...profileForm, address: {...profileForm.address, state: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="border-t pt-8">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Dados Bancários para Recebimento</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Banco</label>
+                            <input type="text" value={profileForm.bankInfo?.bank || ''} onChange={e => setProfileForm({...profileForm, bankInfo: {...profileForm.bankInfo, bank: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Agência</label>
+                            <input type="text" value={profileForm.bankInfo?.agency || ''} onChange={e => setProfileForm({...profileForm, bankInfo: {...profileForm.bankInfo, agency: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Conta</label>
+                            <input type="text" value={profileForm.bankInfo?.account || ''} onChange={e => setProfileForm({...profileForm, bankInfo: {...profileForm.bankInfo, account: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Chave Pix</label>
+                            <input type="text" value={profileForm.bankInfo?.pixKey || ''} onChange={e => setProfileForm({...profileForm, bankInfo: {...profileForm.bankInfo, pixKey: e.target.value}})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="border-t pt-8">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Sugestões de Conteúdo (para seus pacotes)</h3>
+                    <div className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Tags Personalizadas</label>
+                            <PillInput 
+                                value={customSuggestionsForm.tags} 
+                                onChange={newTags => setCustomSuggestionsForm({...customSuggestionsForm, tags: newTags})} 
+                                placeholder="Adicione tags para seus pacotes (ex: trilha, luxo)"
+                                suggestions={SUGGESTED_TAGS}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Itens Incluídos Padrão</label>
+                            <PillInput 
+                                value={customSuggestionsForm.included} 
+                                onChange={newIncluded => setCustomSuggestionsForm({...customSuggestionsForm, included: newIncluded})} 
+                                placeholder="Adicione itens que geralmente estão incluídos"
+                                suggestions={SUGGESTED_INCLUDED}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Formas de Pagamento Aceitas</label>
+                            <PillInput 
+                                value={customSuggestionsForm.paymentMethods} 
+                                onChange={newMethods => setCustomSuggestionsForm({...customSuggestionsForm, paymentMethods: newMethods})} 
+                                placeholder="Adicione as formas de pagamento que você aceita"
+                                suggestions={SUGGESTED_PAYMENTS}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Itens Não Incluídos Padrão</label>
+                            <PillInput 
+                                value={customSuggestionsForm.notIncluded} 
+                                onChange={newNotIncluded => setCustomSuggestionsForm({...customSuggestionsForm, notIncluded: newNotIncluded})} 
+                                placeholder="Adicione o que não está incluído (ex: passagens aéreas)"
+                                suggestions={SUGGESTED_NOT_INCLUDED}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-8 border-t">
+                  <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSavingSettings ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Perfil da Agência
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {settingsTab === 'HERO' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Configuração da Página Principal (Microsite)</h2>
+              <form onSubmit={handleHeroSettingsUpdate} className="space-y-8">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Modo da Página Principal</label>
+                  <select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500">
+                    <option value="TRIPS">Carrossel de Pacotes (Destaque seus pacotes)</option>
+                    <option value="STATIC">Imagem Estática (Com título e subtítulo personalizados)</option>
+                  </select>
+                </div>
+
+                {heroForm.heroMode === 'STATIC' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">URL do Banner</label>
+                      <input type="url" value={heroForm.heroBannerUrl} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" placeholder="https://exemplo.com/sua-imagem.jpg"/>
+                      {heroForm.heroBannerUrl && <img src={heroForm.heroBannerUrl} alt="Prévia do Banner" className="mt-4 max-h-48 object-cover rounded-lg shadow-sm"/>}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Título do Banner</label>
+                      <input type="text" value={heroForm.heroTitle} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Subtítulo do Banner</label>
+                      <textarea value={heroForm.heroSubtitle} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={3} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                    </div>
+                  </>
+                )}
+                
+                <div className="mt-8 pt-8 border-t">
+                  <button type="submit" disabled={isSavingSettings} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSavingSettings ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Configurações da Página Principal
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {settingsTab === 'SUBSCRIPTION' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Seu Plano de Assinatura</h2>
+              <div className="grid md:grid-cols-2 gap-8">
+                {PLANS.map(plan => {
+                  const isActivePlan = agency.subscriptionPlan === plan.id;
+                  const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  
+                  return (
+                    <div key={plan.id} className={`bg-white p-8 rounded-2xl border transition-all relative ${isActivePlan ? 'border-primary-500 shadow-lg' : 'border-gray-200'}`}>
+                      {isActivePlan && <div className="absolute top-0 right-0 bg-primary-600 text-white text-xs font-bold px-4 py-1 rounded-bl-xl shadow-md">Seu Plano Atual</div>}
+                      <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+                      <p className="text-3xl font-extrabold text-primary-600 mt-2">
+                        R$ {plan.price.toFixed(2)} <span className="text-sm text-gray-400 font-normal">/mês</span>
+                      </p>
+                      <ul className="mt-8 space-y-4 text-gray-600 text-sm mb-8 text-left">
+                        {plan.features.map((f, i) => (
+                          <li key={i} className="flex gap-3 items-start">
+                            <CheckCircle size={18} className="text-green-500 mt-0.5 flex-shrink-0" /> 
+                            <span className="leading-snug">{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {isActivePlan ? (
+                        <>
+                          <p className={`text-sm text-center font-bold mt-4 ${daysLeft < 30 && daysLeft > 0 ? 'text-amber-600' : 'text-gray-600'}`}>
+                              {daysLeft > 0 ? `Expira em ${daysLeft} dias (${new Date(agency.subscriptionExpiresAt).toLocaleDateString()})` : 'Expirado'}
+                          </p>
+                          <button disabled className="w-full py-3 rounded-xl font-bold transition-colors bg-gray-200 text-gray-500 cursor-not-allowed">
+                            Plano Ativo
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => handleSelectPlan(plan)} disabled={isProcessing} className="w-full py-3 rounded-xl font-bold transition-colors bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20 disabled:opacity-60 disabled:cursor-not-allowed">
+                          {isProcessing ? <Loader size={16} className="animate-spin" /> : 'Mudar para este Plano'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-center text-gray-500 text-sm mt-8">
+                  Para gerenciar sua fatura ou cancelar a assinatura, entre em contato com nosso suporte.
+              </p>
+            </div>
+          )}
+
+          {settingsTab === 'THEME' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Tema do Seu Microsite</h2>
+              <form onSubmit={handleSaveAgencyTheme} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                      <input type="text" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500 outline-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                      <input type="text" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary-500 outline-none" />
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-6 border-t border-gray-100 flex gap-4">
+                  <button type="submit" disabled={isSavingSettings} className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSavingSettings ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Tema
+                  </button>
+                  <button type="button" onClick={handlePreviewTheme} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2">
+                    <Eye size={18}/> Prévia
+                  </button>
+                  <button type="button" onClick={handleResetThemePreview} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2">
+                    <X size={18}/> Limpar Prévia
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* New Trip Modal */}
+      {(isNewTripModalOpen || isEditTripModalOpen) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto scrollbar-thin" onClick={e => e.stopPropagation()}>
+            <button onClick={() => { setIsNewTripModalOpen(false); setIsEditTripModalOpen(false); setEditingTrip(null); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingTrip ? `Editar Viagem: ${editingTrip.title}` : 'Criar Nova Viagem'}</h2>
+            
+            <form onSubmit={handleSaveTrip} className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Título da Viagem</label>
+                <input type="text" value={tripForm.title || ''} onChange={e => setTripForm({...tripForm, title: e.target.value, slug: slugify(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Slug (URL)</label>
+                <input type="text" value={tripForm.slug || ''} readOnly className="w-full border p-3 rounded-lg outline-none bg-gray-100 text-gray-600 cursor-not-allowed" title="O slug é gerado automaticamente a partir do título."/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+                <RichTextEditor value={tripForm.description || ''} onChange={val => setTripForm({...tripForm, description: val})} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Destino</label>
+                  <input type="text" value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Preço (R$)</label>
+                  <input type="number" value={tripForm.price || 0} onChange={e => setTripForm({...tripForm, price: parseFloat(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required min="0"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label>
+                  <input type="datetime-local" value={tripForm.startDate || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Data de Término</label>
+                  <input type="datetime-local" value={tripForm.endDate || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Duração (dias)</label>
+                  <input type="number" value={tripForm.durationDays || 1} onChange={e => setTripForm({...tripForm, durationDays: parseInt(e.target.value)})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required min="1"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+                  <select value={tripForm.category || 'PRAIA'} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500" required>
+                    {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA', 'VIAGEM_BARATA', 'ARTE'].map(cat => <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Tipos de Viajantes</label>
+                <PillInput 
+                    value={tripForm.travelerTypes || []} 
+                    onChange={types => setTripForm({...tripForm, travelerTypes: types as TravelerType[]})} 
+                    placeholder="Adicione tipos de viajantes (ex: casal, sozinho)"
+                    suggestions={SUGGESTED_TRAVELERS}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Tags da Viagem</label>
+                <PillInput 
+                    value={tripForm.tags || []} 
+                    onChange={tags => setTripForm({...tripForm, tags: tags})} 
+                    placeholder="Adicione tags (ex: histórico, trilhas)"
+                    suggestions={SUGGESTED_TAGS}
+                    customSuggestions={agency.customSettings?.tags}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Itens Incluídos</label>
+                <PillInput 
+                    value={tripForm.included || []} 
+                    onChange={included => setTripForm({...tripForm, included: included})} 
+                    placeholder="Adicione o que está incluído (ex: café da manhã)"
+                    suggestions={SUGGESTED_INCLUDED}
+                    customSuggestions={agency.customSettings?.included}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Itens Não Incluídos (Opcional)</label>
+                <PillInput 
+                    value={tripForm.notIncluded || []} 
+                    onChange={notIncluded => setTripForm({...tripForm, notIncluded: notIncluded})} 
+                    placeholder="Adicione o que não está incluído (ex: passagens aéreas)"
+                    suggestions={SUGGESTED_NOT_INCLUDED}
+                    customSuggestions={agency.customSettings?.notIncluded}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Formas de Pagamento</label>
+                <PillInput 
+                    value={tripForm.paymentMethods || []} 
+                    onChange={methods => setTripForm({...tripForm, paymentMethods: methods})} 
+                    placeholder="Adicione formas de pagamento (ex: Pix, Cartão)"
+                    suggestions={SUGGESTED_PAYMENTS}
+                    customSuggestions={agency.customSettings?.paymentMethods}
+                />
+              </div>
+
+              {/* Itinerary */}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Roteiro Diário <Info size={16} className="ml-2 text-gray-500" title="Descreva cada dia da viagem"/></h3>
+                <div className="space-y-4">
+                  {itineraryDays.map((item, index) => (
+                    <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-100 relative">
+                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">Dia {item.day}</p>
+                      <input type="text" value={item.title} onChange={e => updateItineraryDay(index, 'title', e.target.value)} placeholder="Título do Dia (ex: Chegada e City Tour)" className="w-full border p-2 rounded-lg mb-2 outline-none focus:border-primary-500"/>
+                      <textarea value={item.description} onChange={e => updateItineraryDay(index, 'description', e.target.value)} placeholder="Descrição detalhada das atividades do dia" rows={3} className="w-full border p-2 rounded-lg outline-none focus:border-primary-500"/>
+                      {itineraryDays.length > 1 && (
+                        <button type="button" onClick={() => removeItineraryDay(index)} className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><X size={16}/></button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addItineraryDay} className="mt-4 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200"><Plus size={18} className="mr-2"/> Adicionar Dia</button>
+              </div>
+
+              {/* Images */}
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Imagens da Viagem ({tripForm.images?.length || 0}/{MAX_IMAGES})</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  {tripForm.images?.map((img, index) => (
+                    <div key={index} className="relative h-28 bg-gray-100 rounded-lg overflow-hidden group">
+                      <img src={img} alt={`Viagem imagem ${index + 1}`} className="w-full h-full object-cover"/>
+                      <button type="button" onClick={() => handleRemoveTripImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
+                    </div>
+                  ))}
+                  {(tripForm.images?.length || 0) < MAX_IMAGES && (
+                    <label className="flex flex-col items-center justify-center h-28 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 cursor-pointer hover:bg-gray-100 transition-colors">
+                      {uploadingImage ? <Loader size={24} className="animate-spin"/> : <Upload size={24}/>}
+                      <span className="text-xs mt-2">Adicionar Imagem</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleTripImageUpload} disabled={uploadingImage}/>
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-gray-100 flex items-center gap-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" checked={tripForm.is_active || false} onChange={e => setTripForm({...tripForm, is_active: e.target.checked})} className="form-checkbox h-5 w-5 text-primary-600 rounded border-gray-300"/>
+                  <span className="text-sm font-medium text-gray-700">Viagem Ativa (Publicar)</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" checked={tripForm.featured || false} onChange={e => setTripForm({...tripForm, featured: e.target.checked})} className="form-checkbox h-5 w-5 text-primary-600 rounded border-gray-300"/>
+                  <span className="text-sm font-medium text-gray-700">Destaque Global</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input type="checkbox" checked={tripForm.featuredInHero || false} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="form-checkbox h-5 w-5 text-primary-600 rounded border-gray-300"/>
+                  <span className="text-sm font-medium text-gray-700">Destaque na Home da Agência</span>
+                </label>
+              </div>
+
+              <div className="mt-8 pt-8 border-t">
+                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                  {isProcessing ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} {editingTrip ? 'Salvar Alterações' : 'Criar Viagem'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AgencyDashboard;

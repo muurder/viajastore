@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -482,10 +483,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
+        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp; // FIX: Added whatsapp update
+        if ((userData as Agency).website) updates.website = (userData as Agency).website; // FIX: Added website update
         if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
-        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
         
         if ((userData as Agency).heroMode) updates.hero_mode = (userData as Agency).heroMode;
         if ((userData as Agency).heroBannerUrl) updates.hero_banner_url = (userData as Agency).heroBannerUrl;

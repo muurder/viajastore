@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';
@@ -302,7 +303,7 @@ const Home: React.FC = () => {
                         <div className="flex flex-col">
                             <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5 tracking-wider">A partir de</p>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-xs font-semibold text-gray-400">R$</span>
+                                <span className="text-xs text-gray-500 font-semibold">R$</span>
                                 <p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p>
                             </div>
                         </div>
