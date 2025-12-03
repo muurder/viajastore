@@ -1,3 +1,5 @@
+
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -330,16 +332,120 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // OPTIMIZATION: Fetch only direct booking fields
         const { data, error } = await supabase
             .from('bookings')
-            .select(`*`); // Removed nested selects for trips and agencies
+            .select(`
+              *, 
+              trips (
+                id, 
+                title, 
+                agency_id,
+                destination,
+                price,
+                start_date,
+                end_date,
+                duration_days,
+                category,
+                tags,
+                traveler_types,
+                itinerary,
+                payment_methods,
+                is_active,
+                rating,
+                totalReviews,
+                included,
+                not_included,
+                views_count,
+                sales_count,
+                featured,
+                featured_in_hero,
+                popular_near_sp,
+                trip_images (image_url),
+                agencies (
+                  id,
+                  user_id,
+                  name,
+                  slug,
+                  phone,
+                  whatsapp,
+                  logo_url,
+                  description,
+                  is_active,
+                  hero_mode,
+                  hero_banner_url,
+                  hero_title,
+                  hero_subtitle,
+                  custom_settings,
+                  website,
+                  address,
+                  bank_info,
+                  subscription_plan,
+                  subscription_status,
+                  subscription_expires_at
+                )
+              )
+            `);
 
         if (error) throw error;
 
         if (data) {
           const formattedBookings: Booking[] = data.map((b: any) => {
-            // No longer fetching nested trip/agency data here
+            const images = b.trips?.trip_images?.map((img: any) => img.image_url) || [];
+            
+            const tripData: Trip | undefined = b.trips ? {
+               id: b.trips.id,
+               agencyId: b.trips.agency_id,
+               title: b.trips.title,
+               slug: b.trips.slug,
+               description: b.trips.description || '',
+               destination: b.trips.destination,
+               price: b.trips.price,
+               startDate: b.trips.start_date,
+               endDate: b.trips.end_date,
+               durationDays: b.trips.duration_days,
+               images: images,
+               category: b.trips.category || 'PRAIA',
+               tags: b.trips.tags || [],
+               travelerTypes: b.trips.traveler_types || [],
+               itinerary: b.trips.itinerary || [],
+               paymentMethods: b.trips.payment_methods || [], 
+               is_active: b.trips.is_active || false,
+               rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
+               totalReviews: b.trips.totalReviews || 0,
+               included: b.trips.included || [],
+               notIncluded: b.trips.not_included || [],
+               views: b.trips.views_count || 0,
+               sales: b.trips.sales_count || 0,
+               featured: b.trips.featured || false,
+               featuredInHero: b.trips.featured_in_hero || false,
+               popularNearSP: b.trips.popular_near_sp || false
+            } as Trip : undefined;
+            
+            const agencyData: Agency | undefined = b.trips?.agencies ? {
+              id: b.trips.agencies.user_id, // This should be user_id, not id
+              agencyId: b.trips.agencies.id, // Primary Key of agencies table
+              name: b.trips.agencies.name,
+              email: b.trips.agencies.email,
+              role: UserRole.AGENCY,
+              slug: b.trips.agencies.slug,
+              logo: b.trips.agencies.logo_url,
+              phone: b.trips.agencies.phone,
+              whatsapp: b.trips.agencies.whatsapp,
+              description: b.trips.agencies.description || '',
+              is_active: b.trips.agencies.is_active || false,
+              heroMode: b.trips.agencies.hero_mode || 'TRIPS',
+              heroBannerUrl: b.trips.agencies.hero_banner_url,
+              heroTitle: b.trips.agencies.hero_title,
+              heroSubtitle: b.trips.agencies.hero_subtitle,
+              customSettings: b.trips.agencies.custom_settings || {},
+              subscriptionStatus: b.trips.agencies.subscription_status || 'INACTIVE',
+              subscriptionPlan: b.trips.agencies.subscription_plan || 'BASIC',
+              subscriptionExpiresAt: b.trips.agencies.subscription_expires_at || new Date().toISOString(),
+              website: b.trips.agencies.website,
+              address: b.trips.agencies.address || {},
+              bankInfo: b.trips.agencies.bank_info || {}
+            } as Agency : undefined;
+
             return {
               id: b.id,
               tripId: b.trip_id,
@@ -349,9 +455,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               totalPrice: b.total_price,
               passengers: b.passengers,
               voucherCode: b.voucher_code,
-              paymentMethod: b.payment_method,
-              _trip: undefined, // Explicitly set to undefined, will be hydrated on demand
-              _agency: undefined // Explicitly set to undefined, will be hydrated on demand
+              paymentMethod: b.payment_method, // Fix: Access payment_method directly
+              _trip: tripData,
+              _agency: agencyData
             };
           });
           setBookings(formattedBookings);

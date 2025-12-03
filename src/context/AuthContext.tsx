@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
@@ -198,7 +199,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
               if (agencyError) {
                   // Fallback: Check if agency already exists, if so, ignore error
-                  const { data: existing } = await supabase.from('agencies').select('id').eq('user_id', userId).maybeSingle();
+                  // Removed 'id' from select, as it's not needed for just checking existence and can sometimes cause issues.
+                  const { data: existing } = await supabase.from('agencies').select('user_id').eq('user_id', userId).maybeSingle();
                   if (!existing) {
                       console.error("RPC ensureUserRecord failed:", agencyError);
                       throw agencyError;

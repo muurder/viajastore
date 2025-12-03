@@ -1,3 +1,5 @@
+
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -277,11 +279,11 @@ export type ActivityActionType =
 export interface ActivityLog {
   id: string;
   user_id: string | null;
-  agency_id: string | null;
+  agency_id: string | null; // Nullable if not agency-related
   actor_email: string;
   actor_role: ActivityActorRole;
   action_type: ActivityActionType;
-  details: any;
+  details: any; // JSONB field
   created_at: string;
   // Campos adicionais (denormalizados/join) para exibição:
   user_name?: string;
