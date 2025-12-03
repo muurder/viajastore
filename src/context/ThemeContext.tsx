@@ -1,6 +1,5 @@
 
 
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';

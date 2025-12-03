@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import TripCard, { TripCardSkeleton } from '../components/TripCard';

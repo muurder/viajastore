@@ -1,5 +1,3 @@
-
-
 import React, { useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +7,7 @@ import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIc
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
-
+import AgencyLandingPage from '../pages/AgencyLandingPage';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();

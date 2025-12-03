@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -429,4 +428,180 @@ const ClientDashboard: React.FC = () => {
                                   }}
                                   disabled={!agencySlugForNav}
                                   className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                               
+                                >
+                                    <Star size={16} /> {hasReviewed ? 'Ver/Editar Avaliação' : 'Avaliar Agência'}
+                               </button>
+                               {whatsappUrl && (
+                                <a
+                                  href={whatsappUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
+                                >
+                                  <MessageCircle size={16} /> Falar com a Agência
+                                </a>
+                               )}
+                           </div>
+                        </div>
+                      </div>
+                    );
+                 })
+               ) : (
+                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> <p className="text-gray-500 mt-1">Você ainda não reservou nenhuma viagem.</p> </div>
+               )}
+             </div>
+           )}
+
+           {activeTab === 'REVIEWS' && (
+               <div className="space-y-6 animate-[fadeIn_0.3s]">
+                   <h2 className="text-2xl font-bold text-gray-900 mb-4">Minhas Avaliações</h2>
+                   {myReviews.length > 0 ? (
+                       <div className="space-y-4">
+                           {myReviews.map(review => (
+                               <div key={review.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                                   <div className="flex justify-between items-start mb-3">
+                                       <div className="flex items-center gap-4">
+                                           <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden border border-gray-200"> {review.agencyLogo ? <img src={review.agencyLogo} className="w-full h-full object-cover"/> : <div className="w-full h-full bg-gray-200"/>} </div>
+                                           <div> <h4 className="font-bold text-gray-900">{review.agencyName}</h4> <div className="flex text-amber-400 text-sm"> {[...Array(5)].map((_,i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)} </div> </div>
+                                       </div>
+                                       <div className="flex items-center gap-2">
+                                          <button onClick={() => setEditingReview(review)} className="text-gray-400 hover:text-primary-500 p-2 rounded-full hover:bg-primary-50 transition-colors" aria-label="Editar avaliação"><Edit size={16}/></button>
+                                          <button onClick={() => handleDeleteReview(review.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors" aria-label="Excluir avaliação"><Trash2 size={16}/></button>
+                                       </div>
+                                   </div>
+                                   <p className="text-gray-600 text-sm bg-gray-50 p-3 rounded-xl italic">"{review.comment}"</p>
+                                   <div className="mt-4 flex justify-end"> <Link to={`/${review.agencyName ? slugify(review.agencyName) : ''}`} className="text-xs font-bold text-primary-600 hover:underline flex items-center">Ver Página da Agência <ExternalLink size={12} className="ml-1"/></Link> </div>
+                               </div>
+                           ))}
+                       </div>
+                   ) : (
+                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Star size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3> <p className="text-gray-500 mt-1">Você ainda não avaliou nenhuma agência.</p> </div>
+                   )}
+               </div>
+           )}
+
+           {activeTab === 'FAVORITES' && (
+             <div className="animate-[fadeIn_0.3s]">
+               <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
+               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Heart size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3> <p className="text-gray-500 mt-2">Você ainda não favoritou nenhuma viagem.</p> </div> )}
+             </div>
+           )}
+
+           {activeTab === 'SETTINGS' && (
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+               <h2 className="text-2xl font-bold text-gray-900 mb-6">Dados Pessoais & Endereço</h2>
+               <form onSubmit={handleSaveProfile} className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="md:col-span-2"> <label className="block text-sm font-bold text-gray-700 mb-2">Nome Completo</label> <input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Email</label> <input type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">CPF</label> <input value={editForm.cpf} onChange={(e) => setEditForm({...editForm, cpf: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="000.000.000-00" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label> <input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                  </div>
+                  <div className="border-t pt-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="md:col-span-1 relative"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label> <input value={addressForm.zipCode} onChange={handleCepChange} className="w-full border border-gray-300 rounded-lg p-2" placeholder="00000-000" /> {loadingCep && <div className="absolute right-3 top-8"><Loader size={14} className="animate-spin text-primary-600"/></div>} </div>
+                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label> <input value={addressForm.street} onChange={e => setAddressForm({...addressForm, street: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label> <input value={addressForm.number} onChange={e => setAddressForm({...addressForm, number: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Comp.</label> <input value={addressForm.complement} onChange={e => setAddressForm({...addressForm, complement: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-2"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bairro</label> <input value={addressForm.district} onChange={e => setAddressForm({...addressForm, district: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label> <input value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label> <input value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" /> </div>
+                      </div>
+                  </div>
+                  <button type="submit" disabled={isSaving} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSaving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
+                  </button>
+               </form>
+             </div>
+           )}
+
+           {activeTab === 'SECURITY' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Segurança</h2>
+                  <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
+                      <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
+                  </form>
+                  <div className="mt-12 pt-8 border-t border-gray-100">
+                    <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-4"> <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente.</p> <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors"><Trash2 size={16} className="mr-2" /> Excluir minha conta</button> </div>
+                  </div>
+              </div>
+           )}
+        </div>
+      </div>
+
+      {selectedBooking && !showReviewModal && !showEditReviewModal && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
+            <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                {/* IMPROVED CLOSE BUTTON */}
+                <button
+                    type="button"
+                    onClick={() => setSelectedBooking(null)}
+                    className="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/10 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg cursor-pointer"
+                    aria-label="Fechar voucher"
+                >
+                    <X size={28} />
+                </button>
+                <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
+                    <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
+                </div>
+                <div className="p-8 text-center">
+                    <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
+                    <p className="font-bold text-gray-900 text-lg">{user.name}</p>
+                    <p className="text-sm text-gray-500 mb-2">{getTripById(selectedBooking.tripId)?.title || 'Pacote de Viagem'}</p>
+                    <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
+                    <div className="space-y-3">
+                        <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
+                        <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>
+                    </div>
+                </div>
+            </div>
+         </div>
+      )}
+
+      {showReviewModal && selectedBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }}>
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3> <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> </div>
+                  <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      {/* Dynamically get agency logo */}
+                      {agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo && ( <img src={agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.logo} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
+                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{agencies.find(a => a.agencyId === getTripById(selectedBooking.tripId)?.agencyId)?.name || 'Parceiro ViajaStore'}</p> </div>
+                  </div>
+                  <form onSubmit={handleReviewSubmit}>
+                      <div className="mb-6 text-center">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
+                          <div className="flex justify-center gap-2"> {[1, 2, 3, 4, 5].map((star) => ( <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"> <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /> </button> ))} </div>
+                      </div>
+                      <div className="mb-6">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
+                          <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
+                      </div>
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"> {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18}/>} Enviar Avaliação</button>
+                  </form>
+              </div>
+          </div>
+      )}
+
+      {showEditReviewModal && editingReview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setEditingReview(null)}>
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Editar Avaliação</h3><button onClick={() => setEditingReview(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
+                  <form onSubmit={handleEditReviewSubmit}>
+                      <div className="mb-6 text-center"><label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label><div className="flex justify-center gap-2">{[1, 2, 3, 4, 5].map((star) => (<button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"><Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /></button>))}</div></div>
+                      <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label><textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/></div>
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">{isSubmitting ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Alterações</button>
+                  </form>
+              </div>
+          </div>
+      )}
+    </div>
+  );
+};
+
+export default ClientDashboard;

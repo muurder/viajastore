@@ -511,8 +511,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
         if (userData.avatar) updates.avatar_url = userData.avatar;
-        if (userData.address) updates.address = (userData as Client).address; // Added missing address update
-        
+        if (userData.address) updates.address = (userData as Client).address;
+
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;
       }
