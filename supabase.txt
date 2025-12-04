@@ -54,6 +54,12 @@ DROP POLICY IF EXISTS "Agencia edita a si mesma" ON public.agencies;
 DROP POLICY IF EXISTS "Publico vê agências" ON public.agencies;
 DROP POLICY IF EXISTS "Admin pode fazer tudo em agencies" ON public.agencies;
 
+-- NOVO: Adicionar DROP POLICY para activity_logs
+DROP POLICY IF EXISTS "Admin Full Access Activity Logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Authenticated Users Can View Own Activity Logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs;
+
+
 -- 4. APLICAR AS POLÍTICAS DEFINITIVAS
 
 -- --- PROFILES ---

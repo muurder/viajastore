@@ -352,8 +352,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 itinerary,
                 payment_methods,
                 is_active,
-                trip_rating, -- NOVO
-                trip_total_reviews, -- NOVO
+                trip_rating, -- CORRECTED: use database column name
+                trip_total_reviews, -- CORRECTED: use database column name
                 included,
                 not_included,
                 views_count,
@@ -411,8 +411,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               tripRating: b.trips.trip_rating || 0, // NOVO
-               tripTotalReviews: b.trips.trip_total_reviews || 0, // NOVO
+               tripRating: b.trips.trip_rating || 0, // CORRECTED: map to new property name
+               tripTotalReviews: b.trips.trip_total_reviews || 0, // CORRECTED: map to new property name
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
