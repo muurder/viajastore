@@ -332,16 +332,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Explicitly select columns to avoid "column does not exist" errors
+        // Updated to use wildcards (*) for nested relations to automatically pick up available columns
+        // This makes the query robust against column renames like 'rating' -> 'trip_rating'
         const { data, error } = await supabase
             .from('bookings')
             .select(`
-              id, trip_id, client_id, created_at, status, total_price, passengers, voucher_code, payment_method,
+              *,
               trips (
-                id, title, destination, start_date, end_date, duration_days, price, category, tags, traveler_types, itinerary, payment_methods, is_active, included, not_included, views_count, sales_count, featured, featured_in_hero, popular_near_sp,
-                trip_rating, trip_total_reviews, agency_id,
+                *,
                 trip_images (image_url),
-                agencies (id, user_id, name, email, slug, logo_url, phone, whatsapp, description, is_active, hero_mode, hero_banner_url, hero_title, hero_subtitle, custom_settings, subscription_status, subscription_plan, subscription_expires_at, website, address, bank_info)
+                agencies (*)
               )
             `);
 
@@ -370,8 +370,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                // Use fallback logic for ratings to handle potential DB column names
-               tripRating: b.trips.trip_rating || 0,
-               tripTotalReviews: b.trips.trip_total_reviews || 0,
+               tripRating: b.trips.trip_rating || b.trips.rating || 0,
+               tripTotalReviews: b.trips.trip_total_reviews || b.trips.totalReviews || 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,

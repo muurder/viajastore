@@ -11,9 +11,6 @@ import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upl
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
-// ... (Rest of imports and local components like NavButton, SubscriptionActivationView, etc. stay exactly the same) ...
-// For brevity, I will include the full file content to ensure no parts are missed.
-
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
 const MAX_IMAGES = 8;
@@ -341,15 +338,15 @@ export const AgencyDashboard: React.FC = () => {
             <div className="bg-red-50 p-6 rounded-full mb-6">
                 <ShieldCheck size={48} className="text-red-500" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Acesso Restrito</h2>
+            <h2 className="text-xl font-bold mb-2">Acesso Restrito (Agency Dashboard)</h2>
             <p className="text-gray-500 mb-6 max-w-md">Esta área é exclusiva para agências parceiras. Se você é uma agência, verifique se fez login com a conta correta.</p>
             <Link to="/" className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-colors">Voltar ao início</Link>
             
             <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono text-left max-w-sm w-full border border-gray-200">
                 <p className="font-bold mb-2 text-gray-500 uppercase tracking-wider">Debug Info</p>
-                <p>User: {user ? user.email : 'null'}</p>
-                <p>Role: {user ? user.role : 'null'}</p>
-                <p>ID: {user ? user.id : 'null'}</p>
+                <p>User Email: {user ? user.email : 'null'}</p>
+                <p>User Role: {user ? user.role : 'null'}</p>
+                <p>User ID: {user ? user.id : 'null'}</p>
             </div>
         </div>
       );
