@@ -332,37 +332,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Fix: Explicitly select columns to avoid "column does not exist" error
-        // for 'rating' which might be cached by PostgREST when using *
+        // Use wildcards for nested selects to avoid errors if specific columns (like 'rating') are missing
+        // This is robust against schema cache issues where the frontend asks for a column that was renamed in DB
         const { data, error } = await supabase
             .from('bookings')
             .select(`
               *,
               trips (
-                id, 
-                title, 
-                agency_id,
-                destination,
-                price,
-                start_date,
-                end_date,
-                duration_days,
-                category,
-                tags,
-                traveler_types,
-                itinerary,
-                payment_methods,
-                is_active,
-                trip_rating, 
-                trip_total_reviews,
-                included,
-                not_included,
-                views_count,
-                sales_count,
-                featured,
-                featured_in_hero,
-                popular_near_sp,
-                slug,
+                *,
                 trip_images (image_url),
                 agencies (*)
               )
@@ -670,7 +647,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           totalPrice: data.total_price,
           passengers: data.passengers,
           voucherCode: data.voucher_code,
-          paymentMethod: data.payment_method,
+          paymentMethod: data.payment_method, // Mapped from DB column payment_method
           _trip: booking._trip, 
           _agency: booking._agency, 
         };

@@ -70,7 +70,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         // Fix: Normalize role string for robust comparison
         const rawRole = profileData.role ? profileData.role.trim().toUpperCase() : '';
-        
+        console.log("[AuthContext] Normalized Role from DB:", rawRole);
+
         if (rawRole === UserRole.AGENCY) {
           console.log("[AuthContext] User is Agency, fetching agency data..."); // Debug Log
           const { data: agencyData, error: agencyError } = await supabase
