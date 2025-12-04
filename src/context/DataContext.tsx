@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -9,7 +8,6 @@ import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
 interface DataContextType {
-  // ... existing interface ...
   trips: Trip[];
   agencies: Agency[];
   bookings: Booking[];
@@ -72,7 +70,7 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// ... initializeMockData function ...
+// Helper for Mock Data Init
 const initializeMockData = (
   setTrips: (t: Trip[]) => void, 
   setAgencies: (a: Agency[]) => void, 
@@ -107,7 +105,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ... logActivity helper ...
+  // --- LOG ACTIVITY ---
   const logActivity = async (actionType: ActivityActionType, details: any = {}, relatedAgencyId: string | null = null) => {
     if (!supabase || !user) return;
     
@@ -138,21 +136,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchTrips ...
+  // --- FETCH TRIPS ---
   const fetchTrips = async () => {
     if (!supabase) {
       setTrips(MOCK_TRIPS);
       return;
     }
     try {
+      // Use wildcard to get all columns, plus relations
       const { data, error } = await supabase
         .from('trips')
         .select(`
           *,
           trip_images (image_url),
-          agencies (name, logo_url),
-          trip_rating,
-          trip_total_reviews
+          agencies (name, logo_url)
         `);
 
       if (error) throw error;
@@ -180,6 +177,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
+            // Map correct DB columns to Type properties
             tripRating: t.trip_rating || 0,
             tripTotalReviews: t.trip_total_reviews || 0,
             included: t.included || [],
@@ -194,12 +192,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setTrips(formattedTrips);
       }
     } catch (err) {
-      console.warn("Supabase unavailable (or table missing), using MOCK_TRIPS.", err);
+      console.warn("Supabase fetchTrips failed, using MOCK_TRIPS.", err);
       setTrips(MOCK_TRIPS);
     }
   };
 
-  // ... fetchAgencies ...
+  // --- FETCH AGENCIES ---
   const fetchAgencies = async () => {
     if (!supabase) {
       setAgencies(MOCK_AGENCIES);
@@ -239,12 +237,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setAgencies(formattedAgencies);
     } catch (err) {
-      console.warn("Supabase unavailable, using MOCK_AGENCIES.", err);
+      console.warn("Supabase fetchAgencies failed, using MOCK_AGENCIES.", err);
       setAgencies(MOCK_AGENCIES);
     }
   };
 
-  // ... fetchClients ...
+  // --- FETCH CLIENTS ---
   const fetchClients = async () => {
     if (!supabase) {
       setClients(MOCK_CLIENTS);
@@ -276,12 +274,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setClients(formattedClients);
     } catch (err) {
-      console.warn("Supabase unavailable, using MOCK_CLIENTS.", err);
+      console.warn("Supabase fetchClients failed.", err);
       setClients(MOCK_CLIENTS);
     }
   };
 
-  // ... fetchAgencyReviews ...
+  // --- FETCH REVIEWS ---
   const fetchAgencyReviews = async () => {
       if (!supabase) {
         setAgencyReviews([]);
@@ -298,7 +296,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             `);
             
           if (error) {
-             console.error("Error fetching agency reviews:", error.message || error);
+             console.error("Error fetching agency reviews:", error);
              return;
           }
 
@@ -322,11 +320,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               })));
           }
       } catch (err: any) {
-          console.warn("Agency reviews table might not exist yet.", err.message || err);
+          console.warn("Agency reviews fetch failed.", err);
       }
   };
 
-  // --- UPDATED FETCH BOOKINGS ---
+  // --- FETCH BOOKINGS ---
   const fetchBookings = async () => {
     if (!supabase || !user) {
       setBookings(MOCK_BOOKINGS);
@@ -334,7 +332,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Corrected query: use wildcards (*) for relations to avoid specific column naming errors like 'rating' vs 'trip_rating'
+        // Use wildcards (*) for nested relations to ensure we get all available columns
+        // This avoids errors if a specific column (like 'rating') was renamed or removed in the DB
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -370,8 +369,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               // Handle potential field names robustly
-               tripRating: b.trips.trip_rating || b.trips.rating || 0, 
+               // Use fallback logic for ratings to handle potential DB column names
+               tripRating: b.trips.trip_rating || b.trips.rating || 0,
                tripTotalReviews: b.trips.trip_total_reviews || b.trips.totalReviews || 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
@@ -424,12 +423,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setBookings(formattedBookings);
         }
     } catch (err) {
-        console.warn("Supabase unavailable or bookings query failed, using MOCK_BOOKINGS.", err);
+        console.warn("Supabase fetchBookings failed, using MOCK_BOOKINGS.", err);
         setBookings(MOCK_BOOKINGS);
     }
   };
 
-  // ... fetchActivityLogs ...
+  // --- FETCH ACTIVITY LOGS ---
   const fetchActivityLogs = async () => {
     if (!supabase) {
       setActivityLogs([]);
@@ -470,12 +469,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setActivityLogs(formattedLogs);
       }
     } catch (err) {
-      console.warn("Supabase unavailable or activity_logs query failed, defaulting to empty.", err);
+      console.warn("Activity logs query failed.", err);
       setActivityLogs([]);
     }
   };
 
-  // ... fetchAuditLogs ...
+  // --- FETCH AUDIT LOGS ---
   const fetchAuditLogs = async () => {
       if (!supabase) {
         setAuditLogs([]);
@@ -549,7 +548,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [user]);
 
-  // ... (rest of actions and getters remain the same) ...
+  // --- ACTIONS ---
   const guardSupabase = () => {
     if (!supabase) {
         showToast('Funcionalidade indisponível no modo offline.', 'info');
