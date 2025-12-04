@@ -332,8 +332,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Use wildcards (*) for nested relations to automatically pick up available columns.
-        // This is crucial to prevent "column does not exist" errors if schema changes (e.g. rating vs trip_rating).
+        // Updated to use wildcards (*) for nested relations.
+        // This avoids 'column does not exist' errors if explicit columns like 'rating' are missing.
         const { data, error } = await supabase
             .from('bookings')
             .select(`
