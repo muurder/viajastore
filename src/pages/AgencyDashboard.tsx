@@ -309,7 +309,7 @@ export const AgencyDashboard: React.FC = () => {
   
   // Debug logging - Enhanced
   useEffect(() => {
-    console.group("[AgencyDashboard Debug]");
+    console.group("[AgencyDashboard Debug - Render]");
     console.log("Auth Loading:", authLoading);
     console.log("User:", user);
     console.log("User Role (raw):", user?.role);
@@ -328,6 +328,17 @@ export const AgencyDashboard: React.FC = () => {
       const isUserAgencyRole = normalizedRole === UserRole.AGENCY;
       console.log("Normalized Role:", normalizedRole, "Is User Agency Role:", isUserAgencyRole);
 
+      // Log para verificar o estado antes da atribuição final
+      if (user) {
+          console.log("User.id:", user.id);
+          if (user.role === UserRole.AGENCY) {
+              const userAsAgency = user as Agency;
+              console.log("User as Agency (from AuthContext):", userAsAgency);
+              console.log("UserAsAgency.agencyId:", userAsAgency.agencyId);
+          }
+      }
+
+
       if (!user || !isUserAgencyRole) {
           console.log("[AgencyDashboard] Usuário não é agência ou não logado. Limpando agency.");
           setAgency(null);
@@ -339,7 +350,9 @@ export const AgencyDashboard: React.FC = () => {
       
       // 1) Se o AuthContext já montou o usuário como Agency completo e válido, usa ele.
       // O CRITICAL FIX no AuthContext garante que agencyId não seja mais uma string vazia.
-      if (userAsAgency.agencyId && userAsAgency.agencyId !== userAsAgency.id) { // agencyId deve ser diferente do id do profile
+      // A condição userAsAgency.agencyId !== userAsAgency.id é para diferenciar o agencyId real do ID do profile
+      // que é usado como fallback temporário em AuthContext.
+      if (userAsAgency.agencyId && userAsAgency.agencyId !== userAsAgency.id) {
           console.log("[AgencyDashboard] Usando agency do objeto Auth user (agencyId presente e válido):", userAsAgency);
           setAgency(userAsAgency);
       } else {
@@ -374,7 +387,8 @@ export const AgencyDashboard: React.FC = () => {
 
   // Handle Unauthenticated or Unauthorized
   // Use a robust check for user role
-  const isAgencyRole = !!user && String(user.role).toUpperCase() === UserRole.AGENCY; // FIX: Robust check for role
+  // Antigo: const isAgencyRole = user && String(user.role).toUpperCase() === UserRole.AGENCY;
+  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; // FIX: Robust check for role (comparing string 'AGENCY')
   
   if (!user || !isAgencyRole) {
       return (
