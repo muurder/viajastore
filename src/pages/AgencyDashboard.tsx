@@ -358,12 +358,13 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
 
 const AgencyDashboard: React.FC = () => {
   const { user, loading: authLoading, uploadImage } = useAuth();
-  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews, clients } = useData();
+  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencies, clients, agencyReviews: allAgencyReviews } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
 
+  const [agency, setAgency] = useState<Agency | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modalType, setModalType] = useState<'CREATE_TRIP' | 'EDIT_TRIP' | 'SUBSCRIPTION' | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -386,6 +387,28 @@ const AgencyDashboard: React.FC = () => {
   // 2. Role Check (Simple and Direct)
   const isAgency = user && String(user.role).toUpperCase() === 'AGENCY';
 
+  // 3. Resolve Agency with Effects and Fallback
+  useEffect(() => {
+    if (isAgency && user) {
+        const authAgency = user as Agency;
+        // Try to find sync'd version from DataContext using PK (agencyId) or user_id (id)
+        const found = agencies.find(a => 
+            (authAgency.agencyId && a.agencyId === authAgency.agencyId) || 
+            a.id === authAgency.id
+        );
+
+        if (found) {
+            console.log('[AgencyDashboard] Agency synced with DataContext:', found.name);
+            setAgency(found);
+        } else {
+            console.log('[AgencyDashboard] Agency using AuthContext fallback:', authAgency.name);
+            setAgency(authAgency);
+        }
+    } else {
+        setAgency(null);
+    }
+  }, [user, agencies, isAgency]);
+
   if (!isAgency) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
@@ -399,8 +422,16 @@ const AgencyDashboard: React.FC = () => {
       );
   }
 
-  // 3. Assume User IS Agency (because of AuthContext guarantees)
-  const agency = user as Agency;
+  if (!agency) {
+      return (
+          <div className="min-h-screen flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                  <Loader className="animate-spin text-primary-600" size={32} />
+                  <p className="text-gray-500 text-sm">Carregando dados da agência...</p>
+              </div>
+          </div>
+      );
+  }
 
   // SUBSCRIPTION CHECK
   if (agency.subscriptionStatus !== 'ACTIVE' && agency.subscriptionStatus !== 'PENDING') {
@@ -434,6 +465,7 @@ const AgencyDashboard: React.FC = () => {
 
   const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
   const agencyBookings = bookings.filter(b => b._agency?.agencyId === agency.agencyId);
+  const agencyReviews = allAgencyReviews.filter(r => r.agencyId === agency.agencyId);
 
   // Handle Tab Change
   const handleTabChange = (tab: string) => {
@@ -685,14 +717,19 @@ const AgencyDashboard: React.FC = () => {
                             <tbody className="divide-y divide-gray-100 bg-white">
                                 {agencyBookings.map(booking => {
                                     const trip = trips.find(t => t.id === booking.tripId);
-                                    const client = clients.find(c => c.id === booking.clientId);
+                                    // Use explicit clients context if available, otherwise check booking
+                                    const client = clients && clients.length > 0 
+                                      ? clients.find(c => c.id === booking.clientId) 
+                                      : null; 
+                                    const clientName = client?.name || 'Cliente Desconhecido';
+
                                     return (
                                         <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <p className="font-bold text-gray-900 text-sm line-clamp-1">{trip?.title || 'N/A'}</p>
                                                 <p className="text-xs text-gray-500">{trip?.destination || 'N/A'}</p>
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-700">{client?.name || 'Cliente Desconhecido'}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">{clientName}</td>
                                             <td className="px-6 py-4 text-sm text-gray-700">{new Date(booking.date).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 text-sm font-bold text-primary-600">R$ {booking.totalPrice.toLocaleString('pt-BR')}</td>
                                             <td className="px-6 py-4">
