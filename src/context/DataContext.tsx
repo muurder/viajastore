@@ -4,7 +4,6 @@ import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
-import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
 interface DataContextType {
@@ -143,7 +142,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
-      // Use wildcard to get all columns, plus relations
       const { data, error } = await supabase
         .from('trips')
         .select(`
@@ -163,8 +161,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           itinerary,
           payment_methods,
           is_active,
-          trip_rating,           -- Explicitly use correct column name
-          trip_total_reviews,    -- Explicitly use correct column name
+          trip_rating,
+          trip_total_reviews,
           included,
           not_included,
           views_count,
@@ -201,7 +199,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            // Fix: Map correct DB columns to Type properties (trip_rating, trip_total_reviews)
             tripRating: t.trip_rating || 0,
             tripTotalReviews: t.trip_total_reviews || 0,
             included: t.included || [],
@@ -233,8 +230,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) throw error;
       
       const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
-        id: a.user_id,
-        agencyId: a.id,
+        id: a.user_id, // User ID from auth/profiles
+        agencyId: a.id, // Primary Key from agencies table
         name: a.name,
         email: a.email || '',
         role: UserRole.AGENCY,
@@ -249,8 +246,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
         customSettings: a.custom_settings || {},
-        subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE',
-        subscriptionPlan: a.subscription_plan || 'BASIC',
+        subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
+        subscriptionPlan: a.subscription_plan || 'BASIC', // Joined
         subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), 
         website: a.website,
         phone: a.phone,
@@ -356,8 +353,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Fix: Explicitly list all columns from 'trips' and 'agencies'
-        // This avoids issues with PostgREST schema caching where 'rating' might still be requested
         const { data, error } = await supabase
             .from('bookings')
             .select(`
@@ -387,8 +382,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 itinerary,
                 payment_methods,
                 is_active,
-                trip_rating,           -- Explicitly use correct column name
-                trip_total_reviews,    -- Explicitly use correct column name
+                trip_rating,
+                trip_total_reviews,
                 included,
                 not_included,
                 views_count,
@@ -451,7 +446,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               // Fix: Map correct DB columns to Type properties (trip_rating, trip_total_reviews)
                tripRating: b.trips.trip_rating || 0,
                tripTotalReviews: b.trips.trip_total_reviews || 0,
                included: b.trips.included || [],
@@ -510,7 +504,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // --- FETCH ACTIVITY LOGS ---
   const fetchActivityLogs = async () => {
     if (!supabase) {
       setActivityLogs([]);
@@ -556,7 +549,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // --- FETCH AUDIT LOGS ---
   const fetchAuditLogs = async () => {
       if (!supabase) {
         setAuditLogs([]);
@@ -729,7 +721,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           totalPrice: data.total_price,
           passengers: data.passengers,
           voucherCode: data.voucher_code,
-          paymentMethod: data.payment_method, // Mapped from DB column payment_method
+          paymentMethod: data.payment_method,
           _trip: booking._trip, 
           _agency: booking._agency, 
         };

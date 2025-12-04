@@ -1,6 +1,4 @@
 
-
-// ... existing imports ...
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +22,6 @@ import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
-// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -41,7 +38,6 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-// Fix: Define StatCard component locally
 interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
@@ -62,7 +58,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Fix: Define ActionMenu component locally
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -102,8 +97,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
 
 // --- MAIN COMPONENT ---
 
-// Fix: Export AdminDashboard directly
-const AdminDashboard: React.FC = () => {
+export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
       agencies, trips, agencyReviews, clients, auditLogs, bookings,
@@ -114,7 +108,6 @@ const AdminDashboard: React.FC = () => {
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
       toggleAgencyStatus, activityLogs
   } = useData();
-  // Access previewMode from useTheme()
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, previewMode } = useTheme();
   const { showToast } = useToast();
   
@@ -222,7 +215,6 @@ const AdminDashboard: React.FC = () => {
               if (type === 'user') {
                   await deleteMultipleUsers(itemsToDelete.map(i => i.id));
               } else {
-                  // FIX: Pass agencyId (PK) for deletion from agencies table, not user ID
                   await deleteMultipleAgencies(itemsToDelete.map(i => i.agencyId));
               }
           } catch (e: any) {
@@ -238,10 +230,8 @@ const AdminDashboard: React.FC = () => {
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
-        // FIX: Pass expiresAt to DataContext function
         await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
     } catch (error) {
-        // Toast is already handled in DataContext
     } finally {
         setIsProcessing(false);
         setModalType(null);
@@ -250,12 +240,9 @@ const AdminDashboard: React.FC = () => {
 
   const addSubscriptionTime = (days: number) => {
       const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
-      // If current is invalid or in the past, maybe start from now? 
       const baseDate = (current.getTime() > Date.now()) ? current : new Date();
-      
       const newDate = new Date(baseDate);
       newDate.setDate(newDate.getDate() + days);
-      // FIX: Ensure correct ISO string format for datetime-local (YYYY-MM-DDTHH:MM)
       setEditFormData({ ...editFormData, expiresAt: newDate.toISOString().slice(0, 16) });
   };
   
@@ -290,10 +277,8 @@ const AdminDashboard: React.FC = () => {
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
-        // Pass agencyId to updateAgencyProfileByAdmin
         await updateAgencyProfileByAdmin(selectedItem.agencyId, editFormData);
     } catch (error) {
-        // Toast handled in context
     } finally {
         setIsProcessing(false);
         setModalType(null);
@@ -309,7 +294,6 @@ const AdminDashboard: React.FC = () => {
             rating: editFormData.rating,
         });
     } catch (error) {
-        // Toast handled in context
     } finally {
         setIsProcessing(false);
         setModalType(null);
@@ -357,7 +341,6 @@ const AdminDashboard: React.FC = () => {
   
   const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
   const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
-  // FIX: Update toggle to use agencyId (PK) instead of id (Auth ID)
   const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
 
@@ -482,7 +465,6 @@ const AdminDashboard: React.FC = () => {
                         <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{c.name}</p>
                         <p className="text-sm text-gray-500 mb-4">{c.email}</p>
-                        {/* Fix: Changed 'SUSPENSO' to 'SUSPENDED' for comparison with UserRole.SUSPENDED */}
                         <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                       </div>
                     </div>
@@ -1012,21 +994,7 @@ const AdminDashboard: React.FC = () => {
                 )}
                 {modalTab === 'HISTORY' && (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                        <div className="p-4 bg-gray-50 rounded-xl text-sm text-gray-600 border border-gray-100">
-                           <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-2"><History size={16}/> Histórico de Atividade</h4>
-                           <ul className="space-y-2">
-                              {activityLogs.filter(log => log.user_id === selectedItem.id).length > 0 ? (
-                                  activityLogs.filter(log => log.user_id === selectedItem.id).map(log => (
-                                      <li key={log.id} className="text-xs text-gray-600">
-                                          <span className="font-mono text-gray-400 mr-2">{new Date(log.created_at).toLocaleDateString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
-                                          <strong>{log.action_type.replace(/_/g, ' ')}:</strong> {JSON.stringify(log.details)}
-                                      </li>
-                                  ))
-                              ) : (
-                                  <li>Nenhuma atividade registrada para este usuário.</li>
-                              )}
-                           </ul>
-                        </div>
+                        <p className="text-sm text-gray-500 text-center">Nenhum histórico disponível.</p>
                     </div>
                 )}
             </div>
@@ -1113,7 +1081,7 @@ const AdminDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, zipCode: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
                         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={editFormData.address?.street || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, street: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
-                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({...editFormData.address, number: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, number: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
                         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={editFormData.address?.city || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, city: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
                         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label><input value={editFormData.address?.state || ''} onChange={e => setEditFormData({...editFormData, address: {...editFormData.address, state: e.target.value}})} className="w-full border p-2 rounded-lg" /></div>
                     </div>
@@ -1181,5 +1149,3 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 };
-
-export default AdminDashboard;

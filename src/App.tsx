@@ -11,11 +11,11 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-// Corrected import path for AdminDashboard component
-import AdminDashboard from './pages/AdminDashboard'; 
-import { AgencyDashboard } from './pages/AgencyDashboard'; // Import AgencyDashboard
+// Corrected import path for AdminDashboard component (Named Export)
+import { AdminDashboard } from './pages/AdminDashboard'; 
+import AgencyDashboard from './pages/AgencyDashboard'; // Use default export
 import { AgencyLandingPage } from './pages/AgencyLandingPage'; // Use named import
-import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import ClientDashboard from './pages/ClientDashboard'; // Use default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
@@ -32,13 +32,13 @@ const App: React.FC = () => {
                   
                   {/* Global Routes (ViajaStore Context) */}
                   <Route path="trips" element={<TripList />} />
-                  <Route path="viagem/:slug" element="<TripDetails />" />
+                  <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  <Route path="contact" element="<Contact />" />
+                  <Route path="contact" element={<Contact />} />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
                   <Route path="help" element={<Help />} />
@@ -56,27 +56,4 @@ const App: React.FC = () => {
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 
-                  {/* --- AGENCY MODE ROUTES --- */}
-                  {/* Captura /:agencySlug e suas sub-rotas */}
-                  <Route path=":agencySlug" element={<AgencyLandingPage />} />
-                  <Route path=":agencySlug/trips" element={<TripList />} />
-                  <Route path=":agencySlug/viagem/:tripSlug" element="<TripDetails />" />
-                  <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
-                  
-                  {/* Microsite Client Dashboard */}
-                  <Route path=":agencySlug/client/:tab?" element={<ClientDashboard />} />
-
-
-                  {/* Catch all */}
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
-            </Router>
-          </DataProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </AuthProvider>
-  );
-};
-
-export default App;
+                  {/* --- AGENCY MODE

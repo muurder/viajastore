@@ -1,14 +1,91 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
+
+// --- SHARED/LOCAL COMPONENTS ---
+
+const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
+  const colors = {
+    green: 'bg-green-50 text-green-700 border-green-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    gray: 'bg-gray-50 text-gray-600 border-gray-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  };
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+      {children}
+    </span>
+  );
+};
+
+interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
+    const bgColors = {
+        green: 'bg-green-50 text-green-600',
+        blue: 'bg-blue-50 text-blue-600',
+        purple: 'bg-purple-50 text-purple-600',
+        amber: 'bg-amber-50 text-amber-600',
+    };
+    return (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-primary-100 transition-all group">
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${bgColors[color]} group-hover:scale-105 transition-transform`}><Icon size={24}/></div>
+            </div>
+            <p className="text-sm text-gray-500 font-medium">{title}</p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{value}</h3>
+            <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
+        </div>
+    );
+};
+
+// Generic Action Menu used for Bookings etc.
+interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
+const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <MoreVertical size={18} />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
+                    <div className="py-1">
+                        {actions.map((action, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => { action.onClick(); setIsOpen(false); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                <action.icon size={16} /> {action.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -290,8 +367,8 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
 // --- MAIN COMPONENT ---
 
 export const AgencyDashboard: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
-  const { agencies, trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData, loading: dataLoading } = useData();
+  const { user, loading: authLoading, uploadImage } = useAuth();
+  const { agencies, trips, bookings, clients, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData, loading: dataLoading, agencyReviews } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -306,16 +383,16 @@ export const AgencyDashboard: React.FC = () => {
       startDate: '', endDate: '', paymentMethods: []
   });
   
-  // Debug logging - Enhanced
+  // Debug logging
   useEffect(() => {
     console.group("[AgencyDashboard Debug - Render]");
     console.log("Auth Loading:", authLoading);
     console.log("User:", user);
     console.log("User Role (raw):", user?.role);
-    console.log("Total Agencies in DataContext:", agencies.length); // Log total agencies from context
-    console.log("DataContext Loading:", dataLoading); // Debug log
+    console.log("Total Agencies in DataContext:", agencies.length); 
+    console.log("DataContext Loading:", dataLoading);
     console.groupEnd();
-  }, [authLoading, user, agencies, dataLoading]); // Added dataLoading to deps
+  }, [authLoading, user, agencies, dataLoading]); 
 
   const [agency, setAgency] = useState<Agency | null>(null);
 
@@ -328,17 +405,6 @@ export const AgencyDashboard: React.FC = () => {
       const isUserAgencyRole = normalizedRole === UserRole.AGENCY;
       console.log("Normalized Role:", normalizedRole, "Is User Agency Role:", isUserAgencyRole);
 
-      // Log para verificar o estado antes da atribuição final
-      if (user) {
-          console.log("User.id:", user.id);
-          if (user.role === UserRole.AGENCY) {
-              const userAsAgency = user as Agency;
-              console.log("User as Agency (from AuthContext):", userAsAgency);
-              console.log("UserAsAgency.agencyId:", userAsAgency.agencyId);
-          }
-      }
-
-
       if (!user || !isUserAgencyRole) {
           console.log("[AgencyDashboard] Usuário não é agência ou não logado. Limpando agency.");
           setAgency(null);
@@ -349,16 +415,13 @@ export const AgencyDashboard: React.FC = () => {
       const userAsAgency = user as Agency;
       
       // 1) Se o AuthContext já montou o usuário como Agency completo e válido, usa ele.
-      // O CRITICAL FIX no AuthContext garante que agencyId não seja mais uma string vazia.
-      // A condição userAsAgency.agencyId !== userAsAgency.id é para diferenciar o agencyId real do ID do profile
-      // que é usado como fallback temporário em AuthContext.
       if (userAsAgency.agencyId && userAsAgency.agencyId !== userAsAgency.id) {
-          console.log("[AgencyDashboard] Usando agency do objeto Auth user (agencyId presente e válido):", userAsAgency);
+          console.log("[AgencyDashboard] Usando agency do objeto Auth user (agencyId presente e válido, diferente do user.id):", userAsAgency);
           setAgency(userAsAgency);
-      } else {
-          // 2) Fallback: tenta achar na lista de agencies do DataContext.
-          // Busca pelo user_id da agência (que está mapeado para Agency.id)
-          // ou por email como fallback mais robusto.
+      } else if (userAsAgency.agencyId === userAsAgency.id) {
+          // Caso onde agencyId é o profiles.id (fallback do AuthContext)
+          // Tenta encontrar a agência completa no DataContext
+          console.log("[AgencyDashboard] UserAsAgency.agencyId é igual ao user.id (fallback). Tentando DataContext...");
           const found = agencies.find(a => 
               a.id === user.id || // a.id (Agency.id) é o user_id (profiles.id)
               a.email?.toLowerCase() === user.email?.toLowerCase()
@@ -369,7 +432,21 @@ export const AgencyDashboard: React.FC = () => {
               setAgency(found);
           } else {
               console.warn("[AgencyDashboard] Usuário é AGÊNCIA, mas dados da agência não encontrados no AuthContext ou DataContext. Pode ser um novo cadastro sem agency_id ainda na tabela.");
-              setAgency(null); // Mantém agency null se não encontrar para mostrar loader
+              setAgency(userAsAgency); // Usa o objeto parcial do AuthContext como último recurso, para não travar no loader.
+          }
+      } else {
+          // Último fallback
+          console.warn("[AgencyDashboard] UserAsAgency.agencyId está vazio (erro inesperado). Tentando DataContext...");
+          const found = agencies.find(a => 
+              a.id === user.id || 
+              a.email?.toLowerCase() === user.email?.toLowerCase()
+          );
+          if (found) {
+              console.log("[AgencyDashboard] Agency encontrada via DataContext list lookup (fallback 2):", found);
+              setAgency(found);
+          } else {
+              console.warn("[AgencyDashboard] User é AGÊNCIA, e não foi possível resolver o objeto da agência. Definindo agency como null.");
+              setAgency(null); // Aqui sim, define como null para mostrar o loader.
           }
       }
       console.groupEnd();
@@ -415,7 +492,6 @@ export const AgencyDashboard: React.FC = () => {
   }
 
   // If agency data isn't fully loaded yet but user is authorized
-  // FIX: Adiciona mensagem mais descritiva para o estado de loading da agência
   if (!agency) return (
       <div className="min-h-screen flex flex-col items-center justify-center">
           <Loader className="animate-spin text-primary-600" size={32}/>
@@ -431,7 +507,6 @@ export const AgencyDashboard: React.FC = () => {
           setIsProcessing(true);
           try {
               // Simulate API call to activate
-              // FIX: Use real activate_agency_subscription RPC
               await supabase.rpc('activate_agency_subscription', { 
                   p_user_id: user.id, 
                   p_plan_id: plan.id 
@@ -468,7 +543,7 @@ export const AgencyDashboard: React.FC = () => {
     setTripForm({
       title: '', description: '', price: 0, destination: '', durationDays: 1, images: [],
       category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
-      startDate: '', endDate: '', paymentMethods: [], is_active: false,
+      startDate: '', endDate: '', paymentMethods: []
     });
     setModalType('CREATE_TRIP');
   };
@@ -830,7 +905,7 @@ export const AgencyDashboard: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Website</label>
-                    <input type="text" value={agency.website || ''} onChange={e => setAgency({ ...agency, website: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                    <input type="text" value={agency.website || ''} onChange={e => setAgency({ ...agency.website, website: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                   </div>
               </div>
               <div>
