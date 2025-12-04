@@ -223,7 +223,7 @@ const TripDetails: React.FC = () => {
               <span className="bg-primary-50 text-primary-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-primary-100">{trip.category}</span>
               <div className="flex items-center text-amber-500 font-bold text-sm bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
                   <Star size={14} className="fill-current mr-1" />
-                  {trip.rating ? (trip.rating).toFixed(1) : '5.0'}
+                  {trip.tripRating ? (trip.tripRating).toFixed(1) : '5.0'}
               </div>
               {agency?.subscriptionStatus === 'ACTIVE' && (
                   <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border border-green-100 flex items-center"><ShieldCheck size={12} className="mr-1"/> Verificado</span>

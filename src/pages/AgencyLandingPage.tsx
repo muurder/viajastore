@@ -421,7 +421,7 @@ const AgencyLandingPage: React.FC = () => {
                                   >
                                       <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
                                           <img 
-                                            src={currentHeroTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
+                                            src={currentHeroTrip.images[0]} 
                                             alt={currentHeroTrip.title} 
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" 
                                           />
@@ -702,25 +702,4 @@ const AgencyLandingPage: React.FC = () => {
                                       initialTags={myReview?.tags || []} // Provide default for initialTags
                                       submitButtonText={isEditingReview ? "Salvar Alterações" : "Enviar Avaliação"} 
                                     />
-                                    {isEditingReview && <button onClick={() => setIsEditingReview(false)} className="w-full text-center text-sm text-gray-500 mt-3 hover:underline">Cancelar</button>}
-                                </div>
-                            )
-                        ) : (
-                            <div className="text-center bg-gray-50 p-6 rounded-xl border border-gray-100"><h3 className="font-bold text-lg mb-2">Avalie esta agência</h3><p className="text-sm text-gray-500">Você precisa ter comprado um pacote desta agência para poder avaliá-la.</p></div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )}
-      </div>
-
-      <div className="text-center pt-12 pb-4 border-t border-gray-200">
-          <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold transition-colors text-xs uppercase tracking-widest">
-              <Globe size={12} className="mr-2" /> Voltar para ViajaStore
-          </Link>
-      </div>
-    </div>
-  );
-};
-
-export default AgencyLandingPage;
+                                    {isEditingReview && <button onClick={() => setIsEditingReview(false)}

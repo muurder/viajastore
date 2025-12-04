@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -154,7 +153,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select(`
           *,
           trip_images (image_url),
-          agencies (name, logo_url)
+          agencies (name, logo_url),
+          trip_rating, -- NOVO
+          trip_total_reviews -- NOVO
         `);
 
       if (error) throw error;
@@ -182,8 +183,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            rating: t.rating || 0, // Assuming rating might be present or default to 0
-            totalReviews: t.totalReviews || 0,
+            tripRating: t.trip_rating || 0, // NOVO
+            tripTotalReviews: t.trip_total_reviews || 0, // NOVO
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -351,8 +352,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 itinerary,
                 payment_methods,
                 is_active,
-                rating,
-                totalReviews,
+                trip_rating, -- NOVO
+                trip_total_reviews, -- NOVO
                 included,
                 not_included,
                 views_count,
@@ -410,8 +411,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               rating: b.trips.rating || 0, // Assuming rating might be present or default to 0
-               totalReviews: b.trips.totalReviews || 0,
+               tripRating: b.trips.trip_rating || 0, // NOVO
+               tripTotalReviews: b.trips.trip_total_reviews || 0, // NOVO
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
@@ -479,9 +480,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('activity_logs')
         .select(`
           *,
-          user_name:profiles (full_name, avatar_url),
-          agency_name:agencies (name, logo_url),
-          trip_title:trips (title)
+          profiles (full_name, avatar_url),
+          agencies (name, logo_url),
+          trips (title)
         `)
         .order('created_at', { ascending: false });
 
@@ -500,11 +501,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           action_type: log.action_type,
           details: log.details,
           created_at: log.created_at,
-          user_name: log.user_name?.full_name || log.actor_email,
-          user_avatar: log.user_name?.avatar_url,
-          agency_name: log.agency_name?.name,
-          agency_logo: log.agency_name?.logo_url,
-          trip_title: log.trip_title?.title,
+          user_name: log.profiles?.full_name || log.actor_email,
+          user_avatar: log.profiles?.avatar_url,
+          agency_name: log.agencies?.name,
+          agency_logo: log.agencies?.logo_url,
+          trip_title: log.trips?.title,
         }));
         setActivityLogs(formattedLogs);
       }
@@ -800,6 +801,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       included: trip.included,
       not_included: trip.notIncluded,
       is_active: trip.is_active,
+      trip_rating: trip.tripRating, // NOVO
+      trip_total_reviews: trip.tripTotalReviews, // NOVO
       featured: trip.featured,
       featured_in_hero: trip.featuredInHero,
       popular_near_sp: trip.popularNearSP,
@@ -842,6 +845,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       included: trip.included,
       not_included: trip.notIncluded,
       is_active: trip.is_active,
+      trip_rating: trip.tripRating, // NOVO
+      trip_total_reviews: trip.tripTotalReviews, // NOVO
       featured: trip.featured,
       featured_in_hero: trip.featuredInHero,
       popular_near_sp: trip.popularNearSP,

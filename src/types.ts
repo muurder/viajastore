@@ -1,4 +1,3 @@
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -134,8 +133,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  rating?: number; // Made optional
-  totalReviews?: number; // Made optional
+  tripRating?: number; // Made optional, renamed from rating
+  tripTotalReviews?: number; // Made optional, renamed from totalReviews
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats

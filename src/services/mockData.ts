@@ -1,5 +1,4 @@
 
-
 import { Agency, Client, Admin, Trip, Booking, Review, UserRole, Plan, TripCategory, TravelerType } from '../types';
 import { slugify } from '../utils/slugify';
 
@@ -149,8 +148,8 @@ export const MOCK_TRIPS: Trip[] = [
     ],
     paymentMethods: ['Pix', 'Cartão de Crédito', 'Boleto'],
     is_active: true,
-    rating: 4.9,
-    totalReviews: 128,
+    tripRating: 4.9, // Changed from rating
+    tripTotalReviews: 128, // Changed from totalReviews
     included: ['Hospedagem com café da manhã', 'Transfer aeroporto/hotel', 'Ingresso para o lado brasileiro das Cataratas', 'Guia local'],
     notIncluded: ['Passagens aéreas', 'Almoço e jantar', 'Ingresso para o lado argentino'],
     views: 12500,
@@ -175,8 +174,8 @@ export const MOCK_TRIPS: Trip[] = [
     travelerTypes: ['AMIGOS', 'CASAL', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
     is_active: true,
-    rating: 4.8,
-    totalReviews: 210,
+    tripRating: 4.8, // Changed from rating
+    tripTotalReviews: 210, // Changed from totalReviews
     included: ['Hospedagem em Copacabana', 'Café da manhã', 'Tour Cristo e Pão de Açúcar', 'Guia credenciado'],
     notIncluded: ['Passagens aéreas', 'Refeições'],
     views: 22000,
@@ -201,8 +200,8 @@ export const MOCK_TRIPS: Trip[] = [
     travelerTypes: ['MOCHILAO', 'SOZINHO', 'AMIGOS'],
     paymentMethods: ['Pix', 'Boleto'],
     is_active: true,
-    rating: 5.0,
-    totalReviews: 89,
+    tripRating: 5.0, // Changed from rating
+    tripTotalReviews: 89, // Changed from totalReviews
     included: ['Hospedagem em lodge na selva', 'Pensão completa', 'Todos os passeios descritos', 'Guia nativo'],
     notIncluded: ['Passagens aéreas até Manaus', 'Bebidas'],
     views: 9800,
@@ -226,8 +225,8 @@ export const MOCK_TRIPS: Trip[] = [
     travelerTypes: ['CASAL'],
     paymentMethods: ['Cartão de Crédito'],
     is_active: true,
-    rating: 4.9,
-    totalReviews: 150,
+    tripRating: 4.9, // Changed from rating
+    tripTotalReviews: 150, // Changed from totalReviews
     included: ['Pousada com café da manhã', 'Transfer aeroporto/pousada', 'Passeio de barco', 'Trilha histórica'],
     notIncluded: ['Passagens aéreas', 'Taxa de Preservação Ambiental', 'Ingresso do Parque Nacional Marinho'],
     views: 18000,
@@ -248,12 +247,12 @@ export const MOCK_TRIPS: Trip[] = [
     durationDays: 6,
     images: [getImg('chapada'), getImg('aventura'), getImg('natureza')],
     category: 'AVENTURA',
-    tags: ['Trekking', 'Cachoeiras', 'Ecoturismo'],
+    tags: ['Trekking', 'Ecoturismo', 'Sobrevivência'],
     travelerTypes: ['MOCHILAO', 'AMIGOS', 'SOZINHO'],
     paymentMethods: ['Pix', 'Cartão de Crédito'],
     is_active: true,
-    rating: 4.9,
-    totalReviews: 132,
+    tripRating: 4.9, // Changed from rating
+    tripTotalReviews: 132, // Changed from totalReviews
     included: ['Hospedagem em Lençóis', 'Café da manhã', 'Passeios guiados', 'Transporte para os passeios'],
     notIncluded: ['Passagens aéreas', 'Refeições', 'Taxas de entrada nos atrativos'],
     views: 11500,
@@ -278,8 +277,8 @@ export const MOCK_TRIPS: Trip[] = [
     travelerTypes: ['CASAL', 'AMIGOS', 'FAMILIA'],
     paymentMethods: ['Pix'],
     is_active: true,
-    rating: 4.7,
-    totalReviews: 88,
+    tripRating: 4.7, // Changed from rating
+    tripTotalReviews: 88, // Changed from totalReviews
     included: ['Transporte saindo de SP', 'Guia', 'Visita a 3 vinícolas com degustação'],
     notIncluded: ['Almoço', 'Compras pessoais'],
     views: 8500,
@@ -305,8 +304,8 @@ export const MOCK_TRIPS: Trip[] = [
     travelerTypes: ['AMIGOS', 'SOZINHO', 'MOCHILAO'],
     paymentMethods: ['Pix', 'Boleto'],
     is_active: true,
-    rating: 4.6,
-    totalReviews: 112,
+    tripRating: 4.6, // Changed from rating
+    tripTotalReviews: 112, // Changed from totalReviews
     included: ['Transporte saindo de SP', 'Hospedagem em camping ou pousada simples', 'Guia acompanhante'],
     notIncluded: ['Alimentação', 'Passeios de barco'],
     views: 15000,

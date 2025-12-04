@@ -182,9 +182,9 @@ export const TripList: React.FC = () => {
     switch (sortParam) {
         case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
         case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
-        case 'RATING': result.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+        case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
         default: // RELEVANCE
-           result.sort((a, b) => ((b.rating || 0) * 10 + (b.views || 0) / 100) - ((a.rating || 0) * 10 + (a.views || 0) / 100));
+           result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
     }
 
     setFilteredTrips(result);

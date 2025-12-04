@@ -140,7 +140,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
           </div>
           <div className="flex items-center text-amber-500 text-xs font-bold flex-shrink-0 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
             <Star size={12} className="mr-1 fill-current" />
-            {trip.rating?.toFixed(1) || '5.0'}
+            {trip.tripRating?.toFixed(1) || '5.0'}
           </div>
         </div>
 
