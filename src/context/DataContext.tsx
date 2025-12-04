@@ -332,16 +332,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Use wildcards for nested selects to avoid errors if specific columns (like 'rating') are missing
-        // This is robust against schema cache issues where the frontend asks for a column that was renamed in DB
+        // Fix: Explicitly list all columns from 'trips' and 'agencies'
+        // This avoids issues with PostgREST schema caching where 'rating' might still be requested
         const { data, error } = await supabase
             .from('bookings')
             .select(`
-              *,
+              id,
+              client_id,
+              trip_id,
+              passengers,
+              total_price,
+              status,
+              payment_method,
+              voucher_code,
+              created_at,
               trips (
-                *,
+                id,
+                agency_id,
+                title,
+                slug,
+                description,
+                destination,
+                price,
+                start_date,
+                end_date,
+                duration_days,
+                category,
+                tags,
+                traveler_types,
+                itinerary,
+                payment_methods,
+                is_active,
+                trip_rating,           -- Explicitly use correct column name
+                trip_total_reviews,    -- Explicitly use correct column name
+                included,
+                not_included,
+                views_count,
+                sales_count,
+                featured,
+                featured_in_hero,
+                popular_near_sp,
                 trip_images (image_url),
-                agencies (*)
+                agencies (
+                  id,
+                  user_id,
+                  name,
+                  email,
+                  slug,
+                  cnpj,
+                  description,
+                  logo_url,
+                  phone,
+                  whatsapp,
+                  website,
+                  is_active,
+                  hero_mode,
+                  hero_banner_url,
+                  hero_title,
+                  hero_subtitle,
+                  custom_settings,
+                  subscription_expires_at,
+                  subscription_plan,
+                  subscription_status,
+                  address,
+                  bank_info,
+                  deleted_at,
+                  created_at,
+                  updated_at
+                )
               )
             `);
 
@@ -370,8 +428,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
                // Fix: Map correct DB columns to Type properties (trip_rating, trip_total_reviews)
-               tripRating: b.trips.trip_rating || b.trips.rating || 0,
-               tripTotalReviews: b.trips.trip_total_reviews || b.trips.totalReviews || 0,
+               tripRating: b.trips.trip_rating || 0,
+               tripTotalReviews: b.trips.trip_total_reviews || 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
                views: b.trips.views_count || 0,
