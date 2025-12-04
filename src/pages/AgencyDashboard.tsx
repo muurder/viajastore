@@ -312,7 +312,7 @@ export const AgencyDashboard: React.FC = () => {
     console.group("[AgencyDashboard Debug]");
     console.log("Auth Loading:", authLoading);
     console.log("User:", user);
-    console.log("User Role:", user?.role);
+    console.log("User Role (raw):", user?.role);
     console.log("Total Agencies in DataContext:", agencies.length); // Log total agencies from context
     console.groupEnd();
   }, [authLoading, user, agencies]);
@@ -320,30 +320,46 @@ export const AgencyDashboard: React.FC = () => {
   const [agency, setAgency] = useState<Agency | null>(null);
 
   useEffect(() => {
-      // 1. Prioritize user object from AuthContext if it's an Agency
-      if (user && user.role === UserRole.AGENCY) {
-          const userAsAgency = user as Agency;
-          // Verify if it has Agency specific fields like agencyId
-          // Fix: Now `AuthContext` ensures `agencyId` is `user.id` even in fallback, so this check is robust.
-          if (userAsAgency.agencyId && userAsAgency.agencyId !== '') { 
-              console.log("[AgencyDashboard] Agency matched directly from Auth User object:", userAsAgency);
-              setAgency(userAsAgency);
-          } else {
-              // 2. Fallback: Try to find in agencies list from DataContext
-              // Match by agencyId (PK from agencies table) against user.id (PK from profiles table)
-              // Note: DataContext maps `agencies.user_id` to `Agency.id` and `agencies.id` to `Agency.agencyId`.
-              const found = agencies.find(a => a.id === user.id); 
-              if (found) {
-                  console.log("[AgencyDashboard] Agency matched via DataContext list lookup:", found);
-                  setAgency(found);
-              } else {
-                  console.warn("[AgencyDashboard] User is AGENCY, but agency data not found in Auth or DataContext lists.");
-                  setAgency(null); // Keep agency null if not found
-              }
-          }
-      } else {
-          setAgency(null); // Clear agency if user is not an agency or not logged in
+      console.groupCollapsed("[AgencyDashboard] Resolver de agência - Início do useEffect");
+      console.log("Current user:", user);
+      console.log("Agencies from DataContext:", agencies);
+
+      const normalizedRole = user ? String(user.role).toUpperCase() : null;
+      const isUserAgencyRole = normalizedRole === UserRole.AGENCY;
+      console.log("Normalized Role:", normalizedRole, "Is User Agency Role:", isUserAgencyRole);
+
+      if (!user || !isUserAgencyRole) {
+          console.log("[AgencyDashboard] Usuário não é agência ou não logado. Limpando agency.");
+          setAgency(null);
+          console.groupEnd();
+          return;
       }
+
+      const userAsAgency = user as Agency;
+      
+      // 1) Se o AuthContext já montou o usuário como Agency completo e válido, usa ele.
+      // O CRITICAL FIX no AuthContext garante que agencyId não seja mais uma string vazia.
+      if (userAsAgency.agencyId && userAsAgency.agencyId !== userAsAgency.id) { // agencyId deve ser diferente do id do profile
+          console.log("[AgencyDashboard] Usando agency do objeto Auth user (agencyId presente e válido):", userAsAgency);
+          setAgency(userAsAgency);
+      } else {
+          // 2) Fallback: tenta achar na lista de agencies do DataContext.
+          // Busca pelo user_id da agência (que está mapeado para Agency.id)
+          // ou por email como fallback mais robusto.
+          const found = agencies.find(a => 
+              a.id === user.id || // a.id (Agency.id) é o user_id (profiles.id)
+              a.email?.toLowerCase() === user.email?.toLowerCase()
+          ); 
+
+          if (found) {
+              console.log("[AgencyDashboard] Agency encontrada via DataContext list lookup:", found);
+              setAgency(found);
+          } else {
+              console.warn("[AgencyDashboard] Usuário é AGÊNCIA, mas dados da agência não encontrados no AuthContext ou DataContext. Pode ser um novo cadastro sem agency_id ainda na tabela.");
+              setAgency(null); // Mantém agency null se não encontrar para mostrar loader
+          }
+      }
+      console.groupEnd();
   }, [user, agencies]);
 
   // Handle Loading
@@ -358,7 +374,7 @@ export const AgencyDashboard: React.FC = () => {
 
   // Handle Unauthenticated or Unauthorized
   // Use a robust check for user role
-  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; // FIX: Robust check for role
+  const isAgencyRole = !!user && String(user.role).toUpperCase() === UserRole.AGENCY; // FIX: Robust check for role
   
   if (!user || !isAgencyRole) {
       return (
@@ -382,7 +398,15 @@ export const AgencyDashboard: React.FC = () => {
   }
 
   // If agency data isn't fully loaded yet but user is authorized
-  if (!agency) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32}/></div>;
+  // FIX: Adiciona mensagem mais descritiva para o estado de loading da agência
+  if (!agency) return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+          <Loader className="animate-spin text-primary-600" size={32}/>
+          <p className="mt-4 text-xs text-gray-500 font-mono">
+              Aguardando dados da agência... (Veja console para '[AgencyDashboard] Resolver de agência')
+          </p>
+      </div>
+  );
 
   // SUBSCRIPTION CHECK
   if (agency.subscriptionStatus !== 'ACTIVE' && agency.subscriptionStatus !== 'PENDING') {
@@ -390,13 +414,16 @@ export const AgencyDashboard: React.FC = () => {
           setIsProcessing(true);
           try {
               // Simulate API call to activate
-              await new Promise(resolve => setTimeout(resolve, 1500)); 
-              // In real app, redirect to checkout or call API
-              showToast(`Plano ${plan.name} selecionado! (Simulação)`, 'success');
-              // Force update local state for demo
-              // In real app, DataContext would update after DB change
-          } catch (e) {
-              showToast('Erro ao selecionar plano.', 'error');
+              // FIX: Use real activate_agency_subscription RPC
+              await supabase.rpc('activate_agency_subscription', { 
+                  p_user_id: user.id, 
+                  p_plan_id: plan.id 
+              }); 
+              showToast(`Plano ${plan.name} ativado com sucesso!`, 'success');
+              await refreshData(); // Refresh to update agency status
+          } catch (e: any) {
+              console.error("Erro ao ativar plano:", e);
+              showToast('Erro ao selecionar plano: ' + e.message, 'error');
           } finally {
               setIsProcessing(false);
           }

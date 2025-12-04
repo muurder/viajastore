@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -303,8 +302,15 @@ const ClientDashboard: React.FC = () => {
       if (!selectedBooking || isSubmitting) return;
       setIsSubmitting(true);
       try {
+          // Fix: Pass agencyId from resolved trip object
+          const trip = getTripById(selectedBooking.tripId);
+          if (!trip) {
+            showToast('Erro: Viagem não encontrada para avaliação.', 'error');
+            setIsSubmitting(false);
+            return;
+          }
           await addAgencyReview({
-              agencyId: selectedBooking._trip?.agencyId || selectedBooking._trip?.agency_id, // Fallback if _trip is still present from `addBooking`
+              agencyId: trip.agencyId, 
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,

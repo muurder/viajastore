@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { User, UserRole, Client, Agency, Admin } from '../types';
+import { User, UserRole, Client, Agency, Admin, Address, BankInfo } from '../types';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
 
@@ -100,11 +100,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               subscriptionStatus: 'INACTIVE',
               subscriptionPlan: 'BASIC',
               subscriptionExpiresAt: new Date().toISOString(),
-              whatsapp: undefined, // Explicitly undefined/null for missing data
+              whatsapp: undefined,
               phone: undefined,
-              address: undefined,
-              bankInfo: undefined,
-              customSettings: {},
+              address: undefined, // Explicitly undefined for missing Address
+              bankInfo: undefined, // Explicitly undefined for missing BankInfo
+              customSettings: {}, // Default empty object for customSettings
             };
             setUser(tempAgency);
             return;
@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log("[AuthContext] Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
       // Optimistic update: Clear state immediately for better UX
       setUser(null);
-      localStorage.removeItem('viajastore_pending_pending_role'); // Clear pending role on sign out
+      localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out. FIX: Removed typo in key name.
       
       // Perform signOut in background, don't await to block UI
       try {

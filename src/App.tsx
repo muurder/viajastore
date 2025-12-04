@@ -12,7 +12,7 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 // Corrected import path for AdminDashboard component
-import { AdminDashboard } from './pages/AdminDashboard'; 
+import AdminDashboard from './pages/AdminDashboard'; 
 import { AgencyDashboard } from './pages/AgencyDashboard'; // Import AgencyDashboard
 import { AgencyLandingPage } from './pages/AgencyLandingPage'; // Use named import
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
@@ -32,7 +32,7 @@ const App: React.FC = () => {
                   
                   {/* Global Routes (ViajaStore Context) */}
                   <Route path="trips" element={<TripList />} />
-                  <Route path="viagem/:slug" element={<TripDetails />} />
+                  <Route path="viagem/:slug" element="<TripDetails />" />
                   <Route path="agencies" element={<AgencyList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
                   
@@ -60,7 +60,7 @@ const App: React.FC = () => {
                   {/* Captura /:agencySlug e suas sub-rotas */}
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
                   <Route path=":agencySlug/trips" element={<TripList />} />
-                  <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
+                  <Route path=":agencySlug/viagem/:tripSlug" element="<TripDetails />" />
                   <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
                   
                   {/* Microsite Client Dashboard */}
