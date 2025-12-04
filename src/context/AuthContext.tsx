@@ -36,6 +36,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
+    console.log("AuthContext: fetching user data for", authId, email); // LOG ADDED
     if (!supabase) return;
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
@@ -58,6 +59,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .eq('id', authId)
         .maybeSingle();
+      
+      console.log("AuthContext: profile data", profileData); // LOG ADDED
 
       if (profileData) {
         // Fix: Ensure AGENCY role check is case-insensitive for robustness

@@ -490,12 +490,28 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // DEBUG LOGGING
+  console.log("AdminDashboard Render - User:", user);
+  if (user) {
+      console.log("User Role:", user.role);
+      console.log("Check:", !user || (user.role !== UserRole.ADMIN && user.role !== UserRole.AGENCY));
+  }
 
   // FIX: AdminDashboard should be accessible by ADMIN and AGENCY users.
   if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.AGENCY)) {
+    console.warn("Access Denied Details:", { user, role: user?.role });
     return (
-        <div className="min-h-screen flex items-center justify-center">
-            Acesso negado.
+        <div className="min-h-screen flex flex-col items-center justify-center">
+            <h2 className="text-xl font-bold mb-2">Acesso negado.</h2>
+            <p className="text-gray-500 mb-4">Você não tem permissão para acessar esta página.</p>
+            {user && (
+                <div className="bg-gray-100 p-4 rounded text-xs font-mono text-left">
+                    <p>Debug Info:</p>
+                    <p>User ID: {user.id}</p>
+                    <p>Role: {user.role}</p>
+                    <p>Email: {user.email}</p>
+                </div>
+            )}
         </div>
     );
   }
@@ -970,8 +986,6 @@ export const AdminDashboard: React.FC = () => {
             </div>
         );
       default:
-        // Default to OVERVIEW if no specific tab is found or for non-admin roles
-        // This is where Agency users would see their own dashboard overview
         return (
           <div className="space-y-8 animate-[fadeIn_0.3s]">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
