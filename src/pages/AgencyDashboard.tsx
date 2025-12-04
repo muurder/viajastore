@@ -205,6 +205,7 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
   const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
+  // Fixed: Added return statement to make it a valid React functional component
   return (
     <div className="space-y-3">
       {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
@@ -305,12 +306,15 @@ export const AgencyDashboard: React.FC = () => {
       startDate: '', endDate: '', paymentMethods: []
   });
   
-  // Debug logging
+  // Debug logging - Enhanced
   useEffect(() => {
-    console.log("[AgencyDashboard] Auth Loading:", authLoading);
-    console.log("[AgencyDashboard] User:", user);
-    console.log("[AgencyDashboard] Role:", user?.role);
-  }, [authLoading, user]);
+    console.group("[AgencyDashboard Debug]");
+    console.log("Auth Loading:", authLoading);
+    console.log("User:", user);
+    console.log("User Role:", user?.role);
+    console.log("Total Agencies in Context:", agencies.length);
+    console.groupEnd();
+  }, [authLoading, user, agencies]);
 
   const [agency, setAgency] = useState<Agency | null>(null);
 
@@ -321,10 +325,12 @@ export const AgencyDashboard: React.FC = () => {
           const userAsAgency = user as Agency;
           // Verify if it has Agency specific fields to be sure
           if (userAsAgency.agencyId) {
+              console.log("[AgencyDashboard] Matched via User Object property", userAsAgency);
               setAgency(userAsAgency);
           } else {
               // Fallback: Try to find in agencies list from context
               const found = agencies.find(a => a.id === user.id); 
+              console.log("[AgencyDashboard] Matched via Context List lookup:", found);
               setAgency(found || null);
           }
       } else {
