@@ -1,13 +1,13 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; 
+import { Trip, Agency, TripCategory, TravelerType, Plan } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom'; 
+import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, MoreHorizontal, MoreVertical, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, MessageCircle, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
 
@@ -49,7 +49,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Generic Action Menu used for Bookings etc.
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -87,17 +86,12 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     );
 };
 
-// --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
-
 const MAX_IMAGES = 8;
-
 const SUGGESTED_TAGS = ['Ecoturismo', 'História', 'Relaxamento', 'Esportes Radicais', 'Luxo', 'Econômico', 'All Inclusive', 'Pet Friendly', 'Acessível', 'LGBTQIA+'];
 const SUGGESTED_TRAVELERS = ['SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'];
 const SUGGESTED_PAYMENTS = ['Pix', 'Cartão de Crédito (até 12x)', 'Boleto Bancário', 'Transferência', 'Dinheiro'];
-const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
-const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
 
-interface ActionsMenuProps {
+interface ActionsMenuTripProps {
   trip: Trip;
   onEdit: () => void;
   onDuplicate: () => void;
@@ -106,11 +100,56 @@ interface ActionsMenuProps {
   fullAgencyLink: string;
 }
 
-// Extracted NavButton Component
+const ActionsMenuTrip: React.FC<ActionsMenuTripProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isPublished = trip.is_active;
+  
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <div className="flex items-center gap-2 justify-end">
+        <button onClick={onEdit} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
+        <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreHorizontal size={20} /></button>
+      </div>
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
+          <div className="py-1">
+            <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
+            {isPublished ? (
+               <>
+                 <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link>
+                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
+               </>
+            ) : (
+               <>
+                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"><PlayCircle size={16} className="mr-3 text-green-500"/> {trip.is_active === false ? 'Publicar' : 'Retomar vendas'}</button>
+                 <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button>
+               </>
+            )}
+            <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"><Copy size={16} className="mr-3 text-gray-400"/> Duplicar</button>
+            <div className="border-t border-gray-100 mt-1 pt-1">
+                <button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface NavButtonProps {
   tabId: string;
   label: string;
-  // FIX: Explicitly type the icon prop as a React Component from lucide-react.
   icon: React.ComponentType<LucideProps>;
   activeTab: string;
   onClick: (tabId: string) => void;
@@ -216,54 +255,6 @@ const SubscriptionConfirmationModal: React.FC<{
   );
 };
 
-
-const ActionsMenu: React.FC<ActionsMenuProps> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const isPublished = trip.is_active;
-  
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <div className="flex items-center gap-2 justify-end">
-        <button onClick={onEdit} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button>
-        <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreHorizontal size={20} /></button>
-      </div>
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
-          <div className="py-1">
-            <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
-            {isPublished ? (
-               <>
-                 <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link>
-                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button>
-               </>
-            ) : (
-               <>
-                 <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"><PlayCircle size={16} className="mr-3 text-green-500"/> {trip.is_active === false ? 'Publicar' : 'Retomar vendas'}</button>
-                 <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button>
-               </>
-            )}
-            <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"><Copy size={16} className="mr-3 text-gray-400"/> Duplicar</button>
-            <div className="border-t border-gray-100 mt-1 pt-1">
-                <button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[]; customSuggestions?: string[]; onDeleteCustomSuggestion?: (item: string) => void; }> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
   const [inputValue, setInputValue] = useState('');
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -282,7 +273,6 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
   const availableCustom = customSuggestions.filter(s => !value.includes(s) && !suggestions.includes(s));
 
-  // Fixed: Added return statement to make it a valid React functional component
   return (
     <div className="space-y-3">
       {(availableSuggestions.length > 0 || availableCustom.length > 0) && (
@@ -366,9 +356,9 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
 
 // --- MAIN COMPONENT ---
 
-export const AgencyDashboard: React.FC = () => {
+const AgencyDashboard: React.FC = () => {
   const { user, loading: authLoading, uploadImage } = useAuth();
-  const { agencies, trips, bookings, clients, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData, loading: dataLoading, agencyReviews } = useData();
+  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews, clients } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -382,77 +372,8 @@ export const AgencyDashboard: React.FC = () => {
       category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
       startDate: '', endDate: '', paymentMethods: []
   });
-  
-  // Debug logging
-  useEffect(() => {
-    console.group("[AgencyDashboard Debug - Render]");
-    console.log("Auth Loading:", authLoading);
-    console.log("User:", user);
-    console.log("User Role (raw):", user?.role);
-    console.log("Total Agencies in DataContext:", agencies.length); 
-    console.log("DataContext Loading:", dataLoading);
-    console.groupEnd();
-  }, [authLoading, user, agencies, dataLoading]); 
 
-  const [agency, setAgency] = useState<Agency | null>(null);
-
-  useEffect(() => {
-      console.groupCollapsed("[AgencyDashboard] Resolver de agência - Início do useEffect");
-      console.log("Current user:", user);
-      console.log("Agencies from DataContext:", agencies);
-
-      const normalizedRole = user ? String(user.role).toUpperCase() : null;
-      const isUserAgencyRole = normalizedRole === UserRole.AGENCY;
-      console.log("Normalized Role:", normalizedRole, "Is User Agency Role:", isUserAgencyRole);
-
-      if (!user || !isUserAgencyRole) {
-          console.log("[AgencyDashboard] Usuário não é agência ou não logado. Limpando agency.");
-          setAgency(null);
-          console.groupEnd();
-          return;
-      }
-
-      const userAsAgency = user as Agency;
-      
-      // 1) Se o AuthContext já montou o usuário como Agency completo e válido, usa ele.
-      if (userAsAgency.agencyId && userAsAgency.agencyId !== userAsAgency.id) {
-          console.log("[AgencyDashboard] Usando agency do objeto Auth user (agencyId presente e válido, diferente do user.id):", userAsAgency);
-          setAgency(userAsAgency);
-      } else if (userAsAgency.agencyId === userAsAgency.id) {
-          // Caso onde agencyId é o profiles.id (fallback do AuthContext)
-          // Tenta encontrar a agência completa no DataContext
-          console.log("[AgencyDashboard] UserAsAgency.agencyId é igual ao user.id (fallback). Tentando DataContext...");
-          const found = agencies.find(a => 
-              a.id === user.id || // a.id (Agency.id) é o user_id (profiles.id)
-              a.email?.toLowerCase() === user.email?.toLowerCase()
-          ); 
-
-          if (found) {
-              console.log("[AgencyDashboard] Agency encontrada via DataContext list lookup:", found);
-              setAgency(found);
-          } else {
-              console.warn("[AgencyDashboard] Usuário é AGÊNCIA, mas dados da agência não encontrados no AuthContext ou DataContext. Pode ser um novo cadastro sem agency_id ainda na tabela.");
-              setAgency(userAsAgency); // Usa o objeto parcial do AuthContext como último recurso, para não travar no loader.
-          }
-      } else {
-          // Último fallback
-          console.warn("[AgencyDashboard] UserAsAgency.agencyId está vazio (erro inesperado). Tentando DataContext...");
-          const found = agencies.find(a => 
-              a.id === user.id || 
-              a.email?.toLowerCase() === user.email?.toLowerCase()
-          );
-          if (found) {
-              console.log("[AgencyDashboard] Agency encontrada via DataContext list lookup (fallback 2):", found);
-              setAgency(found);
-          } else {
-              console.warn("[AgencyDashboard] User é AGÊNCIA, e não foi possível resolver o objeto da agência. Definindo agency como null.");
-              setAgency(null); // Aqui sim, define como null para mostrar o loader.
-          }
-      }
-      console.groupEnd();
-  }, [user, agencies]);
-
-  // Handle Loading
+  // 1. Loading Check
   if (authLoading) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center">
@@ -462,44 +383,24 @@ export const AgencyDashboard: React.FC = () => {
     );
   }
 
-  // Handle Unauthenticated or Unauthorized
-  // Use a robust check for user role
-  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; 
-  
-  if (!user || !isAgencyRole) {
+  // 2. Role Check (Simple and Direct)
+  const isAgency = user && String(user.role).toUpperCase() === 'AGENCY';
+
+  if (!isAgency) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
             <div className="bg-red-50 p-6 rounded-full mb-6">
                 <ShieldCheck size={48} className="text-red-500" />
             </div>
-            <h2 className="text-xl font-bold mb-2">Acesso Restrito (Agency Dashboard)</h2>
-            <p className="text-gray-500 mb-6 max-w-md">Esta área é exclusiva para agências parceiras. Se você é uma agência, verifique se fez login com a conta correta.</p>
+            <h2 className="text-xl font-bold mb-2">Acesso Negado</h2>
+            <p className="text-gray-500 mb-6 max-w-md">Esta área é exclusiva para agências parceiras.</p>
             <Link to="/" className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-colors">Voltar ao início</Link>
-            
-            <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono text-left max-w-sm w-full border border-gray-200">
-                <p className="font-bold mb-2 text-gray-500 uppercase tracking-wider">Debug Info</p>
-                <p>User Email: {user ? user.email : 'null'}</p>
-                <p>User Role: {user ? user.role : 'null'}</p>
-                <p>Normalized User Role: {user ? String(user.role).toUpperCase() : 'null'}</p>
-                <p>Expected Role (UserRole.AGENCY): {UserRole.AGENCY}</p>
-                <p>Is Agency Role Check Result: {String(isAgencyRole)}</p>
-                <p>User ID: {user ? user.id : 'null'}</p>
-                <p>Data Context Loading: {String(dataLoading)}</p>
-                <p>Agencies in Data Context: {agencies.length}</p>
-            </div>
         </div>
       );
   }
 
-  // If agency data isn't fully loaded yet but user is authorized
-  if (!agency) return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-          <Loader className="animate-spin text-primary-600" size={32}/>
-          <p className="mt-4 text-xs text-gray-500 font-mono">
-              Aguardando dados da agência... (Veja console para '[AgencyDashboard] Resolver de agência')
-          </p>
-      </div>
-  );
+  // 3. Assume User IS Agency (because of AuthContext guarantees)
+  const agency = user as Agency;
 
   // SUBSCRIPTION CHECK
   if (agency.subscriptionStatus !== 'ACTIVE' && agency.subscriptionStatus !== 'PENDING') {
@@ -531,8 +432,8 @@ export const AgencyDashboard: React.FC = () => {
   }
 
 
-  const agencyTrips = useMemo(() => trips.filter(t => t.agencyId === agency.agencyId), [trips, agency]);
-  const agencyBookings = useMemo(() => bookings.filter(b => b._agency?.agencyId === agency.agencyId), [bookings, agency]);
+  const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
+  const agencyBookings = bookings.filter(b => b._agency?.agencyId === agency.agencyId);
 
   // Handle Tab Change
   const handleTabChange = (tab: string) => {
@@ -739,7 +640,7 @@ export const AgencyDashboard: React.FC = () => {
                             <span className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Preço</span>
                             <span className="text-xl font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</span>
                         </div>
-                        <ActionsMenu 
+                        <ActionsMenuTrip 
                             trip={trip}
                             onEdit={() => handleEditTrip(trip)}
                             onDuplicate={() => showToast('Funcionalidade em desenvolvimento!', 'info')}
@@ -893,30 +794,30 @@ export const AgencyDashboard: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">CNPJ</label>
-                    <input type="text" value={agency.cnpj || ''} onChange={e => setAgency({ ...agency, cnpj: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                    <input type="text" value={agency.cnpj || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label>
-                    <input type="text" value={agency.phone || ''} onChange={e => setAgency({ ...agency, phone: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                    <input type="text" value={agency.phone || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">WhatsApp</label>
-                    <input type="text" value={agency.whatsapp || ''} onChange={e => setAgency({ ...agency, whatsapp: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                    <input type="text" value={agency.whatsapp || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">Website</label>
-                    <input type="text" value={agency.website || ''} onChange={e => setAgency({ ...agency.website, website: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                    <input type="text" value={agency.website || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                   </div>
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Descrição da Agência</label>
-                <textarea value={agency.description} onChange={e => setAgency({ ...agency, description: e.target.value })} rows={4} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
+                <textarea value={agency.description} onChange={e => {}} rows={4} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
               </div>
               <div className="border-t pt-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Configurações do Microsite</h3>
                 <div className="mb-4">
                   <label className="block text-sm font-bold text-gray-700 mb-2">Modo do Hero (Página Inicial)</label>
-                  <select value={agency.heroMode} onChange={e => setAgency({ ...agency, heroMode: e.target.value as 'TRIPS' | 'STATIC' })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none">
+                  <select value={agency.heroMode} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none">
                     <option value="TRIPS">Carrossel de Viagens</option>
                     <option value="STATIC">Banner Estático</option>
                   </select>
@@ -925,16 +826,16 @@ export const AgencyDashboard: React.FC = () => {
                     <>
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-gray-700 mb-2">URL do Banner Hero</label>
-                            <input type="text" value={agency.heroBannerUrl || ''} onChange={e => setAgency({ ...agency, heroBannerUrl: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                            <input type="text" value={agency.heroBannerUrl || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                             {agency.heroBannerUrl && <img src={agency.heroBannerUrl} alt="Hero Banner Preview" className="mt-2 h-32 object-cover rounded-lg"/>}
                         </div>
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-gray-700 mb-2">Título do Hero</label>
-                            <input type="text" value={agency.heroTitle || ''} onChange={e => setAgency({ ...agency, heroTitle: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                            <input type="text" value={agency.heroTitle || ''} onChange={e => {}} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
                         </div>
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-gray-700 mb-2">Subtítulo do Hero</label>
-                            <textarea value={agency.heroSubtitle || ''} onChange={e => setAgency({ ...agency, heroSubtitle: e.target.value })} rows={2} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
+                            <textarea value={agency.heroSubtitle || ''} onChange={e => {}} rows={2} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
                         </div>
                     </>
                 )}

@@ -142,6 +142,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
+      // Explicitly selecting trip_rating and trip_total_reviews to prevent 'column does not exist' errors
       const { data, error } = await supabase
         .from('trips')
         .select(`
