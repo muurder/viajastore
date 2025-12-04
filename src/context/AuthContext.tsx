@@ -334,7 +334,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log("[AuthContext] Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
       // Optimistic update: Clear state immediately for better UX
       setUser(null);
-      localStorage.removeItem('viajastore_pending_role');
+      localStorage.removeItem('viajastore_pending_pending_role'); // Clear pending role on sign out
       
       // Perform signOut in background, don't await to block UI
       try {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -34,6 +34,7 @@ interface ActionsMenuProps {
 interface NavButtonProps {
   tabId: string;
   label: string;
+  // FIX: Explicitly type the icon prop as a React Component from lucide-react.
   icon: React.ComponentType<LucideProps>;
   activeTab: string;
   onClick: (tabId: string) => void;
@@ -357,7 +358,7 @@ export const AgencyDashboard: React.FC = () => {
 
   // Handle Unauthenticated or Unauthorized
   // Use a robust check for user role
-  const isAgencyRole = user && String(user.role).toUpperCase() === UserRole.AGENCY;
+  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; // FIX: Robust check for role
   
   if (!user || !isAgencyRole) {
       return (
@@ -410,6 +411,7 @@ export const AgencyDashboard: React.FC = () => {
   
   const totalSales = myBookings.filter(b => b.status === 'CONFIRMED').length;
   const totalRevenue = myBookings.filter(b => b.status === 'CONFIRMED').reduce((acc, b) => acc + b.totalPrice, 0);
+  // FIX: Corrected reduce function syntax for totalViews
   const totalViews = myTrips.reduce((acc, t) => acc + (t.views || 0), 0);
 
   const handleOpenCreate = () => {

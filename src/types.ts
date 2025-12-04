@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -272,7 +273,8 @@ export type ActivityActionType =
   | 'ADMIN_AGENCY_MANAGED'
   | 'ADMIN_THEME_MANAGED'
   | 'ADMIN_MOCK_DATA_MIGRATED'
-  | 'ADMIN_ACTION';
+  | 'ADMIN_ACTION'
+  | 'ADMIN_ACTIVITY_EXPORTED';
 
 export interface ActivityLog {
   id: string;

@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
@@ -185,7 +186,6 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
               </span>
           </div>
         </div>
-      </div>
     </Link>
   );
 };
