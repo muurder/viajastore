@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +10,9 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabase';
+
+// ... (Rest of imports and local components like NavButton, SubscriptionActivationView, etc. stay exactly the same) ...
+// For brevity, I will include the full file content to ensure no parts are missed.
 
 // --- REUSABLE COMPONENTS (LOCAL TO THIS DASHBOARD) ---
 
@@ -33,7 +37,6 @@ interface ActionsMenuProps {
 interface NavButtonProps {
   tabId: string;
   label: string;
-  // FIX: Explicitly type the icon prop as a React Component from lucide-react.
   icon: React.ComponentType<LucideProps>;
   activeTab: string;
   onClick: (tabId: string) => void;
@@ -316,32 +319,43 @@ export const AgencyDashboard: React.FC = () => {
 
   useEffect(() => {
       if (user && user.role === UserRole.AGENCY) {
-          // In DataContext, 'agencies' list might use 'agencyId' as PK, but user.id matches 'user_id' in DB.
-          // However, the `user` object from useAuth() for an agency IS the agency object (merged).
-          // So we can cast it directly or find it in the list to be safe.
           const found = agencies.find(a => a.id === user.id); 
           setAgency(found || (user as Agency));
       }
   }, [user, agencies]);
 
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32}/></div>;
+  // Handle Loading
+  if (authLoading) {
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center">
+            <Loader size={48} className="animate-spin text-primary-500 mb-4" />
+            <p className="text-gray-500">Carregando painel...</p>
+        </div>
+    );
+  }
 
+  // Handle Unauthenticated or Unauthorized
   if (!user || user.role !== UserRole.AGENCY) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
+            <div className="bg-red-50 p-6 rounded-full mb-6">
+                <ShieldCheck size={48} className="text-red-500" />
+            </div>
             <h2 className="text-xl font-bold mb-2">Acesso Restrito</h2>
-            <p className="text-gray-500 mb-4">Esta área é exclusiva para agências parceiras.</p>
-            <Link to="/" className="text-primary-600 font-bold hover:underline">Voltar ao início</Link>
-            <div className="mt-4 p-2 bg-gray-100 rounded text-xs font-mono text-left">
-                DEBUG INFO:<br/>
-                User: {user ? user.email : 'null'}<br/>
-                Role: {user ? user.role : 'null'}
+            <p className="text-gray-500 mb-6 max-w-md">Esta área é exclusiva para agências parceiras. Se você é uma agência, verifique se fez login com a conta correta.</p>
+            <Link to="/" className="bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg font-bold hover:bg-gray-50 transition-colors">Voltar ao início</Link>
+            
+            <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono text-left max-w-sm w-full border border-gray-200">
+                <p className="font-bold mb-2 text-gray-500 uppercase tracking-wider">Debug Info</p>
+                <p>User: {user ? user.email : 'null'}</p>
+                <p>Role: {user ? user.role : 'null'}</p>
+                <p>ID: {user ? user.id : 'null'}</p>
             </div>
         </div>
       );
   }
 
-  // If agency data isn't fully loaded yet
+  // If agency data isn't fully loaded yet but user is authorized
   if (!agency) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32}/></div>;
 
   // SUBSCRIPTION CHECK

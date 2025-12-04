@@ -1,5 +1,4 @@
 
-
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -276,5 +275,5 @@ GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uui
 -- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
 UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
 
--- 9. RECARREGAR
+-- 9. RECARREGAR (CRUCIAL PARA CORRIGIR ERROS DE COLUNA AUSENTE)
 NOTIFY pgrst, 'reload config';
