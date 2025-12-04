@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
@@ -262,4 +261,392 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <ToolbarButton cmd="justifyCenter" icon={AlignCenter} title="Centralizar" />
         <ToolbarButton cmd="justifyRight" icon={AlignRight} title="Alinhar Direita" />
         <Divider />
-        <ToolbarButton
+        <ToolbarButton cmd="insertUnorderedList" icon={List} title="Lista com Marcadores" />
+        <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista Numerada" />
+        <Divider />
+        <ToolbarButton icon={LinkIcon} cmd="" title="Inserir Link" onClick={addLink} />
+        <ToolbarButton icon={ImageIcon} cmd="" title="Inserir Imagem" onClick={addImage} />
+        <div className="relative">
+            <ToolbarButton icon={Smile} cmd="" title="Emojis" onClick={() => setShowEmojiPicker(!showEmojiPicker)} />
+            {showEmojiPicker && (
+                <div className="absolute top-10 left-0 bg-white shadow-xl border rounded-lg p-2 grid grid-cols-4 gap-2 z-50">
+                    {COMMON_EMOJIS.map(e => <button key={e} type="button" onClick={() => addEmoji(e)} className="text-xl hover:bg-gray-100 p-1 rounded">{e}</button>)}
+                </div>
+            )}
+        </div>
+      </div>
+      <div 
+        ref={contentRef}
+        contentEditable
+        onInput={handleInput}
+        onPaste={handlePaste}
+        className="p-4 min-h-[150px] outline-none prose prose-sm max-w-none text-gray-700 bg-white"
+      ></div>
+    </div>
+  );
+};
+
+// --- MAIN COMPONENT ---
+
+export const AgencyDashboard: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
+  const { agencies, trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData } = useData();
+  const { showToast } = useToast();
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [modalType, setModalType] = useState<'CREATE_TRIP' | 'EDIT_TRIP' | 'SUBSCRIPTION' | null>(null);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [tripForm, setTripForm] = useState<Partial<Trip>>({
+      title: '', description: '', price: 0, destination: '', durationDays: 1, images: [],
+      category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
+      startDate: '', endDate: '', paymentMethods: []
+  });
+  
+  // Debug logging
+  useEffect(() => {
+    console.log("[AgencyDashboard] Auth Loading:", authLoading);
+    console.log("[AgencyDashboard] User:", user);
+    console.log("[AgencyDashboard] Role:", user?.role);
+  }, [authLoading, user]);
+
+  const [agency, setAgency] = useState<Agency | null>(null);
+
+  useEffect(() => {
+      if (user && user.role === UserRole.AGENCY) {
+          // In DataContext, 'agencies' list might use 'agencyId' as PK, but user.id matches 'user_id' in DB.
+          // However, the `user` object from useAuth() for an agency IS the agency object (merged).
+          // So we can cast it directly or find it in the list to be safe.
+          const found = agencies.find(a => a.id === user.id); 
+          setAgency(found || (user as Agency));
+      }
+  }, [user, agencies]);
+
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32}/></div>;
+
+  if (!user || user.role !== UserRole.AGENCY) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
+            <h2 className="text-xl font-bold mb-2">Acesso Restrito</h2>
+            <p className="text-gray-500 mb-4">Esta área é exclusiva para agências parceiras.</p>
+            <Link to="/" className="text-primary-600 font-bold hover:underline">Voltar ao início</Link>
+            <div className="mt-4 p-2 bg-gray-100 rounded text-xs font-mono text-left">
+                DEBUG INFO:<br/>
+                User: {user ? user.email : 'null'}<br/>
+                Role: {user ? user.role : 'null'}
+            </div>
+        </div>
+      );
+  }
+
+  // If agency data isn't fully loaded yet
+  if (!agency) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32}/></div>;
+
+  // SUBSCRIPTION CHECK
+  if (agency.subscriptionStatus !== 'ACTIVE' && agency.subscriptionStatus !== 'PENDING') {
+      const handlePlanSelect = async (plan: Plan) => {
+          setIsProcessing(true);
+          try {
+              // Simulate API call to activate
+              await new Promise(resolve => setTimeout(resolve, 1500)); 
+              // In real app, redirect to checkout or call API
+              showToast(`Plano ${plan.name} selecionado! (Simulação)`, 'success');
+              // Force update local state for demo
+              // In real app, DataContext would update after DB change
+          } catch (e) {
+              showToast('Erro ao selecionar plano.', 'error');
+          } finally {
+              setIsProcessing(false);
+          }
+      };
+
+      return <SubscriptionActivationView agency={agency} onSelectPlan={handlePlanSelect} activatingPlanId={isProcessing ? 'loading' : null} />;
+  }
+
+  // --- DASHBOARD LOGIC ---
+  const myTrips = trips.filter(t => t.agencyId === agency.agencyId);
+  const myBookings = bookings.filter(b => b._trip?.agencyId === agency.agencyId);
+  
+  const totalSales = myBookings.filter(b => b.status === 'CONFIRMED').length;
+  const totalRevenue = myBookings.filter(b => b.status === 'CONFIRMED').reduce((acc, b) => acc + b.totalPrice, 0);
+  const totalViews = myTrips.reduce((acc, t) => acc + (t.views || 0), 0);
+
+  const handleOpenCreate = () => {
+      setTripForm({
+          title: '', description: '', price: 0, destination: '', durationDays: 1, images: [],
+          category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
+          startDate: '', endDate: '', paymentMethods: []
+      });
+      setModalType('CREATE_TRIP');
+  };
+
+  const handleOpenEdit = (trip: Trip) => {
+      setSelectedTrip(trip);
+      setTripForm({ ...trip });
+      setModalType('EDIT_TRIP');
+  };
+
+  const handleSaveTrip = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsProcessing(true);
+      try {
+          const tripData = { ...tripForm, agencyId: agency.agencyId } as Trip;
+          
+          if (modalType === 'CREATE_TRIP') {
+              await createTrip(tripData);
+              showToast('Pacote criado com sucesso!', 'success');
+          } else {
+              await updateTrip({ ...tripData, id: selectedTrip!.id });
+              showToast('Pacote atualizado com sucesso!', 'success');
+          }
+          setModalType(null);
+      } catch (error: any) {
+          showToast(`Erro ao salvar: ${error.message}`, 'error');
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
+  const handleDeleteTrip = async (id: string) => {
+      if (window.confirm('Tem certeza que deseja excluir este pacote?')) {
+          setIsProcessing(true);
+          try {
+              await deleteTrip(id);
+              showToast('Pacote excluído.', 'success');
+          } catch (e) {
+              showToast('Erro ao excluir.', 'error');
+          } finally {
+              setIsProcessing(false);
+          }
+      }
+  };
+
+  const renderContent = () => {
+      switch (activeTab) {
+          case 'OVERVIEW':
+              return (
+                  <div className="space-y-8 animate-[fadeIn_0.3s]">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-green-50 text-green-600"><DollarSign size={24}/></div></div>
+                              <p className="text-sm text-gray-500 font-medium">Receita Total</p>
+                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {totalRevenue.toLocaleString()}</h3>
+                          </div>
+                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-blue-50 text-blue-600"><ShoppingBag size={24}/></div></div>
+                              <p className="text-sm text-gray-500 font-medium">Vendas Realizadas</p>
+                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{totalSales}</h3>
+                          </div>
+                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-purple-50 text-purple-600"><Eye size={24}/></div></div>
+                              <p className="text-sm text-gray-500 font-medium">Visualizações</p>
+                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{totalViews}</h3>
+                          </div>
+                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Plane size={24}/></div></div>
+                              <p className="text-sm text-gray-500 font-medium">Pacotes Ativos</p>
+                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.is_active).length}</h3>
+                          </div>
+                      </div>
+                  </div>
+              );
+          case 'TRIPS':
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="flex justify-between items-center">
+                          <h2 className="text-xl font-bold text-gray-900">Meus Pacotes</h2>
+                          <button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">
+                              <Plus size={18}/> Novo Pacote
+                          </button>
+                      </div>
+
+                      {myTrips.length === 0 ? (
+                          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                              <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Plane className="text-gray-300" size={32} /></div>
+                              <h3 className="text-lg font-bold text-gray-900">Nenhum pacote cadastrado</h3>
+                              <p className="text-gray-500 mb-6">Comece a vender criando seu primeiro pacote de viagem.</p>
+                              <button onClick={handleOpenCreate} className="text-primary-600 font-bold hover:underline">Criar agora</button>
+                          </div>
+                      ) : (
+                          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                              <table className="min-w-full divide-y divide-gray-100">
+                                  <thead className="bg-gray-50">
+                                      <tr>
+                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pacote</th>
+                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Preço</th>
+                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Performance</th>
+                                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-100">
+                                      {myTrips.map(trip => (
+                                          <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
+                                              <td className="px-6 py-4">
+                                                  <div className="flex items-center gap-4">
+                                                      <img src={trip.images[0] || 'https://via.placeholder.com/100'} className="w-12 h-12 rounded-lg object-cover bg-gray-100" alt=""/>
+                                                      <div>
+                                                          <p className="font-bold text-gray-900 text-sm line-clamp-1">{trip.title}</p>
+                                                          <p className="text-xs text-gray-500">{trip.destination}</p>
+                                                      </div>
+                                                  </div>
+                                              </td>
+                                              <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
+                                              <td className="px-6 py-4">
+                                                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${trip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                      {trip.is_active ? 'Ativo' : 'Pausado'}
+                                                  </span>
+                                              </td>
+                                              <td className="px-6 py-4">
+                                                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                                                      <span className="flex items-center gap-1"><Eye size={14}/> {trip.views || 0}</span>
+                                                      <span className="flex items-center gap-1"><ShoppingBag size={14}/> {trip.sales || 0}</span>
+                                                  </div>
+                                              </td>
+                                              <td className="px-6 py-4 text-right">
+                                                  <ActionsMenu 
+                                                      trip={trip}
+                                                      onEdit={() => handleOpenEdit(trip)}
+                                                      onDelete={() => handleDeleteTrip(trip.id)}
+                                                      onDuplicate={() => { /* Implement duplicate */ }}
+                                                      onToggleStatus={() => toggleTripStatus(trip.id)}
+                                                      fullAgencyLink={window.location.origin + '/' + agency.slug}
+                                                  />
+                                              </td>
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                          </div>
+                      )}
+                  </div>
+              );
+          default:
+              return null;
+      }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h1 className="text-3xl font-bold text-gray-900">Painel da Agência</h1>
+            <Link to={`/${agency.slug}`} target="_blank" className="flex items-center gap-2 text-primary-600 font-bold text-sm hover:underline">
+                <ExternalLink size={16}/> Ver minha página pública
+            </Link>
+        </div>
+
+        <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} activeTab={activeTab} onClick={(id) => setSearchParams({ tab: id })} />
+            <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={(id) => setSearchParams({ tab: id })} />
+            {/* Add more tabs as needed */}
+        </div>
+
+        {renderContent()}
+
+        {/* Modal for Trip Create/Edit */}
+        {(modalType === 'CREATE_TRIP' || modalType === 'EDIT_TRIP') && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                    <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">{modalType === 'CREATE_TRIP' ? 'Criar Novo Pacote' : 'Editar Pacote'}</h2>
+                    
+                    <form onSubmit={handleSaveTrip} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Título do Pacote</label>
+                                <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Completa</label>
+                                <RichTextEditor value={tripForm.description || ''} onChange={val => setTripForm({...tripForm, description: val})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Preço (R$)</label>
+                                <input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Destino</label>
+                                <div className="relative">
+                                    <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                                    <input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-2.5 pl-10 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Data Início</label>
+                                <input type="date" value={tripForm.startDate ? new Date(tripForm.startDate).toISOString().split('T')[0] : ''} onChange={e => setTripForm({...tripForm, startDate: new Date(e.target.value).toISOString()})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Data Fim</label>
+                                <input type="date" value={tripForm.endDate ? new Date(tripForm.endDate).toISOString().split('T')[0] : ''} onChange={e => setTripForm({...tripForm, endDate: new Date(e.target.value).toISOString()})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Duração (Dias)</label>
+                                <input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Categoria Principal</label>
+                                <select value={tripForm.category} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
+                                    <option value="PRAIA">Praia</option>
+                                    <option value="AVENTURA">Aventura</option>
+                                    <option value="FAMILIA">Família</option>
+                                    <option value="ROMANTICO">Romântico</option>
+                                    <option value="URBANO">Urbano</option>
+                                    <option value="NATUREZA">Natureza</option>
+                                    <option value="CULTURA">Cultura</option>
+                                    <option value="GASTRONOMICO">Gastronômico</option>
+                                    <option value="VIDA_NOTURNA">Vida Noturna</option>
+                                    <option value="VIAGEM_BARATA">Viagem Barata</option>
+                                    <option value="ARTE">Arte</option>
+                                </select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Imagens (URLs)</label>
+                                <PillInput 
+                                    value={tripForm.images || []} 
+                                    onChange={imgs => setTripForm({...tripForm, images: imgs})} 
+                                    placeholder="Cole a URL da imagem e pressione Enter"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Recomendado: 4 a 8 imagens de alta qualidade.</p>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">O que está incluído</label>
+                                <PillInput 
+                                    value={tripForm.included || []} 
+                                    onChange={inc => setTripForm({...tripForm, included: inc})} 
+                                    placeholder="Adicionar item (ex: Café da manhã)"
+                                    suggestions={SUGGESTED_INCLUDED}
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">O que NÃO está incluído</label>
+                                <PillInput 
+                                    value={tripForm.notIncluded || []} 
+                                    onChange={notInc => setTripForm({...tripForm, notIncluded: notInc})} 
+                                    placeholder="Adicionar item (ex: Bebidas)"
+                                    suggestions={SUGGESTED_NOT_INCLUDED}
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Tags (Palavras-chave)</label>
+                                <PillInput 
+                                    value={tripForm.tags || []} 
+                                    onChange={tags => setTripForm({...tripForm, tags: tags})} 
+                                    placeholder="Adicionar tag"
+                                    suggestions={SUGGESTED_TAGS}
+                                    customSuggestions={agency.customSettings?.tags}
+                                    onDeleteCustomSuggestion={(tag) => { /* logic to remove custom tag from agency settings */ }}
+                                />
+                            </div>
+                        </div>
+                        <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                            {isProcessing ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )}
+    </div>
+  );
+};
