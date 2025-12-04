@@ -1,9 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address, AgencyReview, Agency } from '../types';
-import TripCard from '../components/TripCard';
+import { TripCard } from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';

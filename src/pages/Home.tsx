@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import TripCard, { TripCardSkeleton } from '../components/TripCard';
+import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';

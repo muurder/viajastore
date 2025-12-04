@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
-import TripCard, { TripCardSkeleton } from '../components/TripCard';
+import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
 
@@ -38,8 +37,9 @@ export const TripList: React.FC = () => {
   
   const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  // FIX: Corrected typo 'true' to 'price' in initial state of openFilterSections
   const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
-     traveler: true, style: true, duration: true, true, dest: true
+     traveler: true, style: true, duration: true, price: true, dest: true
   });
 
   // Update initial trips when data loads or route changes
