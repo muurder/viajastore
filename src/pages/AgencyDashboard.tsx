@@ -292,7 +292,7 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
 
 export const AgencyDashboard: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
-  const { agencies, trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData } = useData();
+  const { agencies, trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencyProfileByAdmin, refreshData, loading: dataLoading } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -314,8 +314,9 @@ export const AgencyDashboard: React.FC = () => {
     console.log("User:", user);
     console.log("User Role (raw):", user?.role);
     console.log("Total Agencies in DataContext:", agencies.length); // Log total agencies from context
+    console.log("DataContext Loading:", dataLoading); // Debug log
     console.groupEnd();
-  }, [authLoading, user, agencies]);
+  }, [authLoading, user, agencies, dataLoading]); // Added dataLoading to deps
 
   const [agency, setAgency] = useState<Agency | null>(null);
 
@@ -387,8 +388,7 @@ export const AgencyDashboard: React.FC = () => {
 
   // Handle Unauthenticated or Unauthorized
   // Use a robust check for user role
-  // Antigo: const isAgencyRole = user && String(user.role).toUpperCase() === UserRole.AGENCY;
-  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; // FIX: Robust check for role (comparing string 'AGENCY')
+  const isAgencyRole = !!user && String(user.role).toUpperCase() === 'AGENCY'; 
   
   if (!user || !isAgencyRole) {
       return (
@@ -403,9 +403,13 @@ export const AgencyDashboard: React.FC = () => {
             <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono text-left max-w-sm w-full border border-gray-200">
                 <p className="font-bold mb-2 text-gray-500 uppercase tracking-wider">Debug Info</p>
                 <p>User Email: {user ? user.email : 'null'}</p>
-                <p>User Role: {user ? user.role : 'null'} (Normalized: {user ? String(user.role).toUpperCase() : 'null'})</p>
+                <p>User Role: {user ? user.role : 'null'}</p>
+                <p>Normalized User Role: {user ? String(user.role).toUpperCase() : 'null'}</p>
+                <p>Expected Role (UserRole.AGENCY): {UserRole.AGENCY}</p>
+                <p>Is Agency Role Check Result: {String(isAgencyRole)}</p>
                 <p>User ID: {user ? user.id : 'null'}</p>
-                <p>Is Agency Role Check: {String(isAgencyRole)}</p>
+                <p>Data Context Loading: {String(dataLoading)}</p>
+                <p>Agencies in Data Context: {agencies.length}</p>
             </div>
         </div>
       );
