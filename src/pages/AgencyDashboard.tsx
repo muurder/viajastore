@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -318,22 +319,27 @@ export const AgencyDashboard: React.FC = () => {
   const [agency, setAgency] = useState<Agency | null>(null);
 
   useEffect(() => {
-      // 1. Try to set agency immediately from user object if it has agency properties
+      // 1. Prioritize user object from AuthContext if it's an Agency
       if (user && user.role === UserRole.AGENCY) {
-          // Cast user to Agency type if possible
           const userAsAgency = user as Agency;
-          // Verify if it has Agency specific fields to be sure
-          if (userAsAgency.agencyId) {
-              console.log("[AgencyDashboard] Matched via User Object property", userAsAgency);
+          // Verify if it has Agency specific fields like agencyId
+          if (userAsAgency.agencyId && userAsAgency.agencyId !== '') { // Ensure agencyId is not empty from fallback
+              console.log("[AgencyDashboard] Agency matched directly from Auth User object:", userAsAgency);
               setAgency(userAsAgency);
           } else {
-              // Fallback: Try to find in agencies list from context
+              // 2. Fallback: Try to find in agencies list from DataContext
+              // Match by user.id (which is profiles.id) against agency.id (which is mapped from agencies.user_id)
               const found = agencies.find(a => a.id === user.id); 
-              console.log("[AgencyDashboard] Matched via Context List lookup:", found);
-              setAgency(found || null);
+              if (found) {
+                  console.log("[AgencyDashboard] Agency matched via DataContext list lookup:", found);
+                  setAgency(found);
+              } else {
+                  console.warn("[AgencyDashboard] User is AGENCY, but agency data not found in Auth or DataContext lists.");
+                  setAgency(null); // Keep agency null if not found
+              }
           }
       } else {
-          setAgency(null);
+          setAgency(null); // Clear agency if user is not an agency or not logged in
       }
   }, [user, agencies]);
 
@@ -348,10 +354,10 @@ export const AgencyDashboard: React.FC = () => {
   }
 
   // Handle Unauthenticated or Unauthorized
-  // More permissive check to see if user is intended to be an agency
-  const isAgency = user?.role === UserRole.AGENCY;
+  // Use a robust check for user role
+  const isAgencyRole = user && String(user.role).toUpperCase() === UserRole.AGENCY;
   
-  if (!user || !isAgency) {
+  if (!user || !isAgencyRole) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
             <div className="bg-red-50 p-6 rounded-full mb-6">
@@ -364,8 +370,9 @@ export const AgencyDashboard: React.FC = () => {
             <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono text-left max-w-sm w-full border border-gray-200">
                 <p className="font-bold mb-2 text-gray-500 uppercase tracking-wider">Debug Info</p>
                 <p>User Email: {user ? user.email : 'null'}</p>
-                <p>User Role: {user ? user.role : 'null'}</p>
+                <p>User Role: {user ? user.role : 'null'} (Normalized: {user ? String(user.role).toUpperCase() : 'null'})</p>
                 <p>User ID: {user ? user.id : 'null'}</p>
+                <p>Is Agency Role Check: {String(isAgencyRole)}</p>
             </div>
         </div>
       );

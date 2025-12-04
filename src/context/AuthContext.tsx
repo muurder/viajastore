@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (profileData) {
         console.log("[AuthContext] Profile Found:", profileData); // Debug Log
         
-        // Fix: Normalize role string for robust comparison
+        // Fix: Normalize role string for robust comparison (case-insensitive)
         const rawRole = profileData.role ? profileData.role.trim().toUpperCase() : '';
         console.log("[AuthContext] Normalized Role from DB:", rawRole);
 
@@ -83,10 +83,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (agencyError || !agencyData) {
             console.warn("[AuthContext] Profile is AGENCY but no record in agencies table (or fetch failed).", agencyError);
             
-            // Fallback: Create a temporary agency object so the user isn't locked out
+            // Fix: Create a temporary agency object with a valid agencyId (profileData.id)
+            // This prevents the AgencyDashboard from breaking due to a missing agencyId.
              const tempAgency: Agency = {
               id: profileData.id,
-              agencyId: '', // Missing ID
+              agencyId: profileData.id, // Use profile ID as temporary agencyId
               name: profileData.full_name || 'Nova Agência',
               email: email,
               role: UserRole.AGENCY,
@@ -99,6 +100,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               subscriptionStatus: 'INACTIVE',
               subscriptionPlan: 'BASIC',
               subscriptionExpiresAt: new Date().toISOString(),
+              whatsapp: undefined, // Explicitly undefined/null for missing data
+              phone: undefined,
+              address: undefined,
+              bankInfo: undefined,
+              customSettings: {},
             };
             setUser(tempAgency);
             return;
@@ -124,8 +130,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             heroSubtitle: agencyData.hero_subtitle,
             customSettings: agencyData.custom_settings || {},
             subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
-            subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
-            subscriptionExpiresAt: new Date().toISOString(), 
+            subscriptionPlan: agencyData.subscription_plan || 'BASIC', 
+            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(), 
             website: agencyData.website,
             phone: agencyData.phone,
             address: agencyData.address || {},
@@ -217,7 +223,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
               if (agencyError) {
                   // Fallback: Check if agency already exists, if so, ignore error
-                  // Removed 'id' from select, as it's not needed for just checking existence and can sometimes cause issues.
                   const { data: existing } = await supabase.from('agencies').select('user_id').eq('user_id', userId).maybeSingle();
                   if (!existing) {
                       console.error("RPC ensureUserRecord failed:", agencyError);
@@ -426,7 +431,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (role === UserRole.AGENCY) {
             const fallbackAgency: Agency = {
                 id: userId,
-                agencyId: 'pending-' + userId,
+                agencyId: userId, // Fix: Ensure agencyId is set to userId
                 name: data.name,
                 email: data.email,
                 role: UserRole.AGENCY,

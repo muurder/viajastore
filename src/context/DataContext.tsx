@@ -177,7 +177,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
-            // Map correct DB columns to Type properties
+            // Fix: Map correct DB columns to Type properties (trip_rating, trip_total_reviews)
             tripRating: t.trip_rating || 0,
             tripTotalReviews: t.trip_total_reviews || 0,
             included: t.included || [],
@@ -369,7 +369,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               // Use fallback logic for ratings to handle potential DB column names
+               // Fix: Map correct DB columns to Type properties (trip_rating, trip_total_reviews)
                tripRating: b.trips.trip_rating || b.trips.rating || 0,
                tripTotalReviews: b.trips.trip_total_reviews || b.trips.totalReviews || 0,
                included: b.trips.included || [],

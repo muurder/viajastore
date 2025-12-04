@@ -1,4 +1,5 @@
 
+
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -12,6 +13,17 @@ ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH T
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0; -- NOVO
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; -- NOVO
+
+
+-- ** NOVO: NORMALIZAR ROLES PARA MAIÚSCULAS **
+UPDATE public.profiles
+SET role = upper(role)
+WHERE role IS NOT NULL AND role != upper(role);
+
+-- ** NOVO: ATIVAR TODAS AS AGÊNCIAS (PARA TESTE INICIAL) **
+UPDATE public.agencies
+SET is_active = true
+WHERE is_active = false;
 
 
 -- 2. FUNÇÃO SEGURA PARA CHECAR ADMIN (Evita Recursão Infinita)
