@@ -318,30 +318,64 @@ export const AgencyDashboard: React.FC = () => {
 
   const [agency, setAgency] = useState<Agency | null>(null);
 
-  useEffect(() => {
-      // 1. Prioritize user object from AuthContext if it's an Agency
-      if (user && user.role === UserRole.AGENCY) {
-          const userAsAgency = user as Agency;
-          // Verify if it has Agency specific fields like agencyId
-          if (userAsAgency.agencyId && userAsAgency.agencyId !== '') { // Ensure agencyId is not empty from fallback
-              console.log("[AgencyDashboard] Agency matched directly from Auth User object:", userAsAgency);
-              setAgency(userAsAgency);
-          } else {
-              // 2. Fallback: Try to find in agencies list from DataContext
-              // Match by user.id (which is profiles.id) against agency.id (which is mapped from agencies.user_id)
-              const found = agencies.find(a => a.id === user.id); 
-              if (found) {
-                  console.log("[AgencyDashboard] Agency matched via DataContext list lookup:", found);
-                  setAgency(found);
-              } else {
-                  console.warn("[AgencyDashboard] User is AGENCY, but agency data not found in Auth or DataContext lists.");
-                  setAgency(null); // Keep agency null if not found
-              }
-          }
-      } else {
-          setAgency(null); // Clear agency if user is not an agency or not logged in
-      }
-  }, [user, agencies]);
+useEffect(() => {
+  console.group('[AgencyDashboard Agency Resolver]');
+  console.log('user bruto vindo do AuthContext:', user);
+  console.log('lista agencies do DataContext:', agencies);
+  
+  if (!user) {
+    console.log('→ Não há user, limpando agency');
+    setAgency(null);
+    console.groupEnd();
+    return;
+  }
+
+  const normalizedRole = String(user.role).toUpperCase();
+  console.log('role normalizado:', normalizedRole);
+
+  if (normalizedRole !== 'AGENCY') {
+    console.log('→ User NÃO é agência, limpando agency');
+    setAgency(null);
+    console.groupEnd();
+    return;
+  }
+
+  const userAsAgency = user as Agency;
+  console.log('userAsAgency (cast):', userAsAgency);
+  console.log('userAsAgency.agencyId:', userAsAgency.agencyId);
+
+  // 1) Se o AuthContext já montou um Agency completo
+  if (userAsAgency.agencyId && userAsAgency.agencyId !== '') {
+    console.log('✅ Agency resolvida direto do user (AuthContext):', userAsAgency);
+    setAgency(userAsAgency);
+    console.groupEnd();
+    return;
+  }
+
+  // 2) Fallback: tentar bater com a lista de agencies do DataContext
+  const found = agencies.find((a: any) => {
+    const matchByUserId = a.userId && a.userId === user.id;
+    const matchByEmail =
+      a.email && user.email &&
+      a.email.toLowerCase() === user.email.toLowerCase();
+
+    if (matchByUserId || matchByEmail) {
+      console.log('→ Candidate match:', { a, matchByUserId, matchByEmail });
+    }
+    return matchByUserId || matchByEmail;
+  });
+
+  if (found) {
+    console.log('✅ Agency resolvida via DataContext:', found);
+    setAgency(found as Agency);
+  } else {
+    console.warn('⚠ User é AGENCY, mas não achei agency correspondente em lugar nenhum');
+    setAgency(null);
+  }
+
+  console.groupEnd();
+}, [user, agencies]);
+
 
   // Handle Loading
   if (authLoading) {
