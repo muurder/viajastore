@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types';
+import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types'; // Fix: Import Address and BankInfo
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
@@ -439,300 +438,603 @@ export const AgencyDashboard: React.FC = () => {
               }); 
               showToast(`Plano ${plan.name} ativado com sucesso!`, 'success');
               await refreshData(); // Refresh to update agency status
-          } catch (e: any) {
-              console.error("Erro ao ativar plano:", e);
-              showToast('Erro ao selecionar plano: ' + e.message, 'error');
+          } catch (error: any) {
+              console.error("Error activating subscription:", error);
+              showToast(error.message || "Erro ao ativar plano.", 'error');
           } finally {
               setIsProcessing(false);
           }
       };
-
-      return <SubscriptionActivationView agency={agency} onSelectPlan={handlePlanSelect} activatingPlanId={isProcessing ? 'loading' : null} />;
+      
+      return (
+          <SubscriptionActivationView
+              agency={agency}
+              onSelectPlan={handlePlanSelect}
+              activatingPlanId={isProcessing ? 'some-id' : null} // Placeholder for activating plan
+          />
+      );
   }
 
-  // --- DASHBOARD LOGIC ---
-  const myTrips = trips.filter(t => t.agencyId === agency.agencyId);
-  const myBookings = bookings.filter(b => b._trip?.agencyId === agency.agencyId);
-  
-  const totalSales = myBookings.filter(b => b.status === 'CONFIRMED').length;
-  const totalRevenue = myBookings.filter(b => b.status === 'CONFIRMED').reduce((acc, b) => acc + b.totalPrice, 0);
-  // FIX: Corrected reduce function syntax for totalViews
-  const totalViews = myTrips.reduce((acc, t) => acc + (t.views || 0), 0);
 
-  const handleOpenCreate = () => {
-      setTripForm({
-          title: '', description: '', price: 0, destination: '', durationDays: 1, images: [],
-          category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
-          startDate: '', endDate: '', paymentMethods: []
-      });
-      setModalType('CREATE_TRIP');
+  const agencyTrips = useMemo(() => trips.filter(t => t.agencyId === agency.agencyId), [trips, agency]);
+  const agencyBookings = useMemo(() => bookings.filter(b => b._agency?.agencyId === agency.agencyId), [bookings, agency]);
+
+  // Handle Tab Change
+  const handleTabChange = (tab: string) => {
+    setSearchParams({ tab });
   };
 
-  const handleOpenEdit = (trip: Trip) => {
-      setSelectedTrip(trip);
-      setTripForm({ ...trip });
-      setModalType('EDIT_TRIP');
+  const handleCreateTrip = () => {
+    setTripForm({
+      title: '', description: '', price: 0, destination: '', durationDays: 1, images: [],
+      category: 'PRAIA', tags: [], included: [], notIncluded: [], travelerTypes: [],
+      startDate: '', endDate: '', paymentMethods: [], is_active: false,
+    });
+    setModalType('CREATE_TRIP');
+  };
+
+  const handleEditTrip = (trip: Trip) => {
+    setSelectedTrip(trip);
+    setTripForm({ ...trip, startDate: trip.startDate.split('T')[0], endDate: trip.endDate.split('T')[0] }); // Format dates for input
+    setModalType('EDIT_TRIP');
   };
 
   const handleSaveTrip = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setIsProcessing(true);
-      try {
-          const tripData = { ...tripForm, agencyId: agency.agencyId } as Trip;
-          
-          if (modalType === 'CREATE_TRIP') {
-              await createTrip(tripData);
-              showToast('Pacote criado com sucesso!', 'success');
-          } else {
-              await updateTrip({ ...tripData, id: selectedTrip!.id });
-              showToast('Pacote atualizado com sucesso!', 'success');
-          }
-          setModalType(null);
-      } catch (error: any) {
-          showToast(`Erro ao salvar: ${error.message}`, 'error');
-      } finally {
-          setIsProcessing(false);
+    e.preventDefault();
+    setIsProcessing(true);
+    try {
+      const payload: Trip = {
+        ...(tripForm as Trip),
+        agencyId: agency.agencyId,
+        slug: slugify(tripForm.title || '') + '-' + Date.now(), // Generate unique slug
+        startDate: new Date(tripForm.startDate!).toISOString(),
+        endDate: new Date(tripForm.endDate!).toISOString(),
+        tripRating: 0, // Default for new trips
+        tripTotalReviews: 0, // Default for new trips
+      };
+      
+      if (modalType === 'CREATE_TRIP') {
+        await createTrip(payload);
+        showToast('Viagem criada com sucesso!', 'success');
+      } else if (modalType === 'EDIT_TRIP' && selectedTrip) {
+        await updateTrip({ ...selectedTrip, ...payload, id: selectedTrip.id });
+        showToast('Viagem atualizada com sucesso!', 'success');
       }
+      setModalType(null);
+      await refreshData();
+    } catch (error: any) {
+      console.error("Error saving trip:", error);
+      showToast(error.message || "Erro ao salvar viagem.", 'error');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleDeleteTrip = async (id: string) => {
-      if (window.confirm('Tem certeza que deseja excluir este pacote?')) {
-          setIsProcessing(true);
-          try {
-              await deleteTrip(id);
-              showToast('Pacote excluído.', 'success');
-          } catch (e) {
-              showToast('Erro ao excluir.', 'error');
-          } finally {
-              setIsProcessing(false);
-          }
-      }
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setIsProcessing(true);
+    const file = e.target.files[0];
+    const url = await (user ? uploadImage(file, 'trip-images') : Promise.resolve(null));
+    if (url) {
+        setTripForm(prev => ({ ...prev, images: [...(prev.images || []), url] }));
+        showToast('Imagem carregada!', 'success');
+    } else {
+        showToast('Erro ao carregar imagem.', 'error');
+    }
+    setIsProcessing(false);
   };
+
+  const handleRemoveImage = (index: number) => {
+    setTripForm(prev => ({
+      ...prev,
+      images: prev.images?.filter((_, i) => i !== index) || [],
+    }));
+  };
+
+  const handleSelectPaymentMethod = (method: string) => {
+    setTripForm(prev => {
+        const currentMethods = prev.paymentMethods || [];
+        return {
+            ...prev,
+            paymentMethods: currentMethods.includes(method)
+                ? currentMethods.filter(m => m !== method)
+                : [...currentMethods, method],
+        };
+    });
+  };
+
+  const handleToggleTag = (tag: string) => {
+    setTripForm(prev => {
+      const currentTags = prev.tags || [];
+      return {
+        ...prev,
+        tags: currentTags.includes(tag) ? currentTags.filter(t => t !== tag) : [...currentTags, tag],
+      };
+    });
+  };
+
+  const handleToggleTravelerType = (type: TravelerType) => {
+    setTripForm(prev => {
+      const currentTypes = prev.travelerTypes || [];
+      return {
+        ...prev,
+        travelerTypes: currentTypes.includes(type) ? currentTypes.filter(t => t !== type) : [...currentTypes, type],
+      };
+    });
+  };
+
+  // Stats for overview
+  const totalRevenue = agencyBookings.filter(b => b.status === 'CONFIRMED').reduce((sum, b) => sum + b.totalPrice, 0);
+  const totalSales = agencyBookings.filter(b => b.status === 'CONFIRMED').length;
+  const totalViews = agencyTrips.reduce((sum, t) => sum + (t.views || 0), 0);
+  const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
 
   const renderContent = () => {
-      switch (activeTab) {
-          case 'OVERVIEW':
-              return (
-                  <div className="space-y-8 animate-[fadeIn_0.3s]">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-green-50 text-green-600"><DollarSign size={24}/></div></div>
-                              <p className="text-sm text-gray-500 font-medium">Receita Total</p>
-                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {totalRevenue.toLocaleString()}</h3>
-                          </div>
-                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-blue-50 text-blue-600"><ShoppingBag size={24}/></div></div>
-                              <p className="text-sm text-gray-500 font-medium">Vendas Realizadas</p>
-                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{totalSales}</h3>
-                          </div>
-                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-purple-50 text-purple-600"><Eye size={24}/></div></div>
-                              <p className="text-sm text-gray-500 font-medium">Visualizações</p>
-                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{totalViews}</h3>
-                          </div>
-                          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                              <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Plane size={24}/></div></div>
-                              <p className="text-sm text-gray-500 font-medium">Pacotes Ativos</p>
-                              <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{myTrips.filter(t => t.is_active).length}</h3>
-                          </div>
-                      </div>
-                  </div>
-              );
-          case 'TRIPS':
-              return (
-                  <div className="space-y-6 animate-[fadeIn_0.3s]">
-                      <div className="flex justify-between items-center">
-                          <h2 className="text-xl font-bold text-gray-900">Meus Pacotes</h2>
-                          <button onClick={handleOpenCreate} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">
-                              <Plus size={18}/> Novo Pacote
-                          </button>
-                      </div>
+    switch(activeTab) {
+      case 'OVERVIEW':
+        return (
+          <div className="space-y-8 animate-[fadeIn_0.3s]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard title="Total de Vendas" value={totalSales} subtitle="Reservas confirmadas" icon={ShoppingBag} color="green"/>
+              <StatCard title="Receita Gerada" value={`R$ ${totalRevenue.toLocaleString('pt-BR')}`} subtitle="Faturamento total" icon={DollarSign} color="blue"/>
+              <StatCard title="Visualizações" value={totalViews} subtitle="Páginas de pacote" icon={Eye} color="amber"/>
+              <StatCard title="Taxa de Conversão" value={`${conversionRate.toFixed(1)}%`} subtitle="Vendas por visualização" icon={BarChart2} color="purple"/>
+            </div>
 
-                      {myTrips.length === 0 ? (
-                          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                              <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><Plane className="text-gray-300" size={32} /></div>
-                              <h3 className="text-lg font-bold text-gray-900">Nenhum pacote cadastrado</h3>
-                              <p className="text-gray-500 mb-6">Comece a vender criando seu primeiro pacote de viagem.</p>
-                              <button onClick={handleOpenCreate} className="text-primary-600 font-bold hover:underline">Criar agora</button>
-                          </div>
-                      ) : (
-                          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                              <table className="min-w-full divide-y divide-gray-100">
-                                  <thead className="bg-gray-50">
-                                      <tr>
-                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pacote</th>
-                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Preço</th>
-                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Performance</th>
-                                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
-                                      </tr>
-                                  </thead>
-                                  <tbody className="bg-white divide-y divide-gray-100">
-                                      {myTrips.map(trip => (
-                                          <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
-                                              <td className="px-6 py-4">
-                                                  <div className="flex items-center gap-4">
-                                                      <img src={trip.images[0] || 'https://via.placeholder.com/100'} className="w-12 h-12 rounded-lg object-cover bg-gray-100" alt=""/>
-                                                      <div>
-                                                          <p className="font-bold text-gray-900 text-sm line-clamp-1">{trip.title}</p>
-                                                          <p className="text-xs text-gray-500">{trip.destination}</p>
-                                                      </div>
-                                                  </div>
-                                              </td>
-                                              <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
-                                              <td className="px-6 py-4">
-                                                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${trip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                      {trip.is_active ? 'Ativo' : 'Pausado'}
-                                                  </span>
-                                              </td>
-                                              <td className="px-6 py-4">
-                                                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                                                      <span className="flex items-center gap-1"><Eye size={14}/> {trip.views || 0}</span>
-                                                      <span className="flex items-center gap-1"><ShoppingBag size={14}/> {trip.sales || 0}</span>
-                                                  </div>
-                                              </td>
-                                              <td className="px-6 py-4 text-right">
-                                                  <ActionsMenu 
-                                                      trip={trip}
-                                                      onEdit={() => handleOpenEdit(trip)}
-                                                      onDelete={() => handleDeleteTrip(trip.id)}
-                                                      onDuplicate={() => { /* Implement duplicate */ }}
-                                                      onToggleStatus={() => toggleTripStatus(trip.id)}
-                                                      fullAgencyLink={window.location.origin + '/' + agency.slug}
-                                                  />
-                                              </td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                              </table>
-                          </div>
-                      )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MonitorPlay size={20} className="mr-2 text-primary-600"/> Pacotes em Destaque</h3>
+                {agencyTrips.filter(t => t.featured || t.featuredInHero).length > 0 ? (
+                  <div className="space-y-4">
+                    {agencyTrips.filter(t => t.featured || t.featuredInHero).map(trip => (
+                      <div key={trip.id} className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <img src={trip.images[0]} alt={trip.title} className="w-16 h-12 object-cover rounded-lg" />
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-900 text-sm line-clamp-1">{trip.title}</p>
+                          <p className="text-xs text-gray-500">{trip.destination}</p>
+                        </div>
+                        {trip.featured && <Badge color="amber">Global</Badge>}
+                        {trip.featuredInHero && <Badge color="blue">Hero</Badge>}
+                      </div>
+                    ))}
                   </div>
-              );
-          default:
-              return null;
-      }
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">Nenhum pacote em destaque. <button onClick={() => handleTabChange('TRIPS')} className="text-primary-600 font-bold hover:underline">Adicionar</button></p>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Rocket size={20} className="mr-2 text-green-600"/> Seu Plano</h3>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="font-bold text-gray-900 text-xl">{agency.subscriptionPlan}</p>
+                        <p className="text-sm text-gray-500">
+                          {agency.subscriptionStatus === 'ACTIVE' ? `Ativo - Expira em ${new Date(agency.subscriptionExpiresAt).toLocaleDateString()}` : 'Inativo'}
+                        </p>
+                    </div>
+                    <button onClick={() => setModalType('SUBSCRIPTION')} className="bg-primary-50 text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-100">Gerenciar</button>
+                </div>
+                <div className="mt-6 text-sm text-gray-600">
+                  <p className="font-bold mb-2">Benefícios:</p>
+                  <ul className="space-y-2">
+                    {PLANS.find(p => p.id === agency.subscriptionPlan)?.features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2"><CheckCircle size={16} className="text-green-500"/> {feature}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'TRIPS':
+        return (
+          <div className="animate-[fadeIn_0.3s]">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Meus Pacotes ({agencyTrips.length})</h2>
+              <button onClick={handleCreateTrip} className="bg-primary-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700">
+                <Plus size={18}/> Novo Pacote
+              </button>
+            </div>
+            {agencyTrips.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {agencyTrips.map(trip => (
+                  <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                    <div className="relative h-48 w-full">
+                      <img src={trip.images[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover" />
+                      <div className="absolute top-3 left-3 bg-primary-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase">{trip.category.replace('_', ' ')}</div>
+                      {trip.is_active ? (
+                        <span className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold">Ativo</span>
+                      ) : (
+                        <span className="absolute top-3 right-3 bg-gray-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold">Inativo</span>
+                      )}
+                    </div>
+                    <div className="p-5 flex-1 flex flex-col">
+                      <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2 line-clamp-2">{trip.title}</h3>
+                      <div className="flex items-center text-sm text-gray-500 mb-4">
+                        <Clock size={16} className="mr-2 text-gray-400" />
+                        <span className="font-medium">{trip.durationDays} dias</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {trip.tags.slice(0, 3).map((tag, index) => (
+                          <span key={index} className="text-[10px] px-2.5 py-1 bg-gray-50 text-gray-600 rounded-full font-semibold">{tag}</span>
+                        ))}
+                      </div>
+                      <div className="flex items-end justify-between pt-4 border-t border-gray-100 mt-auto">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Preço</span>
+                            <span className="text-xl font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</span>
+                        </div>
+                        <ActionsMenu 
+                            trip={trip}
+                            onEdit={() => handleEditTrip(trip)}
+                            onDuplicate={() => showToast('Funcionalidade em desenvolvimento!', 'info')}
+                            onDelete={() => deleteTrip(trip.id)}
+                            onToggleStatus={() => toggleTripStatus(trip.id)}
+                            fullAgencyLink={`/${agency.slug}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                <Plane size={32} className="text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-gray-900">Nenhum pacote cadastrado</h3>
+                <p className="text-gray-500 mb-4">Comece agora mesmo a vender suas viagens!</p>
+                <button onClick={handleCreateTrip} className="bg-primary-600 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-primary-700 mx-auto">
+                  <Plus size={18}/> Criar Primeiro Pacote
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      case 'BOOKINGS':
+        return (
+            <div className="animate-[fadeIn_0.3s]">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Minhas Reservas ({agencyBookings.length})</h2>
+                {agencyBookings.length > 0 ? (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                            <thead className="bg-gray-50/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Viagem</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Valor Total</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white">
+                                {agencyBookings.map(booking => {
+                                    const trip = trips.find(t => t.id === booking.tripId);
+                                    const client = clients.find(c => c.id === booking.clientId);
+                                    return (
+                                        <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <p className="font-bold text-gray-900 text-sm line-clamp-1">{trip?.title || 'N/A'}</p>
+                                                <p className="text-xs text-gray-500">{trip?.destination || 'N/A'}</p>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">{client?.name || 'Cliente Desconhecido'}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">{new Date(booking.date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 text-sm font-bold text-primary-600">R$ {booking.totalPrice.toLocaleString('pt-BR')}</td>
+                                            <td className="px-6 py-4">
+                                                <Badge color={booking.status === 'CONFIRMED' ? 'green' : booking.status === 'PENDING' ? 'amber' : 'red'}>
+                                                    {booking.status.replace('_', ' ')}
+                                                </Badge>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <ActionMenu actions={[
+                                                  {label: 'Ver Detalhes', icon: Eye, onClick: () => showToast('Funcionalidade em desenvolvimento', 'info')},
+                                                  {label: 'Entrar em Contato', icon: MessageCircle, onClick: () => showToast('Funcionalidade em desenvolvimento', 'info')},
+                                                ]} />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                        <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-bold text-gray-900">Nenhuma reserva ainda</h3>
+                        <p className="text-gray-500 mt-4">Publique seus pacotes e comece a vender!</p>
+                    </div>
+                )}
+            </div>
+        );
+      case 'REVIEWS':
+        return (
+            <div className="animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Avaliações ({agencyReviews.length})</h2>
+              {agencyReviews.length > 0 ? (
+                <div className="space-y-6">
+                  {agencyReviews.map(review => (
+                    <div key={review.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-3">
+                                <img src={review.clientAvatar || `https://ui-avatars.com/api/?name=${review.clientName || 'Cliente'}`} alt={review.clientName || 'Cliente'} className="w-10 h-10 rounded-full object-cover" />
+                                <div>
+                                    <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Cliente ViajaStore'}</p>
+                                    <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            <div className="flex text-amber-400">
+                                {[...Array(5)].map((_, i) => (
+                                    <Star key={i} size={16} className={i < review.rating ? "fill-current" : "text-gray-300"} />
+                                ))}
+                            </div>
+                        </div>
+                        {review.tripTitle && (
+                            <p className="text-xs font-medium text-gray-500 bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg inline-block mb-4">
+                                Pacote: <span className="font-bold text-gray-700">{review.tripTitle}</span>
+                            </p>
+                        )}
+                        <p className="text-gray-700 text-sm italic">"{review.comment}"</p>
+                        {review.response ? (
+                            <div className="mt-4 p-3 bg-primary-50 rounded-lg border border-primary-100">
+                                <p className="text-xs font-bold text-primary-700 mb-1">Sua resposta:</p>
+                                <p className="text-sm text-primary-800 italic">"{review.response}"</p>
+                            </div>
+                        ) : (
+                            <button onClick={() => showToast('Funcionalidade em desenvolvimento', 'info')} className="mt-4 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-100">
+                                Responder Avaliação
+                            </button>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                    <Star size={32} className="text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação ainda</h3>
+                    <p className="text-gray-500 mt-4">Convide seus clientes a deixar uma opinião sobre suas viagens!</p>
+                </div>
+              )}
+            </div>
+        );
+      case 'SETTINGS':
+        return (
+          <div className="animate-[fadeIn_0.3s]">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Configurações da Agência</h2>
+            <form onSubmit={e => { e.preventDefault(); showToast('Funcionalidade em desenvolvimento!', 'info'); }} className="space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Agência</label>
+                <input type="text" value={agency.name} readOnly className="w-full border p-2.5 rounded-lg bg-gray-100 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Slug (URL do Microsite)</label>
+                <div className="flex items-center">
+                    <span className="bg-gray-100 p-2.5 rounded-l-lg border border-r-0 border-gray-300 text-gray-600">viajastore.com/#/</span>
+                    <input type="text" value={agency.slug} readOnly className="flex-1 border p-2.5 rounded-r-lg bg-gray-100 cursor-not-allowed" />
+                    <button type="button" onClick={() => navigator.clipboard.writeText(`viajastore.com/#/${agency.slug}`)} className="ml-2 p-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"><Copy size={16}/></button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Este é o endereço do seu microsite na ViajaStore. Para alterá-lo, entre em contato com o suporte.</p>
+              </div>
+
+              {/* General Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">CNPJ</label>
+                    <input type="text" value={agency.cnpj || ''} onChange={e => setAgency({ ...agency, cnpj: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label>
+                    <input type="text" value={agency.phone || ''} onChange={e => setAgency({ ...agency, phone: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">WhatsApp</label>
+                    <input type="text" value={agency.whatsapp || ''} onChange={e => setAgency({ ...agency, whatsapp: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Website</label>
+                    <input type="text" value={agency.website || ''} onChange={e => setAgency({ ...agency, website: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                  </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Descrição da Agência</label>
+                <textarea value={agency.description} onChange={e => setAgency({ ...agency, description: e.target.value })} rows={4} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
+              </div>
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Configurações do Microsite</h3>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Modo do Hero (Página Inicial)</label>
+                  <select value={agency.heroMode} onChange={e => setAgency({ ...agency, heroMode: e.target.value as 'TRIPS' | 'STATIC' })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none">
+                    <option value="TRIPS">Carrossel de Viagens</option>
+                    <option value="STATIC">Banner Estático</option>
+                  </select>
+                </div>
+                {agency.heroMode === 'STATIC' && (
+                    <>
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">URL do Banner Hero</label>
+                            <input type="text" value={agency.heroBannerUrl || ''} onChange={e => setAgency({ ...agency, heroBannerUrl: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                            {agency.heroBannerUrl && <img src={agency.heroBannerUrl} alt="Hero Banner Preview" className="mt-2 h-32 object-cover rounded-lg"/>}
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Título do Hero</label>
+                            <input type="text" value={agency.heroTitle || ''} onChange={e => setAgency({ ...agency, heroTitle: e.target.value })} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" />
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Subtítulo do Hero</label>
+                            <textarea value={agency.heroSubtitle || ''} onChange={e => setAgency({ ...agency, heroSubtitle: e.target.value })} rows={2} className="w-full border p-2.5 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"></textarea>
+                        </div>
+                    </>
+                )}
+              </div>
+              <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700">Salvar Configurações</button>
+            </form>
+          </div>
+        );
+      default:
+        return <div className="text-center py-20 text-gray-500">Selecione uma aba para começar.</div>;
+    }
   };
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h1 className="text-3xl font-bold text-gray-900">Painel da Agência</h1>
-            <Link to={`/${agency.slug}`} target="_blank" className="flex items-center gap-2 text-primary-600 font-bold text-sm hover:underline">
-                <ExternalLink size={16}/> Ver minha página pública
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{agency.name}</h1>
+          <p className="text-gray-500 mt-1 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-blue-500"/> Agência Verificada
+            <span className="mx-2 text-gray-300">•</span>
+            <Link to={`/#/${agency.slug}`} target="_blank" className="text-primary-600 flex items-center hover:underline">
+                Ver microsite <ExternalLink size={14} className="ml-1"/>
             </Link>
+          </p>
         </div>
+        <button onClick={refreshData} disabled={dataLoading} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
+            {dataLoading ? <Loader size={18} className="animate-spin mr-2"/> : <RefreshCw size={18} className="mr-2"/>}
+            Atualizar Dados
+        </button>
+      </div>
 
-        <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} activeTab={activeTab} onClick={(id) => setSearchParams({ tab: id })} />
-            <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={(id) => setSearchParams({ tab: id })} />
-            {/* Add more tabs as needed */}
-        </div>
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={Layout} activeTab={activeTab} onClick={handleTabChange}/>
+        <NavButton tabId="TRIPS" label="Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange}/>
+        <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange}/>
+        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange}/>
+        <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange}/>
+      </div>
 
-        {renderContent()}
+      {renderContent()}
 
-        {/* Modal for Trip Create/Edit */}
-        {(modalType === 'CREATE_TRIP' || modalType === 'EDIT_TRIP') && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                    <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">{modalType === 'CREATE_TRIP' ? 'Criar Novo Pacote' : 'Editar Pacote'}</h2>
-                    
-                    <form onSubmit={handleSaveTrip} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Título do Pacote</label>
-                                <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Completa</label>
-                                <RichTextEditor value={tripForm.description || ''} onChange={val => setTripForm({...tripForm, description: val})} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Preço (R$)</label>
-                                <input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Destino</label>
-                                <div className="relative">
-                                    <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-                                    <input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-2.5 pl-10 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Data Início</label>
-                                <input type="date" value={tripForm.startDate ? new Date(tripForm.startDate).toISOString().split('T')[0] : ''} onChange={e => setTripForm({...tripForm, startDate: new Date(e.target.value).toISOString()})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Data Fim</label>
-                                <input type="date" value={tripForm.endDate ? new Date(tripForm.endDate).toISOString().split('T')[0] : ''} onChange={e => setTripForm({...tripForm, endDate: new Date(e.target.value).toISOString()})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Duração (Dias)</label>
-                                <input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Categoria Principal</label>
-                                <select value={tripForm.category} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
-                                    <option value="PRAIA">Praia</option>
-                                    <option value="AVENTURA">Aventura</option>
-                                    <option value="FAMILIA">Família</option>
-                                    <option value="ROMANTICO">Romântico</option>
-                                    <option value="URBANO">Urbano</option>
-                                    <option value="NATUREZA">Natureza</option>
-                                    <option value="CULTURA">Cultura</option>
-                                    <option value="GASTRONOMICO">Gastronômico</option>
-                                    <option value="VIDA_NOTURNA">Vida Noturna</option>
-                                    <option value="VIAGEM_BARATA">Viagem Barata</option>
-                                    <option value="ARTE">Arte</option>
-                                </select>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Imagens (URLs)</label>
-                                <PillInput 
-                                    value={tripForm.images || []} 
-                                    onChange={imgs => setTripForm({...tripForm, images: imgs})} 
-                                    placeholder="Cole a URL da imagem e pressione Enter"
-                                />
-                                <p className="text-xs text-gray-500 mt-1">Recomendado: 4 a 8 imagens de alta qualidade.</p>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">O que está incluído</label>
-                                <PillInput 
-                                    value={tripForm.included || []} 
-                                    onChange={inc => setTripForm({...tripForm, included: inc})} 
-                                    placeholder="Adicionar item (ex: Café da manhã)"
-                                    suggestions={SUGGESTED_INCLUDED}
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">O que NÃO está incluído</label>
-                                <PillInput 
-                                    value={tripForm.notIncluded || []} 
-                                    onChange={notInc => setTripForm({...tripForm, notIncluded: notInc})} 
-                                    placeholder="Adicionar item (ex: Bebidas)"
-                                    suggestions={SUGGESTED_NOT_INCLUDED}
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Tags (Palavras-chave)</label>
-                                <PillInput 
-                                    value={tripForm.tags || []} 
-                                    onChange={tags => setTripForm({...tripForm, tags: tags})} 
-                                    placeholder="Adicionar tag"
-                                    suggestions={SUGGESTED_TAGS}
-                                    customSuggestions={agency.customSettings?.tags}
-                                    onDeleteCustomSuggestion={(tag) => { /* logic to remove custom tag from agency settings */ }}
-                                />
-                            </div>
-                        </div>
-                        <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
-                            {isProcessing ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote
-                        </button>
-                    </form>
+      {/* Trip Modals */}
+      {(modalType === 'CREATE_TRIP' || modalType === 'EDIT_TRIP') && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{modalType === 'CREATE_TRIP' ? 'Criar Novo Pacote' : `Editar Pacote: ${selectedTrip?.title}`}</h2>
+            <form onSubmit={handleSaveTrip} className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Título da Viagem</label>
+                <input type="text" value={tripForm.title || ''} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Destino</label>
+                <input type="text" value={tripForm.destination || ''} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+                <RichTextEditor value={tripForm.description || ''} onChange={val => setTripForm({...tripForm, description: val})} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Preço (R$)</label>
+                  <input type="number" value={tripForm.price || 0} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required min="0" />
                 </div>
-            </div>
-        )}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+                  <input type="number" value={tripForm.durationDays || 1} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required min="1" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+                  <select value={tripForm.category} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required>
+                    {['PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO', 'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA', 'VIAGEM_BARATA', 'ARTE'].map(cat => (
+                      <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label>
+                    <input type="date" value={tripForm.startDate?.split('T')[0] || ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required />
+                </div>
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Término</label>
+                    <input type="date" value={tripForm.endDate?.split('T')[0] || ''} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none" required />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Imagens ({tripForm.images?.length || 0}/{MAX_IMAGES})</label>
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  {tripForm.images?.map((img, index) => (
+                    <div key={index} className="relative h-24 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={img} alt="Trip Image" className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => handleRemoveImage(index)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1"><X size={14}/></button>
+                    </div>
+                  ))}
+                  {tripForm.images!.length < MAX_IMAGES && (
+                    <label className="h-24 w-full flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-500 cursor-pointer hover:bg-gray-50 transition-colors">
+                      <Upload size={24}/>
+                      <input type="file" className="hidden" onChange={handleImageUpload} accept="image/*" disabled={isProcessing}/>
+                    </label>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">Primeira imagem será a capa do pacote.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Formas de Pagamento</label>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTED_PAYMENTS.map(method => (
+                    <button type="button" key={method} onClick={() => handleSelectPaymentMethod(method)} className={`px-3 py-1.5 rounded-full border text-sm font-medium ${tripForm.paymentMethods?.includes(method) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Tags Personalizadas</label>
+                <PillInput 
+                    value={tripForm.tags || []} 
+                    onChange={tags => setTripForm({...tripForm, tags})} 
+                    placeholder="Adicione tags (ex: aventura, trilhas)" 
+                    suggestions={SUGGESTED_TAGS}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Tipos de Viajantes</label>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTED_TRAVELERS.map(type => (
+                    <button type="button" key={type} onClick={() => handleToggleTravelerType(type as TravelerType)} className={`px-3 py-1.5 rounded-full border text-sm font-medium ${tripForm.travelerTypes?.includes(type as TravelerType) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>
+                      {type.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="flex items-center text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={tripForm.is_active} onChange={e => setTripForm({...tripForm, is_active: e.target.checked})} className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded"/>
+                  Ativo (Disponível para vendas)
+                </label>
+                <label className="flex items-center text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={tripForm.featured || false} onChange={e => setTripForm({...tripForm, featured: e.target.checked})} className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded"/>
+                  Destaque Global (Página inicial ViajaStore)
+                </label>
+                <label className="flex items-center text-sm font-bold text-gray-700">
+                  <input type="checkbox" checked={tripForm.featuredInHero || false} onChange={e => setTripForm({...tripForm, featuredInHero: e.target.checked})} className="mr-2 h-4 w-4 text-primary-600 border-gray-300 rounded"/>
+                  Destaque no Hero (Seu microsite)
+                </label>
+              </div>
+
+              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                {isProcessing ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Subscription Modal */}
+      {modalType === 'SUBSCRIPTION' && (
+        <SubscriptionConfirmationModal
+            plan={PLANS.find(p => p.id === agency.subscriptionPlan)!}
+            onClose={() => setModalType(null)}
+            onConfirm={() => showToast('Funcionalidade em desenvolvimento!', 'info')}
+            isSubmitting={isProcessing}
+        />
+      )}
     </div>
   );
 };
+
+export default AgencyDashboard;
