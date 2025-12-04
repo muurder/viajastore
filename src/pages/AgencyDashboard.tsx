@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -349,7 +348,10 @@ export const AgencyDashboard: React.FC = () => {
   }
 
   // Handle Unauthenticated or Unauthorized
-  if (!user || user.role !== UserRole.AGENCY) {
+  // More permissive check to see if user is intended to be an agency
+  const isAgency = user?.role === UserRole.AGENCY;
+  
+  if (!user || !isAgency) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
             <div className="bg-red-50 p-6 rounded-full mb-6">

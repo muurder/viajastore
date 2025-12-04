@@ -67,8 +67,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (profileData) {
         console.log("[AuthContext] Profile Found:", profileData); // Debug Log
-        // Fix: Ensure AGENCY role check is case-insensitive for robustness
-        if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
+        
+        // Fix: Normalize role string for robust comparison
+        const rawRole = profileData.role ? profileData.role.trim().toUpperCase() : '';
+        
+        if (rawRole === UserRole.AGENCY) {
           console.log("[AuthContext] User is Agency, fetching agency data..."); // Debug Log
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
@@ -133,7 +136,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Handle ADMIN or CLIENT roles
         let mappedRole: UserRole;
-        if (profileData.role === 'ADMIN') {
+        if (rawRole === 'ADMIN') {
           mappedRole = UserRole.ADMIN;
         } else {
           mappedRole = UserRole.CLIENT;

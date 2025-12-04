@@ -332,14 +332,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // Updated to use wildcards (*) for nested relations.
-        // This avoids 'column does not exist' errors if explicit columns like 'rating' are missing.
+        // Fix: Explicitly select columns to avoid "column does not exist" error
+        // for 'rating' which might be cached by PostgREST when using *
         const { data, error } = await supabase
             .from('bookings')
             .select(`
               *,
               trips (
-                *,
+                id, 
+                title, 
+                agency_id,
+                destination,
+                price,
+                start_date,
+                end_date,
+                duration_days,
+                category,
+                tags,
+                traveler_types,
+                itinerary,
+                payment_methods,
+                is_active,
+                trip_rating, 
+                trip_total_reviews,
+                included,
+                not_included,
+                views_count,
+                sales_count,
+                featured,
+                featured_in_hero,
+                popular_near_sp,
+                slug,
                 trip_images (image_url),
                 agencies (*)
               )
