@@ -21,6 +21,9 @@ SET role = upper(role)
 WHERE role IS NOT NULL AND role != upper(role);
 
 -- ** NOVO: ATIVAR TODAS AS AGÊNCIAS (PARA TESTE INICIAL) **
+-- Mantenha 'false' aqui se a intenção é sempre exigir ativação de plano, mas para debug, TRUE ajuda.
+-- Se o fluxo de criação da agência já define 'is_active=false', este UPDATE irá sobrescrever para 'true' para agências existentes.
+-- Para o fluxo de "Acesso negado" ser mais claro, é melhor ter a agência ativa aqui durante o debug.
 UPDATE public.agencies
 SET is_active = true
 WHERE is_active = false;
@@ -164,7 +167,14 @@ DECLARE
   new_agency public.agencies;
 BEGIN
   INSERT INTO public.agencies (user_id, name, email, phone, whatsapp, slug, is_active, subscription_plan, subscription_status)
-  VALUES (p_user_id, p_name, p_email, p_phone, p_whatsapp, p_slug, false, 'BASIC', 'INACTIVE')
+  VALUES (p_user_id, p_name, p_email, p_phone, p_whatsapp, p_slug, false, 'BASIC', 'INACTIVE') -- is_active=false por padrão
+  ON CONFLICT (user_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    email = EXCLUDED.email,
+    phone = EXCLUDED.phone,
+    whatsapp = EXCLUDED.whatsapp,
+    slug = EXCLUDED.slug,
+    updated_at = NOW()
   RETURNING * INTO new_agency;
   RETURN new_agency;
 END;

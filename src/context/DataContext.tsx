@@ -147,7 +147,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data, error } = await supabase
         .from('trips')
         .select(`
-          *,
+          id,
+          agency_id,
+          title,
+          slug,
+          description,
+          destination,
+          price,
+          start_date,
+          end_date,
+          duration_days,
+          category,
+          tags,
+          traveler_types,
+          itinerary,
+          payment_methods,
+          is_active,
+          trip_rating,           -- Explicitly use correct column name
+          trip_total_reviews,    -- Explicitly use correct column name
+          included,
+          not_included,
+          views_count,
+          sales_count,
+          featured,
+          featured_in_hero,
+          popular_near_sp,
           trip_images (image_url),
           agencies (name, logo_url)
         `);

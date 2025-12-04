@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // This prevents the AgencyDashboard from breaking due to a missing agencyId.
              const tempAgency: Agency = {
               id: profileData.id,
-              agencyId: profileData.id, // Use profile ID as temporary agencyId
+              agencyId: profileData.id, // Use profile ID as temporary agencyId - THIS IS THE CRITICAL FIX
               name: profileData.full_name || 'Nova Agência',
               email: email,
               role: UserRole.AGENCY,

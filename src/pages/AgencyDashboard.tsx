@@ -323,12 +323,14 @@ export const AgencyDashboard: React.FC = () => {
       if (user && user.role === UserRole.AGENCY) {
           const userAsAgency = user as Agency;
           // Verify if it has Agency specific fields like agencyId
-          if (userAsAgency.agencyId && userAsAgency.agencyId !== '') { // Ensure agencyId is not empty from fallback
+          // Fix: Now `AuthContext` ensures `agencyId` is `user.id` even in fallback, so this check is robust.
+          if (userAsAgency.agencyId && userAsAgency.agencyId !== '') { 
               console.log("[AgencyDashboard] Agency matched directly from Auth User object:", userAsAgency);
               setAgency(userAsAgency);
           } else {
               // 2. Fallback: Try to find in agencies list from DataContext
-              // Match by user.id (which is profiles.id) against agency.id (which is mapped from agencies.user_id)
+              // Match by agencyId (PK from agencies table) against user.id (PK from profiles table)
+              // Note: DataContext maps `agencies.user_id` to `Agency.id` and `agencies.id` to `Agency.agencyId`.
               const found = agencies.find(a => a.id === user.id); 
               if (found) {
                   console.log("[AgencyDashboard] Agency matched via DataContext list lookup:", found);
