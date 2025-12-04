@@ -147,11 +147,6 @@ export const AdminDashboard: React.FC = () => {
   const [activityStartDate, setActivityStartDate] = useState<string>('');
   const [activityEndDate, setActivityEndDate] = useState<string>('');
 
-  // DEBUG LOG
-  useEffect(() => {
-    console.log('[AdminDashboard] Render. AuthLoading:', authLoading, 'User:', user, 'Role:', user?.role);
-  }, [authLoading, user]);
-
   // ... (rest of helper functions: handleSetAgencyView, handleSetUserView, handleTabChange, handleRefresh, etc.) ...
   // ... (I will keep the existing logic, just collapsing for brevity in the change block) ...
   const handleSetAgencyView = (view: 'cards' | 'list') => { setAgencyView(view); localStorage.setItem('adminAgencyView', view); };
@@ -210,34 +205,18 @@ export const AdminDashboard: React.FC = () => {
   // 2. Unauthenticated State
   if (!user) {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
-                <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <UserX size={32} className="text-red-600" />
-                </div>
-                <h2 className="text-2xl font-bold mb-2 text-gray-900">Acesso Negado</h2>
-                <p className="text-gray-500 mb-6">Parece que você não está autenticado ou sua sessão expirou. Por favor, faça login para acessar o painel.</p>
-                
-                <div className="bg-gray-100 p-3 rounded-lg mb-6 text-left overflow-x-auto border border-gray-200">
-                    <p className="text-xs font-mono text-gray-600"><strong>Status:</strong> User Object is Null</p>
-                    <p className="text-xs font-mono text-gray-600"><strong>Auth Loading:</strong> {authLoading ? 'True' : 'False'}</p>
-                </div>
-
-                <div className="space-y-3">
-                    <Link to="/#login" className="block w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors text-center">
-                        Fazer Login
-                    </Link>
-                    <button onClick={() => window.location.reload()} className="block w-full bg-white text-gray-600 border border-gray-300 py-3 rounded-xl font-bold hover:bg-gray-50 transition-colors">
-                        Recarregar Página
-                    </button>
-                </div>
-            </div>
+        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
+            <h2 className="text-xl font-bold mb-2">Acesso negado.</h2>
+            <p className="text-gray-500 mb-4">Você precisa estar logado para acessar o painel.</p>
+            <Link to="/#login" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors">
+                Fazer Login
+            </Link>
         </div>
     );
   }
 
   // 3. Unauthorized Role State
-  if (user.role !== UserRole.ADMIN && user.role !== UserRole.AGENCY) {
+  if (user.role !== UserRole.ADMIN) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
             <div className="bg-red-50 p-4 rounded-full mb-4">
@@ -245,20 +224,25 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <h2 className="text-xl font-bold mb-2 text-gray-900">Acesso Restrito</h2>
             <p className="text-gray-500 mb-6 max-w-md">
-                Seu perfil de usuário (<strong>{user.role}</strong>) não tem permissão para acessar o painel gerencial.
+                Apenas administradores podem acessar o Painel Master.
             </p>
             <div className="flex gap-4">
                 <Link to="/" className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg font-bold hover:bg-gray-200 transition-colors">
                     Voltar ao Início
                 </Link>
-                {user.role === 'CLIENT' && (
+                {user.role === UserRole.CLIENT && (
                     <Link to="/client/dashboard" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors">
                         Ir para Área do Cliente
                     </Link>
                 )}
+                {user.role === UserRole.AGENCY && (
+                    <Link to="/agency/dashboard" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors">
+                        Ir para Painel da Agência
+                    </Link>
+                )}
             </div>
             <div className="mt-8 text-xs text-gray-400 font-mono">
-                ID: {user.id} <br/> Email: {user.email}
+                ID: {user.id} <br/> Email: {user.email} <br/> Role: {user.role}
             </div>
         </div>
     );

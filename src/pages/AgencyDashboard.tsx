@@ -315,9 +315,20 @@ export const AgencyDashboard: React.FC = () => {
   const [agency, setAgency] = useState<Agency | null>(null);
 
   useEffect(() => {
+      // 1. Try to set agency immediately from user object if it has agency properties
       if (user && user.role === UserRole.AGENCY) {
-          const found = agencies.find(a => a.id === user.id); 
-          setAgency(found || (user as Agency));
+          // Cast user to Agency type if possible
+          const userAsAgency = user as Agency;
+          // Verify if it has Agency specific fields to be sure
+          if (userAsAgency.agencyId) {
+              setAgency(userAsAgency);
+          } else {
+              // Fallback: Try to find in agencies list from context
+              const found = agencies.find(a => a.id === user.id); 
+              setAgency(found || null);
+          }
+      } else {
+          setAgency(null);
       }
   }, [user, agencies]);
 
