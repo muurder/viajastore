@@ -36,11 +36,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
-    console.log("AuthContext: fetching user data for", authId, email); // LOG ADDED
+    console.log("[AuthContext] fetchUserData START", authId, email); // Debug Log
     if (!supabase) return;
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
       if (email === 'juannicolas1@gmail.com') {
+          console.log("[AuthContext] User identified as Master Admin"); // Debug Log
           const masterUser: Admin = {
              id: authId,
              name: 'Master Admin',
@@ -54,17 +55,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // 1. Check profiles table first to determine role
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authId)
         .maybeSingle();
       
-      console.log("AuthContext: profile data", profileData); // LOG ADDED
+      if (profileError) {
+          console.error("[AuthContext] Error fetching profile:", profileError); // Debug Log
+      }
 
       if (profileData) {
+        console.log("[AuthContext] Profile Found:", profileData); // Debug Log
         // Fix: Ensure AGENCY role check is case-insensitive for robustness
         if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
+          console.log("[AuthContext] User is Agency, fetching agency data..."); // Debug Log
           const { data: agencyData, error: agencyError } = await supabase
             .from('agencies')
             .select('*')
@@ -72,7 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .single();
 
           if (agencyError || !agencyData) {
-            console.warn("Profile is AGENCY but no record in agencies table (or fetch failed).", agencyError);
+            console.warn("[AuthContext] Profile is AGENCY but no record in agencies table (or fetch failed).", agencyError);
             
             // Fallback: Create a temporary agency object so the user isn't locked out
              const tempAgency: Agency = {
@@ -94,6 +99,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setUser(tempAgency);
             return;
           }
+
+          console.log("[AuthContext] Agency Data Found:", agencyData); // Debug Log
 
           const agencyUser: Agency = {
             id: agencyData.user_id, // User ID (from auth)
@@ -132,6 +139,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           mappedRole = UserRole.CLIENT;
         }
         
+        console.log("[AuthContext] User mapped as:", mappedRole); // Debug Log
+
         const genericUser: Client | Admin = {
           id: profileData.id,
           name: profileData.full_name || 'Usuário',
@@ -148,12 +157,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         setUser(genericUser);
         return;
+      } else {
+          console.warn("[AuthContext] No profile found for user:", authId); // Debug Log
       }
       
       setUser(null); 
 
     } catch (error) {
-      console.error("Error fetching user details:", error);
+      console.error("[AuthContext] Exception in fetchUserData:", error);
       setUser(null);
     }
   };
@@ -230,6 +241,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: { session } } = await (supabase.auth as any).getSession();
       
       if (session?.user) {
+        console.log("[AuthContext] Session found on init", session.user.email); // Debug Log
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
             await ensureUserRecord(session.user, pendingRole);
@@ -237,12 +249,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         await fetchUserData(session.user.id, session.user.email!);
       } else {
+        console.log("[AuthContext] No session found on init"); // Debug Log
         setUser(null);
       }
       setLoading(false);
 
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
-        console.log("Auth State Change:", event, session?.user?.email); // Debug log
+        console.log("[AuthContext] Auth State Change:", event, session?.user?.email); // Debug Log
         if (session?.user) {
           if (event === 'SIGNED_IN') {
              const pendingRole = localStorage.getItem('viajastore_pending_role');
@@ -257,10 +270,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              await fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
-          console.log("SIGNED_OUT event received, setting user to null."); // Debug log
+          console.log("[AuthContext] SIGNED_OUT, clearing user state."); // Debug Log
           setUser(null);
           localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
-          // DataContext's useEffect on 'user' will handle refreshing other states.
         }
       });
 
@@ -310,7 +322,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
-      console.log("Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
+      console.log("[AuthContext] Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
       // Optimistic update: Clear state immediately for better UX
       setUser(null);
       localStorage.removeItem('viajastore_pending_role');
