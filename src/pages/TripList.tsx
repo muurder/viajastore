@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
@@ -38,7 +39,7 @@ export const TripList: React.FC = () => {
   const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
-     traveler: true, style: true, duration: true, price: true, dest: true
+     traveler: true, style: true, duration: true, true, dest: true
   });
 
   // Update initial trips when data loads or route changes

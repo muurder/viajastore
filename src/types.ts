@@ -1,5 +1,4 @@
 
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -246,7 +245,7 @@ export interface DashboardStats {
   totalSales: number;
   conversionRate: number;
   averageRating?: number;
-  totalReviews?: number;
+  totalReviews: number; // Made non-optional
 }
 
 // --- NOVO: TIPOS PARA LOGS DE ATIVIDADE ---
