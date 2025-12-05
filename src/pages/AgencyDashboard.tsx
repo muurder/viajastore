@@ -1,12 +1,17 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, UserRole, Agency, TripCategory, TravelerType, ThemeColors, Plan, Address, BankInfo } from '../types';
+import { Trip, Agency, Plan, ItineraryDay, TripCategory, TravelerType, ThemeColors, Address, UserRole, BoardingPoint, Booking } from '../types';
 import { PLANS } from '../services/mockData';
+import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, Bold, Italic, Underline, List, Upload, Settings, CheckCircle, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Upload, ArrowRight, CheckCircle, Bold, Italic, Underline, List, Settings, BedDouble, Bus, FileText, Download, UserCheck } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
@@ -68,18 +73,27 @@ const SubscriptionConfirmationModal: React.FC<{ plan: Plan; onClose: () => void;
   );
 };
 
-const ActionsMenu: React.FC<{ trip: Trip; onEdit: () => void; onDuplicate: () => void; onDelete: () => void; onToggleStatus: () => void; fullAgencyLink: string; }> = ({ trip, onEdit, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
+const ActionsMenu: React.FC<{ trip: Trip; onEdit: () => void; onManage: () => void; onDuplicate: () => void; onDelete: () => void; onToggleStatus: () => void; fullAgencyLink: string; }> = ({ trip, onEdit, onManage, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isPublished = trip.is_active;
   useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setIsOpen(false); } }; document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []);
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
-      <div className="flex items-center gap-2 justify-end"><button onClick={onEdit} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>{isPublished ? 'Gerenciar' : 'Editar'}</button><button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreHorizontal size={20} /></button></div>
+      <div className="flex items-center gap-2 justify-end">
+        <button onClick={onManage} className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all bg-gray-900 text-white hover:bg-black border border-transparent shadow-sm">
+            <Settings size={14} className="mr-1.5"/> Gerenciar
+        </button>
+        <button onClick={onEdit} className={`hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg transition-all border ${isPublished ? 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 hover:border-primary-200 hover:text-primary-600' : 'text-primary-700 bg-primary-50 border-primary-100 hover:bg-primary-100'}`}>
+            Editar
+        </button>
+        <button onClick={() => setIsOpen(!isOpen)} className={`p-1.5 rounded-lg transition-colors ${isOpen ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}><MoreHorizontal size={20} /></button>
+      </div>
       {isOpen && (
         <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[fadeIn_0.1s] origin-top-right ring-1 ring-black/5">
           <div className="py-1">
             <div className="px-4 py-2 border-b border-gray-50"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Ações do Pacote</p></div>
+            <button onClick={() => { onManage(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors font-bold"><Settings size={16} className="mr-3 text-gray-400"/> Gerenciar Operação</button>
             {isPublished ? ( <> <Link to={fullAgencyLink ? `${fullAgencyLink}/viagem/${trip.slug}` : '#'} target="_blank" rel="noopener noreferrer" className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary-600 transition-colors" onClick={() => setIsOpen(false)}><Eye size={16} className="mr-3 text-gray-400"/> Ver público</Link> <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 transition-colors"><PauseCircle size={16} className="mr-3 text-gray-400"/> Pausar vendas</button> </> ) : ( <> <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-green-600 transition-colors"><PlayCircle size={16} className="mr-3 text-green-500"/> {trip.is_active === false ? 'Publicar' : 'Retomar vendas'}</button> <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 sm:hidden transition-colors"><Edit size={16} className="mr-3 text-gray-400"/> Editar</button> </> )}
             <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"><Copy size={16} className="mr-3 text-gray-400"/> Duplicar</button>
             <div className="border-t border-gray-100 mt-1 pt-1"><button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={16} className="mr-3"/> Excluir</button></div>
@@ -149,14 +163,134 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <button type="button" onClick={addImage} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Inserir Imagem"><ImageIcon size={18}/></button>
         <div className="relative"> <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Emojis"><Smile size={18}/></button> {showEmojiPicker && <div className="absolute top-10 left-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 grid grid-cols-4 gap-1 w-48 z-20">{COMMON_EMOJIS.map(e => <button key={e} type="button" onClick={() => addEmoji(e)} className="p-2 hover:bg-gray-100 rounded text-xl">{e}</button>)}</div>} </div>
       </div>
-      <div ref={contentRef} contentEditable onInput={handleInput} onPaste={handlePaste} className="p-4 min-h-[300px] outline-none prose prose-sm max-w-none overflow-y-auto" style={{ whiteSpace: 'pre-wrap' }} />
+      <div ref={contentRef} contentEditable onInput={handleInput} onPaste={handlePaste} className="p-4 min-h-[150px] outline-none prose prose-sm max-w-none overflow-y-auto" style={{ whiteSpace: 'pre-wrap' }} />
     </div>
   );
 };
 
+// --- TRIP MANAGEMENT MODAL ---
+const TripManagementModal: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onClose: () => void }> = ({ trip, bookings, clients, onClose }) => {
+    const [activeTab, setActiveTab] = useState<'MANIFEST' | 'TRANSPORT' | 'ROOMING'>('MANIFEST');
+    
+    // Manifest Data Preparation
+    const passengers = bookings.filter(b => b.status === 'CONFIRMED').map(b => {
+        const client = clients.find(c => c.id === b.clientId);
+        return {
+            bookingId: b.id,
+            name: client?.name || 'Passageiro',
+            cpf: client?.cpf || '---',
+            phone: client?.phone || '---',
+            email: client?.email || '---',
+            voucher: b.voucherCode
+        };
+    });
+
+    const exportManifestPDF = () => {
+        const doc = new jsPDF();
+        
+        doc.setFontSize(18);
+        doc.text(`Manifesto de Viagem: ${trip.title}`, 14, 20);
+        
+        doc.setFontSize(10);
+        doc.text(`Saída: ${new Date(trip.startDate).toLocaleDateString()} | Retorno: ${new Date(trip.endDate).toLocaleDateString()}`, 14, 28);
+        doc.text(`Total Passageiros: ${passengers.length}`, 14, 34);
+
+        const tableColumn = ["Nome", "CPF", "Telefone", "Email", "Voucher"];
+        const tableRows = passengers.map(p => [p.name, p.cpf, p.phone, p.email, p.voucher]);
+
+        (doc as any).autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 40,
+        });
+
+        doc.save(`manifesto_${trip.slug}.pdf`);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl w-full h-full max-w-6xl max-h-[95vh] shadow-2xl relative flex flex-col overflow-hidden">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900">{trip.title}</h2>
+                        <p className="text-sm text-gray-500">Gestão Operacional • {passengers.length} Confirmados</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X size={24}/></button>
+                </div>
+
+                <div className="flex border-b border-gray-200 px-6">
+                    <button onClick={() => setActiveTab('MANIFEST')} className={`px-6 py-4 font-bold text-sm border-b-2 transition-colors ${activeTab === 'MANIFEST' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Lista de Passageiros</button>
+                    <button onClick={() => setActiveTab('TRANSPORT')} className={`px-6 py-4 font-bold text-sm border-b-2 transition-colors ${activeTab === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Mapa de Transporte</button>
+                    <button onClick={() => setActiveTab('ROOMING')} className={`px-6 py-4 font-bold text-sm border-b-2 transition-colors ${activeTab === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Rooming List</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    {activeTab === 'MANIFEST' && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-lg flex items-center gap-2"><FileText size={20} className="text-primary-600"/> Manifesto de Embarque</h3>
+                                <button onClick={exportManifestPDF} className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-black transition-colors"><Download size={16}/> Baixar PDF</button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50 text-gray-500 uppercase font-bold text-xs">
+                                        <tr>
+                                            <th className="px-4 py-3">Nome Completo</th>
+                                            <th className="px-4 py-3">Documento (CPF)</th>
+                                            <th className="px-4 py-3">Contato</th>
+                                            <th className="px-4 py-3">Voucher</th>
+                                            <th className="px-4 py-3 text-center">Check-in</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {passengers.length > 0 ? passengers.map((p, i) => (
+                                            <tr key={i} className="hover:bg-gray-50">
+                                                <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                                                <td className="px-4 py-3 text-gray-600">{p.cpf}</td>
+                                                <td className="px-4 py-3 text-gray-600">
+                                                    <div>{p.phone}</div>
+                                                    <div className="text-xs text-gray-400">{p.email}</div>
+                                                </td>
+                                                <td className="px-4 py-3 font-mono text-xs">{p.voucher}</td>
+                                                <td className="px-4 py-3 text-center"><input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"/></td>
+                                            </tr>
+                                        )) : (
+                                            <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Nenhum passageiro confirmado ainda.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'TRANSPORT' && (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="bg-white p-8 rounded-full shadow-sm mb-4"><Bus size={48} className="text-primary-300"/></div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Mapa de Assentos</h3>
+                            <p className="text-gray-500 max-w-md mb-6">Em breve você poderá desenhar o layout do ônibus e arrastar os passageiros para seus assentos.</p>
+                            <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-wider">Funcionalidade Premium em Desenvolvimento</span>
+                        </div>
+                    )}
+
+                    {activeTab === 'ROOMING' && (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="bg-white p-8 rounded-full shadow-sm mb-4"><BedDouble size={48} className="text-primary-300"/></div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Rooming List</h3>
+                            <p className="text-gray-500 max-w-md mb-6">Em breve você poderá criar quartos e distribuir os passageiros para organizar a hospedagem.</p>
+                            <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-wider">Funcionalidade Premium em Desenvolvimento</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN COMPONENT ---
+
 const AgencyDashboard: React.FC = () => {
   const { user, updateUser, logout, loading: authLoading, uploadImage } = useAuth();
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, updateAgencyReview, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, refreshData, updateAgencyProfileByAdmin } = useData();
+  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, updateAgencyReview, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, refreshData, updateAgencyProfileByAdmin, clients } = useData();
   const { themes, activeTheme, setTheme, setAgencyTheme: setGlobalAgencyTheme } = useTheme();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -182,10 +316,14 @@ const AgencyDashboard: React.FC = () => {
       }
   }, [currentAgency, getAgencyTheme, setGlobalAgencyTheme]);
 
+  // --- TRIP EDITING STATE ---
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
+  const [activeStep, setActiveStep] = useState(0); // 0: Basic, 1: Details, 2: Boarding, 3: Itinerary, 4: Gallery
+  const [manageTripId, setManageTripId] = useState<string | null>(null); // For operational modal
   
-  const [tripForm, setTripForm] = useState<Partial<Trip>>({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true });
+  const [tripForm, setTripForm] = useState<Partial<Trip>>({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] });
+  
   const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
   const [heroForm, setHeroForm] = useState({ heroMode: 'TRIPS', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' });
@@ -218,15 +356,217 @@ const AgencyDashboard: React.FC = () => {
 
   if (currentAgency.subscriptionStatus !== 'ACTIVE') { return ( <> <SubscriptionActivationView agency={currentAgency} onSelectPlan={handleSelectPlan} activatingPlanId={activatingPlanId} /> {showConfirmSubscription && ( <SubscriptionConfirmationModal plan={showConfirmSubscription} onClose={() => setShowConfirmSubscription(null)} onConfirm={confirmSubscription} isSubmitting={!!activatingPlanId} /> )} </> ); }
 
-  const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); };
-  const handleTripSubmit = async (e: React.FormEvent) => { e.preventDefault(); if (!tripForm.title || !tripForm.destination || !tripForm.price) { showToast('Preencha os campos obrigatórios.', 'error'); return; } setLoading(true); try { if (isEditingTrip && editingTripId) { await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote atualizado com sucesso!', 'success'); } else { await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote criado com sucesso!', 'success'); } setIsEditingTrip(false); setEditingTripId(null); setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true }); } catch (err: any) { showToast(err.message || 'Erro ao salvar pacote.', 'error'); } finally { setLoading(false); } };
-  const handleEditTrip = (trip: Trip) => { setTripForm(trip); setEditingTripId(trip.id); setIsEditingTrip(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setActiveStep(0); };
+  
+  const handleTripSubmit = async () => { if (!tripForm.title || !tripForm.destination || !tripForm.price) { showToast('Preencha os campos obrigatórios.', 'error'); return; } setLoading(true); try { if (isEditingTrip && editingTripId) { await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote atualizado com sucesso!', 'success'); } else { await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote criado com sucesso!', 'success'); } setIsEditingTrip(false); setEditingTripId(null); setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] }); setActiveStep(0); } catch (err: any) { showToast(err.message || 'Erro ao salvar pacote.', 'error'); } finally { setLoading(false); } };
+  
+  const handleEditTrip = (trip: Trip) => { setTripForm(trip); setEditingTripId(trip.id); setIsEditingTrip(true); setActiveStep(0); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
   const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await updateUser(profileForm); await updateUser({ heroMode: heroForm.heroMode as 'TRIPS' | 'STATIC', heroBannerUrl: heroForm.heroBannerUrl, heroTitle: heroForm.heroTitle, heroSubtitle: heroForm.heroSubtitle }); showToast('Perfil atualizado!', 'success'); } catch (err) { showToast('Erro ao atualizar perfil.', 'error'); } finally { setLoading(false); } };
   const handleSaveTheme = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await saveAgencyTheme(currentAgency.agencyId, themeForm); setGlobalAgencyTheme(themeForm); showToast('Tema da agência atualizado!', 'success'); } catch (err) { showToast('Erro ao salvar tema.', 'error'); } finally { setLoading(false); } };
   const handleLogout = async () => { await logout(); navigate('/'); };
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; const file = e.target.files[0]; setLoading(true); try { const url = await uploadImage(file, 'agency-logos'); if (url) { setProfileForm(prev => ({ ...prev, logo: url })); } } catch (e) { showToast('Erro ao fazer upload da imagem', 'error'); } finally { setLoading(false); } };
+
+  // --- TRIP BUILDER HELPERS ---
+  const handleAddItineraryDay = () => {
+      setTripForm(prev => ({
+          ...prev,
+          itinerary: [...(prev.itinerary || []), { day: (prev.itinerary?.length || 0) + 1, title: '', description: '' }]
+      }));
+  };
+
+  const handleRemoveItineraryDay = (index: number) => {
+      setTripForm(prev => ({
+          ...prev,
+          itinerary: prev.itinerary?.filter((_, i) => i !== index).map((item, i) => ({ ...item, day: i + 1 }))
+      }));
+  };
+
+  const handleUpdateItineraryDay = (index: number, field: keyof ItineraryDay, value: string) => {
+      setTripForm(prev => ({
+          ...prev,
+          itinerary: prev.itinerary?.map((item, i) => i === index ? { ...item, [field]: value } : item)
+      }));
+  };
+
+  const handleAddBoardingPoint = () => {
+      setTripForm(prev => ({
+          ...prev,
+          boardingPoints: [...(prev.boardingPoints || []), { id: crypto.randomUUID(), time: '', location: '' }]
+      }));
+  };
+
+  const handleRemoveBoardingPoint = (index: number) => {
+      setTripForm(prev => ({
+          ...prev,
+          boardingPoints: prev.boardingPoints?.filter((_, i) => i !== index)
+      }));
+  };
+
+  const handleUpdateBoardingPoint = (index: number, field: keyof BoardingPoint, value: string) => {
+      setTripForm(prev => ({
+          ...prev,
+          boardingPoints: prev.boardingPoints?.map((item, i) => i === index ? { ...item, [field]: value } : item)
+      }));
+  };
+
+  const handleAddImage = () => {
+      const url = prompt('Cole a URL da imagem (ex: https://...):');
+      if (url) {
+          setTripForm(prev => ({ ...prev, images: [...(prev.images || []), url] }));
+      }
+  };
+
+  const handleRemoveImage = (index: number) => {
+      setTripForm(prev => ({ ...prev, images: prev.images?.filter((_, i) => i !== index) }));
+  };
+
+  const renderTripBuilder = () => {
+      const steps = ['Básico', 'Detalhes', 'Embarques', 'Roteiro', 'Fotos'];
+      switch (activeStep) {
+          case 0: // Basic Info
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="md:col-span-2">
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote</label>
+                              <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ex: Fim de semana em Ilhabela" autoFocus/>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Destino</label>
+                              <div className="relative"><MapPin className="absolute left-3 top-3 text-gray-400" size={18} /><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Cidade, Estado"/></div>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa (R$)</label>
+                              <div className="relative"><DollarSign className="absolute left-3 top-3 text-gray-400" size={18} /><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="0,00"/></div>
+                          </div>
+                          <div className="md:col-span-2">
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Categoria Principal</label>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                  {['PRAIA', 'AVENTURA', 'NATUREZA', 'ROMANTICO', 'FAMILIA', 'URBANO', 'CULTURA', 'GASTRONOMICO'].map(cat => (
+                                      <button key={cat} type="button" onClick={() => setTripForm({...tripForm, category: cat as TripCategory})} className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${tripForm.category === cat ? 'bg-primary-600 text-white border-primary-600 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>{cat}</button>
+                                  ))}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              );
+          case 1: // Details
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Início</label><input type="date" value={tripForm.startDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
+                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Fim</label><input type="date" value={tripForm.endDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
+                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Geral</label>
+                          <RichTextEditor value={tripForm.description || ''} onChange={(val) => setTripForm({...tripForm, description: val})} />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div><label className="block text-sm font-bold text-gray-700 mb-2">O que está incluído</label><PillInput value={tripForm.included || []} onChange={(inc) => setTripForm({...tripForm, included: inc})} placeholder="Digite e Enter..." suggestions={SUGGESTED_INCLUDED}/></div>
+                          <div><label className="block text-sm font-bold text-gray-700 mb-2">O que NÃO está incluído</label><PillInput value={tripForm.notIncluded || []} onChange={(not) => setTripForm({...tripForm, notIncluded: not})} placeholder="Digite e Enter..." suggestions={SUGGESTED_NOT_INCLUDED}/></div>
+                      </div>
+                  </div>
+              );
+          case 2: // Boarding Points
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-bold text-gray-900">Locais de Embarque</h3>
+                          <button type="button" onClick={handleAddBoardingPoint} className="bg-primary-50 text-primary-700 px-4 py-2 rounded-lg font-bold hover:bg-primary-100 flex items-center gap-2"><Plus size={16}/> Adicionar Local</button>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                          {tripForm.boardingPoints && tripForm.boardingPoints.length > 0 ? (
+                              <div className="space-y-0 relative before:absolute before:left-6 before:top-2 before:bottom-2 before:w-0.5 before:bg-primary-200">
+                                  {tripForm.boardingPoints.map((point, index) => (
+                                      <div key={index} className="relative pl-14 pb-6 last:pb-0 group">
+                                          <div className="absolute left-2.5 top-0 w-7 h-7 bg-primary-600 text-white rounded-full flex items-center justify-center font-bold text-xs shadow-sm z-10">{index + 1}</div>
+                                          <div className="flex gap-4 items-start">
+                                              <div className="flex-1 grid grid-cols-3 gap-4">
+                                                  <div className="col-span-1">
+                                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário</label>
+                                                      <input type="time" value={point.time} onChange={e => handleUpdateBoardingPoint(index, 'time', e.target.value)} className="w-full border p-2 rounded-lg bg-white" />
+                                                  </div>
+                                                  <div className="col-span-2">
+                                                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Local / Referência</label>
+                                                      <input type="text" value={point.location} onChange={e => handleUpdateBoardingPoint(index, 'location', e.target.value)} className="w-full border p-2 rounded-lg bg-white" placeholder="Ex: Metrô Tatuapé" />
+                                                  </div>
+                                              </div>
+                                              <button onClick={() => handleRemoveBoardingPoint(index)} className="text-gray-400 hover:text-red-500 mt-6"><X size={18}/></button>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="text-center py-8 text-gray-500 italic">Nenhum local de embarque definido.</div>
+                          )}
+                      </div>
+                  </div>
+              );
+          case 3: // Itinerary
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-bold text-gray-900">Roteiro Dia a Dia</h3>
+                          <button type="button" onClick={handleAddItineraryDay} className="bg-primary-50 text-primary-700 px-4 py-2 rounded-lg font-bold hover:bg-primary-100 flex items-center gap-2"><Plus size={16}/> Adicionar Dia</button>
+                      </div>
+                      {tripForm.itinerary && tripForm.itinerary.length > 0 ? (
+                          <div className="space-y-4">
+                              {tripForm.itinerary.map((item, index) => (
+                                  <div key={index} className="bg-white border border-gray-200 rounded-xl p-6 relative group hover:border-primary-300 transition-colors">
+                                      <div className="absolute -left-3 top-6 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">{item.day}</div>
+                                      <button onClick={() => handleRemoveItineraryDay(index)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"><X size={18}/></button>
+                                      <div className="grid gap-4">
+                                          <div>
+                                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Título do Dia</label>
+                                              <input value={item.title} onChange={e => handleUpdateItineraryDay(index, 'title', e.target.value)} className="w-full border-b border-gray-200 focus:border-primary-500 outline-none py-1 font-bold text-gray-900" placeholder="Ex: Chegada e Check-in" />
+                                          </div>
+                                          <div>
+                                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição das Atividades</label>
+                                              <textarea value={item.description} onChange={e => handleUpdateItineraryDay(index, 'description', e.target.value)} rows={2} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Descreva o que acontecerá neste dia..." />
+                                          </div>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                              <ListOrdered size={32} className="mx-auto text-gray-400 mb-3"/>
+                              <p className="text-gray-500 mb-4">Seu roteiro ainda está vazio.</p>
+                              <button type="button" onClick={handleAddItineraryDay} className="text-primary-600 font-bold hover:underline">Começar a criar roteiro</button>
+                          </div>
+                      )}
+                  </div>
+              );
+          case 4: // Gallery
+              return (
+                  <div className="space-y-6 animate-[fadeIn_0.3s]">
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-bold text-gray-900">Galeria de Fotos</h3>
+                          <button type="button" onClick={handleAddImage} className="text-primary-600 font-bold hover:underline flex items-center gap-1"><Plus size={16}/> Adicionar via URL</button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {tripForm.images?.map((url, index) => (
+                              <div key={index} className="relative group rounded-xl overflow-hidden aspect-video shadow-sm border border-gray-200">
+                                  <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                  <button onClick={() => handleRemoveImage(index)} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"><Trash2 size={14}/></button>
+                              </div>
+                          ))}
+                          {(tripForm.images?.length || 0) < MAX_IMAGES && (
+                              <button onClick={handleAddImage} className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary-500 hover:text-primary-500 transition-colors aspect-video bg-gray-50">
+                                  <ImageIcon size={32} className="mb-2"/>
+                                  <span className="text-sm font-medium">Adicionar Foto</span>
+                              </button>
+                          )}
+                      </div>
+                      <p className="text-xs text-gray-500">Recomendamos imagens horizontais de alta qualidade. Máximo {MAX_IMAGES} fotos.</p>
+                  </div>
+              );
+          default: return null;
+      }
+  };
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
@@ -266,33 +606,64 @@ const AgencyDashboard: React.FC = () => {
             <div className="space-y-6">
                 {!isEditingTrip ? (
                     <>
-                        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><h2 className="text-lg font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2><button onClick={() => { setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true }); setIsEditingTrip(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm"><Plus size={18}/> Novo Pacote</button></div>
+                        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><h2 className="text-lg font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2><button onClick={() => { setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] }); setIsEditingTrip(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm"><Plus size={18}/> Novo Pacote</button></div>
                         {myTrips.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{myTrips.map(trip => (<div key={trip.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden group hover:shadow-md transition-all"><div className="relative h-48 bg-gray-100"><img src={trip.images[0] || 'https://placehold.co/600x400?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/><div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold ${trip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{trip.is_active ? 'Ativo' : 'Pausado'}</div></div><div className="p-5"><h3 className="font-bold text-gray-900 text-lg mb-1 truncate" title={trip.title}>{trip.title}</h3><p className="text-gray-500 text-sm mb-4 flex items-center"><MapPin size={14} className="mr-1"/> {trip.destination}</p><div className="flex justify-between items-center pt-4 border-t border-gray-100"><span className="font-bold text-primary-600">R$ {trip.price.toLocaleString()}</span><ActionsMenu trip={trip} onEdit={() => handleEditTrip(trip)} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={`${window.location.origin}/#/${currentAgency.slug}`}/></div></div></div>))}</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{myTrips.map(trip => (<div key={trip.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden group hover:shadow-md transition-all"><div className="relative h-48 bg-gray-100"><img src={trip.images[0] || 'https://placehold.co/600x400?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/><div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold ${trip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{trip.is_active ? 'Ativo' : 'Pausado'}</div></div><div className="p-5"><h3 className="font-bold text-gray-900 text-lg mb-1 truncate" title={trip.title}>{trip.title}</h3><p className="text-gray-500 text-sm mb-4 flex items-center"><MapPin size={14} className="mr-1"/> {trip.destination}</p><div className="flex justify-between items-center pt-4 border-t border-gray-100"><span className="font-bold text-primary-600">R$ {trip.price.toLocaleString()}</span><ActionsMenu trip={trip} onEdit={() => handleEditTrip(trip)} onManage={() => setManageTripId(trip.id)} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={`${window.location.origin}/#/${currentAgency.slug}`}/></div></div></div>))}</div>
                         ) : ( <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200"><div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400"><Plane size={32}/></div><h3 className="font-bold text-gray-900 text-lg">Nenhum pacote criado</h3><p className="text-gray-500 mb-6">Comece a vender criando seu primeiro roteiro.</p><button onClick={() => setIsEditingTrip(true)} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700">Criar Pacote</button></div> )}
                     </>
                 ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                        <div className="flex items-center gap-4 mb-8 border-b border-gray-100 pb-6"><button onClick={() => setIsEditingTrip(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={24} className="text-gray-500"/></button><h2 className="text-2xl font-bold text-gray-900">{editingTripId ? 'Editar Pacote' : 'Novo Pacote'}</h2></div>
-                        <form onSubmit={handleTripSubmit} className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote</label><input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Ex: Fim de semana em Ilhabela"/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Destino</label><div className="relative"><MapPin className="absolute left-3 top-3 text-gray-400" size={18} /><input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Cidade, Estado"/></div></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa (R$)</label><div className="relative"><DollarSign className="absolute left-3 top-3 text-gray-400" size={18} /><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="0,00"/></div></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label><input type="date" value={tripForm.startDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Data de Término</label><input type="date" value={tripForm.endDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label><select value={tripForm.category} onChange={e => setTripForm({...tripForm, category: e.target.value as TripCategory})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"><option value="PRAIA">Praia</option><option value="AVENTURA">Aventura</option><option value="NATUREZA">Natureza</option><option value="ROMANTICO">Romântico</option><option value="FAMILIA">Família</option><option value="URBANO">Urbano</option><option value="CULTURA">Cultura</option><option value="GASTRONOMICO">Gastronômico</option><option value="VIDA_NOTURNA">Vida Noturna</option><option value="VIAGEM_BARATA">Viagem Barata</option><option value="ARTE">Arte</option></select></div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row h-[calc(100vh-200px)]">
+                        {/* STEPPER SIDEBAR */}
+                        <div className="w-full md:w-64 bg-gray-50 border-r border-gray-200 p-6 flex flex-col overflow-y-auto">
+                            <button onClick={() => setIsEditingTrip(false)} className="flex items-center text-gray-500 hover:text-gray-700 mb-8 font-medium transition-colors"><ArrowLeft size={18} className="mr-2"/> Voltar</button>
+                            <h2 className="text-xl font-bold text-gray-900 mb-6">{editingTripId ? 'Editar Pacote' : 'Novo Pacote'}</h2>
+                            <div className="space-y-2 flex-1">
+                                {['Informações Básicas', 'Detalhes & Datas', 'Locais de Embarque', 'Roteiro Dia a Dia', 'Galeria de Fotos'].map((step, idx) => (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => setActiveStep(idx)}
+                                        className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold flex items-center transition-all ${activeStep === idx ? 'bg-white text-primary-600 shadow-sm ring-1 ring-gray-100' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+                                    >
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 ${activeStep === idx ? 'bg-primary-100 text-primary-700' : 'bg-gray-200 text-gray-500'}`}>{idx + 1}</div>
+                                        {step}
+                                    </button>
+                                ))}
                             </div>
-                            <div><label className="block text-sm font-bold text-gray-700 mb-2">Descrição Detalhada</label><RichTextEditor value={tripForm.description || ''} onChange={(val) => setTripForm({...tripForm, description: val})} /></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Tags (Palavras-chave)</label><PillInput value={tripForm.tags || []} onChange={(tags) => setTripForm({...tripForm, tags})} placeholder="Digite e pressione Enter..." suggestions={SUGGESTED_TAGS} customSuggestions={currentAgency.customSettings?.tags} onDeleteCustomSuggestion={(tag) => { const newTags = currentAgency.customSettings?.tags?.filter(t => t !== tag); updateAgencyProfileByAdmin(currentAgency.agencyId, { customSettings: { ...currentAgency.customSettings, tags: newTags } }); }}/><button type="button" onClick={() => { const newTags = Array.from(new Set([...(currentAgency.customSettings?.tags || []), ...tripForm.tags!])); updateAgencyProfileByAdmin(currentAgency.agencyId, { customSettings: { ...currentAgency.customSettings, tags: newTags } }); showToast('Tags salvas para uso futuro!', 'success'); }} className="text-xs text-primary-600 mt-2 hover:underline">+ Salvar tags atuais como sugestão</button></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">Público Alvo</label><PillInput value={tripForm.travelerTypes || []} onChange={(types) => setTripForm({...tripForm, travelerTypes: types as TravelerType[]})} placeholder="Selecione..." suggestions={SUGGESTED_TRAVELERS}/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">O que está incluído</label><PillInput value={tripForm.included || []} onChange={(inc) => setTripForm({...tripForm, included: inc})} placeholder="Digite e Enter..." suggestions={SUGGESTED_INCLUDED}/></div>
-                                <div><label className="block text-sm font-bold text-gray-700 mb-2">O que NÃO está incluído</label><PillInput value={tripForm.notIncluded || []} onChange={(not) => setTripForm({...tripForm, notIncluded: not})} placeholder="Digite e Enter..." suggestions={SUGGESTED_NOT_INCLUDED}/></div>
+                            <div className="mt-auto pt-6 border-t border-gray-200">
+                                <button onClick={handleTripSubmit} disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 shadow-lg shadow-primary-500/30 disabled:opacity-50 transition-all active:scale-95">
+                                    {loading ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} 
+                                    {editingTripId ? 'Atualizar' : 'Publicar'}
+                                </button>
                             </div>
-                            <div className="flex justify-end gap-4 pt-6 border-t border-gray-100"><button type="button" onClick={() => setIsEditingTrip(false)} className="px-6 py-3 rounded-lg font-bold text-gray-600 hover:bg-gray-100">Cancelar</button><button type="submit" disabled={loading} className="bg-primary-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50">{loading ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote</button></div>
-                        </form>
+                        </div>
+
+                        {/* CONTENT AREA */}
+                        <div className="flex-1 p-8 overflow-y-auto">
+                            {renderTripBuilder()}
+                            
+                            {/* Navigation Buttons inside content */}
+                            <div className="flex justify-between mt-8 pt-8 border-t border-gray-100">
+                                <button 
+                                    onClick={() => setActiveStep(prev => Math.max(0, prev - 1))}
+                                    disabled={activeStep === 0}
+                                    className="px-6 py-2 rounded-lg text-gray-500 font-bold hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    Anterior
+                                </button>
+                                {activeStep < 4 ? (
+                                    <button 
+                                        onClick={() => setActiveStep(prev => Math.min(4, prev + 1))}
+                                        className="bg-gray-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-black flex items-center gap-2"
+                                    >
+                                        Próximo <ArrowRight size={16}/>
+                                    </button>
+                                ) : (
+                                    <span className="text-xs text-gray-400 font-medium flex items-center">
+                                        <CheckCircle size={14} className="mr-1 text-green-500"/> Tudo pronto para publicar!
+                                    </span>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -389,9 +760,18 @@ const AgencyDashboard: React.FC = () => {
             </div>
         )}
       </div>
+
+      {/* Operational Modal */}
+      {manageTripId && (
+          <TripManagementModal 
+              trip={myTrips.find(t => t.id === manageTripId)!} 
+              bookings={myBookings.filter(b => b.tripId === manageTripId)}
+              clients={clients}
+              onClose={() => setManageTripId(null)} 
+          />
+      )}
     </div>
   );
 };
 
 export default AgencyDashboard;
-  

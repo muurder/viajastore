@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -110,6 +111,41 @@ export interface ItineraryDay {
   description: string;
 }
 
+// --- NEW OPERATIONAL TYPES ---
+
+export interface BoardingPoint {
+  id: string; // uuid
+  time: string; // "21:00"
+  location: string; // "Metrô Tatuapé"
+  address?: string;
+}
+
+export interface PassengerSeat {
+  seatNumber: number;
+  passengerName: string;
+  bookingId: string;
+  status: 'occupied' | 'blocked' | 'available';
+}
+
+export interface TransportConfig {
+  type: 'BUS' | 'VAN' | 'MICRO';
+  totalSeats: number;
+  seats: PassengerSeat[]; // Map of seat assignments
+}
+
+export interface RoomConfig {
+  id: string;
+  name: string; // "Quarto 10"
+  capacity: number; // 2, 3, 4...
+  guests: { name: string; bookingId: string }[];
+}
+
+export interface OperationalData {
+  transport?: TransportConfig;
+  rooming?: RoomConfig[];
+  notes?: string;
+}
+
 export interface Trip {
   id: string;
   agencyId: string;
@@ -130,6 +166,8 @@ export interface Trip {
   
   // Richer content
   itinerary?: ItineraryDay[];
+  boardingPoints?: BoardingPoint[]; // NEW: For the vertical timeline
+  
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
@@ -144,6 +182,9 @@ export interface Trip {
   featured?: boolean; // Global feature
   featuredInHero?: boolean; // Agency Microsite Hero feature
   popularNearSP?: boolean;
+
+  // Operational Data (JSONB in DB)
+  operationalData?: OperationalData;
 }
 
 export interface Booking {
@@ -244,7 +285,7 @@ export interface DashboardStats {
   totalSales: number;
   conversionRate: number;
   averageRating?: number;
-  totalReviews: number; // Made non-optional
+  totalReviews?: number;
 }
 
 // --- NOVO: TIPOS PARA LOGS DE ATIVIDADE ---

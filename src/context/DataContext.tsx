@@ -1,4 +1,5 @@
 
+
 // ... existing imports ...
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
@@ -153,7 +154,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           trip_images (image_url),
           agencies (name, logo_url),
           trip_rating,
-          trip_total_reviews
+          trip_total_reviews,
+          boarding_points,
+          operational_data
         `);
 
       if (error) throw error;
@@ -184,6 +187,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Map DB columns to new TS properties
             tripRating: t.trip_rating || 0,
             tripTotalReviews: t.trip_total_reviews || 0,
+            boardingPoints: t.boarding_points || [],
+            operationalData: t.operational_data || {},
             included: t.included || [],
             notIncluded: t.not_included || [],
             views: t.views_count || 0,
@@ -761,6 +766,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Fix: Use new column names
       trip_rating: trip.tripRating,
       trip_total_reviews: trip.tripTotalReviews,
+      boarding_points: trip.boardingPoints || [], // NEW
+      operational_data: trip.operationalData || {}, // NEW
       featured: trip.featured,
       featured_in_hero: trip.featuredInHero,
       popular_near_sp: trip.popularNearSP,
@@ -806,6 +813,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Fix: Use new column names
       trip_rating: trip.tripRating,
       trip_total_reviews: trip.tripTotalReviews,
+      boarding_points: trip.boardingPoints, // NEW
+      operational_data: trip.operationalData, // NEW
       featured: trip.featured,
       featured_in_hero: trip.featuredInHero,
       popular_near_sp: trip.popularNearSP,
