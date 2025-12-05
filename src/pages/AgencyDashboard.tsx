@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -147,12 +148,13 @@ const SubscriptionActivationView: React.FC<{
 
 const AgencyDashboard: React.FC = () => {
   const { user, loading: authLoading, uploadImage } = useAuth();
-  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews: allAgencyReviews } = useData();
+  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews: allAgencyReviews, agencies } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
 
+  const [activeAgency, setActiveAgency] = useState<Agency | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modalType, setModalType] = useState<'CREATE_TRIP' | 'EDIT_TRIP' | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -183,8 +185,40 @@ const AgencyDashboard: React.FC = () => {
   const role = user.role ? String(user.role).toUpperCase() : '';
   const isAgency = role === 'AGENCY';
 
-  // 4. Assume User IS Agency (Direct Cast)
-  const agency = user as Agency;
+  // 4. Resolve Agency Object
+  useEffect(() => {
+    if (user && isAgency) {
+      // Priority 1: Find agency in the full list from DataContext (most up-to-date)
+      // Note: DataContext maps 'id' to user_id (profile id)
+      const found = agencies.find(a => 
+        a.id === user.id || 
+        (a.email && user.email && a.email.toLowerCase() === user.email.toLowerCase())
+      );
+
+      if (found) {
+        console.log("AgencyDashboard: Matched agency from DataContext", found.name);
+        setActiveAgency(found);
+      } else {
+        // Priority 2: Fallback to AuthContext user object if valid
+        console.warn("AgencyDashboard: Agency not found in DataContext list. Using Auth User fallback.");
+        const fallback = user as Agency;
+        // Even if agencyId is missing/incomplete in fallback, we use it to avoid blocking UI
+        setActiveAgency(fallback);
+      }
+    }
+  }, [user, agencies, isAgency]);
+
+  if (!activeAgency && isAgency) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center">
+            <Loader size={32} className="animate-spin text-primary-500 mb-4" />
+            <p className="text-gray-500">Carregando dados da agência...</p>
+        </div>
+      );
+  }
+
+  // Safe fallback if activeAgency is still null (shouldn't happen for isAgency=true due to logic above)
+  const agency = activeAgency || (user as Agency);
 
   const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
   const agencyBookings = bookings.filter(b => b._agency?.agencyId === agency.agencyId);
