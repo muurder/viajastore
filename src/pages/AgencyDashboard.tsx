@@ -146,8 +146,8 @@ const SubscriptionActivationView: React.FC<{
 // --- MAIN COMPONENT ---
 
 const AgencyDashboard: React.FC = () => {
-  const { user, loading: authLoading, uploadImage } = useAuth();
-  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews: allAgencyReviews, agencies } = useData();
+  const { user, loading: authLoading, updateUser } = useAuth();
+  const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews: allAgencyReviews, clients, agencies } = useData();
   const { showToast } = useToast();
   
   const [searchParams, setSearchParams] = useSearchParams();
@@ -157,14 +157,53 @@ const AgencyDashboard: React.FC = () => {
   const [modalType, setModalType] = useState<'CREATE_TRIP' | 'EDIT_TRIP' | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [tripForm, setTripForm] = useState<Partial<Trip>>({});
+  
+  // State for resolved agency
+  const [activeAgency, setActiveAgency] = useState<Agency | null>(null);
 
+  // Profile Form State
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    phone: '',
+    whatsapp: '',
+    description: '',
+    website: '',
+    logo: ''
+  });
+
+  // Effect to resolve Agency from DataContext list instead of AuthContext
   useEffect(() => {
-    // This log confirms the CORRECT dashboard is mounted
-    console.log("AGENCY DASHBOARD LOADED - User:", user?.email, "Role:", user?.role);
-  }, [user]);
+    if (user && !dataLoading) {
+        // Try finding by user ID (which maps to 'id' in DataContext Agency model)
+        const found = agencies.find(a => a.id === user.id);
+        
+        if (found) {
+            console.log("AgencyDashboard: Resolved agency from DataContext:", found);
+            setActiveAgency(found);
+        } else if (user.role === 'AGENCY') {
+            // Fallback to Auth User if not found in list yet (e.g. fresh creation)
+            console.warn("AgencyDashboard: Agency not found in DataContext list, using Auth user fallback.");
+            setActiveAgency(user as Agency);
+        }
+    }
+  }, [user, agencies, dataLoading]);
+
+  // Load initial profile data once agency is active
+  useEffect(() => {
+    if (activeAgency) {
+        setProfileForm({
+            name: activeAgency.name || '',
+            phone: activeAgency.phone || '',
+            whatsapp: activeAgency.whatsapp || '',
+            description: activeAgency.description || '',
+            website: activeAgency.website || '',
+            logo: activeAgency.logo || ''
+        });
+    }
+  }, [activeAgency]);
 
   // 1. Loading Check
-  if (authLoading) {
+  if (authLoading || (dataLoading && !activeAgency)) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center">
             <Loader size={48} className="animate-spin text-primary-500 mb-4" />
@@ -184,9 +223,19 @@ const AgencyDashboard: React.FC = () => {
       );
   }
 
-  // 3. Assume User IS Agency (Direct Cast) & REMOVED BLOCKING CHECK
-  // Se o AuthContext montou um objeto, usamos ele.
-  const agency = user as Agency;
+  // 3. Use Resolved Agency
+  // If resolution failed entirely, we fallback to a safe empty structure or show error
+  if (!activeAgency && user.role === 'AGENCY') {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4">
+            <p className="text-red-500 font-bold">Erro ao carregar dados da agência. Tente recarregar.</p>
+            <button onClick={() => window.location.reload()} className="mt-4 text-primary-600 underline">Recarregar</button>
+        </div>
+      );
+  }
+
+  // Safe fallback if user is not agency but accessing (admin view etc)
+  const agency = activeAgency || (user as Agency);
   const isAgencyRole = user.role === 'AGENCY';
 
   const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
@@ -199,7 +248,7 @@ const AgencyDashboard: React.FC = () => {
   const totalViews = agencyTrips.reduce((sum, t) => sum + (t.views || 0), 0);
   const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
 
-  // SUBSCRIPTION CHECK
+  // SUBSCRIPTION CHECK - Uses real status from DataContext
   if (agency.subscriptionStatus !== 'ACTIVE' && agency.subscriptionStatus !== 'PENDING') {
       const handlePlanSelect = async (plan: Plan) => {
           setIsProcessing(true);
@@ -209,7 +258,9 @@ const AgencyDashboard: React.FC = () => {
                   p_plan_id: plan.id 
               }); 
               showToast(`Plano ${plan.name} ativado com sucesso!`, 'success');
-              window.location.reload();
+              // Force data refresh to update status
+              await refreshData();
+              window.location.reload(); 
           } catch (error: any) {
               console.error("Error activating subscription:", error);
               showToast(error.message || "Erro ao ativar plano.", 'error');
@@ -265,6 +316,26 @@ const AgencyDashboard: React.FC = () => {
       setModalType(null);
     } catch (error: any) {
       showToast(error.message || "Erro ao salvar viagem.", 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    try {
+      await updateUser({
+        name: profileForm.name,
+        phone: profileForm.phone,
+        whatsapp: profileForm.whatsapp,
+        description: profileForm.description,
+        website: profileForm.website,
+        logo: profileForm.logo
+      } as Partial<Agency>);
+      showToast('Perfil atualizado com sucesso!', 'success');
+    } catch (error) {
+      showToast('Erro ao atualizar perfil.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -379,6 +450,124 @@ const AgencyDashboard: React.FC = () => {
                     <button onClick={handleCreateTrip} className="bg-primary-600 text-white px-5 py-2.5 rounded-lg font-bold">Criar Primeiro Pacote</button>
                 </div>
             )}
+          </div>
+      )}
+
+      {activeTab === 'BOOKINGS' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
+            <div className="p-6 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900">Reservas Recentes</h2>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                    <thead className="bg-gray-50 text-xs uppercase font-bold text-gray-500">
+                        <tr>
+                            <th className="px-6 py-4">Cliente</th>
+                            <th className="px-6 py-4">Pacote</th>
+                            <th className="px-6 py-4">Data</th>
+                            <th className="px-6 py-4">Valor</th>
+                            <th className="px-6 py-4">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {agencyBookings.map(booking => {
+                            const client = clients.find(c => c.id === booking.clientId);
+                            return (
+                                <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 font-medium text-gray-900">
+                                        {client?.name || 'Cliente Desconhecido'}
+                                        <div className="text-xs text-gray-400 font-normal">{client?.email}</div>
+                                    </td>
+                                    <td className="px-6 py-4">{booking._trip?.title || 'Pacote Removido'}</td>
+                                    <td className="px-6 py-4">{new Date(booking.date).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 font-bold text-green-600">R$ {booking.totalPrice.toLocaleString()}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {booking.status === 'CONFIRMED' ? 'Confirmado' : booking.status}
+                                        </span>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {agencyBookings.length === 0 && (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-8 text-center text-gray-400">Nenhuma reserva encontrada.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+          </div>
+      )}
+
+      {activeTab === 'REVIEWS' && (
+          <div className="grid grid-cols-1 gap-4 animate-[fadeIn_0.3s]">
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Avaliações dos Clientes</h2>
+              {agencyReviews.length > 0 ? agencyReviews.map(review => (
+                  <div key={review.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                      <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500">
+                                  {review.clientName?.[0]}
+                              </div>
+                              <div>
+                                  <p className="font-bold text-gray-900 text-sm">{review.clientName}</p>
+                                  <div className="flex text-amber-400 text-xs">
+                                      {[...Array(5)].map((_, i) => ( <Star key={i} size={12} className={i < review.rating ? "fill-current" : "text-gray-200"} />))}
+                                  </div>
+                              </div>
+                          </div>
+                          <span className="text-xs text-gray-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-gray-600 text-sm italic">"{review.comment}"</p>
+                      <p className="text-xs text-primary-600 mt-3 font-medium">Pacote: {review.tripTitle}</p>
+                  </div>
+              )) : (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 text-gray-500">
+                      Ainda não há avaliações.
+                  </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'SETTINGS' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Configurações da Agência</h2>
+              <form onSubmit={handleUpdateProfile} className="space-y-6 max-w-2xl">
+                  <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label>
+                      <input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label>
+                          <input value={profileForm.whatsapp} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
+                          <input value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" />
+                      </div>
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
+                      <input value={profileForm.website} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
+                      <textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={4} className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">URL do Logo</label>
+                      <div className="flex gap-4 items-center">
+                          <img src={profileForm.logo || 'https://placehold.co/100'} className="w-12 h-12 rounded-full border border-gray-200 object-cover" alt="Logo preview" />
+                          <input value={profileForm.logo} onChange={e => setProfileForm({...profileForm, logo: e.target.value})} className="flex-1 border border-gray-300 p-3 rounded-lg outline-none focus:border-primary-500" placeholder="https://..." />
+                      </div>
+                  </div>
+                  
+                  <button type="submit" disabled={isProcessing} className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">
+                      {isProcessing ? <Loader size={20} className="animate-spin" /> : <Save size={20} />} Salvar Alterações
+                  </button>
+              </form>
           </div>
       )}
 

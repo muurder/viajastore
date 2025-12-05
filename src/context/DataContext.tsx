@@ -241,7 +241,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
         customSettings: a.custom_settings || {},
-        subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
+        subscriptionStatus: a.subscription_status || (a.is_active ? 'ACTIVE' : 'INACTIVE'), // Prefer database status, fallback to is_active
         subscriptionPlan: a.subscription_plan || 'BASIC', // Joined
         subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), 
         website: a.website,
