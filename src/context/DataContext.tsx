@@ -5,7 +5,6 @@ import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { useToast } from './ToastContext';
 
-// ... interface definitions ...
 interface DataContextType {
   trips: Trip[];
   agencies: Agency[];
@@ -69,7 +68,6 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Helper for Mock Data Init
 const initializeMockData = (
   setTrips: (t: Trip[]) => void, 
   setAgencies: (a: Agency[]) => void, 
@@ -104,7 +102,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ... logActivity function ...
   const logActivity = async (actionType: ActivityActionType, details: any = {}, relatedAgencyId: string | null = null) => {
     if (!supabase || !user) return;
     
@@ -135,14 +132,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // --- FETCH TRIPS ---
   const fetchTrips = async () => {
     if (!supabase) {
       setTrips(MOCK_TRIPS);
       return;
     }
     try {
-      // Explicitly selecting trip_rating and trip_total_reviews to prevent 'column does not exist' errors
       const { data, error } = await supabase
         .from('trips')
         .select(`
@@ -219,7 +214,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchAgencies ...
   const fetchAgencies = async () => {
     if (!supabase) {
       setAgencies(MOCK_AGENCIES);
@@ -264,7 +258,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchClients ...
   const fetchClients = async () => {
     if (!supabase) {
       setClients(MOCK_CLIENTS);
@@ -301,7 +294,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchAgencyReviews ...
   const fetchAgencyReviews = async () => {
       if (!supabase) {
         setAgencyReviews([]);
@@ -346,7 +338,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
-  // --- FETCH BOOKINGS ---
   const fetchBookings = async () => {
     if (!supabase || !user) {
       setBookings(MOCK_BOOKINGS);
@@ -505,7 +496,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchActivityLogs ...
   const fetchActivityLogs = async () => {
     if (!supabase) {
       setActivityLogs([]);
@@ -551,7 +541,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // ... fetchAuditLogs ...
   const fetchAuditLogs = async () => {
       if (!supabase) {
         setAuditLogs([]);
@@ -576,7 +565,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
-  // ... refreshData ...
   const refreshData = async () => {
       setLoading(true);
 
@@ -626,7 +614,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [user]);
 
-  // ... guardSupabase ...
   const guardSupabase = () => {
     if (!supabase) {
         showToast('Funcionalidade indisponível no modo offline.', 'info');
@@ -634,9 +621,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     return supabase;
   };
-
-  // ... all other actions (updateAgencySubscription, toggleFavorite, etc) remain mostly the same, 
-  // ensuring tripRating and tripTotalReviews are used where applicable ...
 
   const updateAgencySubscription = async (agencyId: string, status: 'ACTIVE' | 'INACTIVE', plan: 'BASIC' | 'PREMIUM', expiresAt?: string) => {
       const supabase = guardSupabase();
@@ -982,7 +966,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... updateClientProfile ...
   const updateClientProfile = async (clientId: string, data: Partial<Client>) => {
     const supabase = guardSupabase();
     const updates: any = {};
@@ -1003,7 +986,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     logActivity('CLIENT_PROFILE_UPDATED', { clientId, changes: Object.keys(data) });
   };
 
-  // ... updateAgencyProfileByAdmin ...
   const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
     const supabase = guardSupabase();
     const updates: any = {};
@@ -1032,7 +1014,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     logActivity('AGENCY_PROFILE_UPDATED', { agencyId, changes: Object.keys(data) }, agencyId);
   };
 
-  // ... toggleAgencyStatus ...
   const toggleAgencyStatus = async (agencyId: string) => {
     const supabase = guardSupabase();
     const agency = agencies.find(a => a.agencyId === agencyId);
@@ -1053,7 +1034,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
     }
   };
 
-  // ... deleteUser ...
   const deleteUser = async (userId: string, role: UserRole) => {
       const supabase = guardSupabase();
       try {
@@ -1075,7 +1055,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... deleteMultipleUsers ...
   const deleteMultipleUsers = async (userIds: string[]) => {
       const supabase = guardSupabase();
       try {
@@ -1088,7 +1067,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... deleteMultipleAgencies ...
   const deleteMultipleAgencies = async (agencyIds: string[]) => {
       const supabase = guardSupabase();
       try {
@@ -1101,7 +1079,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... updateMultipleUsersStatus ...
   const updateMultipleUsersStatus = async (userIds: string[], status: 'ACTIVE' | 'SUSPENDED') => {
       const supabase = guardSupabase();
       try {
@@ -1114,7 +1091,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... updateMultipleAgenciesStatus ...
   const updateMultipleAgenciesStatus = async (agencyIds: string[], status: 'ACTIVE' | 'INACTIVE') => {
       const supabase = guardSupabase();
       try {
@@ -1130,7 +1106,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... logAuditAction ...
   const logAuditAction = async (action: string, details: string) => {
       if (!supabase || !user || user.role !== UserRole.ADMIN) return;
       try {
@@ -1141,7 +1116,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... sendPasswordReset ...
   const sendPasswordReset = async (email: string) => {
       if (!supabase) return;
       try {
@@ -1156,7 +1130,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... updateUserAvatarByAdmin ...
   const updateUserAvatarByAdmin = async (userId: string, file: File): Promise<string | null> => {
       if (!supabase || !user || user.role !== UserRole.ADMIN) return null;
       try {
@@ -1184,7 +1157,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  // ... getUsersStats ...
   const getUsersStats = async (userIds: string[]): Promise<UserStats[]> => {
       if (!supabase) return [];
       try {
@@ -1214,8 +1186,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
+  const dummyGuardedFunc = async () => { if (!supabase) return; };
 
-  // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
@@ -1227,11 +1199,13 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
+  
   const getAgencyStats = (agencyId: string): DashboardStats => { 
       const agencyTrips = trips.filter(t => t.agencyId === agencyId);
       const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
 
       const agencyBookings = bookings.filter(b => {
+          if (b._agency?.agencyId === agencyId) return true;
           const trip = trips.find(t => t.id === b.tripId);
           return trip?.agencyId === agencyId;
       });
@@ -1272,8 +1246,6 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           return true;
       } catch (e) { return false; }
   };
-  
-  const dummyGuardedFunc = async () => { if (!supabase) return; };
 
   return (
     <DataContext.Provider value={{
