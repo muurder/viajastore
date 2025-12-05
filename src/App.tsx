@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -51,6 +50,7 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
+                  {/* FIX: Correctly point to AgencyDashboard */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />

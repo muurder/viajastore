@@ -147,6 +147,7 @@ const SubscriptionActivationView: React.FC<{
 
 const AgencyDashboard: React.FC = () => {
   const { user, loading: authLoading, updateUser } = useAuth();
+  // FIX: Added 'agencies' to destructuring so it can be used in useEffect
   const { trips, bookings, createTrip, updateTrip, deleteTrip, toggleTripStatus, refreshData, loading: dataLoading, agencyReviews: allAgencyReviews, clients, agencies } = useData();
   const { showToast } = useToast();
   
@@ -175,7 +176,8 @@ const AgencyDashboard: React.FC = () => {
   useEffect(() => {
     if (user && !dataLoading) {
         // Try finding by user ID (which maps to 'id' in DataContext Agency model)
-        const found = agencies.find(a => a.id === user.id);
+        // Ensure agencies is defined before using .find
+        const found = agencies ? agencies.find(a => a.id === user.id) : undefined;
         
         if (found) {
             console.log("AgencyDashboard: Resolved agency from DataContext:", found);
