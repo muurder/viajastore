@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, Agency, Plan, TripCategory, TravelerType } from '../types'; 
+import { Trip, Agency, Plan } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, Link } from 'react-router-dom'; 
@@ -154,23 +153,26 @@ const AgencyDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
 
-  const [activeAgency, setActiveAgency] = useState<Agency | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [modalType, setModalType] = useState<'CREATE_TRIP' | 'EDIT_TRIP' | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [tripForm, setTripForm] = useState<Partial<Trip>>({});
+
+  useEffect(() => {
+    console.log("AgencyDashboard mounted. User:", user?.email, "Role:", user?.role);
+  }, [user]);
 
   // 1. Loading Check
   if (authLoading) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center">
             <Loader size={48} className="animate-spin text-primary-500 mb-4" />
-            <p className="text-gray-500">Verificando conta...</p>
+            <p className="text-gray-500">Carregando painel...</p>
         </div>
     );
   }
 
-  // 2. Auth Check - Redirect if not logged in
+  // 2. Auth Check - Apenas verifica se tem usuário. Não bloqueia por role.
   if (!user) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
@@ -181,44 +183,10 @@ const AgencyDashboard: React.FC = () => {
       );
   }
 
-  // 3. Role Check (Non-blocking)
-  const role = user.role ? String(user.role).toUpperCase() : '';
-  const isAgency = role === 'AGENCY';
-
-  // 4. Resolve Agency Object
-  useEffect(() => {
-    if (user && isAgency) {
-      // Priority 1: Find agency in the full list from DataContext (most up-to-date)
-      // Note: DataContext maps 'id' to user_id (profile id)
-      const found = agencies.find(a => 
-        a.id === user.id || 
-        (a.email && user.email && a.email.toLowerCase() === user.email.toLowerCase())
-      );
-
-      if (found) {
-        console.log("AgencyDashboard: Matched agency from DataContext", found.name);
-        setActiveAgency(found);
-      } else {
-        // Priority 2: Fallback to AuthContext user object if valid
-        console.warn("AgencyDashboard: Agency not found in DataContext list. Using Auth User fallback.");
-        const fallback = user as Agency;
-        // Even if agencyId is missing/incomplete in fallback, we use it to avoid blocking UI
-        setActiveAgency(fallback);
-      }
-    }
-  }, [user, agencies, isAgency]);
-
-  if (!activeAgency && isAgency) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center">
-            <Loader size={32} className="animate-spin text-primary-500 mb-4" />
-            <p className="text-gray-500">Carregando dados da agência...</p>
-        </div>
-      );
-  }
-
-  // Safe fallback if activeAgency is still null (shouldn't happen for isAgency=true due to logic above)
-  const agency = activeAgency || (user as Agency);
+  // 3. Assume User IS Agency (Direct Cast) & REMOVED BLOCKING CHECK
+  // Se o AuthContext montou um objeto, usamos ele.
+  const agency = user as Agency;
+  const isAgencyRole = user.role === 'AGENCY';
 
   const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
   const agencyBookings = bookings.filter(b => b._agency?.agencyId === agency.agencyId);
@@ -235,13 +203,11 @@ const AgencyDashboard: React.FC = () => {
       const handlePlanSelect = async (plan: Plan) => {
           setIsProcessing(true);
           try {
-              // Simulate API call to activate
               await supabase.rpc('activate_agency_subscription', { 
                   p_user_id: user.id, 
                   p_plan_id: plan.id 
               }); 
               showToast(`Plano ${plan.name} ativado com sucesso!`, 'success');
-              // Force reload page to refresh auth context
               window.location.reload();
           } catch (error: any) {
               console.error("Error activating subscription:", error);
@@ -305,18 +271,17 @@ const AgencyDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
-      {/* WARNING BANNER IF NOT AGENCY ROLE (INSTEAD OF BLOCKING) */}
-      {!isAgency && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
-            <div className="flex items-center">
+      
+      {/* WARNING BANNER INSTEAD OF BLOCKING SCREEN */}
+      {!isAgencyRole && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+            <div className="flex">
                 <div className="flex-shrink-0">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <AlertTriangle className="h-5 w-5 text-amber-400" aria-hidden="true" />
                 </div>
                 <div className="ml-3">
-                    <p className="text-sm text-red-700">
-                        Atenção: Seu usuário não está identificado como "AGENCY". 
-                        Role atual: <strong>{user?.role || 'Nenhum'}</strong>. 
-                        Isso pode causar erros de permissão ao salvar dados.
+                    <p className="text-sm text-amber-700">
+                        Seu usuário está registrado como <strong>{user.role}</strong>, mas você está acessando o painel de agência. Algumas funções podem não funcionar corretamente.
                     </p>
                 </div>
             </div>
@@ -325,13 +290,15 @@ const AgencyDashboard: React.FC = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{agency.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{agency.name || 'Minha Agência'}</h1>
           <p className="text-gray-500 mt-1 flex items-center gap-2">
             <ShieldCheck size={16} className="text-blue-500"/> Painel da Agência
             <span className="mx-2 text-gray-300">•</span>
-            <Link to={`/${agency.slug}`} target="_blank" className="text-primary-600 flex items-center hover:underline">
-                Ver meu site <ExternalLink size={14} className="ml-1"/>
-            </Link>
+            {agency.slug && (
+                <Link to={`/${agency.slug}`} target="_blank" className="text-primary-600 flex items-center hover:underline">
+                    Ver meu site <ExternalLink size={14} className="ml-1"/>
+                </Link>
+            )}
           </p>
         </div>
         <button onClick={refreshData} disabled={dataLoading} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
@@ -381,7 +348,7 @@ const AgencyDashboard: React.FC = () => {
                 {agencyTrips.map(trip => (
                   <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                     <div className="relative h-48 w-full bg-gray-100">
-                      <img src={trip.images[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover" />
+                      <img src={trip.images[0]} alt={trip.title} className="w-full h-full object-cover" />
                       {trip.is_active ? (
                         <span className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold">Ativo</span>
                       ) : (
@@ -398,7 +365,7 @@ const AgencyDashboard: React.FC = () => {
                             onDuplicate={() => showToast('Em breve!', 'info')}
                             onDelete={() => deleteTrip(trip.id)}
                             onToggleStatus={() => toggleTripStatus(trip.id)}
-                            fullAgencyLink={`/${agency.slug}`}
+                            fullAgencyLink={agency.slug ? `/${agency.slug}` : ''}
                         />
                       </div>
                     </div>

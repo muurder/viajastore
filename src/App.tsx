@@ -50,7 +50,7 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
-                  {/* CORREÇÃO: A rota da agência deve apontar para AgencyDashboard */}
+                  {/* FIXED: Point explicitly to AgencyDashboard */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
