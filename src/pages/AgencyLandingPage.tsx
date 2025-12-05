@@ -1,18 +1,18 @@
 
-import React, { useState, useEffect, useMemo, useRef, ForwardRefExoticComponent, RefAttributes } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { TripCard } from '../components/TripCard';
-import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader, LucideProps } from 'lucide-react';
+import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
 import { AgencyReview, Trip } from '../types';
 
 // Reuse Filters from Home
-// @FIX: Ensured all chips have a consistent 'icon' property to resolve type assignment error.
-const INTEREST_CHIPS: Array<{ label: string; id: string; icon: React.ComponentType<LucideProps>; }> = [
-  { label: 'Todos', id: 'chip-all', icon: Globe }, // Added Globe icon
+const INTEREST_CHIPS = [
+  { label: 'Todos', id: 'chip-all' },
   { label: 'Praia', icon: Umbrella, id: 'chip-praia' },
   { label: 'Aventura', icon: Mountain, id: 'chip-aventura' },
   { label: 'Natureza', icon: TreePine, id: 'chip-natureza' },
@@ -25,7 +25,6 @@ const INTEREST_CHIPS: Array<{ label: string; id: string; icon: React.ComponentTy
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
-// @FIX: Corrected unicode range for diacritics removal
 const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // --- Reusable Review Form Component ---
@@ -100,7 +99,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 };
 
 
-export const AgencyLandingPage: React.FC = () => {
+const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
   const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
   const { setAgencyTheme } = useTheme();
@@ -118,6 +117,45 @@ export const AgencyLandingPage: React.FC = () => {
 
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
+  // 1. Stable Hero Trips State
+  const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
+
+  // 2. Fetch trips only when agency changes or loads
+  useEffect(() => {
+      if (!agency) return;
+      const trips = getAgencyPublicTrips(agency.agencyId).filter(t => t.is_active);
+      
+      setHeroTrips(prev => {
+          // If we already have trips for this agency, preserve order to avoid shuffle jump
+          if (prev.length > 0 && prev[0].agencyId === agency.agencyId) return prev;
+          if (trips.length === 0) return [];
+
+          const featured = trips.filter(t => t.featuredInHero);
+          const others = trips.filter(t => !t.featuredInHero);
+          const combined = [...featured, ...others];
+          
+          if (featured.length === 0) {
+              combined.sort(() => 0.5 - Math.random());
+          }
+          
+          return combined.slice(0, 5);
+      });
+  }, [agency?.agencyId, getAgencyPublicTrips]);
+
+  // 3. Carousel Logic (Standardized)
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!heroTrips.length) return;
+    const id = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % heroTrips.length);
+    }, 8000);
+    return () => clearInterval(id);
+  }, [heroTrips.length]);
+
+  const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentIndex] : null;
+
+  // Other Data
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
   const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
@@ -254,45 +292,6 @@ export const AgencyLandingPage: React.FC = () => {
       setIsSubmittingReview(false);
     }
   };
-
-  // 1. Stable Hero Trips State
-  const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
-
-  // 2. Fetch trips only when agency changes or loads
-  useEffect(() => {
-      if (!agency) return;
-      const trips = getAgencyPublicTrips(agency.agencyId).filter(t => t.is_active);
-      
-      setHeroTrips(prev => {
-          // If we already have trips for this agency, preserve order to avoid shuffle jump
-          if (prev.length > 0 && prev[0].agencyId === agency.agencyId) return prev;
-          if (trips.length === 0) return [];
-
-          const featured = trips.filter(t => t.featuredInHero);
-          const others = trips.filter(t => !t.featuredInHero);
-          const combined = [...featured, ...others];
-          
-          if (featured.length === 0) {
-              combined.sort(() => 0.5 - Math.random());
-          }
-          
-          return combined.slice(0, 5);
-      });
-  }, [agency?.agencyId, getAgencyPublicTrips]);
-
-  // 3. Carousel Logic (Standardized)
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    if (!heroTrips.length) return;
-    const id = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % heroTrips.length);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [heroTrips.length]);
-
-  const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentIndex] : null;
-
 
   return (
     <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
@@ -723,3 +722,5 @@ export const AgencyLandingPage: React.FC = () => {
     </div>
   );
 };
+
+export default AgencyLandingPage;

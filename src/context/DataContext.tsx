@@ -1,11 +1,15 @@
+
+// ... existing imports ...
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, ActivityActorRole, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
+import { slugify } from '../utils/slugify';
 import { useToast } from './ToastContext';
 
 interface DataContextType {
+  // ... existing interface ...
   trips: Trip[];
   agencies: Agency[];
   bookings: Booking[];
@@ -68,6 +72,7 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+// ... initializeMockData function ...
 const initializeMockData = (
   setTrips: (t: Trip[]) => void, 
   setAgencies: (a: Agency[]) => void, 
@@ -102,6 +107,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ... logActivity helper ...
   const logActivity = async (actionType: ActivityActionType, details: any = {}, relatedAgencyId: string | null = null) => {
     if (!supabase || !user) return;
     
@@ -132,42 +138,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // ... fetchTrips ...
   const fetchTrips = async () => {
     if (!supabase) {
       setTrips(MOCK_TRIPS);
       return;
     }
     try {
+      // Fix: Explicitly ask for trip_rating and trip_total_reviews to match updated DB schema
       const { data, error } = await supabase
         .from('trips')
         .select(`
-          id,
-          agency_id,
-          title,
-          slug,
-          description,
-          destination,
-          price,
-          start_date,
-          end_date,
-          duration_days,
-          category,
-          tags,
-          traveler_types,
-          itinerary,
-          payment_methods,
-          is_active,
-          trip_rating,
-          trip_total_reviews,
-          included,
-          not_included,
-          views_count,
-          sales_count,
-          featured,
-          featured_in_hero,
-          popular_near_sp,
+          *,
           trip_images (image_url),
-          agencies (name, logo_url)
+          agencies (name, logo_url),
+          trip_rating,
+          trip_total_reviews
         `);
 
       if (error) throw error;
@@ -195,6 +181,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary: t.itinerary || [],
             paymentMethods: t.payment_methods || [],
             is_active: t.is_active,
+            // Map DB columns to new TS properties
             tripRating: t.trip_rating || 0,
             tripTotalReviews: t.trip_total_reviews || 0,
             included: t.included || [],
@@ -209,11 +196,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setTrips(formattedTrips);
       }
     } catch (err) {
-      console.warn("Supabase fetchTrips failed, using MOCK_TRIPS.", err);
+      console.warn("Supabase unavailable (or table missing), using MOCK_TRIPS.", err);
       setTrips(MOCK_TRIPS);
     }
   };
 
+  // ... fetchAgencies ...
   const fetchAgencies = async () => {
     if (!supabase) {
       setAgencies(MOCK_AGENCIES);
@@ -225,8 +213,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) throw error;
       
       const formattedAgencies: Agency[] = (data || []).map((a: any) => ({
-        id: a.user_id, // User ID from auth/profiles
-        agencyId: a.id, // Primary Key from agencies table
+        id: a.user_id,
+        agencyId: a.id,
         name: a.name,
         email: a.email || '',
         role: UserRole.AGENCY,
@@ -241,8 +229,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         heroTitle: a.hero_title,
         heroSubtitle: a.hero_subtitle,
         customSettings: a.custom_settings || {},
-        subscriptionStatus: a.subscription_status || (a.is_active ? 'ACTIVE' : 'INACTIVE'), // Prefer database status, fallback to is_active
-        subscriptionPlan: a.subscription_plan || 'BASIC', // Joined
+        subscriptionStatus: a.is_active ? 'ACTIVE' : 'INACTIVE',
+        subscriptionPlan: a.subscription_plan || 'BASIC',
         subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), 
         website: a.website,
         phone: a.phone,
@@ -253,11 +241,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setAgencies(formattedAgencies);
     } catch (err) {
-      console.warn("Supabase fetchAgencies failed, using MOCK_AGENCIES.", err);
+      console.warn("Supabase unavailable, using MOCK_AGENCIES.", err);
       setAgencies(MOCK_AGENCIES);
     }
   };
 
+  // ... fetchClients ...
   const fetchClients = async () => {
     if (!supabase) {
       setClients(MOCK_CLIENTS);
@@ -289,11 +278,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setClients(formattedClients);
     } catch (err) {
-      console.warn("Supabase fetchClients failed.", err);
+      console.warn("Supabase unavailable, using MOCK_CLIENTS.", err);
       setClients(MOCK_CLIENTS);
     }
   };
 
+  // ... fetchAgencyReviews ...
   const fetchAgencyReviews = async () => {
       if (!supabase) {
         setAgencyReviews([]);
@@ -310,7 +300,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             `);
             
           if (error) {
-             console.error("Error fetching agency reviews:", error);
+             console.error("Error fetching agency reviews:", error.message || error);
              return;
           }
 
@@ -334,10 +324,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               })));
           }
       } catch (err: any) {
-          console.warn("Agency reviews fetch failed.", err);
+          console.warn("Agency reviews table might not exist yet.", err.message || err);
       }
   };
 
+  // --- UPDATED FETCH BOOKINGS ---
   const fetchBookings = async () => {
     if (!supabase || !user) {
       setBookings(MOCK_BOOKINGS);
@@ -345,72 +336,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
+        // Corrected query: use wildcards (*) AND explicit columns to avoid issues
         const { data, error } = await supabase
             .from('bookings')
             .select(`
-              id,
-              client_id,
-              trip_id,
-              passengers,
-              total_price,
-              status,
-              payment_method,
-              voucher_code,
-              created_at,
+              *, 
               trips (
-                id,
-                agency_id,
-                title,
-                slug,
-                description,
-                destination,
-                price,
-                start_date,
-                end_date,
-                duration_days,
-                category,
-                tags,
-                traveler_types,
-                itinerary,
-                payment_methods,
-                is_active,
-                trip_rating,
-                trip_total_reviews,
-                included,
-                not_included,
-                views_count,
-                sales_count,
-                featured,
-                featured_in_hero,
-                popular_near_sp,
+                *,
                 trip_images (image_url),
-                agencies (
-                  id,
-                  user_id,
-                  name,
-                  email,
-                  slug,
-                  cnpj,
-                  description,
-                  logo_url,
-                  phone,
-                  whatsapp,
-                  website,
-                  is_active,
-                  hero_mode,
-                  hero_banner_url,
-                  hero_title,
-                  hero_subtitle,
-                  custom_settings,
-                  subscription_expires_at,
-                  subscription_plan,
-                  subscription_status,
-                  address,
-                  bank_info,
-                  deleted_at,
-                  created_at,
-                  updated_at
-                )
+                agencies (*),
+                trip_rating,
+                trip_total_reviews
               )
             `);
 
@@ -438,7 +374,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                itinerary: b.trips.itinerary || [],
                paymentMethods: b.trips.payment_methods || [], 
                is_active: b.trips.is_active || false,
-               tripRating: b.trips.trip_rating || 0,
+               // Fix: Correct mapping to tripRating
+               tripRating: b.trips.trip_rating || 0, 
                tripTotalReviews: b.trips.trip_total_reviews || 0,
                included: b.trips.included || [],
                notIncluded: b.trips.not_included || [],
@@ -491,11 +428,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setBookings(formattedBookings);
         }
     } catch (err) {
-        console.warn("Supabase fetchBookings failed, using MOCK_BOOKINGS.", err);
+        console.warn("Supabase unavailable or bookings query failed, using MOCK_BOOKINGS.", err);
         setBookings(MOCK_BOOKINGS);
     }
   };
 
+  // ... fetchActivityLogs ...
   const fetchActivityLogs = async () => {
     if (!supabase) {
       setActivityLogs([]);
@@ -536,11 +474,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setActivityLogs(formattedLogs);
       }
     } catch (err) {
-      console.warn("Activity logs query failed.", err);
+      console.warn("Supabase unavailable or activity_logs query failed, defaulting to empty.", err);
       setActivityLogs([]);
     }
   };
 
+  // ... fetchAuditLogs ...
   const fetchAuditLogs = async () => {
       if (!supabase) {
         setAuditLogs([]);
@@ -614,6 +553,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshData();
   }, [user]);
 
+  // ... (rest of actions and getters remain the same) ...
   const guardSupabase = () => {
     if (!supabase) {
         showToast('Funcionalidade indisponível no modo offline.', 'info');
@@ -818,6 +758,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       included: trip.included,
       not_included: trip.notIncluded,
       is_active: trip.is_active,
+      // Fix: Use new column names
       trip_rating: trip.tripRating,
       trip_total_reviews: trip.tripTotalReviews,
       featured: trip.featured,
@@ -862,6 +803,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       included: trip.included,
       not_included: trip.notIncluded,
       is_active: trip.is_active,
+      // Fix: Use new column names
       trip_rating: trip.tripRating,
       trip_total_reviews: trip.tripTotalReviews,
       featured: trip.featured,
@@ -1186,8 +1128,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
       }
   };
 
-  const dummyGuardedFunc = async () => { if (!supabase) return; };
 
+  // --- GETTERS (DERIVED STATE) ---
   const getPublicTrips = () => trips; 
   const getAgencyPublicTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
   const getAgencyTrips = (agencyId: string) => trips.filter(t => t.agencyId === agencyId);
@@ -1199,13 +1141,11 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
   const getReviewsByAgencyId = (agencyId: string) => agencyReviews.filter(r => r.agencyId === agencyId);
   const getReviewsByClientId = (clientId: string) => agencyReviews.filter(r => r.clientId === clientId);
   const hasUserPurchasedTrip = (userId: string, tripId: string) => bookings.some(b => b.clientId === userId && b.tripId === tripId && b.status === 'CONFIRMED');
-  
   const getAgencyStats = (agencyId: string): DashboardStats => { 
       const agencyTrips = trips.filter(t => t.agencyId === agencyId);
       const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
 
       const agencyBookings = bookings.filter(b => {
-          if (b._agency?.agencyId === agencyId) return true;
           const trip = trips.find(t => t.id === b.tripId);
           return trip?.agencyId === agencyId;
       });
@@ -1246,6 +1186,8 @@ const restoreEntity = async (id: string, table: 'profiles' | 'agencies') => {
           return true;
       } catch (e) { return false; }
   };
+  
+  const dummyGuardedFunc = async () => { if (!supabase) return; };
 
   return (
     <DataContext.Provider value={{

@@ -1,16 +1,17 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, UserStats, Booking } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking } from '../types';
 import { 
-  Trash2, MessageCircle, Users, Briefcase, Building,
+  Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
   Activity, X, Search, MoreVertical, 
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
-  Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2, ExternalLink,
+  Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
   LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, ShieldCheck
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
@@ -21,6 +22,7 @@ import { slugify } from '../utils/slugify';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
+// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -37,6 +39,7 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
+// Fix: Define StatCard component locally
 interface StatCardProps { title: string; value: string | number; subtitle: string; icon: React.ComponentType<LucideProps>; color: 'green' | 'blue' | 'purple' | 'amber' }
 const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color }) => {
     const bgColors = {
@@ -57,6 +60,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
+// Fix: Define ActionMenu component locally
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -96,6 +100,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
 
 // --- MAIN COMPONENT ---
 
+// Fix: Export AdminDashboard directly
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
@@ -105,8 +110,9 @@ export const AdminDashboard: React.FC = () => {
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData, updateAgencyReview, updateAgencyProfileByAdmin,
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
-      toggleAgencyStatus, activityLogs
+      toggleAgencyStatus
   } = useData();
+  // Access previewMode from useTheme()
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, previewMode } = useTheme();
   const { showToast } = useToast();
   
@@ -138,6 +144,7 @@ export const AdminDashboard: React.FC = () => {
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
 
+  // New state for Edit User Modal
   const [modalTab, setModalTab] = useState('PROFILE');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -213,6 +220,7 @@ export const AdminDashboard: React.FC = () => {
               if (type === 'user') {
                   await deleteMultipleUsers(itemsToDelete.map(i => i.id));
               } else {
+                  // FIX: Pass agencyId (PK) for deletion from agencies table, not user ID
                   await deleteMultipleAgencies(itemsToDelete.map(i => i.agencyId));
               }
           } catch (e: any) {
@@ -228,6 +236,7 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem || !editFormData.plan) return;
     setIsProcessing(true);
     try {
+        // FIX: Pass expiresAt to DataContext function
         await updateAgencySubscription(selectedItem.agencyId, editFormData.status, editFormData.plan, editFormData.expiresAt);
     } catch (error) {
         // Toast is already handled in DataContext
@@ -239,10 +248,12 @@ export const AdminDashboard: React.FC = () => {
 
   const addSubscriptionTime = (days: number) => {
       const current = editFormData.expiresAt ? new Date(editFormData.expiresAt) : new Date();
+      // If current is invalid or in the past, maybe start from now? 
       const baseDate = (current.getTime() > Date.now()) ? current : new Date();
       
       const newDate = new Date(baseDate);
       newDate.setDate(newDate.getDate() + days);
+      // FIX: Ensure correct ISO string format for datetime-local (YYYY-MM-DDTHH:MM)
       setEditFormData({ ...editFormData, expiresAt: newDate.toISOString().slice(0, 16) });
   };
   
@@ -277,6 +288,7 @@ export const AdminDashboard: React.FC = () => {
     if (!selectedItem) return;
     setIsProcessing(true);
     try {
+        // Pass agencyId to updateAgencyProfileByAdmin
         await updateAgencyProfileByAdmin(selectedItem.agencyId, editFormData);
     } catch (error) {
         // Toast handled in context
@@ -343,6 +355,7 @@ export const AdminDashboard: React.FC = () => {
   
   const handleToggleUser = (id: string) => setSelectedUsers(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
   const handleToggleAllUsers = () => setSelectedUsers(prev => prev.length === filteredUsers.length && filteredUsers.length > 0 ? [] : filteredUsers.map(u => u.id));
+  // FIX: Update toggle to use agencyId (PK) instead of id (Auth ID)
   const handleToggleAgency = (id: string) => setSelectedAgencies(prev => prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]);
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
 
@@ -367,7 +380,7 @@ export const AdminDashboard: React.FC = () => {
 
   const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
 
-  if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center font-bold text-red-600">PAINEL ADMIN: Acesso negado. (Você não tem permissão de administrador)</div>;
+  if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
 
   const renderContent = () => {
     switch(activeTab) {
@@ -385,26 +398,13 @@ export const AdminDashboard: React.FC = () => {
                 {/* Atividade Recente */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                    {activityLogs.length > 0 ? (
+                    {auditLogs.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                            {activityLogs.map(log => (
+                            {auditLogs.map(log => (
                                 <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">
-                                      <span className="text-gray-500 mr-2 text-xs">{new Date(log.created_at).toLocaleDateString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</span>
-                                      {log.action_type.replace(/_/g, ' ')}
-                                    </p>
-                                    <p className="text-xs text-gray-600 line-clamp-2">
-                                      {log.actor_role === 'AGENCY' && log.agency_name && (
-                                        <span className="font-semibold text-primary-700">{log.agency_name}</span>
-                                      )}
-                                      {log.actor_role === 'CLIENT' && log.user_name && (
-                                        <span className="font-semibold text-blue-700">{log.user_name}</span>
-                                      )}
-                                      {log.actor_role === 'ADMIN' && (
-                                        <span className="font-semibold text-purple-700">{log.actor_email}</span>
-                                      )}
-                                      : {JSON.stringify(log.details)}
-                                    </p>
+                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{log.action}</p>
+                                    <p className="text-xs text-gray-600 line-clamp-2">{log.details}</p>
+                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
                                 </div>
                             ))}
                         </div>
@@ -446,18 +446,7 @@ export const AdminDashboard: React.FC = () => {
       case 'USERS':
         return (
           <div className="animate-[fadeIn_0.3s]">
-            {filteredUsers.length === 0 && !searchTerm && !showUserTrash ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <Users size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum usuário ativo.</h3>
-                    <p className="text-gray-500">Cadastre um novo usuário ou verifique a lixeira.</p>
-                </div>
-            ) : filteredUsers.length === 0 && (searchTerm || showUserTrash) ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <Search size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum usuário encontrado com os filtros.</h3>
-                </div>
-            ) : userView === 'cards' ? (
+            {userView === 'cards' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {filteredUsers.map(c => (
                     <div key={c.id} className={`bg-white rounded-2xl shadow-sm border ${selectedUsers.includes(c.id) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
@@ -467,6 +456,7 @@ export const AdminDashboard: React.FC = () => {
                         <img src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-3" alt=""/>
                         <p className="font-bold text-gray-900 text-lg">{c.name}</p>
                         <p className="text-sm text-gray-500 mb-4">{c.email}</p>
+                        {/* Fix: Changed 'SUSPENSO' to 'SUSPENDED' for comparison with UserRole.SUSPENDED */}
                         <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>{c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}</Badge>
                       </div>
                     </div>
@@ -512,18 +502,7 @@ export const AdminDashboard: React.FC = () => {
       case 'AGENCIES':
         return (
           <div className="animate-[fadeIn_0.3s]">
-            {filteredAgencies.length === 0 && !searchTerm && !showAgencyTrash ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <Building size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhuma agência ativa.</h3>
-                    <p className="text-gray-500">Cadastre uma nova agência ou verifique a lixeira.</p>
-                </div>
-            ) : filteredAgencies.length === 0 && (searchTerm || showAgencyTrash) ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <Search size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhuma agência encontrada com os filtros.</h3>
-                </div>
-            ) : agencyView === 'cards' ? (
+            {agencyView === 'cards' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredAgencies.map(agency => { const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)); return (
                 <div key={agency.id} className={`bg-white rounded-2xl shadow-sm border ${selectedAgencies.includes(agency.agencyId) ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'} p-5 transition-all relative`}>
@@ -780,14 +759,60 @@ export const AdminDashboard: React.FC = () => {
       default:
         return (
           <div className="space-y-8 animate-[fadeIn_0.3s]">
-            {/* Same as OVERVIEW, repeated for default case */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Receita Total" value={`R$ ${platformRevenue.toLocaleString()}`} subtitle="Receita bruta da plataforma" icon={DollarSign} color="green"/>
                 <StatCard title="Agências Ativas" value={activeAgencies.length} subtitle="Parceiros verificados" icon={Briefcase} color="blue"/>
                 <StatCard title="Usuários Ativos" value={activeUsers.length} subtitle="Clientes da plataforma" icon={Users} color="purple"/>
                 <StatCard title="Pacotes Ativos" value={trips.length} subtitle="Viagens disponíveis" icon={Plane} color="amber"/>
             </div>
-            {/* ... other default content ... */}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Atividade Recente */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
+                    {auditLogs.length > 0 ? (
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+                            {auditLogs.map(log => (
+                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{log.action}</p>
+                                    <p className="text-xs text-gray-600 line-clamp-2">{log.details}</p>
+                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente.</div>
+                    )}
+                </div>
+
+                {/* Migrar Dados Mock */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Database size={20} className="mr-2 text-primary-600"/> Ferramentas de Dados</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                        Use para popular seu banco de dados de desenvolvimento com informações de exemplo.
+                        <br/>(Não use em produção!)
+                    </p>
+                    <button 
+                        onClick={migrateData} 
+                        disabled={isProcessing}
+                        className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {isProcessing ? <Loader size={18} className="animate-spin" /> : <Sparkles size={18}/>} Migrar Dados Mock
+                    </button>
+                    {isMaster && (
+                        <div className="mt-4">
+                            <h4 className="text-sm font-bold text-red-600 flex items-center mb-2"><AlertOctagon size={16} className="mr-2"/> Ferramentas de Limpeza (Master Admin)</h4>
+                            <p className="text-xs text-gray-500 mb-3">
+                                CUIDADO! Estas ações são irreversíveis e APAGAM DADOS DO BANCO.
+                            </p>
+                            <div className="space-y-2">
+                                <button onClick={() => { if (window.confirm('Excluir TODOS os usuários (clientes e agências)?')) deleteMultipleUsers(clients.map(c => c.id)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todos os Usuários</button>
+                                <button onClick={() => { if (window.confirm('Excluir TODAS as agências e viagens?')) deleteMultipleAgencies(agencies.map(a => a.agencyId)); }} className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100">Excluir Todas as Agências</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
           </div>
         );
     }
@@ -795,7 +820,6 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
-      {/* ... header ... */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900">Painel Master</h1>
         <div className="flex flex-wrap gap-3">
@@ -810,7 +834,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Navigation Tabs - kept same as original */}
+      {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
         <button onClick={() => handleTabChange('OVERVIEW')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><LayoutGrid size={16}/> Visão Geral</button>
         <button onClick={() => handleTabChange('USERS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'USERS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Users size={16}/> Usuários {deletedUsers.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedUsers.length}</span>}</button>
@@ -820,7 +844,7 @@ export const AdminDashboard: React.FC = () => {
         <button onClick={() => handleTabChange('SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={16}/> Temas</button>
       </div>
 
-      {/* Bulk Actions - kept same */}
+      {/* Bulk Actions & View Toggles */}
       {(activeTab === 'USERS' || activeTab === 'AGENCIES') && (
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-3">
@@ -859,7 +883,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Filter Bar for Trips - kept same */}
+      {/* Filter Bar for Trips */}
       {activeTab === 'TRIPS' && (
         <div className="flex flex-wrap items-center gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2">

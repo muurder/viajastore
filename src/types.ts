@@ -1,4 +1,3 @@
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -134,8 +133,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  tripRating?: number; // Renamed from rating to match DB
-  tripTotalReviews?: number; // Renamed from totalReviews to match DB
+  tripRating?: number; // Renamed from rating to match DB and MockData
+  tripTotalReviews?: number; // Renamed from totalReviews to match DB and MockData
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats
@@ -273,8 +272,7 @@ export type ActivityActionType =
   | 'ADMIN_AGENCY_MANAGED'
   | 'ADMIN_THEME_MANAGED'
   | 'ADMIN_MOCK_DATA_MIGRATED'
-  | 'ADMIN_ACTION'
-  | 'ADMIN_ACTIVITY_EXPORTED';
+  | 'ADMIN_ACTION';
 
 export interface ActivityLog {
   id: string;

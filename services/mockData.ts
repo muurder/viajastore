@@ -1,1 +1,0 @@
-// This file is deprecated. Please use src/services/mockData.ts

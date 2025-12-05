@@ -1,4 +1,5 @@
 
+
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -10,21 +11,8 @@ ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_plan TEXT DEFA
 ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'INACTIVE';
 ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-
--- CORREÇÃO CRÍTICA DAS COLUNAS DE RATING
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0;
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; 
-
--- ** NOVO: NORMALIZAR ROLES PARA MAIÚSCULAS (E REMOVER ESPAÇOS EM BRANCO) **
-UPDATE public.profiles
-SET role = upper(trim(role))
-WHERE role IS NOT NULL AND (role != upper(trim(role)) OR length(trim(role)) != length(role));
-
--- ** NOVO: ATIVAR TODAS AS AGÊNCIAS (PARA TESTE INICIAL) **
--- Garante que agências existentes não fiquem travadas na tela de "Inativo"
-UPDATE public.agencies
-SET is_active = true, subscription_status = 'ACTIVE'
-WHERE is_active = false OR subscription_status = 'INACTIVE';
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0; -- NOVO
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; -- NOVO
 
 
 -- 2. FUNÇÃO SEGURA PARA CHECAR ADMIN (Evita Recursão Infinita)
@@ -64,6 +52,7 @@ DROP POLICY IF EXISTS "Public Read Agencies" ON public.agencies;
 DROP POLICY IF EXISTS "Public Read Active Agencies" ON public.agencies;
 DROP POLICY IF EXISTS "Agencia edita a si mesma" ON public.agencies;
 DROP POLICY IF EXISTS "Publico vê agências" ON public.agencies;
+DROP POLICY IF EXISTS "Admin pode fazer tudo em agencies" ON public.agencies;
 
 -- NOVO: Adicionar DROP POLICY para activity_logs
 DROP POLICY IF EXISTS "Admin Full Access Activity Logs" ON public.activity_logs;
@@ -164,14 +153,7 @@ DECLARE
   new_agency public.agencies;
 BEGIN
   INSERT INTO public.agencies (user_id, name, email, phone, whatsapp, slug, is_active, subscription_plan, subscription_status)
-  VALUES (p_user_id, p_name, p_email, p_phone, p_whatsapp, p_slug, false, 'BASIC', 'INACTIVE') -- is_active=false por padrão
-  ON CONFLICT (user_id) DO UPDATE SET
-    name = EXCLUDED.name,
-    email = EXCLUDED.email,
-    phone = EXCLUDED.phone,
-    whatsapp = EXCLUDED.whatsapp,
-    slug = EXCLUDED.slug,
-    updated_at = NOW()
+  VALUES (p_user_id, p_name, p_email, p_phone, p_whatsapp, p_slug, false, 'BASIC', 'INACTIVE')
   RETURNING * INTO new_agency;
   RETURN new_agency;
 END;
@@ -294,32 +276,5 @@ GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uui
 -- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
 UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
 
--- 9. REPARAÇÃO DE DADOS: CRIAR AGÊNCIAS FALTANTES
--- Garante que todo perfil AGENCY tenha um registro na tabela agencies
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN 
-        SELECT p.id, p.full_name, p.email, p.phone
-        FROM public.profiles p
-        LEFT JOIN public.agencies a ON p.id = a.user_id
-        WHERE p.role = 'AGENCY' AND a.id IS NULL
-    LOOP
-        INSERT INTO public.agencies (user_id, name, email, phone, slug, is_active, subscription_status, subscription_plan)
-        VALUES (
-            r.id, 
-            r.full_name, 
-            r.email, 
-            r.phone, 
-            lower(regexp_replace(r.full_name, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || floor(random() * 1000)::text,
-            true, 
-            'ACTIVE', 
-            'BASIC'
-        )
-        ON CONFLICT (user_id) DO NOTHING;
-    END LOOP;
-END $$;
-
--- 10. RECARREGAR (CRUCIAL PARA CORRIGIR ERROS DE COLUNA AUSENTE)
+-- 9. RECARREGAR
 NOTIFY pgrst, 'reload config';

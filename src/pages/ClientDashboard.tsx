@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -25,9 +26,9 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
 };
 
 
-export const ClientDashboard: React.FC = () => {
+const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, agencies, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
@@ -213,10 +214,8 @@ export const ClientDashboard: React.FC = () => {
 
   const generatePDF = () => {
       if (!selectedBooking) return;
-      
-      // Dynamically resolve trip and agency from global state
-      const trip = getTripById(selectedBooking.tripId);
-      const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
+      const trip = selectedBooking._trip;
+      const agency = selectedBooking._agency; 
 
       if (!trip) {
           showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
@@ -278,24 +277,11 @@ export const ClientDashboard: React.FC = () => {
 
   const openWhatsApp = () => {
     if (!selectedBooking) return;
-    
-    // Dynamically resolve trip and agency from global state
-    const trip = getTripById(selectedBooking.tripId);
-    const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
-    
-    if (!trip || !agency) {
-        showToast('Não foi possível carregar os dados da viagem ou agência.', 'error');
-        return;
-    }
-
-    const phone = agency.phone || agency.whatsapp;
-    if (!phone) {
-        showToast('Número de contato da agência não disponível.', 'error');
-        return;
-    }
+    const phone = selectedBooking._agency?.phone || selectedBooking._agency?.whatsapp;
+    if (!phone) return;
 
     const digits = phone.replace(/\D/g, '');
-    const tripTitle = trip.title || 'minha viagem';
+    const tripTitle = selectedBooking._trip?.title || 'minha viagem';
     const msg = `Olá! Tenho uma dúvida sobre minha viagem "${tripTitle}".`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, '_blank');
   };
@@ -306,7 +292,7 @@ export const ClientDashboard: React.FC = () => {
       setIsSubmitting(true);
       try {
           await addAgencyReview({
-              agencyId: selectedBooking._agency.agencyId || selectedBooking._agency.id, 
+              agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
@@ -603,3 +589,5 @@ export const ClientDashboard: React.FC = () => {
     </div>
   );
 };
+
+export default ClientDashboard;

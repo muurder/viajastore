@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -447,16 +446,15 @@ const TripDetails: React.FC = () => {
 
             <button onClick={handleBooking} 
                     disabled={isBookingProcessing} // Disable button in modal as well
-                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isBookingProcessing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader size={20} className="animate-spin" /> Processando...
-                    </span>
-                  ) : (
-                    'Pagar e Confirmar Reserva'
-                  )}
-                </button>
+                    className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-green-500/30 transition-all text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+              {isBookingProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader size={20} className="animate-spin" /> Processando...
+                </span>
+              ) : (
+                'Pagar e Confirmar Reserva'
+              )}
+            </button>
           </div>
         </div>
       )}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -10,10 +11,12 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
+// Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
-import { AgencyLandingPage } from './pages/AgencyLandingPage';
-import AgencyDashboard from './pages/AgencyDashboard';
-import { ClientDashboard } from './pages/ClientDashboard';
+// FIX: AgencyDashboard uses named export
+import { AgencyDashboard } from './pages/AgencyDashboard';
+import AgencyLandingPage from './pages/AgencyLandingPage';
+import ClientDashboard from './pages/ClientDashboard'; 
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
@@ -50,7 +53,7 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
-                  {/* FIX: Correctly point to AgencyDashboard */}
+                  {/* FIX: Route /agency/dashboard MUST point to AgencyDashboard, not AdminDashboard */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
