@@ -300,7 +300,8 @@ const AgencyDashboard: React.FC = () => {
     getAgencyStats,
     getAgencyTheme,
     saveAgencyTheme,
-    refreshData
+    refreshData,
+    updateAgencyProfileByAdmin // Fix: Destructure this function
   } = useData();
   
   const { themes, activeTheme, setTheme, setAgencyTheme: setGlobalAgencyTheme } = useTheme();
