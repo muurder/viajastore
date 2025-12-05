@@ -373,7 +373,15 @@ const AgencyDashboard: React.FC = () => {
                         <form onSubmit={handleSaveTheme} className="space-y-4">
                             <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Cor Primária</label><div className="flex gap-2 items-center"><input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-10 h-10 rounded-lg border-2 border-gray-200 cursor-pointer p-1" /><input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border border-gray-300 rounded-lg p-2 text-sm font-mono uppercase" maxLength={7} /></div></div>
                             <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Cor Secundária</label><div className="flex gap-2 items-center"><input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-10 h-10 rounded-lg border-2 border-gray-200 cursor-pointer p-1" /><input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border border-gray-300 rounded-lg p-2 text-sm font-mono uppercase" maxLength={7} /></div></div>
-                            <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-gray-50"><p className="text-xs font-bold text-gray-400 uppercase mb-3 text-center">Prévia do Botão</p><button type="button" style={{ backgroundColor: themeForm.primary, color: '#fff' }} className="w-full py-2.5 rounded-lg font-bold shadow-md transition-transform hover:scale-[1.02]">Botão Exemplo</button><div className="mt-3 flex justify-center gap-1"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary }}></div><div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary, opacity: 0.5 }}></div><div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary, opacity: 0.2 }}></div></div></div></div>
+                            <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-gray-50">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-3 text-center">Prévia do Botão</p>
+                                <button type="button" style={{ backgroundColor: themeForm.primary, color: '#fff' }} className="w-full py-2.5 rounded-lg font-bold shadow-md transition-transform hover:scale-[1.02]">Botão Exemplo</button>
+                                <div className="mt-3 flex justify-center gap-1">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary }}></div>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary, opacity: 0.5 }}></div>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: themeForm.secondary, opacity: 0.2 }}></div>
+                                </div>
+                            </div>
                             <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 mt-4 disabled:opacity-50">Salvar Tema</button>
                         </form>
                     </div>
@@ -386,3 +394,4 @@ const AgencyDashboard: React.FC = () => {
 };
 
 export default AgencyDashboard;
+  
