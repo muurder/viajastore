@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -16,7 +17,6 @@ import 'jspdf-autotable';
 const MAX_IMAGES = 8;
 
 const SUGGESTED_TAGS = ['Ecoturismo', 'História', 'Relaxamento', 'Esportes Radicais', 'Luxo', 'Econômico', 'All Inclusive', 'Pet Friendly', 'Acessível', 'LGBTQIA+'];
-const SUGGESTED_TRAVELERS = ['SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'];
 const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
 const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
 
@@ -126,19 +126,54 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
   );
 };
 
-const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void }> = ({ value, onChange }) => {
+const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void; onImageUpload?: (file: File) => Promise<string | null> }> = ({ value, onChange, onImageUpload }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
   const execCmd = (command: string, arg?: string) => { document.execCommand(command, false, arg); if (contentRef.current) onChange(contentRef.current.innerHTML); };
+  
   useEffect(() => { if (contentRef.current && contentRef.current.innerHTML !== value && document.activeElement !== contentRef.current) contentRef.current.innerHTML = value; if (value === '' && contentRef.current) contentRef.current.innerHTML = ''; }, [value]);
+  
   const handleInput = () => contentRef.current && onChange(contentRef.current.innerHTML);
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => { e.preventDefault(); const text = e.clipboardData.getData('text/plain'); document.execCommand('insertText', false, text); if (contentRef.current) onChange(contentRef.current.innerHTML); };
+  
   const addLink = () => { const url = prompt('Digite a URL do link:'); if(url) execCmd('createLink', url); };
-  const addImage = () => { const url = prompt('Cole a URL da imagem (ex: https://...):'); if(url) execCmd('insertImage', url); };
+  
+  const triggerImageUpload = () => {
+      fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0 && onImageUpload) {
+          const file = e.target.files[0];
+          setIsUploading(true);
+          try {
+              const url = await onImageUpload(file);
+              if (url) {
+                  execCmd('insertImage', url);
+              }
+          } catch (error) {
+              console.error("Editor upload error", error);
+          } finally {
+              setIsUploading(false);
+              // Reset input so same file can be selected again if needed
+              if (fileInputRef.current) fileInputRef.current.value = '';
+          }
+      } else {
+          // Fallback if no upload function provided
+          const url = prompt('Cole a URL da imagem (ex: https://...):'); 
+          if(url) execCmd('insertImage', url);
+      }
+  };
+
   const addEmoji = (emoji: string) => { execCmd('insertText', emoji); setShowEmojiPicker(false); };
+  
   const ToolbarButton = ({ cmd, icon: Icon, title, arg, active = false }: any) => (<button type="button" onClick={() => cmd && execCmd(cmd, arg)} className={`p-2 rounded-lg transition-all ${active ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-100'}`} title={title}><Icon size={18}/></button>);
   const Divider = () => <div className="w-px h-5 bg-gray-300 mx-1"></div>;
-  const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️'];
+  const COMMON_EMOJIS = ['✈️', '🏖️', '🗺️', '📸', '🧳', '🌟', '🔥', '❤️', '✅', '❌', '📍', '📅', '🚌', '🏨', '🍷', '⛰️', '😎', '☀️', '🌊', '🌴'];
+  
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow bg-white shadow-sm flex flex-col">
       <div className="bg-gray-50 border-b border-gray-200 p-2 flex flex-wrap gap-1 items-center sticky top-0 z-10">
@@ -158,7 +193,11 @@ const RichTextEditor: React.FC<{ value: string; onChange: (val: string) => void 
         <ToolbarButton cmd="insertOrderedList" icon={ListOrdered} title="Lista Numerada" />
         <Divider />
         <button type="button" onClick={addLink} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Inserir Link"><LinkIcon size={18}/></button>
-        <button type="button" onClick={addImage} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Inserir Imagem"><ImageIcon size={18}/></button>
+        <button type="button" onClick={triggerImageUpload} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Inserir Imagem">
+            {isUploading ? <Loader size={18} className="animate-spin"/> : <ImageIcon size={18}/>}
+        </button>
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+        
         <div className="relative"> <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 rounded-lg text-gray-600 hover:text-primary-600 hover:bg-gray-100 transition-all" title="Emojis"><Smile size={18}/></button> {showEmojiPicker && <div className="absolute top-10 left-0 bg-white border border-gray-200 shadow-xl rounded-lg p-2 grid grid-cols-4 gap-1 w-48 z-20">{COMMON_EMOJIS.map(e => <button key={e} type="button" onClick={() => addEmoji(e)} className="p-2 hover:bg-gray-100 rounded text-xl">{e}</button>)}</div>} </div>
       </div>
       <div ref={contentRef} contentEditable onInput={handleInput} onPaste={handlePaste} className="p-4 min-h-[150px] outline-none prose prose-sm max-w-none overflow-y-auto" style={{ whiteSpace: 'pre-wrap' }} />
@@ -320,13 +359,34 @@ const AgencyDashboard: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0); // 0: Basic, 1: Details, 2: Boarding, 3: Itinerary, 4: Gallery
   const [manageTripId, setManageTripId] = useState<string | null>(null); // For operational modal
   
-  const [tripForm, setTripForm] = useState<Partial<Trip>>({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] });
+  // 4. Default state for boardingPoints has one empty entry now
+  const [tripForm, setTripForm] = useState<Partial<Trip>>({ 
+      title: '', 
+      description: '', 
+      destination: '', 
+      price: 0, 
+      durationDays: 1, 
+      startDate: '', 
+      endDate: '', 
+      images: [], 
+      category: 'PRAIA', 
+      tags: [], 
+      travelerTypes: [], 
+      itinerary: [], 
+      paymentMethods: [], 
+      included: [], 
+      notIncluded: [], 
+      featured: false, 
+      is_active: true, 
+      boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] 
+  });
   
   const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
   const [heroForm, setHeroForm] = useState({ heroMode: 'TRIPS', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' });
 
   const [loading, setLoading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
 
@@ -356,9 +416,17 @@ const AgencyDashboard: React.FC = () => {
 
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setActiveStep(0); };
   
-  const handleTripSubmit = async () => { if (!tripForm.title || !tripForm.destination || !tripForm.price) { showToast('Preencha os campos obrigatórios.', 'error'); return; } setLoading(true); try { if (isEditingTrip && editingTripId) { await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote atualizado com sucesso!', 'success'); } else { await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote criado com sucesso!', 'success'); } setIsEditingTrip(false); setEditingTripId(null); setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] }); setActiveStep(0); } catch (err: any) { showToast(err.message || 'Erro ao salvar pacote.', 'error'); } finally { setLoading(false); } };
+  const handleTripSubmit = async () => { if (!tripForm.title || !tripForm.destination || !tripForm.price) { showToast('Preencha os campos obrigatórios.', 'error'); return; } setLoading(true); try { if (isEditingTrip && editingTripId) { await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote atualizado com sucesso!', 'success'); } else { await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote criado com sucesso!', 'success'); } setIsEditingTrip(false); setEditingTripId(null); setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] }); setActiveStep(0); } catch (err: any) { showToast(err.message || 'Erro ao salvar pacote.', 'error'); } finally { setLoading(false); } };
   
-  const handleEditTrip = (trip: Trip) => { setTripForm(trip); setEditingTripId(trip.id); setIsEditingTrip(true); setActiveStep(0); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleEditTrip = (trip: Trip) => { 
+      // Ensure boardingPoints has at least one item even when editing
+      const bp = (trip.boardingPoints && trip.boardingPoints.length > 0) ? trip.boardingPoints : [{ id: crypto.randomUUID(), time: '', location: '' }];
+      setTripForm({ ...trip, boardingPoints: bp }); 
+      setEditingTripId(trip.id); 
+      setIsEditingTrip(true); 
+      setActiveStep(0); 
+      window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
   const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
   const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await updateUser(profileForm); await updateUser({ heroMode: heroForm.heroMode as 'TRIPS' | 'STATIC', heroBannerUrl: heroForm.heroBannerUrl, heroTitle: heroForm.heroTitle, heroSubtitle: heroForm.heroSubtitle }); showToast('Perfil atualizado!', 'success'); } catch (err) { showToast('Erro ao atualizar perfil.', 'error'); } finally { setLoading(false); } };
@@ -409,15 +477,52 @@ const AgencyDashboard: React.FC = () => {
       }));
   };
 
-  const handleAddImage = () => {
-      const url = prompt('Cole a URL da imagem (ex: https://...):');
-      if (url) {
-          setTripForm(prev => ({ ...prev, images: [...(prev.images || []), url] }));
+  // 6. Gallery Upload Handling
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      
+      const file = e.target.files[0];
+      setGalleryUploading(true);
+      try {
+          const url = await uploadImage(file, 'trip-images');
+          if (url) {
+              setTripForm(prev => ({ ...prev, images: [...(prev.images || []), url] }));
+              showToast('Imagem adicionada com sucesso!', 'success');
+          }
+      } catch (err) {
+          showToast('Erro ao fazer upload da imagem.', 'error');
+          console.error(err);
+      } finally {
+          setGalleryUploading(false);
+          // Clear input to allow same file upload again
+          e.target.value = '';
       }
   };
 
   const handleRemoveImage = (index: number) => {
       setTripForm(prev => ({ ...prev, images: prev.images?.filter((_, i) => i !== index) }));
+  };
+
+  // 3. Date & Duration Logic
+  const handleDateChange = (field: 'startDate' | 'endDate', value: string) => {
+      const newForm = { ...tripForm, [field]: value };
+      
+      if (newForm.startDate && newForm.endDate) {
+          const start = new Date(newForm.startDate);
+          const end = new Date(newForm.endDate);
+          const diffTime = end.getTime() - start.getTime();
+          
+          if (diffTime >= 0) {
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Inclusive count
+              newForm.durationDays = diffDays;
+          }
+      }
+      setTripForm(newForm);
+  };
+
+  // 2. Editor Upload Wrapper
+  const handleEditorImageUpload = async (file: File): Promise<string | null> => {
+      return await uploadImage(file, 'trip-images');
   };
 
   const renderTripBuilder = () => {
@@ -437,7 +542,16 @@ const AgencyDashboard: React.FC = () => {
                           </div>
                           <div>
                               <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa (R$)</label>
-                              <div className="relative"><DollarSign className="absolute left-3 top-3 text-gray-400" size={18} /><input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="0,00"/></div>
+                              <div className="relative"><DollarSign className="absolute left-3 top-3 text-gray-400" size={18} />
+                              {/* 3. Fix Price Input */}
+                              <input 
+                                type="number" 
+                                value={tripForm.price || ''} 
+                                onChange={e => setTripForm({...tripForm, price: Number(e.target.value)})} 
+                                className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" 
+                                placeholder="0,00"
+                              />
+                              </div>
                           </div>
                           <div className="md:col-span-2">
                               <label className="block text-sm font-bold text-gray-700 mb-2">Categoria Principal</label>
@@ -454,13 +568,26 @@ const AgencyDashboard: React.FC = () => {
               return (
                   <div className="space-y-6 animate-[fadeIn_0.3s]">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Início</label><input type="date" value={tripForm.startDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
-                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Fim</label><input type="date" value={tripForm.endDate?.split('T')[0]} onChange={e => setTripForm({...tripForm, endDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
-                          <div><label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label><input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/></div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Início</label>
+                              <input type="date" value={tripForm.startDate?.split('T')[0]} onChange={e => handleDateChange('startDate', e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Fim</label>
+                              <input type="date" value={tripForm.endDate?.split('T')[0]} onChange={e => handleDateChange('endDate', e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+                              <input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: Number(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"/>
+                          </div>
                       </div>
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Geral</label>
-                          <RichTextEditor value={tripForm.description || ''} onChange={(val) => setTripForm({...tripForm, description: val})} />
+                          <RichTextEditor 
+                            value={tripForm.description || ''} 
+                            onChange={(val) => setTripForm({...tripForm, description: val})} 
+                            onImageUpload={handleEditorImageUpload} // Pass upload handler
+                          />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div><label className="block text-sm font-bold text-gray-700 mb-2">O que está incluído</label><PillInput value={tripForm.included || []} onChange={(inc) => setTripForm({...tripForm, included: inc})} placeholder="Digite e Enter..." suggestions={SUGGESTED_INCLUDED}/></div>
@@ -523,7 +650,12 @@ const AgencyDashboard: React.FC = () => {
                                           </div>
                                           <div>
                                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição das Atividades</label>
-                                              <textarea value={item.description} onChange={e => handleUpdateItineraryDay(index, 'description', e.target.value)} rows={2} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none" placeholder="Descreva o que acontecerá neste dia..." />
+                                              {/* 5. Rich Text for Itinerary */}
+                                              <RichTextEditor 
+                                                value={item.description} 
+                                                onChange={val => handleUpdateItineraryDay(index, 'description', val)}
+                                                onImageUpload={handleEditorImageUpload}
+                                              />
                                           </div>
                                       </div>
                                   </div>
@@ -543,7 +675,11 @@ const AgencyDashboard: React.FC = () => {
                   <div className="space-y-6 animate-[fadeIn_0.3s]">
                       <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-bold text-gray-900">Galeria de Fotos</h3>
-                          <button type="button" onClick={handleAddImage} className="text-primary-600 font-bold hover:underline flex items-center gap-1"><Plus size={16}/> Adicionar via URL</button>
+                          {/* 6. Upload Button instead of Prompt */}
+                          <label className="cursor-pointer text-primary-600 font-bold hover:underline flex items-center gap-1">
+                              {galleryUploading ? <Loader size={16} className="animate-spin"/> : <Upload size={16}/>} Adicionar Foto
+                              <input type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
+                          </label>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           {tripForm.images?.map((url, index) => (
@@ -553,10 +689,11 @@ const AgencyDashboard: React.FC = () => {
                               </div>
                           ))}
                           {(tripForm.images?.length || 0) < MAX_IMAGES && (
-                              <button onClick={handleAddImage} className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary-500 hover:text-primary-500 transition-colors aspect-video bg-gray-50">
-                                  <ImageIcon size={32} className="mb-2"/>
-                                  <span className="text-sm font-medium">Adicionar Foto</span>
-                              </button>
+                              <label className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary-500 hover:text-primary-500 transition-colors aspect-video bg-gray-50 cursor-pointer">
+                                  {galleryUploading ? <Loader size={32} className="animate-spin mb-2"/> : <ImageIcon size={32} className="mb-2"/>}
+                                  <span className="text-sm font-medium">Upload de Foto</span>
+                                  <input type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
+                              </label>
                           )}
                       </div>
                       <p className="text-xs text-gray-500">Recomendamos imagens horizontais de alta qualidade. Máximo {MAX_IMAGES} fotos.</p>
@@ -604,7 +741,7 @@ const AgencyDashboard: React.FC = () => {
             <div className="space-y-6">
                 {!isEditingTrip ? (
                     <>
-                        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><h2 className="text-lg font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2><button onClick={() => { setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [] }); setIsEditingTrip(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm"><Plus size={18}/> Novo Pacote</button></div>
+                        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm"><h2 className="text-lg font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2><button onClick={() => { setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] }); setIsEditingTrip(true); }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm"><Plus size={18}/> Novo Pacote</button></div>
                         {myTrips.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{myTrips.map(trip => (<div key={trip.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden group hover:shadow-md transition-all"><div className="relative h-48 bg-gray-100"><img src={trip.images[0] || 'https://placehold.co/600x400?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/><div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-bold ${trip.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{trip.is_active ? 'Ativo' : 'Pausado'}</div></div><div className="p-5"><h3 className="font-bold text-gray-900 text-lg mb-1 truncate" title={trip.title}>{trip.title}</h3><p className="text-gray-500 text-sm mb-4 flex items-center"><MapPin size={14} className="mr-1"/> {trip.destination}</p><div className="flex justify-between items-center pt-4 border-t border-gray-100"><span className="font-bold text-primary-600">R$ {trip.price.toLocaleString()}</span><ActionsMenu trip={trip} onEdit={() => handleEditTrip(trip)} onManage={() => setManageTripId(trip.id)} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={`${window.location.origin}/#/${currentAgency.slug}`}/></div></div></div>))}</div>
                         ) : ( <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200"><div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400"><Plane size={32}/></div><h3 className="font-bold text-gray-900 text-lg">Nenhum pacote criado</h3><p className="text-gray-500 mb-6">Comece a vender criando seu primeiro roteiro.</p><button onClick={() => setIsEditingTrip(true)} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700">Criar Pacote</button></div> )}
