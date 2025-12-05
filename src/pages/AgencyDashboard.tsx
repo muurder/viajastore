@@ -168,13 +168,22 @@ const AgencyDashboard: React.FC = () => {
     );
   }
 
-  // 2. Role Check (Relaxed to prevent blocking)
-  const role = user?.role ? String(user.role).toUpperCase() : '';
-  const isAgency = !!user && role === 'AGENCY';
+  // 2. Auth Check - Redirect if not logged in
+  if (!user) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
+            <h2 className="text-xl font-bold mb-2">Sessão Expirada</h2>
+            <p className="text-gray-500 mb-4">Faça login para acessar o painel.</p>
+            <Link to="/#login" className="text-primary-600 font-bold hover:underline">Ir para Login</Link>
+        </div>
+      );
+  }
 
-  // 3. Assume User IS Agency (Direct Cast)
-  // O AuthContext já garante que se role === AGENCY, o objeto é do tipo Agency.
-  // Não precisamos buscar de novo no DataContext e correr risco de falha.
+  // 3. Role Check (Non-blocking)
+  const role = user.role ? String(user.role).toUpperCase() : '';
+  const isAgency = role === 'AGENCY';
+
+  // 4. Assume User IS Agency (Direct Cast)
   const agency = user as Agency;
 
   const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
