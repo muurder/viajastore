@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -12,7 +11,6 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 import { AdminDashboard } from './pages/AdminDashboard'; 
-// FIX: AgencyDashboard is a default export, so remove braces
 import AgencyDashboard from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; 
@@ -38,7 +36,6 @@ const App: React.FC = () => {
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  {/* FIX: Correct JSX syntax for element */}
                   <Route path="contact" element={<Contact />} />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
