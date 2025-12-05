@@ -1,5 +1,4 @@
 
-
 -- =============================================================================
 -- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
 -- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
@@ -11,9 +10,10 @@ ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_plan TEXT DEFA
 ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'INACTIVE';
 ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0; -- NOVO
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; -- NOVO
 
+-- CORREÇÃO CRÍTICA DAS COLUNAS DE RATING
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0;
+ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; 
 
 -- ** NOVO: NORMALIZAR ROLES PARA MAIÚSCULAS (E REMOVER ESPAÇOS EM BRANCO) **
 UPDATE public.profiles
@@ -21,8 +21,7 @@ SET role = upper(trim(role))
 WHERE role IS NOT NULL AND (role != upper(trim(role)) OR length(trim(role)) != length(role));
 
 -- ** NOVO: ATIVAR TODAS AS AGÊNCIAS (PARA TESTE INICIAL) **
--- Se o fluxo de criação da agência já define 'is_active=false', este UPDATE irá sobrescrever para 'true' para agências existentes.
--- Para o fluxo de "Acesso negado" ser mais claro, é melhor ter a agência ativa aqui durante o debug.
+-- Garante que agências existentes não fiquem travadas na tela de "Inativo"
 UPDATE public.agencies
 SET is_active = true, subscription_status = 'ACTIVE'
 WHERE is_active = false OR subscription_status = 'INACTIVE';

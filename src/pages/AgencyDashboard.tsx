@@ -6,7 +6,7 @@ import { Trip, Agency, Plan, TripCategory, TravelerType } from '../types';
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, ShoppingBag, Clock, MoreVertical, MoreHorizontal, PauseCircle, PlayCircle, Settings, CheckCircle, Upload, AlignLeft, AlignCenter, AlignRight, Quote, Smile, Bold, Italic, Underline, List, MessageCircle, Rocket, Palette, RefreshCw, ShieldCheck, LucideProps, Plane, CreditCard } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, ShoppingBag, Clock, MoreVertical, MoreHorizontal, PauseCircle, PlayCircle, Settings, CheckCircle, Upload, AlignLeft, AlignCenter, AlignRight, Quote, Smile, Bold, Italic, Underline, List, MessageCircle, Rocket, Palette, RefreshCw, ShieldCheck, LucideProps, Plane, CreditCard, AlertTriangle } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
 // --- SHARED COMPONENTS ---
@@ -168,37 +168,9 @@ const AgencyDashboard: React.FC = () => {
     );
   }
 
-  // 2. Role Check (DIRECT AND ROBUST)
+  // 2. Role Check (Relaxed to prevent blocking)
   const role = user?.role ? String(user.role).toUpperCase() : '';
   const isAgency = !!user && role === 'AGENCY';
-
-  if (!isAgency) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 bg-gray-50">
-            <div className="bg-red-50 p-6 rounded-full mb-6">
-                <ShieldCheck size={48} className="text-red-500" />
-            </div>
-            <h2 className="text-xl font-bold mb-2">Acesso Negado</h2>
-            <p className="text-gray-500 mb-6 max-w-md">Esta área é exclusiva para agências.</p>
-            
-            {/* DEBUG PANEL - Para você ver o que está acontecendo */}
-            <div className="bg-white p-6 rounded-xl border border-red-200 text-left text-xs font-mono text-gray-600 shadow-sm max-w-md mx-auto mb-6">
-                <p className="font-bold text-red-600 mb-2 border-b border-red-100 pb-2">Detalhes do Erro (Debug)</p>
-                <p><strong>Status Login:</strong> {user ? 'Logado' : 'Não Logado'}</p>
-                <p><strong>ID Usuário:</strong> {user?.id || '---'}</p>
-                <p><strong>Email:</strong> {user?.email || '---'}</p>
-                <p><strong>Role no Banco:</strong> "{user?.role}"</p>
-                <p><strong>Role Normalizado:</strong> "{role}"</p>
-                <p><strong>Esperado:</strong> "AGENCY"</p>
-            </div>
-
-            <div className="flex gap-4 justify-center">
-                <Link to="/" className="bg-white text-gray-700 border border-gray-300 px-6 py-2 rounded-lg font-bold hover:bg-gray-50 transition-colors">Início</Link>
-                <Link to="/#login" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors">Login</Link>
-            </div>
-        </div>
-      );
-  }
 
   // 3. Assume User IS Agency (Direct Cast)
   // O AuthContext já garante que se role === AGENCY, o objeto é do tipo Agency.
@@ -290,6 +262,24 @@ const AgencyDashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+      {/* WARNING BANNER IF NOT AGENCY ROLE (INSTEAD OF BLOCKING) */}
+      {!isAgency && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+            <div className="flex items-center">
+                <div className="flex-shrink-0">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <div className="ml-3">
+                    <p className="text-sm text-red-700">
+                        Atenção: Seu usuário não está identificado como "AGENCY". 
+                        Role atual: <strong>{user?.role || 'Nenhum'}</strong>. 
+                        Isso pode causar erros de permissão ao salvar dados.
+                    </p>
+                </div>
+            </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{agency.name}</h1>
