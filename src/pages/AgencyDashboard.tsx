@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -104,8 +103,9 @@ const ActionsMenu: React.FC<{ trip: Trip; onEdit: () => void; onManage: () => vo
 
 const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; placeholder: string; suggestions?: string[]; customSuggestions?: string[]; onDeleteCustomSuggestion?: (item: string) => void; }> = ({ value, onChange, placeholder, suggestions = [], customSuggestions = [], onDeleteCustomSuggestion }) => {
   const [inputValue, setInputValue] = useState('');
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && inputValue.trim() !== '') { e.preventDefault(); if (!value.includes(inputValue.trim())) onChange([...value, inputValue.trim()]); setInputValue(''); } };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && inputValue.trim() !== '') { e.preventDefault(); handleAddFromInput(); } };
   const handleAdd = (item: string) => !value.includes(item) && onChange([...value, item]);
+  const handleAddFromInput = () => { if (inputValue.trim() !== '' && !value.includes(inputValue.trim())) { onChange([...value, inputValue.trim()]); setInputValue(''); } };
   const handleRemove = (itemToRemove: string) => onChange(value.filter(item => item !== itemToRemove));
   const handleDeleteCustom = (e: React.MouseEvent, item: string) => { e.stopPropagation(); if (window.confirm(`Remover "${item}" das suas sugestões salvas?`)) onDeleteCustomSuggestion?.(item); };
   const availableSuggestions = suggestions.filter(s => !value.includes(s));
@@ -118,7 +118,10 @@ const PillInput: React.FC<{ value: string[]; onChange: (val: string[]) => void; 
             {availableCustom.map(s => (<button type="button" key={s} onClick={() => handleAdd(s)} className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-2 py-1 rounded-md hover:bg-blue-100 transition-all flex items-center gap-1 group relative pr-6"><Plus size={10} /> {s}<span onClick={(e) => handleDeleteCustom(e, s)} className="absolute right-1 top-1/2 -translate-y-1/2 text-blue-300 hover:text-red-500 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity" title="Remover sugestão salva"><X size={10} /></span></button>))}
         </div>
       )}
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"/>
+      <div className="flex gap-2">
+          <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500 transition-colors bg-white shadow-sm"/>
+          <button type="button" onClick={handleAddFromInput} className="bg-gray-100 hover:bg-gray-200 text-gray-600 p-3 rounded-lg transition-colors"><Plus size={20}/></button>
+      </div>
       <div className="flex flex-wrap gap-2 min-h-[2rem]">
         {value.map((item, index) => (<div key={index} className="flex items-center bg-primary-50 text-primary-800 border border-primary-100 text-sm font-bold px-3 py-1.5 rounded-full animate-[scaleIn_0.2s]"><span>{item}</span><button type="button" onClick={() => handleRemove(item)} className="ml-2 text-primary-400 hover:text-red-500"><X size={14} /></button></div>))}
       </div>
@@ -359,7 +362,6 @@ const AgencyDashboard: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0); // 0: Basic, 1: Details, 2: Boarding, 3: Itinerary, 4: Gallery
   const [manageTripId, setManageTripId] = useState<string | null>(null); // For operational modal
   
-  // 4. Default state for boardingPoints has one empty entry now
   const [tripForm, setTripForm] = useState<Partial<Trip>>({ 
       title: '', 
       description: '', 
@@ -378,9 +380,30 @@ const AgencyDashboard: React.FC = () => {
       notIncluded: [], 
       featured: false, 
       is_active: true, 
-      boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] 
+      boardingPoints: [] 
   });
   
+  // 1. Auto-Save Logic
+  useEffect(() => {
+    if (currentAgency && !editingTripId && isEditingTrip) {
+        const draft = localStorage.getItem(`draft_trip_${currentAgency.agencyId}`);
+        if (draft) {
+            setTripForm(JSON.parse(draft));
+            // showToast('Rascunho restaurado.', 'info');
+        }
+    }
+  }, [isEditingTrip, currentAgency, editingTripId]);
+
+  useEffect(() => {
+    if (currentAgency && !editingTripId && isEditingTrip) {
+        const timeoutId = setTimeout(() => {
+            localStorage.setItem(`draft_trip_${currentAgency.agencyId}`, JSON.stringify(tripForm));
+        }, 1000);
+        return () => clearTimeout(timeoutId);
+    }
+  }, [tripForm, isEditingTrip, currentAgency, editingTripId]);
+
+
   const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
   const [heroForm, setHeroForm] = useState({ heroMode: 'TRIPS', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' });
@@ -407,6 +430,19 @@ const AgencyDashboard: React.FC = () => {
       fetchTheme();
   }, [currentAgency, getAgencyTheme]);
 
+  // 5. Initialize Itinerary and Boarding Points if empty
+  useEffect(() => {
+      if (isEditingTrip) {
+          if (!tripForm.itinerary || tripForm.itinerary.length === 0) {
+              setTripForm(prev => ({...prev, itinerary: [{ day: 1, title: '', description: '' }]}));
+          }
+          if (!tripForm.boardingPoints || tripForm.boardingPoints.length === 0) {
+              setTripForm(prev => ({...prev, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }]}));
+          }
+      }
+  }, [isEditingTrip]);
+
+
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
@@ -416,7 +452,32 @@ const AgencyDashboard: React.FC = () => {
 
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setActiveStep(0); };
   
-  const handleTripSubmit = async () => { if (!tripForm.title || !tripForm.destination || !tripForm.price) { showToast('Preencha os campos obrigatórios.', 'error'); return; } setLoading(true); try { if (isEditingTrip && editingTripId) { await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote atualizado com sucesso!', 'success'); } else { await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote criado com sucesso!', 'success'); } setIsEditingTrip(false); setEditingTripId(null); setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] }); setActiveStep(0); } catch (err: any) { showToast(err.message || 'Erro ao salvar pacote.', 'error'); } finally { setLoading(false); } };
+  const handleTripSubmit = async () => { 
+      if (!tripForm.title || !tripForm.destination || !tripForm.price) { 
+          showToast('Preencha os campos obrigatórios.', 'error'); 
+          return; 
+      } 
+      setLoading(true); 
+      try { 
+          if (isEditingTrip && editingTripId) { 
+              await updateTrip({ ...tripForm, id: editingTripId, agencyId: currentAgency.agencyId } as Trip); 
+              showToast('Pacote atualizado com sucesso!', 'success'); 
+          } else { 
+              await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip); 
+              showToast('Pacote criado com sucesso!', 'success'); 
+              // Clear Draft
+              localStorage.removeItem(`draft_trip_${currentAgency.agencyId}`);
+          } 
+          setIsEditingTrip(false); 
+          setEditingTripId(null); 
+          setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }] }); 
+          setActiveStep(0); 
+      } catch (err: any) { 
+          showToast(err.message || 'Erro ao salvar pacote.', 'error'); 
+      } finally { 
+          setLoading(false); 
+      } 
+  };
   
   const handleEditTrip = (trip: Trip) => { 
       // Ensure boardingPoints has at least one item even when editing
@@ -477,25 +538,38 @@ const AgencyDashboard: React.FC = () => {
       }));
   };
 
-  // 6. Gallery Upload Handling
+  // 2. Multiple Image Upload
   const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files || e.target.files.length === 0) return;
       
-      const file = e.target.files[0];
+      const files = Array.from(e.target.files);
+      const currentCount = tripForm.images?.length || 0;
+      
+      if (currentCount + files.length > MAX_IMAGES) {
+          showToast(`Limite máximo de ${MAX_IMAGES} imagens excedido.`, 'error');
+          return;
+      }
+
       setGalleryUploading(true);
       try {
-          const url = await uploadImage(file, 'trip-images');
-          if (url) {
-              setTripForm(prev => ({ ...prev, images: [...(prev.images || []), url] }));
-              showToast('Imagem adicionada com sucesso!', 'success');
+          // Upload all files in parallel
+          const uploadPromises = files.map(file => uploadImage(file, 'trip-images'));
+          const results = await Promise.all(uploadPromises);
+          
+          const validUrls = results.filter((url): url is string => url !== null);
+          
+          if (validUrls.length > 0) {
+              setTripForm(prev => ({ ...prev, images: [...(prev.images || []), ...validUrls] }));
+              showToast(`${validUrls.length} imagens adicionadas!`, 'success');
+          } else {
+              showToast('Falha ao fazer upload das imagens.', 'error');
           }
       } catch (err) {
-          showToast('Erro ao fazer upload da imagem.', 'error');
+          showToast('Erro ao fazer upload.', 'error');
           console.error(err);
       } finally {
           setGalleryUploading(false);
-          // Clear input to allow same file upload again
-          e.target.value = '';
+          e.target.value = ''; // Reset input
       }
   };
 
@@ -677,8 +751,8 @@ const AgencyDashboard: React.FC = () => {
                           <h3 className="text-lg font-bold text-gray-900">Galeria de Fotos</h3>
                           {/* 6. Upload Button instead of Prompt */}
                           <label className="cursor-pointer text-primary-600 font-bold hover:underline flex items-center gap-1">
-                              {galleryUploading ? <Loader size={16} className="animate-spin"/> : <Upload size={16}/>} Adicionar Foto
-                              <input type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
+                              {galleryUploading ? <Loader size={16} className="animate-spin"/> : <Upload size={16}/>} Adicionar Fotos
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
                           </label>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -692,7 +766,7 @@ const AgencyDashboard: React.FC = () => {
                               <label className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-primary-500 hover:text-primary-500 transition-colors aspect-video bg-gray-50 cursor-pointer">
                                   {galleryUploading ? <Loader size={32} className="animate-spin mb-2"/> : <ImageIcon size={32} className="mb-2"/>}
                                   <span className="text-sm font-medium">Upload de Foto</span>
-                                  <input type="file" accept="image/*" className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
+                                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleGalleryUpload} disabled={galleryUploading} />
                               </label>
                           )}
                       </div>

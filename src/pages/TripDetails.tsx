@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Booking } from '../types'; // Import Booking type
-import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldCheck, CheckCircle, XCircle, Calendar, CreditCard, ChevronDown, ChevronUp, Check, X, Tag, Search, Loader } from 'lucide-react'; // Import Loader
+import { MapPin, Clock, Share2, Heart, MessageCircle, ArrowLeft, Star, ShieldCheck, CheckCircle, XCircle, Calendar, CreditCard, ChevronDown, ChevronUp, Check, X, Tag, Search, Loader, Bus } from 'lucide-react'; // Import Loader
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
@@ -320,6 +320,26 @@ const TripDetails: React.FC = () => {
              )}
           </div>
           
+          {/* NEW: Boarding Points Section */}
+          {trip.boardingPoints && trip.boardingPoints.length > 0 && (
+              <section className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><Bus size={20} className="text-primary-600"/> Locais de Embarque</h3>
+                  <div className="relative before:absolute before:left-[11px] before:top-3 before:bottom-3 before:w-[2px] before:bg-blue-200 space-y-4">
+                      {trip.boardingPoints.map((point, index) => (
+                          <div key={index} className="relative pl-8">
+                              <div className="absolute left-0 top-1 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm border-2 border-white z-10">
+                                  {index + 1}
+                              </div>
+                              <div>
+                                  <p className="font-bold text-gray-900 text-sm">{point.location}</p>
+                                  <p className="text-sm text-gray-500 font-mono flex items-center gap-1 mt-0.5"><Clock size={12}/> {point.time || '--:--'}</p>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </section>
+          )}
+
           {/* Itinerary */}
           {trip.itinerary && trip.itinerary.length > 0 && (
               <section>
@@ -331,7 +351,8 @@ const TripDetails: React.FC = () => {
                                   {item.day}
                               </div>
                               <h4 className="font-bold text-gray-900 text-lg mb-2">{item.title}</h4>
-                              <p className="text-gray-600 text-sm leading-relaxed">{item.description}</p>
+                              {/* Fix: Render HTML content for description */}
+                              <div className="prose prose-sm text-gray-600 leading-relaxed max-w-none" dangerouslySetInnerHTML={{__html: item.description}} />
                           </div>
                       ))}
                   </div>

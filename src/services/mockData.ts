@@ -146,6 +146,10 @@ export const MOCK_TRIPS: Trip[] = [
       { day: 1, title: 'Chegada e Acomodação', description: 'Transfer do aeroporto para o hotel e dia livre.' },
       { day: 2, title: 'Lado Brasileiro das Cataratas', description: 'Visita ao Parque Nacional do Iguaçu com vista panorâmica das quedas.' }
     ],
+    boardingPoints: [
+      { id: 'bp1', time: '08:00', location: 'Aeroporto Internacional de Foz (IGU)' },
+      { id: 'bp2', time: '09:30', location: 'Hotel Bella Italia' }
+    ],
     paymentMethods: ['Pix', 'Cartão de Crédito', 'Boleto'],
     is_active: true,
     tripRating: 4.9, // Changed from rating
@@ -181,6 +185,10 @@ export const MOCK_TRIPS: Trip[] = [
     views: 22000,
     sales: 280,
     featuredInHero: true,
+    boardingPoints: [
+      { id: 'bp3', time: '14:00', location: 'Aeroporto Santos Dumont (SDU)' },
+      { id: 'bp4', time: '15:00', location: 'Aeroporto do Galeão (GIG)' }
+    ],
   },
   // --- Amazônia (ag_3) ---
   {
@@ -206,6 +214,9 @@ export const MOCK_TRIPS: Trip[] = [
     notIncluded: ['Passagens aéreas até Manaus', 'Bebidas'],
     views: 9800,
     sales: 75,
+    boardingPoints: [
+      { id: 'bp5', time: '08:30', location: 'Porto de Manaus' }
+    ],
   },
    // --- Fernando de Noronha (ag_4) ---
   {
@@ -232,6 +243,9 @@ export const MOCK_TRIPS: Trip[] = [
     views: 18000,
     sales: 110,
     featuredInHero: true,
+    boardingPoints: [
+      { id: 'bp6', time: '10:00', location: 'Aeroporto de Noronha' }
+    ],
   },
   // --- Chapada Diamantina (ag_7) ---
   {
@@ -258,6 +272,9 @@ export const MOCK_TRIPS: Trip[] = [
     views: 11500,
     sales: 95,
     featuredInHero: true,
+    boardingPoints: [
+      { id: 'bp7', time: '13:00', location: 'Rodoviária de Lençóis' }
+    ],
   },
    // --- Rota do Vinho SP (ag_8) ---
    {
@@ -285,6 +302,10 @@ export const MOCK_TRIPS: Trip[] = [
     sales: 210,
     popularNearSP: true,
     featuredInHero: true,
+    boardingPoints: [
+      { id: 'bp8', time: '07:30', location: 'Metrô Barra Funda' },
+      { id: 'bp9', time: '08:00', location: 'Metrô Tatuapé' }
+    ],
   },
   // --- Trindade (ag_9) ---
   {
@@ -311,6 +332,10 @@ export const MOCK_TRIPS: Trip[] = [
     views: 15000,
     sales: 350,
     popularNearSP: true,
+    boardingPoints: [
+      { id: 'bp10', time: '21:00', location: 'Metrô Portuguesa-Tietê' },
+      { id: 'bp11', time: '21:45', location: 'Metrô Tatuapé' }
+    ],
   },
 ];
 
