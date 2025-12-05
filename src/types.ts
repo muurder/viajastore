@@ -134,8 +134,8 @@ export interface Trip {
   paymentMethods?: string[]; // New field for accepted payment methods
 
   is_active: boolean; // Controlled by agency
-  tripRating?: number; // Made optional, renamed from rating
-  tripTotalReviews?: number; // Made optional, renamed from totalReviews
+  tripRating?: number; // Renamed from rating to match DB
+  tripTotalReviews?: number; // Renamed from totalReviews to match DB
   included: string[];
   notIncluded?: string[];
   views?: number; // For stats

@@ -294,5 +294,32 @@ GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uui
 -- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
 UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
 
--- 9. RECARREGAR (CRUCIAL PARA CORRIGIR ERROS DE COLUNA AUSENTE)
+-- 9. REPARAÇÃO DE DADOS: CRIAR AGÊNCIAS FALTANTES
+-- Garante que todo perfil AGENCY tenha um registro na tabela agencies
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN 
+        SELECT p.id, p.full_name, p.email, p.phone
+        FROM public.profiles p
+        LEFT JOIN public.agencies a ON p.id = a.user_id
+        WHERE p.role = 'AGENCY' AND a.id IS NULL
+    LOOP
+        INSERT INTO public.agencies (user_id, name, email, phone, slug, is_active, subscription_status, subscription_plan)
+        VALUES (
+            r.id, 
+            r.full_name, 
+            r.email, 
+            r.phone, 
+            lower(regexp_replace(r.full_name, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || floor(random() * 1000)::text,
+            true, 
+            'ACTIVE', 
+            'BASIC'
+        )
+        ON CONFLICT (user_id) DO NOTHING;
+    END LOOP;
+END $$;
+
+-- 10. RECARREGAR (CRUCIAL PARA CORRIGIR ERROS DE COLUNA AUSENTE)
 NOTIFY pgrst, 'reload config';
