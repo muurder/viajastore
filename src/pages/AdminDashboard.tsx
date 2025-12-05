@@ -367,7 +367,7 @@ export const AdminDashboard: React.FC = () => {
 
   const downloadPdf = (type: 'users' | 'agencies') => { const doc = new jsPDF(); doc.setFontSize(18); doc.text(`Relatório de ${type === 'users' ? 'Usuários' : 'Agências'}`, 14, 22); doc.setFontSize(11); doc.setTextColor(100); const headers = type === 'users' ? [["NOME", "EMAIL", "STATUS"]] : [["NOME", "PLANO", "STATUS"]]; const data = type === 'users' ? filteredUsers.filter(u => selectedUsers.includes(u.id)).map(u => [u.name, u.email, u.status]) : filteredAgencies.filter(a => selectedAgencies.includes(a.agencyId)).map(a => [a.name, a.subscriptionPlan, a.subscriptionStatus]); (doc as any).autoTable({ head: headers, body: data, startY: 30, }); doc.save(`relatorio_${type}.pdf`); };
 
-  if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center font-bold text-red-600">PAINEL ADMIN: Acesso negado.</div>;
+  if (!user || user.role !== UserRole.ADMIN) return <div className="min-h-screen flex items-center justify-center font-bold text-red-600">PAINEL ADMIN: Acesso negado. (Você não tem permissão de administrador)</div>;
 
   const renderContent = () => {
     switch(activeTab) {

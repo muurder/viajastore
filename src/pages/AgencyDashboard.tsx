@@ -159,7 +159,8 @@ const AgencyDashboard: React.FC = () => {
   const [tripForm, setTripForm] = useState<Partial<Trip>>({});
 
   useEffect(() => {
-    console.log("AgencyDashboard mounted. User:", user?.email, "Role:", user?.role);
+    // This log confirms the CORRECT dashboard is mounted
+    console.log("AGENCY DASHBOARD LOADED - User:", user?.email, "Role:", user?.role);
   }, [user]);
 
   // 1. Loading Check

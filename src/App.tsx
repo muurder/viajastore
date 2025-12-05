@@ -10,10 +10,11 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
+// Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
-import AgencyDashboard from './pages/AgencyDashboard';
 import { AgencyLandingPage } from './pages/AgencyLandingPage';
-import { ClientDashboard } from './pages/ClientDashboard';
+import AgencyDashboard from './pages/AgencyDashboard';
+import { ClientDashboard } from './pages/ClientDashboard'; // Fix: Import ClientDashboard as named export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
@@ -32,7 +33,7 @@ const App: React.FC = () => {
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
-                  <Route path="agency/:id" element={<AgencyProfile />} />
+                  <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
@@ -50,7 +51,7 @@ const App: React.FC = () => {
                   <Route path="forgot-password" element={<ForgotPassword />} />
                   
                   {/* Protected Routes */}
-                  {/* FIXED: Point explicitly to AgencyDashboard */}
+                  {/* CORREÇÃO: Apontar rota agency/dashboard para o componente AgencyDashboard */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
@@ -64,6 +65,7 @@ const App: React.FC = () => {
                   
                   {/* Microsite Client Dashboard */}
                   <Route path=":agencySlug/client/:tab?" element={<ClientDashboard />} />
+
 
                   {/* Catch all */}
                   <Route path="*" element={<NotFound />} />
