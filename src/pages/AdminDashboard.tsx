@@ -900,7 +900,7 @@ export const AdminDashboard: React.FC = () => {
             <div className="w-48">
                 <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
                     <option value="">Todas as Categorias</option>
-                    {tripCategories.map(category => <option key={category} value={category}>{category.replace('_', ' ')}</option>)}
+                    {tripCategories.map(category => <option key={category as string} value={category as string}>{(category as string).replace('_', ' ')}</option>)}
                 </select>
             </div>
             {(agencyFilter || categoryFilter) && (

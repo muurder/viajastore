@@ -103,25 +103,33 @@ export interface BoardingPoint {
   address?: string;
 }
 
+export interface ManualPassenger {
+  id: string;
+  name: string;
+  document?: string; // CPF or RG
+  phone?: string;
+  email?: string;
+  notes?: string;
+}
+
 // Updated definitions for Transport
 export interface PassengerSeat {
-  seatNumber: string; // Changed to string to allow "1A", "Motorista", etc if needed, or just "1"
+  seatNumber: string; 
   passengerName: string;
-  bookingId: string;
+  bookingId: string; // Can be a booking ID or 'manual-{id}'
   status: 'occupied' | 'blocked' | 'available';
-  gender?: 'M' | 'F' | 'OTHER'; // Useful for room sharing logic later
+  gender?: 'M' | 'F' | 'OTHER';
 }
 
 export interface TransportConfig {
-  type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15'; // Templates
-  customRows?: number; // For custom grid
-  customCols?: number; // For custom grid (usually 4 for bus)
-  seats: PassengerSeat[]; // Array of assigned seats
+  type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'CUSTOM'; 
+  totalSeats: number; // Editable
+  seats: PassengerSeat[]; 
 }
 
 export interface RoomConfig {
   id: string;
-  name: string; // "Quarto 10" or "Suíte Master"
+  name: string; 
   type: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
   capacity: number;
   guests: { 
@@ -134,6 +142,7 @@ export interface RoomConfig {
 export interface OperationalData {
   transport?: TransportConfig;
   rooming?: RoomConfig[];
+  manualPassengers?: ManualPassenger[];
   notes?: string;
 }
 
@@ -289,7 +298,7 @@ export type ActivityActionType =
   | 'ADMIN_THEME_MANAGED'
   | 'ADMIN_MOCK_DATA_MIGRATED'
   | 'ADMIN_ACTION'
-  | 'TRIP_OPERATIONAL_UPDATE'; // Added new type
+  | 'TRIP_OPERATIONAL_UPDATE';
 
 export interface ActivityLog {
   id: string;
