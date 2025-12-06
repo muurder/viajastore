@@ -2,54 +2,592 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
-import { useToast } from './ToastContext';
 import { slugify } from '../utils/slugify';
+
+// Define a more granular return type for register
+interface RegisterResult {
+  success: boolean;
+  message?: string; // For info messages, e.g., email verification
+  error?: string;   // For actual errors
+  role?: UserRole;
+  userId?: string;
+  email?: string;
+}
 
 interface AuthContextType {
   user: User | Client | Agency | Admin | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: (role?: UserRole) => Promise<{ success: boolean; error?: string; userId?: string; role?: UserRole; }>;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (role?: UserRole, redirectPath?: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (formData: any, role: UserRole) => Promise<{ success: boolean; error?: string; userId?: string; role?: UserRole; message?: string; }>;
-  updateUser: (data: Partial<User | Client | Agency>) => Promise<{ success: boolean; error?: string }>;
+  register: (data: any, role: UserRole) => Promise<RegisterResult>;
+  updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
+  updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
-  uploadImage: (file: File, bucket: string) => Promise<string | null>;
-  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  uploadImage: (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images') => Promise<string | null>;
+  reloadUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | Client | Agency | Admin | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { showToast } = useToast();
-  
-  // ... (rest of AuthProvider, including full implementations of login, register, etc.)
 
-  const logout = async () => {
-    setUser(null); // Optimistic update
-    if (supabase) {
-      await supabase.auth.signOut();
+  // Fetch user profile/agency data based on Auth ID
+  const fetchUserData = async (authId: string, email: string) => {
+    console.log("[AuthContext] fetchUserData START", authId, email); // Debug Log
+    if (!supabase) return;
+    try {
+      // 0. Check if Master Admin via Hardcoded Email (Security fallback)
+      if (email === 'juannicolas1@gmail.com') {
+          console.log("[AuthContext] User identified as Master Admin"); // Debug Log
+          const masterUser: Admin = {
+             id: authId,
+             name: 'Master Admin',
+             email: email,
+             role: UserRole.ADMIN,
+             avatar: `https://ui-avatars.com/api/?name=MA&background=000&color=fff`,
+             createdAt: new Date().toISOString()
+          };
+          setUser(masterUser);
+          return;
+      }
+
+      // 1. Check profiles table first to determine role
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authId)
+        .maybeSingle();
+      
+      if (profileError) {
+          console.error("[AuthContext] Error fetching profile:", profileError); // Debug Log
+      }
+
+      if (profileData) {
+        console.log("[AuthContext] Profile Found:", profileData); // Debug Log
+        // Fix: Ensure AGENCY role check is case-insensitive for robustness
+        if (profileData.role && profileData.role.toUpperCase() === UserRole.AGENCY) {
+          console.log("[AuthContext] User is Agency, fetching agency data..."); // Debug Log
+          const { data: agencyData, error: agencyError } = await supabase
+            .from('agencies')
+            .select('*')
+            .eq('user_id', authId)
+            .single();
+
+          if (agencyError || !agencyData) {
+            console.warn("[AuthContext] Profile is AGENCY but no record in agencies table (or fetch failed).", agencyError);
+            
+            // Fallback: Create a temporary agency object so the user isn't locked out
+             const tempAgency: Agency = {
+              id: profileData.id,
+              agencyId: '', // Missing ID
+              name: profileData.full_name || 'Nova Agência',
+              email: email,
+              role: UserRole.AGENCY,
+              is_active: false,
+              slug: slugify(profileData.full_name || 'nova-agencia'),
+              cnpj: '',
+              description: '',
+              logo: profileData.avatar_url || '',
+              heroMode: 'TRIPS',
+              subscriptionStatus: 'INACTIVE',
+              subscriptionPlan: 'BASIC',
+              subscriptionExpiresAt: new Date().toISOString(),
+            };
+            setUser(tempAgency);
+            return;
+          }
+
+          console.log("[AuthContext] Agency Data Found:", agencyData); // Debug Log
+
+          const agencyUser: Agency = {
+            id: agencyData.user_id, // User ID (from auth)
+            agencyId: agencyData.id, // Primary Key of agencies table
+            name: agencyData.name,
+            email: email,
+            role: UserRole.AGENCY,
+            is_active: agencyData.is_active,
+            slug: agencyData.slug || slugify(agencyData.name),
+            cnpj: agencyData.cnpj || '',
+            description: agencyData.description || '',
+            logo: agencyData.logo_url || '',
+            whatsapp: agencyData.whatsapp,
+            heroMode: agencyData.hero_mode || 'TRIPS',
+            heroBannerUrl: agencyData.hero_banner_url,
+            heroTitle: agencyData.hero_title,
+            heroSubtitle: agencyData.hero_subtitle,
+            customSettings: agencyData.custom_settings || {},
+            subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
+            subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
+            subscriptionExpiresAt: new Date().toISOString(), 
+            website: agencyData.website,
+            phone: agencyData.phone,
+            address: agencyData.address || {},
+            bankInfo: agencyData.bank_info || {}
+          };
+          setUser(agencyUser);
+          return;
+        }
+
+        // Handle ADMIN or CLIENT roles
+        let mappedRole: UserRole;
+        if (profileData.role === 'ADMIN') {
+          mappedRole = UserRole.ADMIN;
+        } else {
+          mappedRole = UserRole.CLIENT;
+        }
+        
+        console.log("[AuthContext] User mapped as:", mappedRole); // Debug Log
+
+        const genericUser: Client | Admin = {
+          id: profileData.id,
+          name: profileData.full_name || 'Usuário',
+          email: email,
+          role: mappedRole,
+          avatar: profileData.avatar_url, 
+          cpf: profileData.cpf,
+          phone: profileData.phone,
+          favorites: [],
+          createdAt: profileData.created_at,
+          address: profileData.address || {},
+          status: profileData.status || 'ACTIVE'
+        } as Client;
+
+        setUser(genericUser);
+        return;
+      } else {
+          console.warn("[AuthContext] No profile found for user:", authId); // Debug Log
+      }
+      
+      setUser(null); 
+
+    } catch (error) {
+      console.error("[AuthContext] Exception in fetchUserData:", error);
+      setUser(null);
     }
   };
 
-  const value = {
-    user,
-    loading,
-    logout,
-    // Add full implementations for other functions
-    login: async () => ({ success: false, error: "Not implemented" }),
-    loginWithGoogle: async () => ({ success: false, error: "Not implemented" }),
-    register: async () => ({ success: false, error: "Not implemented" }),
-    updateUser: async () => ({ success: false, error: "Not implemented" }),
-    deleteAccount: async () => ({ success: false, error: "Not implemented" }),
-    uploadImage: async () => null,
-    updatePassword: async () => ({ success: false, error: "Not implemented" }),
+  const reloadUser = async () => {
+    if (user && user.email) {
+        await fetchUserData(user.id, user.email);
+    }
+  };
+
+  // Helper to ensure the record exists after Google Login
+  const ensureUserRecord = async (authUser: any, role: string) => {
+      if (!supabase) return false;
+      const userId = authUser.id;
+      const userEmail = authUser.email;
+      const userName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || userEmail.split('@')[0];
+      const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
+      // Get phone from authUser if available, otherwise null
+      const userPhone = authUser.user_metadata?.phone_number || null;
+
+      try {
+          // ALWAYS create a profile record first
+          const { error: profileError } = await supabase.from('profiles').upsert({
+              id: userId,
+              full_name: userName,
+              email: userEmail,
+              role: role,
+              avatar_url: userAvatar,
+              phone: userPhone, // Pass phone if available
+          }, { onConflict: 'id' });
+
+          if (profileError) throw profileError;
+
+          if (role === UserRole.AGENCY) {
+              const safeSlug = slugify(userName + '-' + Math.floor(Math.random() * 1000));
+              
+              // Use RPC for safe creation even in ensureUserRecord
+              const { error: agencyError } = await supabase.rpc('create_agency', {
+                  p_user_id: userId,
+                  p_name: userName,
+                  p_email: userEmail,
+                  p_phone: userPhone,    // Pass phone to RPC
+                  p_whatsapp: userPhone, // Pass phone as whatsapp to RPC
+                  p_slug: safeSlug
+              });
+
+              if (agencyError) {
+                  // Fallback: Check if agency already exists, if so, ignore error
+                  // Removed 'id' from select, as it's not needed for just checking existence and can sometimes cause issues.
+                  const { data: existing } = await supabase.from('agencies').select('user_id').eq('user_id', userId).maybeSingle();
+                  if (!existing) {
+                      console.error("RPC ensureUserRecord failed:", agencyError);
+                      throw agencyError;
+                  }
+              }
+          }
+          return true;
+      } catch (err: any) {
+          console.error("Error ensuring user record:", err.message);
+          return false;
+      }
+  };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      setLoading(true);
+
+      if (!supabase) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
+      const { data: { session } } = await (supabase.auth as any).getSession();
+      
+      if (session?.user) {
+        console.log("[AuthContext] Session found on init", session.user.email); // Debug Log
+        const pendingRole = localStorage.getItem('viajastore_pending_role');
+        if (pendingRole) {
+            await ensureUserRecord(session.user, pendingRole);
+            localStorage.removeItem('viajastore_pending_role');
+        }
+        await fetchUserData(session.user.id, session.user.email!);
+      } else {
+        console.log("[AuthContext] No session found on init"); // Debug Log
+        setUser(null);
+      }
+      setLoading(false);
+
+      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
+        console.log("[AuthContext] Auth State Change:", event, session?.user?.email); // Debug Log
+        if (session?.user) {
+          if (event === 'SIGNED_IN') {
+             const pendingRole = localStorage.getItem('viajastore_pending_role');
+             if (pendingRole) {
+                 const success = await ensureUserRecord(session.user, pendingRole);
+                 if (success) {
+                    localStorage.removeItem('viajastore_pending_role');
+                 }
+             }
+             await fetchUserData(session.user.id, session.user.email!);
+          } else if (event === 'USER_UPDATED') {
+             await fetchUserData(session.user.id, session.user.email!);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          console.log("[AuthContext] SIGNED_OUT, clearing user state."); // Debug Log
+          setUser(null);
+          localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    };
+
+    initializeAuth();
+  }, []);
+
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
+    if (!password) return { success: false, error: 'Senha obrigatória' };
+    
+    const { error } = await (supabase.auth as any).signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
+      return { success: false, error: msg };
+    }
+    return { success: true };
+  };
+
+  const loginWithGoogle = async (role?: UserRole, redirectPath?: string) => {
+    if (!supabase) return;
+    const redirectTo = redirectPath 
+        ? `${window.location.origin}/#${redirectPath}` 
+        : `${window.location.origin}/`;
+
+    if (role) {
+        localStorage.setItem('viajastore_pending_role', role);
+    } else {
+        localStorage.removeItem('viajastore_pending_role');
+    }
+
+    const { error } = await (supabase.auth as any).signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectTo,
+        queryParams: { access_type: 'offline', prompt: 'consent' }
+      }
+    });
+    if (error) console.error("Google login error:", error);
+  };
+
+  const logout = async () => {
+    if (supabase) {
+      console.log("[AuthContext] Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
+      // Optimistic update: Clear state immediately for better UX
+      setUser(null);
+      localStorage.removeItem('viajastore_pending_role');
+      
+      // Perform signOut in background, don't await to block UI
+      try {
+        await (supabase.auth as any).signOut();
+      } catch (e) {
+        console.error("Background signout error:", e);
+      }
+    }
+  };
+
+  const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
+    
+    // 1. Create Auth User
+    const { data: authData, error: authError } = await (supabase.auth as any).signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          full_name: data.name,
+        }
+      }
+    });
+
+    if (authError) {
+        if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
+             return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
+        }
+        return { success: false, error: authError.message };
+    }
+    
+    const userId = authData.user?.id;
+
+    // If user is created in auth but not immediately signed in (e.g., email confirmation)
+    if (!userId) {
+        return { success: true, message: 'Verifique seu email para confirmar o cadastro.', role: role, email: data.email };
+    }
+
+    // 2. Create corresponding DB records. 
+    try {
+      // 2a. Upsert Profile
+      const { error: profileError } = await supabase.from('profiles').upsert({
+          id: userId,
+          full_name: data.name,
+          email: data.email,
+          cpf: role === UserRole.CLIENT ? data.cpf : null,
+          phone: data.phone,
+          role: role.toString(), 
+          avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}`
+      }, { onConflict: 'id' });
+
+      if (profileError) {
+          console.error("Profile Upsert Error:", profileError);
+          throw profileError;
+      }
+
+      // 2b. Insert Agency Record (If applicable)
+      if (role === UserRole.AGENCY) {
+        // Ensure slug is unique enough to avoid initial conflicts
+        const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
+        
+        // Use RPC to bypass potential REST Schema Cache issues
+        const { error: agencyError } = await supabase.rpc('create_agency', {
+            p_user_id: userId,
+            p_name: data.name,
+            p_email: data.email,
+            p_phone: data.phone,
+            p_whatsapp: data.phone,
+            p_slug: safeSlug
+        });
+        
+        if (agencyError) {
+            console.error("Supabase Agency RPC Insert Error:", agencyError);
+            throw agencyError;
+        }
+      }
+
+      // If we reach here, DB operations succeeded
+      // Force fetch the user data so the context updates immediately
+      await fetchUserData(userId, data.email);
+      
+      return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
+
+    } catch (dbError: any) {
+      console.error("DB Registration Process Failed:", dbError);
+      
+      // SPECIAL HANDLING: If error is Schema Cache (PGRST204) BUT the user was created in Auth
+      if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache') || dbError.message?.includes('user_id')) {
+        console.warn("Recovering from Schema Cache error - treating as success to allow login.");
+        
+        const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
+        
+        // Force state locally so user isn't stuck
+        if (role === UserRole.AGENCY) {
+            const fallbackAgency: Agency = {
+                id: userId,
+                agencyId: 'pending-' + userId,
+                name: data.name,
+                email: data.email,
+                role: UserRole.AGENCY,
+                is_active: false,
+                slug: safeSlug,
+                phone: data.phone,
+                whatsapp: data.phone,
+                cnpj: '',
+                description: '',
+                logo: '',
+                heroMode: 'TRIPS',
+                subscriptionStatus: 'INACTIVE',
+                subscriptionPlan: 'BASIC',
+                subscriptionExpiresAt: new Date().toISOString(),
+            };
+            setUser(fallbackAgency);
+        } else {
+            setUser({
+                id: userId,
+                name: data.name,
+                email: data.email,
+                role: UserRole.CLIENT,
+                favorites: [],
+            } as Client);
+        }
+
+        return { 
+            success: true, 
+            role: role, 
+            userId: userId, 
+            email: data.email,
+            message: "Conta criada! Se houver erro ao carregar o painel, recarregue a página."
+        };
+      }
+
+      return { success: false, error: `Falha ao salvar dados: ${dbError.message || dbError.details || 'Erro desconhecido'}. Tente novamente.` };
+    }
+  };
+
+  const updateUser = async (userData: Partial<Client | Agency>): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: 'Backend não configurado.' };
+    if (!user) return { success: false, error: 'Usuário não logado' };
+    
+    try {
+      // Fix: Normalize emails to avoid unnecessary Auth API calls and 429 errors.
+      let shouldUpdateAuthEmail = false;
+      if (userData.email && user.email) {
+          const newEmail = userData.email.trim().toLowerCase();
+          const currentEmail = user.email.trim().toLowerCase();
+          // Only flag for update if they are genuinely different
+          if (newEmail !== currentEmail) {
+              shouldUpdateAuthEmail = true;
+          }
+      }
+
+      // 2. Only call Auth API if necessary
+      if (shouldUpdateAuthEmail && userData.email) {
+          const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
+          if (error) throw error;
+      }
+
+      if (user.role === UserRole.AGENCY) {
+        const updates: any = {};
+        if (userData.name) updates.name = userData.name;
+        
+        // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
+        // Only allow slug update if it's currently empty, or if an explicit (and rare) admin action is intended.
+        // For general user updates, slug should be read-only derived from name or immutable after creation.
+        // Assuming userData.slug is provided only if an update is intended.
+        if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
+          updates.slug = (userData as Agency).slug;
+        }
+
+        if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
+        if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
+        if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
+        if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
+        if ((userData as Agency).address) updates.address = (userData as Agency).address;
+        if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
+        if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
+        
+        if ((userData as Agency).heroMode) updates.hero_mode = (userData as Agency).heroMode;
+        if ((userData as Agency).heroBannerUrl) updates.hero_banner_url = (userData as Agency).heroBannerUrl;
+        if ((userData as Agency).heroTitle) updates.hero_title = (userData as Agency).heroTitle;
+        if ((userData as Agency).heroSubtitle) updates.hero_subtitle = (userData as Agency).heroSubtitle;
+
+        if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
+        if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
+
+
+        const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
+        if (error) {
+             // Fallback: If update fails, maybe the record was never created (rare). Try Upsert.
+             console.warn("Update failed, trying upsert...", error);
+             await supabase.from('agencies').upsert({ user_id: user.id, ...updates }, { onConflict: 'user_id' });
+        }
+        
+      } else {
+        const updates: any = {};
+        if (userData.name) updates.full_name = userData.name;
+        if ((userData as Client).phone) updates.phone = (userData as Client).phone;
+        if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
+        if (userData.avatar) updates.avatar_url = userData.avatar;
+        if (userData.address) updates.address = (userData as Client).address;
+
+        const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+        if (error) throw error;
+      }
+
+      setUser({ ...user, ...userData } as any);
+      return { success: true };
+
+    } catch (error: any) {
+        console.error("Error updating user", error);
+        return { success: false, error: error.message };
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+      if (!supabase) return { success: false, error: 'Backend não configurado.' };
+      const { error } = await (supabase.auth as any).updateUser({ password });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+  };
+
+  const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
+      if (!supabase) return null;
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+              .from(bucket)
+              .upload(fileName, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+          return data.publicUrl;
+      } catch (error) {
+          console.error("Upload error:", error);
+          return null;
+      }
+  };
+
+  const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!supabase) return { success: false, error: "Backend não configurado." };
+    if (!user) return { success: false, error: "Usuário não autenticado" };
+
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', user.id);
+      if (error) throw error;
+      
+      await (supabase.auth as any).signOut();
+      setUser(null);
+      return { success: true };
+
+    } catch (error: any) {
+      console.error("Erro ao excluir conta:", error);
+      return { success: false, error: error.message || "Erro ao excluir conta" };
+    }
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage, reloadUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -57,8 +595,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

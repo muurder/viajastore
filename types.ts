@@ -1,4 +1,3 @@
-
 export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
@@ -26,18 +25,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string;
+  password?: string; // Changed for auth simulation from `string` to `string | undefined`
   role: UserRole;
   avatar?: string;
   createdAt?: string;
-  deleted_at?: string;
+  deleted_at?: string; // For soft delete
 }
 
 export interface Client extends User {
   role: UserRole.CLIENT;
   cpf?: string;
   phone?: string;
-  favorites: string[];
+  favorites: string[]; // Trip IDs
   notificationsEnabled?: boolean;
   address?: Address;
   status?: 'ACTIVE' | 'SUSPENDED';
@@ -46,19 +45,22 @@ export interface Client extends User {
 
 export interface Agency extends User {
   role: UserRole.AGENCY;
-  agencyId: string;
-  slug: string;
-  whatsapp?: string;
+  agencyId: string; // The primary key of the 'agencies' table
+  slug: string; // New field for multi-tenant URL
+  whatsapp?: string; // New field for contact
+  // Fix: Make cnpj optional as it's not collected during initial registration
   cnpj?: string; 
   description: string;
   logo: string;
   is_active?: boolean;
   
+  // Hero / Microsite Config
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;
   heroSubtitle?: string;
 
+  // Custom Suggestions (Tags, Includes, etc saved by the agency)
   customSettings?: {
     tags?: string[];
     included?: string[];
@@ -68,7 +70,7 @@ export interface Agency extends User {
 
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
-  subscriptionExpiresAt: string;
+  subscriptionExpiresAt: string; // ISO Date
   website?: string;
   phone?: string;
   address?: Address;
@@ -79,6 +81,7 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
+// Updated Category List based on requirements (Removed SOZINHO)
 export type TripCategory = 
   | 'PRAIA' 
   | 'AVENTURA' 
@@ -92,6 +95,7 @@ export type TripCategory =
   | 'VIAGEM_BARATA' 
   | 'ARTE';
 
+// New Traveler Type definition
 export type TravelerType = 
   | 'SOZINHO' 
   | 'CASAL' 
@@ -106,62 +110,11 @@ export interface ItineraryDay {
   description: string;
 }
 
-// --- OPERATIONAL TYPES ---
-
-export interface BoardingPoint {
-  id: string;
-  time: string;
-  location: string;
-  address?: string;
-}
-
-export interface ManualPassenger {
-  id: string;
-  name: string;
-  document?: string;
-  phone?: string;
-  email?: string;
-  notes?: string;
-}
-
-export interface PassengerSeat {
-  seatNumber: string; 
-  passengerName: string;
-  bookingId: string;
-  status: 'occupied' | 'blocked' | 'available';
-  gender?: 'M' | 'F' | 'OTHER';
-}
-
-export interface TransportConfig {
-  type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'CUSTOM'; 
-  totalSeats: number;
-  seats: PassengerSeat[]; 
-}
-
-export interface RoomConfig {
-  id: string;
-  name: string; 
-  type: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
-  capacity: number;
-  guests: { 
-      name: string; 
-      bookingId: string;
-      avatar?: string;
-  }[];
-}
-
-export interface OperationalData {
-  transport?: TransportConfig;
-  rooming?: RoomConfig[];
-  manualPassengers?: ManualPassenger[];
-  notes?: string;
-}
-
 export interface Trip {
   id: string;
   agencyId: string;
   title: string;
-  slug: string;
+  slug: string; // SEO friendly URL
   description: string;
   destination: string;
   price: number;
@@ -170,68 +123,70 @@ export interface Trip {
   durationDays: number;
   images: string[];
   
+  // New Fields
   category: TripCategory;
-  tags: string[];
-  travelerTypes: TravelerType[];
+  tags: string[]; // E.g., 'História', 'Trilhas', 'Ideal para viajar sozinho'
+  travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
   
+  // Richer content
   itinerary?: ItineraryDay[];
-  boardingPoints?: BoardingPoint[];
-  paymentMethods?: string[];
+  paymentMethods?: string[]; // New field for accepted payment methods
 
-  is_active: boolean;
-  tripRating?: number; // CORRECTED
-  tripTotalReviews?: number; // CORRECTED
+  is_active: boolean; // Controlled by agency
+  rating?: number; // Made optional
+  totalReviews?: number; // Made optional
   included: string[];
   notIncluded?: string[];
-  views?: number;
-  sales?: number;
+  views?: number; // For stats
+  sales?: number; // For stats
   
-  featured?: boolean;
-  featuredInHero?: boolean;
+  // Featured Flags
+  featured?: boolean; // Global feature
+  featuredInHero?: boolean; // Agency Microsite Hero feature
   popularNearSP?: boolean;
-
-  operationalData?: OperationalData;
 }
 
 export interface Booking {
   id: string;
   tripId: string;
   clientId: string;
-  date: string;
+  date: string; // Booking date
   status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
   totalPrice: number;
   passengers: number;
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   _trip?: Trip; 
-  _agency?: Agency;
+  _agency?: Agency; // Expanded agency data
 }
 
+// Legacy Trip Review (Deprecated - Use AgencyReview)
 export interface Review {
   id: string;
   tripId: string;
   clientId: string;
-  rating: number;
+  rating: number; // 1-5
   comment: string;
   date: string;
   clientName: string;
-  response?: string;
+  response?: string; // Agency response
 }
 
+// New Agency Review Table
 export interface AgencyReview {
   id: string;
   agencyId: string;
   clientId: string;
   bookingId?: string;
   trip_id?: string;
-  rating: number;
+  rating: number; // 1-5
   comment: string;
   tags?: string[];
   createdAt: string;
-  clientName?: string;
-  clientAvatar?: string;
-  agencyName?: string;
-  agencyLogo?: string;
+  clientName?: string; // Joined
+  clientAvatar?: string; // Added for display
+  agencyName?: string; // Joined for client view
+  agencyLogo?: string; // Joined for client view
   response?: string;
   tripTitle?: string;
 }
@@ -243,9 +198,11 @@ export interface Plan {
   features: string[];
 }
 
+// --- NEW MASTER ADMIN TYPES ---
+
 export interface ThemeColors {
-  primary: string;
-  secondary: string;
+  primary: string; // Hex Code
+  secondary: string; // Hex Code
   background: string;
   text: string;
 }
@@ -267,7 +224,7 @@ export interface AgencyTheme {
 export interface AuditLog {
   id: string;
   adminEmail: string;
-  action: string;
+  action: string; // 'DELETE_USER', 'CHANGE_THEME', etc.
   details: string;
   createdAt: string;
 }
@@ -280,6 +237,7 @@ export interface UserStats {
   totalReviews: number;
 }
 
+// Fix: Add averageRating and totalReviews to DashboardStats
 export interface DashboardStats {
   totalRevenue: number;
   totalViews: number;
@@ -287,47 +245,4 @@ export interface DashboardStats {
   conversionRate: number;
   averageRating?: number;
   totalReviews?: number;
-}
-
-export type ActivityActorRole = 'CLIENT' | 'AGENCY' | 'ADMIN';
-export type ActivityActionType =
-  | 'TRIP_VIEWED'
-  | 'BOOKING_CREATED'
-  | 'BOOKING_CANCELLED'
-  | 'REVIEW_SUBMITTED'
-  | 'REVIEW_UPDATED'
-  | 'REVIEW_DELETED'
-  | 'FAVORITE_TOGGLED'
-  | 'TRIP_CREATED'
-  | 'TRIP_UPDATED'
-  | 'TRIP_DELETED'
-  | 'TRIP_STATUS_TOGGLED'
-  | 'TRIP_FEATURE_TOGGLED'
-  | 'AGENCY_PROFILE_UPDATED'
-  | 'AGENCY_STATUS_TOGGLED'
-  | 'AGENCY_SUBSCRIPTION_UPDATED'
-  | 'CLIENT_PROFILE_UPDATED'
-  | 'PASSWORD_RESET_INITIATED'
-  | 'ACCOUNT_DELETED'
-  | 'ADMIN_USER_MANAGED'
-  | 'ADMIN_AGENCY_MANAGED'
-  | 'ADMIN_THEME_MANAGED'
-  | 'ADMIN_MOCK_DATA_MIGRATED'
-  | 'ADMIN_ACTION'
-  | 'TRIP_OPERATIONAL_UPDATE';
-
-export interface ActivityLog {
-  id: string;
-  user_id: string | null;
-  agency_id: string | null;
-  actor_email: string;
-  actor_role: ActivityActorRole;
-  action_type: ActivityActionType;
-  details: any;
-  created_at: string;
-  user_name?: string;
-  user_avatar?: string;
-  agency_name?: string;
-  agency_logo?: string;
-  trip_title?: string;
 }

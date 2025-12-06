@@ -37,8 +37,7 @@ const App: React.FC = () => {
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
-                  {/* Fix: Corrected invalid string element to be a valid JSX element */}
-                  <Route path="contact" element={<Contact />} />
+                  <Route path="contact" element="<Contact />" />
                   <Route path="terms" element={<Terms />} />
                   <Route path="privacy" element={<Privacy />} />
                   <Route path="help" element={<Help />} />

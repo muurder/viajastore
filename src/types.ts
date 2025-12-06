@@ -26,18 +26,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string;
+  password?: string; // Changed for auth simulation from `string` to `string | undefined`
   role: UserRole;
   avatar?: string;
   createdAt?: string;
-  deleted_at?: string;
+  deleted_at?: string; // For soft delete
 }
 
 export interface Client extends User {
   role: UserRole.CLIENT;
   cpf?: string;
   phone?: string;
-  favorites: string[];
+  favorites: string[]; // Trip IDs
   notificationsEnabled?: boolean;
   address?: Address;
   status?: 'ACTIVE' | 'SUSPENDED';
@@ -46,19 +46,22 @@ export interface Client extends User {
 
 export interface Agency extends User {
   role: UserRole.AGENCY;
-  agencyId: string;
-  slug: string;
-  whatsapp?: string;
+  agencyId: string; // The primary key of the 'agencies' table
+  slug: string; // New field for multi-tenant URL
+  whatsapp?: string; // New field for contact
+  // Fix: Make cnpj optional as it's not collected during initial registration
   cnpj?: string; 
   description: string;
   logo: string;
   is_active?: boolean;
   
+  // Hero / Microsite Config
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;
   heroSubtitle?: string;
 
+  // Custom Suggestions (Tags, Includes, etc saved by the agency)
   customSettings?: {
     tags?: string[];
     included?: string[];
@@ -68,7 +71,7 @@ export interface Agency extends User {
 
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
-  subscriptionExpiresAt: string;
+  subscriptionExpiresAt: string; // ISO Date
   website?: string;
   phone?: string;
   address?: Address;
@@ -79,6 +82,7 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
+// Updated Category List based on requirements (Removed SOZINHO)
 export type TripCategory = 
   | 'PRAIA' 
   | 'AVENTURA' 
@@ -92,6 +96,7 @@ export type TripCategory =
   | 'VIAGEM_BARATA' 
   | 'ARTE';
 
+// New Traveler Type definition
 export type TravelerType = 
   | 'SOZINHO' 
   | 'CASAL' 
@@ -118,23 +123,24 @@ export interface BoardingPoint {
 export interface ManualPassenger {
   id: string;
   name: string;
-  document?: string;
+  document?: string; // CPF or RG
   phone?: string;
   email?: string;
   notes?: string;
 }
 
+// Updated definitions for Transport
 export interface PassengerSeat {
   seatNumber: string; 
   passengerName: string;
-  bookingId: string;
+  bookingId: string; // Can be a booking ID or 'manual-{id}'
   status: 'occupied' | 'blocked' | 'available';
   gender?: 'M' | 'F' | 'OTHER';
 }
 
 export interface TransportConfig {
   type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'CUSTOM'; 
-  totalSeats: number;
+  totalSeats: number; // Editable
   seats: PassengerSeat[]; 
 }
 
@@ -161,7 +167,7 @@ export interface Trip {
   id: string;
   agencyId: string;
   title: string;
-  slug: string;
+  slug: string; // SEO friendly URL
   description: string;
   destination: string;
   price: number;
@@ -170,24 +176,27 @@ export interface Trip {
   durationDays: number;
   images: string[];
   
+  // New Fields
   category: TripCategory;
-  tags: string[];
-  travelerTypes: TravelerType[];
+  tags: string[]; // E.g., 'História', 'Trilhas', 'Ideal para viajar sozinho'
+  travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
   
+  // Richer content
   itinerary?: ItineraryDay[];
   boardingPoints?: BoardingPoint[];
-  paymentMethods?: string[];
+  paymentMethods?: string[]; // New field for accepted payment methods
 
-  is_active: boolean;
-  tripRating?: number; // CORRECTED FROM 'rating'
-  tripTotalReviews?: number; // CORRECTED FROM 'totalReviews'
+  is_active: boolean; // Controlled by agency
+  tripRating?: number; // Made optional
+  tripTotalReviews?: number; // Made optional
   included: string[];
   notIncluded?: string[];
-  views?: number;
-  sales?: number;
+  views?: number; // For stats
+  sales?: number; // For stats
   
-  featured?: boolean;
-  featuredInHero?: boolean;
+  // Featured Flags
+  featured?: boolean; // Global feature
+  featuredInHero?: boolean; // Agency Microsite Hero feature
   popularNearSP?: boolean;
 
   operationalData?: OperationalData;
@@ -197,41 +206,43 @@ export interface Booking {
   id: string;
   tripId: string;
   clientId: string;
-  date: string;
+  date: string; // Booking date
   status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
   totalPrice: number;
   passengers: number;
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   _trip?: Trip; 
-  _agency?: Agency;
+  _agency?: Agency; // Expanded agency data
 }
 
+// Legacy Trip Review (Deprecated - Use AgencyReview)
 export interface Review {
   id: string;
   tripId: string;
   clientId: string;
-  rating: number;
+  rating: number; // 1-5
   comment: string;
   date: string;
   clientName: string;
-  response?: string;
+  response?: string; // Agency response
 }
 
+// New Agency Review Table
 export interface AgencyReview {
   id: string;
   agencyId: string;
   clientId: string;
   bookingId?: string;
   trip_id?: string;
-  rating: number;
+  rating: number; // 1-5
   comment: string;
   tags?: string[];
   createdAt: string;
-  clientName?: string;
-  clientAvatar?: string;
-  agencyName?: string;
-  agencyLogo?: string;
+  clientName?: string; // Joined
+  clientAvatar?: string; // Added for display
+  agencyName?: string; // Joined for client view
+  agencyLogo?: string; // Joined for client view
   response?: string;
   tripTitle?: string;
 }
@@ -243,9 +254,11 @@ export interface Plan {
   features: string[];
 }
 
+// --- NEW MASTER ADMIN TYPES ---
+
 export interface ThemeColors {
-  primary: string;
-  secondary: string;
+  primary: string; // Hex Code
+  secondary: string; // Hex Code
   background: string;
   text: string;
 }
@@ -267,7 +280,7 @@ export interface AgencyTheme {
 export interface AuditLog {
   id: string;
   adminEmail: string;
-  action: string;
+  action: string; // 'DELETE_USER', 'CHANGE_THEME', etc.
   details: string;
   createdAt: string;
 }
@@ -280,6 +293,7 @@ export interface UserStats {
   totalReviews: number;
 }
 
+// Fix: Add averageRating and totalReviews to DashboardStats
 export interface DashboardStats {
   totalRevenue: number;
   totalViews: number;
