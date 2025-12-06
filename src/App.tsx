@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -10,11 +11,10 @@ import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
-// Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
 import AgencyDashboard from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
-import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import ClientDashboard from './pages/ClientDashboard';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 
@@ -33,7 +33,7 @@ const App: React.FC = () => {
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
-                  <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
+                  <Route path="agency/:id" element={<AgencyProfile />} />
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />

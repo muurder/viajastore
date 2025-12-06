@@ -26,18 +26,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Changed for auth simulation from `string` to `string | undefined`
+  password?: string;
   role: UserRole;
   avatar?: string;
   createdAt?: string;
-  deleted_at?: string; // For soft delete
+  deleted_at?: string;
 }
 
 export interface Client extends User {
   role: UserRole.CLIENT;
   cpf?: string;
   phone?: string;
-  favorites: string[]; // Trip IDs
+  favorites: string[];
   notificationsEnabled?: boolean;
   address?: Address;
   status?: 'ACTIVE' | 'SUSPENDED';
@@ -46,22 +46,19 @@ export interface Client extends User {
 
 export interface Agency extends User {
   role: UserRole.AGENCY;
-  agencyId: string; // The primary key of the 'agencies' table
-  slug: string; // New field for multi-tenant URL
-  whatsapp?: string; // New field for contact
-  // Fix: Make cnpj optional as it's not collected during initial registration
+  agencyId: string;
+  slug: string;
+  whatsapp?: string;
   cnpj?: string; 
   description: string;
   logo: string;
   is_active?: boolean;
   
-  // Hero / Microsite Config
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;
   heroSubtitle?: string;
 
-  // Custom Suggestions (Tags, Includes, etc saved by the agency)
   customSettings?: {
     tags?: string[];
     included?: string[];
@@ -71,7 +68,7 @@ export interface Agency extends User {
 
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
-  subscriptionExpiresAt: string; // ISO Date
+  subscriptionExpiresAt: string;
   website?: string;
   phone?: string;
   address?: Address;
@@ -83,10 +80,25 @@ export interface Admin extends User {
 }
 
 export type TripCategory = 
-  | 'PRAIA' | 'AVENTURA' | 'FAMILIA' | 'ROMANTICO' | 'URBANO' | 'NATUREZA' | 'CULTURA' | 'GASTRONOMICO' | 'VIDA_NOTURNA' | 'VIAGEM_BARATA' | 'ARTE';
+  | 'PRAIA' 
+  | 'AVENTURA' 
+  | 'FAMILIA' 
+  | 'ROMANTICO' 
+  | 'URBANO' 
+  | 'NATUREZA' 
+  | 'CULTURA' 
+  | 'GASTRONOMICO' 
+  | 'VIDA_NOTURNA' 
+  | 'VIAGEM_BARATA' 
+  | 'ARTE';
 
 export type TravelerType = 
-  | 'SOZINHO' | 'CASAL' | 'FAMILIA' | 'AMIGOS' | 'MOCHILAO' | 'MELHOR_IDADE';
+  | 'SOZINHO' 
+  | 'CASAL' 
+  | 'FAMILIA' 
+  | 'AMIGOS' 
+  | 'MOCHILAO' 
+  | 'MELHOR_IDADE';
 
 export interface ItineraryDay {
   day: number;
@@ -106,24 +118,23 @@ export interface BoardingPoint {
 export interface ManualPassenger {
   id: string;
   name: string;
-  document?: string; // CPF or RG
+  document?: string;
   phone?: string;
   email?: string;
   notes?: string;
 }
 
-// Updated definitions for Transport
 export interface PassengerSeat {
   seatNumber: string; 
   passengerName: string;
-  bookingId: string; // Can be a booking ID or 'manual-{id}'
+  bookingId: string;
   status: 'occupied' | 'blocked' | 'available';
   gender?: 'M' | 'F' | 'OTHER';
 }
 
 export interface TransportConfig {
   type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'CUSTOM'; 
-  totalSeats: number; // Editable
+  totalSeats: number;
   seats: PassengerSeat[]; 
 }
 
@@ -158,22 +169,27 @@ export interface Trip {
   endDate: string;
   durationDays: number;
   images: string[];
+  
   category: TripCategory;
   tags: string[];
   travelerTypes: TravelerType[];
+  
   itinerary?: ItineraryDay[];
   boardingPoints?: BoardingPoint[];
   paymentMethods?: string[];
+
   is_active: boolean;
-  tripRating?: number;
-  tripTotalReviews?: number;
+  tripRating?: number; // CORRECTED FROM 'rating'
+  tripTotalReviews?: number; // CORRECTED FROM 'totalReviews'
   included: string[];
   notIncluded?: string[];
   views?: number;
   sales?: number;
+  
   featured?: boolean;
   featuredInHero?: boolean;
   popularNearSP?: boolean;
+
   operationalData?: OperationalData;
 }
 

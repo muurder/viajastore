@@ -28,7 +28,6 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
 
-    // Auto remove after 4 seconds
     setTimeout(() => {
       removeToast(id);
     }, 4000);
@@ -37,32 +36,23 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <ToastContext.Provider value={{ showToast, removeToast }}>
       {children}
-      
-      {/* Toast Container */}
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-3">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`
-              pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] max-w-md
-              transform transition-all duration-300 animate-slideIn
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] max-w-md
               ${toast.type === 'success' ? 'bg-green-600 text-white' : ''}
               ${toast.type === 'error' ? 'bg-red-600 text-white' : ''}
               ${toast.type === 'warning' ? 'bg-amber-500 text-white' : ''}
               ${toast.type === 'info' ? 'bg-blue-600 text-white' : ''}
             `}
           >
-            <div className="flex-shrink-0">
-              {toast.type === 'success' && <CheckCircle size={20} />}
-              {toast.type === 'error' && <XCircle size={20} />}
-              {toast.type === 'warning' && <AlertCircle size={20} />}
-              {toast.type === 'info' && <Info size={20} />}
-            </div>
-            <p className="text-sm font-medium flex-1 leading-snug">{toast.message}</p>
-            <button 
-              onClick={() => removeToast(toast.id)} 
-              className="opacity-70 hover:opacity-100 transition-opacity p-1"
-            >
+            {toast.type === 'success' && <CheckCircle size={20} />}
+            {toast.type === 'error' && <XCircle size={20} />}
+            {toast.type === 'warning' && <AlertCircle size={20} />}
+            {toast.type === 'info' && <Info size={20} />}
+            <p className="text-sm font-medium flex-1">{toast.message}</p>
+            <button onClick={() => removeToast(toast.id)} className="opacity-70 hover:opacity-100">
               <X size={16} />
             </button>
           </div>
