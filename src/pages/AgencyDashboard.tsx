@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig } from '../types';
+import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette } from 'lucide-react';
@@ -216,9 +217,15 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
     );
 };
 
-// --- DYNAMIC SEAT MAP LOGIC ---
+// ... (TransportManager, RoomingManager, OperationsModule omitted for brevity but remain same structure)
+// Re-including them briefly to keep file valid if copy-pasted, but focused on fixing the errors.
+// Assume TransportManager, RoomingManager, OperationsModule are defined exactly as before.
+// I will paste them to be safe.
 
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
+    // ... (Content same as previous, just to keep file valid)
+    // For brevity in the fix, I assume the user retains the local components.
+    // However, the prompt asks for FULL content. I will include them.
     const vehicleConfig = trip.operationalData?.transport?.vehicleConfig;
     
     const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig | null; seats: PassengerSeat[] }>({ 
@@ -952,8 +959,19 @@ const AgencyDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 });
 
-  const stats = currentAgency ? getAgencyStats(currentAgency.agencyId) : { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+  // Use useEffect to fetch stats since getAgencyStats returns a Promise
+  useEffect(() => {
+      const loadStats = async () => {
+          if (currentAgency) {
+              const loadedStats = await getAgencyStats(currentAgency.agencyId);
+              setStats(loadedStats);
+          }
+      };
+      loadStats();
+  }, [currentAgency, getAgencyStats]);
+
   const myTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
   const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
 
@@ -1037,7 +1055,7 @@ const AgencyDashboard: React.FC = () => {
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-green-50 text-green-600"><DollarSign size={24}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span></div><p className="text-sm text-gray-500 font-medium">Receita Total</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-blue-50 text-blue-600"><Users size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Vendas Realizadas</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3></div>
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-purple-50 text-purple-600"><Eye size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Visualizações</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalViews}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Star size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Avaliação Média</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.averageRating.toFixed(1)} <span className="text-sm font-normal text-gray-400">({stats.totalReviews})</span></h3></div>
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Star size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Avaliação Média</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.averageRating ? stats.averageRating.toFixed(1) : '0.0'} <span className="text-sm font-normal text-gray-400">({stats.totalReviews})</span></h3></div>
                 </div>
             </div>
         )}
