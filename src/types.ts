@@ -138,9 +138,20 @@ export interface PassengerSeat {
   gender?: 'M' | 'F' | 'OTHER';
 }
 
+// NEW: Vehicle Layout Configuration
+export type VehicleType = 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'DD_60';
+
+export interface VehicleLayoutConfig {
+  type: VehicleType;
+  label: string;
+  totalSeats: number;
+  cols: number; // e.g. 4 for bus (2+2), 3 for van (1+2)
+  aisleAfterCol: number; // e.g. 2 for bus (after 2nd seat), 1 for van
+  lowerDeckSeats?: number; // For Double Decker
+}
+
 export interface TransportConfig {
-  type: 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'CUSTOM'; 
-  totalSeats: number; // Editable
+  vehicleConfig: VehicleLayoutConfig; 
   seats: PassengerSeat[]; 
 }
 
@@ -200,6 +211,9 @@ export interface Trip {
   popularNearSP?: boolean;
 
   operationalData?: OperationalData;
+  
+  // Computed on frontend for UI
+  occupancyRate?: number;
 }
 
 export interface Booking {

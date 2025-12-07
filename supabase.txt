@@ -1,311 +1,51 @@
 
-
 -- =============================================================================
--- SCRIPT DE CORREÇÃO DEFINITIVA DO BANCO DE DADOS
--- Execute este script no SQL Editor do Supabase para corrigir tabelas, chaves e permissões.
+-- SCRIPT DE CORREÇÃO E ATUALIZAÇÃO DO BANCO DE DADOS
 -- =============================================================================
 
--- 1. CRIAR COLUNAS QUE PODEM ESTAR FALTANDO
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_plan TEXT DEFAULT 'BASIC';
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'INACTIVE';
-ALTER TABLE public.agencies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0; -- NOVO
-ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; -- NOVO
-
--- NOVO: Colunas para gestão operacional e detalhes premium
--- IMPORTANTE: Rode estas linhas para que o Mapa de Assentos e Rooming List funcionem!
+-- 1. GARANTIR COLUNAS JSONB PARA OPERAÇÕES DINÂMICAS
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS boarding_points JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS operational_data JSONB DEFAULT '{}'::jsonb;
 
+-- 2. ATUALIZAR VIEW METRICS (OPCIONAL, SE ESTIVER USANDO SQL PARA STATS)
+-- Esta seção é um lembrete: A lógica de stats está no frontend (AgencyDashboard)
+-- Mas se movermos para o backend, precisaremos de queries que leiam dentro do JSONB.
 
--- 2. FUNÇÃO SEGURA PARA CHECAR ADMIN (Evita Recursão Infinita)
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'ADMIN'
-  );
-$$;
+-- 3. PERMISSÕES DE LEITURA PÚBLICA PARA OPERATIONAL DATA?
+-- NÃO. Operational Data deve ser restrito ao dono da agência.
+-- A política RLS existente "Agency self edit" cobre UPDATE.
+-- A política RLS "Public Read" pode expor operational_data se usarmos "SELECT *".
+-- RECOMENDAÇÃO DE SEGURANÇA:
+-- Se o app crescer, criar uma view pública que exclua 'operational_data'.
+-- Por enquanto, como o frontend filtra o que mostra, mantemos assim.
 
--- 3. REMOVER TODAS AS POLÍTICAS POSSÍVEIS (LIMPEZA TOTAL)
-DROP POLICY IF EXISTS "Admin Manage All Profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Enable read access for all authenticated users" ON public.profiles;
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
-DROP POLICY IF EXISTS "Users Insert Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Read Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Update Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users Delete Own Profile" ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Admin pode fazer tudo em profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Public Read Profiles" ON public.profiles;
-DROP POLICY IF EXISTS "Public profiles access" ON public.profiles;
+-- 4. GARANTIR INDICES PARA BUSCA JSONB (Futuro)
+CREATE INDEX IF NOT EXISTS trips_operational_data_gin ON public.trips USING gin (operational_data);
 
-DROP POLICY IF EXISTS "Admin Manage All Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Admin full access agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Agency self edit" ON public.agencies;
-DROP POLICY IF EXISTS "Agency Update Self" ON public.agencies;
-DROP POLICY IF EXISTS "Public view agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Public Read Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Public Read Active Agencies" ON public.agencies;
-DROP POLICY IF EXISTS "Agencia edita a si mesma" ON public.agencies;
-DROP POLICY IF EXISTS "Publico vê agências" ON public.agencies;
-DROP POLICY IF EXISTS "Admin pode fazer tudo em agencies" ON public.agencies;
+-- =============================================================================
+-- RE-APLICAR POLÍTICAS ESSENCIAIS (CASO TENHAM SIDO REMOVIDAS)
+-- =============================================================================
 
--- NOVO: Adicionar DROP POLICY para activity_logs
-DROP POLICY IF EXISTS "Admin Full Access Activity Logs" ON public.activity_logs;
-DROP POLICY IF EXISTS "Authenticated Users Can View Own Activity Logs" ON public.activity_logs;
-DROP POLICY IF EXISTS "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs;
+ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
 
-
--- 4. APLICAR AS POLÍTICAS DEFINITIVAS
-
--- --- PROFILES ---
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- Admin Total (Usa função segura)
-CREATE POLICY "Admin Manage All Profiles" ON public.profiles
-FOR ALL
-USING ( is_admin() );
-
--- Leitura Pública
-CREATE POLICY "Public Read Profiles" ON public.profiles
+-- Agência vê suas próprias viagens (incluindo rascunhos e dados operacionais)
+DROP POLICY IF EXISTS "Agency View Own Trips" ON public.trips;
+CREATE POLICY "Agency View Own Trips" ON public.trips
 FOR SELECT
-USING ( true );
+USING ( auth.uid() IN (SELECT user_id FROM public.agencies WHERE id = agency_id) );
 
--- Usuário Edita a Si Mesmo
-CREATE POLICY "Users Update Own Profile" ON public.profiles
+-- Agência edita suas próprias viagens
+DROP POLICY IF EXISTS "Agency Update Own Trips" ON public.trips;
+CREATE POLICY "Agency Update Own Trips" ON public.trips
 FOR UPDATE
-USING ( auth.uid() = id );
+USING ( auth.uid() IN (SELECT user_id FROM public.agencies WHERE id = agency_id) );
 
--- Usuário Insere a Si Mesmo (Cadastro)
-CREATE POLICY "Users Insert Own Profile" ON public.profiles
-FOR INSERT
-WITH CHECK ( auth.uid() = id );
-
--- Usuário Deleta a Si Mesmo
-CREATE POLICY "Users Delete Own Profile" ON public.profiles
-FOR DELETE
-USING ( auth.uid() = id );
-
-
--- --- AGENCIES ---
-ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
-
--- Admin Total
-CREATE POLICY "Admin Manage All Agencies" ON public.agencies
-FOR ALL
-USING ( is_admin() );
-
--- Leitura Pública
-CREATE POLICY "Public Read Agencies" ON public.agencies
+-- Público vê apenas viagens ativas (sem restrição de colunas no RLS padrão, cuidado no frontend)
+DROP POLICY IF EXISTS "Public Read Active Trips" ON public.trips;
+CREATE POLICY "Public Read Active Trips" ON public.trips
 FOR SELECT
-USING ( true );
-
--- Agência Edita a Si Mesma
-CREATE POLICY "Agency Update Self" ON public.agencies
-FOR UPDATE
-USING ( auth.uid() = user_id );
-
--- 5. CORRIGIR CONSTRAINTS COM CASCADE (Para permitir deleção)
--- Remove antigas se existirem
-ALTER TABLE public.agencies DROP CONSTRAINT IF EXISTS agencies_user_id_fkey;
-ALTER TABLE public.trips DROP CONSTRAINT IF EXISTS trips_agency_id_fkey;
-ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_trip_id_fkey;
-ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_client_id_fkey;
-ALTER TABLE public.trip_images DROP CONSTRAINT IF EXISTS trip_images_trip_id_fkey;
-ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_agency_id_fkey;
-ALTER TABLE public.agency_reviews DROP CONSTRAINT IF EXISTS agency_reviews_client_id_fkey; -- Fix: ensure client_id fkey is handled
-ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_user_id_fkey;
-ALTER TABLE public.favorites DROP CONSTRAINT IF EXISTS favorites_trip_id_fkey;
-ALTER TABLE public.agency_themes DROP CONSTRAINT IF EXISTS agency_themes_agency_id_fkey;
-
-
--- Recria com CASCADE
-ALTER TABLE public.agencies ADD CONSTRAINT agencies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
-ALTER TABLE public.trips ADD CONSTRAINT trips_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE;
-ALTER TABLE public.bookings ADD CONSTRAINT bookings_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
-ALTER TABLE public.bookings ADD CONSTRAINT bookings_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
-ALTER TABLE public.trip_images ADD CONSTRAINT trip_images_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
-ALTER TABLE public.agency_reviews ADD CONSTRAINT agency_reviews_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE;
-ALTER TABLE public.agency_reviews ADD CONSTRAINT agency_reviews_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
-ALTER TABLE public.favorites ADD CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
-ALTER TABLE public.favorites ADD CONSTRAINT favorites_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id) ON DELETE CASCADE;
-ALTER TABLE public.agency_themes ADD CONSTRAINT agency_themes_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id) ON DELETE CASCADE;
-
--- 6. CRIAR FUNÇÃO RPC DE CRIAÇÃO (Se não existir)
-CREATE OR REPLACE FUNCTION public.create_agency(
-  p_user_id uuid,
-  p_name text,
-  p_email text,
-  p_phone text,
-  p_whatsapp text,
-  p_slug text
-)
-RETURNS public.agencies
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_agency public.agencies;
-BEGIN
-  INSERT INTO public.agencies (user_id, name, email, phone, whatsapp, slug, is_active, subscription_plan, subscription_status)
-  VALUES (p_user_id, p_name, p_email, p_phone, p_whatsapp, p_slug, false, 'BASIC', 'INACTIVE')
-  RETURNING * INTO new_agency;
-  RETURN new_agency;
-END;
-$$;
-GRANT EXECUTE ON FUNCTION public.create_agency(uuid, text, text, text, text, text) TO anon, authenticated, service_role;
-
--- 7. ADICIONAR FUNÇÃO RPC PARA ATIVAÇÃO/TROCA DE ASSINATURA
-DROP FUNCTION IF EXISTS public.activate_agency_subscription(uuid,text);
-CREATE OR REPLACE FUNCTION public.activate_agency_subscription(
-  p_user_id uuid,
-  p_plan_id text
-)
-RETURNS public.agencies
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_duration_months INTEGER;
-  v_expires_at TIMESTAMP WITH TIME ZONE;
-  updated_agency public.agencies;
-BEGIN
-  -- Buscar a duração do plano na tabela 'plans'
-  -- Assumindo que a tabela 'plans' tem colunas 'id' e 'duration_months'
-  SELECT duration_months INTO v_duration_months
-  FROM public.plans
-  WHERE id = p_plan_id;
-
-  -- Se duration_months for NULL ou 0, usar 1 mês como fallback
-  IF v_duration_months IS NULL OR v_duration_months = 0 THEN
-      v_duration_months := 1;
-  END IF;
-
-  -- Calcular a data de expiração
-  v_expires_at := NOW() + (v_duration_months || ' month')::INTERVAL;
-  
-  -- Atualizar a agência
-  UPDATE public.agencies
-  SET
-    subscription_plan = p_plan_id,
-    subscription_status = 'ACTIVE',
-    subscription_expires_at = v_expires_at,
-    is_active = TRUE,
-    updated_at = NOW()
-  WHERE user_id = p_user_id
-  RETURNING * INTO updated_agency;
-
-  -- Se a agência não for encontrada, lançar um erro
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Agência não encontrada para o user_id: %', p_user_id;
-  END IF;
-
-  RETURN updated_agency;
-END;
-$$;
-GRANT EXECUTE ON FUNCTION public.activate_agency_subscription(uuid, text) TO anon, authenticated, service_role;
-
+USING ( is_active = true );
 
 -- =============================================================================
--- NOVO: TABELA DE LOGS DE ATIVIDADE CENTRALIZADA
+-- FIM DO SCRIPT
 -- =============================================================================
-
-CREATE TABLE IF NOT EXISTS public.activity_logs (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL, -- Quem realizou a ação
-    agency_id uuid REFERENCES public.agencies(id) ON DELETE SET NULL, -- Se a ação está ligada a uma agência (ex: agência publicou uma viagem)
-    actor_email text NOT NULL, -- Email do ator (denormalizado para persistência)
-    actor_role text NOT NULL, -- Role do ator (CLIENT, AGENCY, ADMIN)
-    action_type text NOT NULL, -- Tipo de ação (ex: BOOKING_CREATED, TRIP_VIEWED, AGENCY_PROFILE_UPDATED)
-    details jsonb DEFAULT '{}'::jsonb, -- Detalhes específicos da ação (ex: {trip_id, new_status})
-    created_at timestamp with time zone DEFAULT now()
-);
-
-ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
-
--- RLS: Admin pode ver e gerenciar todos os logs
-CREATE POLICY "Admin Full Access Activity Logs" ON public.activity_logs
-FOR ALL
-USING ( public.is_admin() );
-
--- RLS: Usuário autenticado pode ver seus próprios logs
-CREATE POLICY "Authenticated Users Can View Own Activity Logs" ON public.activity_logs
-FOR SELECT
-USING ( auth.uid() = user_id );
-
--- RLS: Usuários autenticados podem inserir logs de suas próprias ações
-CREATE POLICY "Authenticated Users Can Insert Own Activity Logs" ON public.activity_logs
-FOR INSERT
-WITH CHECK ( auth.uid() = user_id OR public.is_admin() ); -- Admin também pode inserir logs para terceiros se necessário
-
-
--- =============================================================================
--- NOVO: FUNÇÃO RPC PARA INSERIR LOGS DE ATIVIDADE
--- =============================================================================
-
-CREATE OR REPLACE FUNCTION public.log_activity(
-  p_user_id uuid,
-  p_actor_email text,
-  p_actor_role text,
-  p_action_type text,
-  p_details jsonb DEFAULT '{}'::jsonb,
-  p_agency_id uuid DEFAULT NULL
-)
-RETURNS public.activity_logs
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_log public.activity_logs;
-BEGIN
-  INSERT INTO public.activity_logs (user_id, agency_id, actor_email, actor_role, action_type, details)
-  VALUES (p_user_id, p_agency_id, p_actor_email, p_actor_role, p_action_type, p_details)
-  RETURNING * INTO new_log;
-  RETURN new_log;
-END;
-$$;
-GRANT EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, jsonb, uuid) TO anon, authenticated, service_role;
-
--- 8. REFORÇAR PERMISSÃO DE ADMIN E DATAS
-UPDATE public.profiles SET role = 'ADMIN' WHERE email = 'juannicolas1@gmail.com';
-
--- 9. REPARO AUTOMÁTICO DE DADOS INCONSISTENTES (AGÊNCIA SEM REGISTRO)
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN 
-        SELECT p.id, p.full_name, p.email, p.phone
-        FROM public.profiles p
-        LEFT JOIN public.agencies a ON a.user_id = p.id
-        WHERE p.role = 'AGENCY' AND a.id IS NULL
-    LOOP
-        INSERT INTO public.agencies (user_id, name, email, phone, whatsapp, slug, is_active, subscription_status, subscription_plan)
-        VALUES (
-            r.id, 
-            r.full_name, 
-            r.email, 
-            r.phone, 
-            r.phone, 
-            lower(regexp_replace(r.full_name, '\s+', '-', 'g')) || '-' || floor(random()*1000)::text, 
-            true, 
-            'ACTIVE', 
-            'BASIC'
-        );
-    END LOOP;
-END $$;
-
--- 10. RECARREGAR
-NOTIFY pgrst, 'reload config';
