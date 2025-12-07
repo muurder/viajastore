@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette, Filter, Search } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -941,6 +941,10 @@ const AgencyDashboard: React.FC = () => {
   const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
   const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>('GRID');
 
+  // FILTERS STATE
+  const [tripSearch, setTripSearch] = useState('');
+  const [tripStatusFilter, setTripStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DRAFT'>('ALL');
+
   const [tripForm, setTripForm] = useState<Partial<Trip>>({ 
       title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [],
       operationalData: DEFAULT_OPERATIONAL_DATA
@@ -955,7 +959,6 @@ const AgencyDashboard: React.FC = () => {
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
   const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 });
 
-  // Use useEffect to fetch stats since getAgencyStats returns a Promise
   useEffect(() => {
       const loadStats = async () => {
           if (currentAgency) {
@@ -966,8 +969,17 @@ const AgencyDashboard: React.FC = () => {
       loadStats();
   }, [currentAgency, getAgencyStats]);
 
-  const myTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
+  const rawTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
   const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
+
+  // Apply filters to trips
+  const myTrips = rawTrips.filter(trip => {
+      const matchesSearch = trip.title.toLowerCase().includes(tripSearch.toLowerCase()) || 
+                            trip.destination.toLowerCase().includes(tripSearch.toLowerCase());
+      const matchesStatus = tripStatusFilter === 'ALL' ? true : 
+                            tripStatusFilter === 'ACTIVE' ? trip.is_active : !trip.is_active;
+      return matchesSearch && matchesStatus;
+  });
 
   useEffect(() => { if (currentAgency) { setProfileForm({ name: currentAgency.name, description: currentAgency.description, whatsapp: currentAgency.whatsapp || '', phone: currentAgency.phone || '', website: currentAgency.website || '', address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, logo: currentAgency.logo }); setHeroForm({ heroMode: currentAgency.heroMode || 'TRIPS', heroBannerUrl: currentAgency.heroBannerUrl || '', heroTitle: currentAgency.heroTitle || '', heroSubtitle: currentAgency.heroSubtitle || '' }); } }, [currentAgency]);
   useEffect(() => { const fetchTheme = async () => { if (currentAgency) { const savedTheme = await getAgencyTheme(currentAgency.agencyId); if (savedTheme) { setThemeForm(savedTheme.colors); } } }; fetchTheme(); }, [currentAgency, getAgencyTheme]);
@@ -975,8 +987,6 @@ const AgencyDashboard: React.FC = () => {
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
   
   const handleEditTrip = (trip: Trip) => { 
-      // Set form state (useful if we need it for something else) but mainly set ID and flag
-      // The CreateTripWizard handles fetching/initialization based on initialTripData prop
       const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
       setTripForm({ ...trip, operationalData: opData }); 
       setEditingTripId(trip.id); 
@@ -991,10 +1001,6 @@ const AgencyDashboard: React.FC = () => {
   
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
   const confirmSubscription = async () => { if (!showConfirmSubscription) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
-
-  // This handleSaveTrip is for the OLD form, which we are replacing. 
-  // We can keep it or remove it, but the Wizard handles its own saving.
-  // We'll leave it but it won't be called by the Wizard directly (Wizard calls context methods).
 
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
@@ -1034,10 +1040,32 @@ const AgencyDashboard: React.FC = () => {
              <div className="space-y-6">
                 {!isEditingTrip ? (
                     <>
-                        <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                Meus Pacotes <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{myTrips.length}</span>
-                            </h2>
+                        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex items-center gap-4 flex-1">
+                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 whitespace-nowrap">
+                                    Meus Pacotes <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{myTrips.length}</span>
+                                </h2>
+                                <div className="h-6 w-px bg-gray-200"></div>
+                                <div className="relative flex-1 max-w-sm">
+                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar pacote..." 
+                                        value={tripSearch}
+                                        onChange={e => setTripSearch(e.target.value)}
+                                        className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                                    />
+                                </div>
+                                <select 
+                                    value={tripStatusFilter}
+                                    onChange={e => setTripStatusFilter(e.target.value as any)}
+                                    className="border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white cursor-pointer"
+                                >
+                                    <option value="ALL">Todos os Status</option>
+                                    <option value="ACTIVE">Ativos</option>
+                                    <option value="DRAFT">Rascunhos</option>
+                                </select>
+                            </div>
                             <div className="flex items-center gap-3">
                                 <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                                     <button onClick={() => setTripViewMode('GRID')} className={`p-1.5 rounded-md transition-colors ${tripViewMode === 'GRID' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`} title="Grade"><LayoutGrid size={18}/></button>
@@ -1053,7 +1081,7 @@ const AgencyDashboard: React.FC = () => {
                                     }); 
                                     setEditingTripId(null);
                                     setIsEditingTrip(true); 
-                                }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all active:scale-95">
+                                }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all active:scale-95 whitespace-nowrap">
                                     <Plus size={18}/> Novo Pacote
                                 </button>
                             </div>
@@ -1089,7 +1117,6 @@ const AgencyDashboard: React.FC = () => {
                                                         <span className="flex items-center"><Calendar size={14} className="mr-1"/> {safeDate(trip.startDate)}</span>
                                                     </div>
                                                     
-                                                    {/* NEW ACTION BAR FOR GRID */}
                                                     <div className="mt-auto pt-4 border-t border-gray-100">
                                                         <div className="flex justify-between items-end mb-3">
                                                             <span className="font-bold text-primary-600 text-lg">R$ {trip.price.toLocaleString()}</span>
@@ -1160,7 +1187,6 @@ const AgencyDashboard: React.FC = () => {
                                                         </td>
                                                         <td className="px-6 py-4 font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
                                                         <td className="px-6 py-4 text-right">
-                                                            {/* NEW ACTION BAR FOR TABLE */}
                                                             <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <button title="Gerenciar" onClick={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} className="p-1.5 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded mr-2"><Bus size={16}/></button>
                                                                 <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"><Eye size={16}/></button>
@@ -1183,8 +1209,8 @@ const AgencyDashboard: React.FC = () => {
                         ) : ( 
                             <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
                                 <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400"><Plane size={32}/></div>
-                                <h3 className="font-bold text-gray-900 text-lg">Nenhum pacote criado</h3>
-                                <p className="text-gray-500 mb-6">Comece a vender criando seu primeiro roteiro.</p>
+                                <h3 className="font-bold text-gray-900 text-lg">Nenhum pacote encontrado</h3>
+                                <p className="text-gray-500 mb-6">Tente ajustar os filtros ou crie um novo pacote.</p>
                                 <button onClick={() => setIsEditingTrip(true)} className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700">Criar Pacote</button>
                             </div> 
                         )}
@@ -1236,7 +1262,7 @@ const AgencyDashboard: React.FC = () => {
                                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{client?.name?.charAt(0)}</div>
                                          {client?.name}
                                      </td>
-                                     <td className="px-6 py-4 text-gray-600">{new Date(booking.date).toLocaleDateString()}</td>
+                                     <td className="px-6 py-4 text-gray-600">{new Date(booking.date).toLocaleDateString()}</p></td>
                                      <td className="px-6 py-4">
                                          <span className={`px-2 py-1 rounded text-xs font-bold ${booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status}</span>
                                      </td>
