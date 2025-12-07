@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
@@ -183,6 +182,7 @@ export const TripList: React.FC = () => {
         case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
         case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
         case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
+        case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
         default: // RELEVANCE
            result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
     }
@@ -445,9 +445,10 @@ export const TripList: React.FC = () => {
             <select 
               value={sortParam} 
               onChange={(e) => updateUrl('sort', e.target.value)} 
-              className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500"
+              className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer font-medium text-gray-700"
             >
               <option value="RELEVANCE">Relevância</option>
+              <option value="DATE_ASC">Próximas Saídas</option>
               <option value="LOW_PRICE">Menor Preço</option>
               <option value="HIGH_PRICE">Maior Preço</option>
               <option value="RATING">Melhor Avaliação</option>

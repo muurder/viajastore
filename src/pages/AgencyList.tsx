@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
-import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { TripCategory } from '../types';
 
 const ITEMS_PER_PAGE = 9;
@@ -10,6 +10,7 @@ const AgencyList: React.FC = () => {
   const { agencies, getAgencyPublicTrips } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+  const [sortOption, setSortOption] = useState('RELEVANCE'); // RELEVANCE, RATING, TRIP_COUNT, NAME
   const [currentPage, setCurrentPage] = useState(1);
   
   // TRUST THE DB: We show what the database gives us.
@@ -46,26 +47,43 @@ const AgencyList: React.FC = () => {
   }, [enrichedAgencies]);
 
   // Filter Logic
-  const filteredAgencies = enrichedAgencies.filter(agency => {
-    const matchesSearch = agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          agency.description.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesSpecialty = selectedSpecialty 
-        ? agency.specialties.includes(selectedSpecialty as TripCategory)
-        : true;
+  const filteredAgencies = useMemo(() => {
+    return enrichedAgencies.filter(agency => {
+      const matchesSearch = agency.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            agency.description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesSpecialty = selectedSpecialty 
+          ? agency.specialties.includes(selectedSpecialty as TripCategory)
+          : true;
 
-    return matchesSearch && matchesSpecialty;
-  });
+      return matchesSearch && matchesSpecialty;
+    });
+  }, [enrichedAgencies, searchTerm, selectedSpecialty]);
+
+  // Sort Logic
+  const sortedAgencies = useMemo(() => {
+    const result = [...filteredAgencies];
+    switch (sortOption) {
+      case 'RATING':
+        return result.sort((a, b) => b.avgRating - a.avgRating);
+      case 'TRIP_COUNT':
+        return result.sort((a, b) => b.tripCount - a.tripCount);
+      case 'NAME':
+        return result.sort((a, b) => a.name.localeCompare(b.name));
+      default: // RELEVANCE (Uses existing order roughly or mostly trip count weight)
+        return result.sort((a, b) => b.tripCount - a.tripCount); 
+    }
+  }, [filteredAgencies, sortOption]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedSpecialty]);
+  }, [searchTerm, selectedSpecialty, sortOption]);
 
   // Pagination Logic
-  const totalPages = Math.ceil(filteredAgencies.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedAgencies.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedAgencies = filteredAgencies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const paginatedAgencies = sortedAgencies.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -85,15 +103,32 @@ const AgencyList: React.FC = () => {
                </p>
             </div>
             
-            <div className="w-full md:w-96 relative">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-               <input 
-                 type="text" 
-                 placeholder="Buscar agência pelo nome..." 
-                 className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all"
-                 value={searchTerm}
-                 onChange={(e) => setSearchTerm(e.target.value)}
-               />
+            <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3">
+               <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar agência..." 
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+               </div>
+               
+               {/* Sort Dropdown */}
+               <div className="relative w-full sm:w-48">
+                  <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm appearance-none cursor-pointer text-gray-700 font-medium text-sm"
+                  >
+                    <option value="RELEVANCE">Relevância</option>
+                    <option value="RATING">Melhor Avaliadas</option>
+                    <option value="TRIP_COUNT">Mais Viagens</option>
+                    <option value="NAME">Ordem Alfabética</option>
+                  </select>
+               </div>
             </div>
          </div>
       </div>
@@ -157,7 +192,7 @@ const AgencyList: React.FC = () => {
          {/* 3. Agency Grid */}
          <div className="flex-1">
             <div className="mb-4 text-sm text-gray-500 font-medium">
-               Mostrando <span className="text-gray-900 font-bold">{filteredAgencies.length}</span> agências
+               Mostrando <span className="text-gray-900 font-bold">{sortedAgencies.length}</span> agências
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -165,7 +200,7 @@ const AgencyList: React.FC = () => {
                   <Link 
                     key={agency.agencyId}
                     to={`/${agency.slug}`}
-                    className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col"
+                    className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col animate-[fadeIn_0.3s]"
                   >
                      <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-4">
@@ -176,7 +211,7 @@ const AgencyList: React.FC = () => {
                               </div>
                            </div>
                            <div>
-                              <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-primary-600 transition-colors">
+                              <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-primary-600 transition-colors line-clamp-1">
                                  {agency.name}
                               </h3>
                               <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -222,7 +257,7 @@ const AgencyList: React.FC = () => {
                ))}
             </div>
 
-            {filteredAgencies.length === 0 && (
+            {sortedAgencies.length === 0 && (
                <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
                   <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                      <Search className="text-gray-300" size={32} />
@@ -238,7 +273,7 @@ const AgencyList: React.FC = () => {
             )}
 
             {/* Pagination Controls */}
-            {filteredAgencies.length > ITEMS_PER_PAGE && (
+            {sortedAgencies.length > ITEMS_PER_PAGE && (
               <div className="mt-12 flex items-center justify-center gap-2">
                 <button 
                    onClick={() => handlePageChange(currentPage - 1)}
