@@ -425,16 +425,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
         if (user.role === UserRole.CLIENT) {
-            // Fetch bookings with trip and agency details
-            const { data: bookingsData } = await supabase
+            // Fetch bookings with trip and agency details using Deep Nesting
+            const { data: bookingsData, error: bookingsError } = await supabase
                 .from('bookings')
                 .select(`
                     *, 
-                    trips:trip_id(*), 
-                    agencies:agency_id(*)
+                    trips:trip_id ( *, agencies:agency_id(*) )
                 `)
                 .eq('client_id', user.id);
             
+            if (bookingsError) throw bookingsError;
+
             if (bookingsData) {
                 const mappedBookings: Booking[] = bookingsData.map((b:any) => ({
                     id: b.id,
@@ -447,7 +448,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     voucherCode: b.voucher_code,
                     paymentMethod: b.payment_method,
                     _trip: b.trips,
-                    _agency: b.agencies
+                    _agency: b.trips?.agencies // Access agency via trips
                 }));
                 setBookings(mappedBookings);
             }
@@ -457,7 +458,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         } else if (user.role === UserRole.AGENCY) {
              const agencyUser = user as Agency;
-             const { data: agencyBookings } = await supabase.from('bookings').select('*, trips:trip_id(*)').eq('agency_id', agencyUser.agencyId);
+             // Fetch bookings with trip and agency details using Deep Nesting for agency dashboard
+             const { data: agencyBookings, error: agencyBookingsError } = await supabase
+                .from('bookings')
+                .select(`
+                    *, 
+                    trips:trip_id ( *, agencies:agency_id(*) )
+                `)
+                .eq('agency_id', agencyUser.agencyId); // Ensure this matches the booking's agency_id
+
+             if (agencyBookingsError) throw agencyBookingsError;
+
              if (agencyBookings) {
                  const mappedBookings: Booking[] = agencyBookings.map((b:any) => ({
                     id: b.id,
@@ -469,14 +480,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     passengers: b.passengers,
                     voucherCode: b.voucher_code,
                     paymentMethod: b.payment_method,
-                    _trip: b.trips
+                    _trip: b.trips,
+                    _agency: b.trips?.agencies // Access agency via trips
                 }));
                 setBookings(mappedBookings);
              }
         }
         
     } catch (e) {
-        console.error(e);
+        console.error("Error fetching user data:", e);
+        showToast("Erro ao carregar seus dados. Tente atualizar a página.", 'error');
     }
   };
 
@@ -507,7 +520,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { totalRevenue, totalViews, totalSales, conversionRate: 2.5, averageRating: avgRating, totalReviews: reviews.length };
   };
 
-  // Implement other actions with empty/mock logic for now to satisfy interface
   const createTrip = async (trip: Trip) => { 
       const sb = guardSupabase();
       if (!sb) throw new Error("Offline");
