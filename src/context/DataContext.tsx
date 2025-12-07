@@ -89,7 +89,7 @@ interface DataContextType {
   updateUserAvatarByAdmin: (userId: string, file: File) => Promise<string | null>;
   
   // Helpers
-  getReviewsByTripId: (tripId: string) => Review[];
+  getReviewsByTripId: (tripId: string) => AgencyReview[];
   getReviewsByAgencyId: (agencyId: string) => AgencyReview[];
   getReviewsByClientId: (clientId: string) => AgencyReview[];
   getAgencyStats: (agencyId: string) => Promise<DashboardStats>;
