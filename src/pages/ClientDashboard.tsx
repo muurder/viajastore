@@ -1,10 +1,9 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { UserRole, Booking, Address, AgencyReview, Agency } from '../types';
+import { UserRole, Booking, Address, AgencyReview, Agency, Trip } from '../types';
 import { TripCard } from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
@@ -24,10 +23,23 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
   return `https://wa.me/${digits}?text=${encoded}`;
 };
 
+// Helper function for dynamic greetings
+const getRandomGreeting = (userName: string) => {
+  const greetings = [
+    `Pronto para decolar, ${userName}? 🚀`,
+    `O mundo te espera, ${userName}! 🌍`,
+    `Que bom ter você de volta, ${userName}! ✨`,
+    `Sua próxima aventura começa aqui, ${userName}! 🗺️`,
+    `Vamos planejar algo incrível, ${userName}? ✈️`,
+    `Novas memórias aguardam, ${userName}! 📸`,
+  ];
+  return greetings[Math.floor(Math.random() * greetings.length)];
+};
+
 
 const ClientDashboard: React.FC = () => {
-  const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading, reloadUser } = useAuth();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
@@ -37,7 +49,7 @@ const ClientDashboard: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false); // New state for profile saving
 
-  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', tags: [] as string[] });
   const [uploading, setUploading] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
   const navigate = useNavigate();
@@ -48,16 +60,16 @@ const ClientDashboard: React.FC = () => {
   const isMicrositeMode = !!agencySlug;
 
   const dataContextClient = clients.find(c => c.id === user?.id);
-  const currentClient = dataContextClient || (user as any);
+  const currentClient = dataContextClient || (user as any); // Use dataContextClient if available, otherwise fallback to basic user
 
   const [editForm, setEditForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
+    name: currentClient?.name || user?.name || '',
+    email: currentClient?.email || user?.email || '',
     phone: currentClient?.phone || '',
     cpf: currentClient?.cpf || ''
   });
 
-  const [addressForm, setAddressForm] = useState<Address>({
+  const [addressForm, setAddressForm] = useState<Address>(() => ({
      zipCode: currentClient?.address?.zipCode || '',
      street: currentClient?.address?.street || '',
      number: currentClient?.address?.number || '',
@@ -65,12 +77,39 @@ const ClientDashboard: React.FC = () => {
      district: currentClient?.address?.district || '',
      city: currentClient?.address?.city || '',
      state: currentClient?.address?.state || ''
-  });
+  }));
 
   const [passForm, setPassForm] = useState({
      newPassword: '',
      confirmPassword: ''
   });
+
+  const [greeting, setGreeting] = useState('');
+
+  // --- Data Reactivity Fix: Refresh data on mount/focus ---
+  const handleRefresh = useCallback(async () => {
+    // Only refresh if user is a client and not currently loading auth
+    if (!authLoading && user?.role === UserRole.CLIENT) {
+      await refreshAllData(); // Calls DataContext's refreshUserData
+      await reloadUser(); // Reload AuthContext's user to get latest favorites/profile
+    }
+  }, [authLoading, user, refreshAllData, reloadUser]);
+
+  useEffect(() => {
+    handleRefresh(); // Initial fetch
+
+    // Add event listener for window focus
+    window.addEventListener('focus', handleRefresh);
+    return () => window.removeEventListener('focus', handleRefresh);
+  }, [handleRefresh]);
+  // --- END Data Reactivity Fix ---
+
+  // Generate greeting on mount
+  useEffect(() => {
+    if (user?.name) {
+      setGreeting(getRandomGreeting(user.name.split(' ')[0]));
+    }
+  }, [user?.name]);
 
   useEffect(() => {
     if (!authLoading && user?.role === 'AGENCY' && !window.location.hash.includes('dashboard')) {
@@ -84,7 +123,7 @@ const ClientDashboard: React.FC = () => {
   
   useEffect(() => {
     if(editingReview) {
-      setReviewForm({ rating: editingReview.rating, comment: editingReview.comment });
+      setReviewForm({ rating: editingReview.rating, comment: editingReview.comment, tags: editingReview.tags || [] });
       setShowEditReviewModal(true);
     } else {
       setShowEditReviewModal(false);
@@ -110,11 +149,12 @@ const ClientDashboard: React.FC = () => {
     return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
   }
 
+  // Use up-to-date values from DataContext
   const myBookings = bookings.filter(b => b.clientId === user.id);
   const myReviews = getReviewsByClientId(user.id);
   
-  const favoriteIds = dataContextClient?.favorites || [];
-  const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: any) => t !== undefined);
+  const favoriteIds = currentClient?.favorites || [];
+  const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: Trip | undefined) => t !== undefined) as Trip[]; // Cast to Trip[]
 
   const handleLogout = async () => {
     await logout();
@@ -127,6 +167,9 @@ const ClientDashboard: React.FC = () => {
       const url = await uploadImage(e.target.files[0], 'avatars');
       if (url) {
           await updateUser({ avatar: url });
+          showToast('Foto de perfil atualizada!', 'success');
+      } else {
+        showToast('Erro ao fazer upload da foto.', 'error');
       }
       setUploading(false);
   };
@@ -146,14 +189,17 @@ const ClientDashboard: React.FC = () => {
         if (!data.erro) {
           setAddressForm(prev => ({
             ...prev,
-            street: data.logradouro,
-            district: data.bairro,
-            city: data.localidade,
-            state: data.uf
+            street: data.logradouro || '',
+            district: data.bairro || '',
+            city: data.localidade || '',
+            state: data.uf || ''
           }));
+        } else {
+            showToast('CEP não encontrado.', 'warning');
         }
       } catch (error) {
         console.error("Erro ao buscar CEP", error);
+        showToast('Erro ao buscar CEP. Verifique a conexão.', 'error');
       } finally {
         setLoadingCep(false);
       }
@@ -184,6 +230,10 @@ const ClientDashboard: React.FC = () => {
           showToast('As senhas não coincidem.', 'error');
           return;
       }
+      if (passForm.newPassword.length < 6) {
+          showToast('A senha deve ter no mínimo 6 caracteres.', 'error');
+          return;
+      }
       const res = await updatePassword(passForm.newPassword);
       if (res.success) {
           showToast('Senha alterada com sucesso!', 'success');
@@ -208,6 +258,7 @@ const ClientDashboard: React.FC = () => {
   const handleDeleteReview = async (id: string) => {
       if(window.confirm('Excluir sua avaliação?')) {
           await deleteAgencyReview(id);
+          showToast('Avaliação excluída!', 'success');
       }
   };
 
@@ -239,10 +290,8 @@ const ClientDashboard: React.FC = () => {
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
-        // Fix: Access trip.startDate directly, remove trip.start_date
         const dateStr = trip.startDate;
         addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        // Fix: Access trip.durationDays directly, remove trip.duration_days
         const duration = trip.durationDays;
         addField('Duração:', `${duration} Dias`);
         y += 5;
@@ -277,7 +326,10 @@ const ClientDashboard: React.FC = () => {
   const openWhatsApp = () => {
     if (!selectedBooking) return;
     const phone = selectedBooking._agency?.phone || selectedBooking._agency?.whatsapp;
-    if (!phone) return;
+    if (!phone) {
+        showToast('Nenhum contato de WhatsApp disponível para esta agência.', 'info');
+        return;
+    }
 
     const digits = phone.replace(/\D/g, '');
     const tripTitle = selectedBooking._trip?.title || 'minha viagem';
@@ -291,18 +343,20 @@ const ClientDashboard: React.FC = () => {
       setIsSubmitting(true);
       try {
           await addAgencyReview({
-              agencyId: selectedBooking._trip.agencyId || selectedBooking._trip.agency_id, 
+              agencyId: selectedBooking._trip?.agencyId || selectedBooking._trip?.agency_id, // Ensure agencyId is correctly accessed
               clientId: user.id,
               bookingId: selectedBooking.id,
               rating: reviewForm.rating,
-              comment: reviewForm.comment
+              comment: reviewForm.comment,
+              tags: reviewForm.tags
           });
           setShowReviewModal(false);
           setSelectedBooking(null);
-          setReviewForm({ rating: 5, comment: '' });
-          await refreshData();
+          setReviewForm({ rating: 5, comment: '', tags: [] });
+          showToast('Avaliação enviada com sucesso!', 'success');
       } catch (error) {
           console.error(error);
+          showToast('Erro ao enviar avaliação.', 'error');
       } finally {
           setIsSubmitting(false);
       }
@@ -316,12 +370,14 @@ const ClientDashboard: React.FC = () => {
         await updateAgencyReview(editingReview.id, {
             rating: reviewForm.rating,
             comment: reviewForm.comment,
+            tags: reviewForm.tags
         });
         setEditingReview(null);
-        setReviewForm({ rating: 5, comment: '' });
-        await refreshData();
+        setReviewForm({ rating: 5, comment: '', tags: [] });
+        showToast('Avaliação atualizada com sucesso!', 'success');
     } catch(err) {
         console.error(err);
+        showToast('Erro ao atualizar avaliação.', 'error');
     } finally {
         setIsSubmitting(false);
     }
@@ -330,24 +386,36 @@ const ClientDashboard: React.FC = () => {
   const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard/${tab}`;
   const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
 
+  // Helper for ReviewForm tags
+  const toggleReviewTag = (tag: string) => {
+    setReviewForm(prev => {
+      const newTags = prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag];
+      return { ...prev, tags: newTags };
+    });
+  };
+
+  const SUGGESTED_REVIEW_TAGS = ['Atendimento', 'Organização', 'Custo-benefício', 'Hospedagem', 'Passeios', 'Pontualidade'];
+
+
   return (
     <div className="max-w-6xl mx-auto py-6">
       {!isMicrositeMode && <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
+        {/* Left Sidebar */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center mb-6 relative group">
-             <div className="relative w-24 h-24 mx-auto mb-4">
-                 <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}`} alt={user.name} className="w-24 h-24 rounded-full border-4 border-primary-50 object-cover" />
-                 <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
+          <div className="bg-gradient-to-br from-primary-600 to-blue-400 p-6 rounded-2xl shadow-xl border border-primary-500 text-white text-center mb-6 relative">
+             <div className="relative w-24 h-24 mx-auto mb-4 border-4 border-white rounded-full bg-gray-200 shadow-lg">
+                 <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}`} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                 <label className="absolute bottom-0 right-0 bg-white text-primary-600 p-2 rounded-full cursor-pointer hover:bg-gray-100 shadow-md transition-transform hover:scale-110 border border-gray-200">
                      <Camera size={14} />
                      <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
                  </label>
                  {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-full"><div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>}
              </div>
-             <h2 className="text-xl font-bold text-gray-900 truncate">{user.name}</h2>
-             <p className="text-sm text-gray-500 truncate">{user.email}</p>
+             <h2 className="text-xl font-bold truncate">{user.name}</h2>
+             <p className="text-sm text-primary-100 font-light truncate">{greeting}</p> {/* Dynamic Greeting */}
           </div>
 
           <nav className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -357,20 +425,40 @@ const ClientDashboard: React.FC = () => {
           </nav>
         </div>
 
+        {/* Right Content Area */}
         <div className="lg:col-span-3">
            
            {activeTab === 'PROFILE' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
                <div className="flex justify-between items-center mb-6"> <h2 className="text-2xl font-bold text-gray-900">Resumo do Perfil</h2> <Link to={getNavLink('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</Link> </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome</label> <p className="text-gray-900 font-medium">{user.name}</p> </div>
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Email</label> <p className="text-gray-900 font-medium">{user.email}</p> </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Stat Card: Viagens */}
+                 <div className="bg-blue-50 p-6 rounded-2xl flex items-center gap-4 border border-blue-100 shadow-sm">
+                    <div className="bg-white p-3 rounded-full shadow-md text-blue-600"><Plane size={24} strokeWidth={1.5}/></div>
+                    <div>
+                        <p className="text-3xl font-extrabold text-gray-900">{myBookings.length}</p>
+                        <p className="text-xs text-gray-600 uppercase font-bold mt-0.5">Viagens Reservadas</p>
+                    </div>
+                 </div>
+                 {/* Stat Card: Favoritos */}
+                 <div className="bg-amber-50 p-6 rounded-2xl flex items-center gap-4 border border-amber-100 shadow-sm">
+                    <div className="bg-white p-3 rounded-full shadow-md text-amber-600"><Heart size={24} strokeWidth={1.5}/></div>
+                    <div>
+                        <p className="text-3xl font-extrabold text-gray-900">{favoriteTrips.length}</p>
+                        <p className="text-xs text-gray-600 uppercase font-bold mt-0.5">Viagens Favoritas</p>
+                    </div>
+                 </div>
+               </div>
+
+               {/* Profile Details */}
+               <div className="mt-10 pt-6 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome</label> <p className="text-gray-900 font-medium">{currentClient?.name || '---'}</p> </div>
+                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Email</label> <p className="text-gray-900 font-medium">{currentClient?.email || '---'}</p> </div>
                  <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">CPF</label> <p className="text-gray-900 font-medium">{currentClient?.cpf || '---'}</p> </div>
                  <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Telefone</label> <p className="text-gray-900 font-medium">{currentClient?.phone || '---'}</p> </div>
-               </div>
-               <div className="mt-10 grid grid-cols-3 gap-4">
-                    <div className="border border-gray-100 rounded-xl p-4 text-center"> <p className="text-3xl font-bold text-primary-600">{myBookings.length}</p> <p className="text-xs text-gray-500 uppercase font-bold mt-1">Viagens</p> </div>
-                    <div className="border border-gray-100 rounded-xl p-4 text-center"> <p className="text-3xl font-bold text-amber-500">{favoriteTrips.length}</p> <p className="text-xs text-gray-500 uppercase font-bold mt-1">Favoritos</p> </div>
+                 {currentClient?.address?.city && (
+                    <div className="bg-gray-50 p-4 rounded-xl md:col-span-2"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Endereço</label> <p className="text-gray-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p> </div>
+                 )}
                </div>
              </div>
            )}
@@ -433,7 +521,14 @@ const ClientDashboard: React.FC = () => {
                     );
                  })
                ) : (
-                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <ShoppingBag size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> </div>
+                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> 
+                    <Plane size={32} className="text-gray-300 mx-auto mb-4" /> 
+                    <h3 className="text-lg font-bold text-gray-900">Nenhuma viagem encontrada</h3> 
+                    <p className="text-gray-500 mt-1 mb-6">Parece que você ainda não tem nenhuma reserva ativa.</p> 
+                    <Link to={isMicrositeMode ? `/${agencySlug}/trips` : '/trips'} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
+                        <Compass size={16}/> Explorar Pacotes
+                    </Link>
+                 </div>
                )}
              </div>
            )}
@@ -461,7 +556,14 @@ const ClientDashboard: React.FC = () => {
                            ))}
                        </div>
                    ) : (
-                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Star size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3> <p className="text-gray-500 mt-1">Você ainda não avaliou nenhuma agência.</p> </div>
+                       <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> 
+                          <MessageCircle size={32} className="text-gray-300 mx-auto mb-4" /> 
+                          <h3 className="text-lg font-bold text-gray-900">Nenhuma avaliação</h3> 
+                          <p className="text-gray-500 mt-1 mb-6">Você ainda não avaliou nenhuma agência. Que tal contar sua experiência?</p> 
+                          <Link to={isMicrositeMode ? `/${agencySlug}/trips` : '/trips'} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
+                                <Compass size={16}/> Encontre sua próxima viagem
+                          </Link>
+                       </div>
                    )}
                </div>
            )}
@@ -469,7 +571,16 @@ const ClientDashboard: React.FC = () => {
            {activeTab === 'FAVORITES' && (
              <div className="animate-[fadeIn_0.3s]">
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
-               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> <Heart size={32} className="text-gray-300 mx-auto mb-4" /> <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3> <p className="text-gray-500 mt-2">Você ainda não favoritou nenhuma viagem.</p> </div> )}
+               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( 
+                <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> 
+                    <Heart size={32} className="text-gray-300 mx-auto mb-4" /> 
+                    <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3> 
+                    <p className="text-gray-500 mt-2 mb-6">Você ainda não favoritou nenhuma viagem. Clique no coração para adicionar!</p> 
+                    <Link to={isMicrositeMode ? `/${agencySlug}/trips` : '/trips'} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
+                        <Compass size={16}/> Explorar Pacotes
+                    </Link>
+                </div> 
+               )}
              </div>
            )}
 
@@ -522,7 +633,6 @@ const ClientDashboard: React.FC = () => {
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
             <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                {/* IMPROVED CLOSE BUTTON */}
                 <button
                     type="button"
                     onClick={() => setSelectedBooking(null)}
@@ -550,41 +660,49 @@ const ClientDashboard: React.FC = () => {
          </div>
       )}
 
-      {showReviewModal && selectedBooking && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }}>
+      {(showReviewModal && selectedBooking) || (showEditReviewModal && editingReview) ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setShowEditReviewModal(false); setSelectedBooking(null); setEditingReview(null); }}>
               <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                  <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-gray-900">Avaliar Agência</h3> <button onClick={() => { setShowReviewModal(false); setSelectedBooking(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> </div>
-                  <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      {selectedBooking._agency?.logo_url && ( <img src={selectedBooking._agency.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
-                      <div> <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> <p className="font-bold text-gray-900">{selectedBooking._agency?.name || 'Parceiro ViajaStore'}</p> </div>
+                  <div className="flex justify-between items-center mb-6"> 
+                      <h3 className="text-xl font-bold text-gray-900">{showEditReviewModal ? "Editar Avaliação" : "Avaliar Agência"}</h3> 
+                      <button onClick={() => { setShowReviewModal(false); setShowEditReviewModal(false); setSelectedBooking(null); setEditingReview(null); }} className="text-gray-400 hover:text-gray-600"><X size={20}/></button> 
                   </div>
-                  <form onSubmit={handleReviewSubmit}>
+                  <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      {(selectedBooking?._agency?.logo || editingReview?.agencyLogo) && ( <img src={selectedBooking?._agency?.logo || editingReview?.agencyLogo} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-200"/> )}
+                      <div> 
+                          <p className="text-xs text-gray-500 uppercase font-bold">Agência</p> 
+                          <p className="font-bold text-gray-900">{selectedBooking?._agency?.name || editingReview?.agencyName || 'Parceiro ViajaStore'}</p> 
+                      </div>
+                  </div>
+                  <form onSubmit={showEditReviewModal ? handleEditReviewSubmit : handleReviewSubmit}>
                       <div className="mb-6 text-center">
                           <label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label>
                           <div className="flex justify-center gap-2"> {[1, 2, 3, 4, 5].map((star) => ( <button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"> <Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /> </button> ))} </div>
+                      </div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tags (Opcional)</label>
+                        <div className="flex flex-wrap gap-2">
+                          {SUGGESTED_REVIEW_TAGS.map(tag => (
+                            <button
+                              type="button"
+                              key={tag}
+                              onClick={() => toggleReviewTag(tag)}
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${reviewForm.tags.includes(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="mb-6">
                           <label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
                           <textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" placeholder="Conte como foi sua experiência com a agência..." value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/>
                       </div>
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"> {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18}/>} Enviar Avaliação</button>
+                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"> {isSubmitting ? <Loader size={18} className="animate-spin" /> : <Send size={18}/>} {showEditReviewModal ? "Salvar Alterações" : "Enviar Avaliação"}</button>
                   </form>
               </div>
           </div>
-      )}
-
-      {showEditReviewModal && editingReview && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setEditingReview(null)}>
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                  <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Editar Avaliação</h3><button onClick={() => setEditingReview(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button></div>
-                  <form onSubmit={handleEditReviewSubmit}>
-                      <div className="mb-6 text-center"><label className="block text-sm font-medium text-gray-700 mb-2">Sua Experiência</label><div className="flex justify-center gap-2">{[1, 2, 3, 4, 5].map((star) => (<button type="button" key={star} onClick={() => setReviewForm({ ...reviewForm, rating: star })} className="focus:outline-none transition-transform hover:scale-110"><Star size={32} className={star <= reviewForm.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} /></button>))}</div></div>
-                      <div className="mb-6"><label className="block text-sm font-medium text-gray-700 mb-2">Comentário</label><textarea className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-primary-500 outline-none h-24 resize-none" value={reviewForm.comment} onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })} required/></div>
-                      <button type="submit" disabled={isSubmitting} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">{isSubmitting ? <Loader size={18} className="animate-spin" /> : <Save size={18}/>} Salvar Alterações</button>
-                  </form>
-              </div>
-          </div>
-      )}
+      ) : null}
     </div>
   );
 };
