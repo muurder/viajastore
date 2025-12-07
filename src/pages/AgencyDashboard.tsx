@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette, Filter, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette, Filter, Search, LucideProps, Activity } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -41,6 +41,153 @@ const safeDate = (dateStr: string | undefined) => {
         return 'Data Erro';
     }
 };
+
+// --- CUSTOM COMPONENTS FOR DASHBOARD ---
+
+const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
+    const colors = {
+      green: 'bg-green-50 text-green-700 border-green-200',
+      red: 'bg-red-50 text-red-700 border-red-200',
+      blue: 'bg-blue-50 text-blue-700 border-blue-200',
+      purple: 'bg-purple-50 text-purple-700 border-purple-200',
+      gray: 'bg-gray-50 text-gray-600 border-gray-200',
+      amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    };
+    return (
+      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+        {children}
+      </span>
+    );
+  };
+
+interface StatCardProps { 
+    title: string; 
+    value: string | number; 
+    subtitle: string; 
+    icon: React.ComponentType<LucideProps>; 
+    color: 'green' | 'blue' | 'purple' | 'amber';
+    onClick?: () => void;
+}
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color, onClick }) => {
+    const bgColors = {
+        green: 'bg-green-50 text-green-600',
+        blue: 'bg-blue-50 text-blue-600',
+        purple: 'bg-purple-50 text-purple-600',
+        amber: 'bg-amber-50 text-amber-600',
+    };
+    return (
+        <div 
+            onClick={onClick} 
+            className={`bg-white p-6 rounded-2xl shadow-sm border border-gray-100 group 
+                ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-primary-100 hover:scale-[1.02] transition-all' : ''}
+            `}
+        >
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${bgColors[color]} group-hover:scale-105 transition-transform`}><Icon size={24}/></div>
+            </div>
+            <p className="text-sm text-gray-500 font-medium">{title}</p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{value}</h3>
+            <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
+        </div>
+    );
+};
+
+interface RecentBookingsTableProps {
+    bookings: Booking[];
+    clients: any[]; // Assuming Client interface or similar
+    onViewBooking?: (booking: Booking) => void;
+}
+
+const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
+    // Sort bookings by date descending and take top 5
+    const recentBookings = [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag size={20} className="mr-2 text-primary-600"/> Últimas Vendas</h3>
+            {recentBookings.length > 0 ? (
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="min-w-full divide-y divide-gray-100 text-sm">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Cliente</th>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
+                                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Valor</th>
+                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {recentBookings.map(booking => {
+                                const client = clients.find(c => c.id === booking.clientId);
+                                return (
+                                    <tr key={booking.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{client?.name?.charAt(0)}</div>
+                                                <span className="font-medium text-gray-900">{client?.name || 'Cliente'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-700">{booking._trip?.title || 'N/A'}</td>
+                                        <td className="px-4 py-3 text-gray-500">{new Date(booking.date).toLocaleDateString()}</td>
+                                        <td className="px-4 py-3 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
+                                        <td className="px-4 py-3">
+                                            <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>
+                                                {booking.status}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                    <ShoppingBag size={32} className="mx-auto mb-3"/>
+                    <p>Nenhuma venda recente ainda. Sua primeira venda está chegando!</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+interface TopTripsCardProps {
+    trips: Trip[];
+}
+
+const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
+    // Sort trips by views descending and take top 3
+    const topTrips = [...trips].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 3);
+
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Star size={20} className="mr-2 text-amber-500"/> Top Pacotes</h3>
+            {topTrips.length > 0 ? (
+                <div className="space-y-4">
+                    {topTrips.map(trip => (
+                        <Link to={`/viagem/${trip.slug}`} key={trip.id} className="flex items-center gap-4 group hover:bg-gray-50 p-2 -mx-2 rounded-lg transition-colors">
+                            <img src={trip.images?.[0] || 'https://placehold.co/80x60?text=Viagem'} alt={trip.title} className="w-16 h-12 object-cover rounded-md flex-shrink-0" />
+                            <div className="flex-1">
+                                <p className="font-bold text-gray-900 text-sm group-hover:text-primary-600 truncate">{trip.title}</p>
+                                <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                    <span className="flex items-center"><Eye size={12}/> {trip.views || 0}</span>
+                                    <span className="flex items-center"><ShoppingBag size={12}/> {trip.sales || 0}</span>
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                    <Plane size={32} className="mx-auto mb-3"/>
+                    <p>Nenhum pacote para mostrar no Top.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // --- CUSTOM MODALS ---
 
@@ -961,13 +1108,13 @@ const AgencyDashboard: React.FC = () => {
 
   useEffect(() => {
       const loadStats = async () => {
-          if (currentAgency) {
+          if (currentAgency?.agencyId) { // Ensure agencyId exists
               const loadedStats = await getAgencyStats(currentAgency.agencyId);
               setStats(loadedStats);
           }
       };
       loadStats();
-  }, [currentAgency, getAgencyStats]);
+  }, [currentAgency?.agencyId, getAgencyStats]); // Depend on agencyId
 
   const rawTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
   const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
@@ -1028,10 +1175,43 @@ const AgencyDashboard: React.FC = () => {
         {activeTab === 'OVERVIEW' && (
             <div className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-green-50 text-green-600"><DollarSign size={24}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span></div><p className="text-sm text-gray-500 font-medium">Receita Total</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">R$ {stats.totalRevenue.toLocaleString()}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-blue-50 text-blue-600"><Users size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Vendas Realizadas</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalSales}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-purple-50 text-purple-600"><Eye size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Visualizações</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.totalViews}</h3></div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-start mb-4"><div className="p-3 rounded-xl bg-amber-50 text-amber-600"><Star size={24}/></div></div><p className="text-sm text-gray-500 font-medium">Avaliação Média</p><h3 className="text-3xl font-extrabold text-gray-900 mt-1">{stats.averageRating ? stats.averageRating.toFixed(1) : '0.0'} <span className="text-sm font-normal text-gray-400">({stats.totalReviews})</span></h3></div>
+                    <StatCard 
+                        title="Receita Total" 
+                        value={`R$ ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} 
+                        subtitle={`${stats.conversionRate.toFixed(1)}% taxa de conversão`} 
+                        icon={DollarSign} 
+                        color="green" 
+                        onClick={() => handleTabChange('BOOKINGS')}
+                    />
+                    <StatCard 
+                        title="Vendas Realizadas" 
+                        value={stats.totalSales} 
+                        subtitle={`${stats.totalReviews} avaliações recebidas`} 
+                        icon={ShoppingBag} 
+                        color="blue" 
+                        onClick={() => handleTabChange('BOOKINGS')}
+                    />
+                    <StatCard 
+                        title="Visualizações" 
+                        value={stats.totalViews} 
+                        subtitle={`${myTrips.length} pacotes ativos`} 
+                        icon={Eye} 
+                        color="purple" 
+                        onClick={() => handleTabChange('TRIPS')}
+                    />
+                    <StatCard 
+                        title="Avaliação Média" 
+                        value={stats.averageRating ? stats.averageRating.toFixed(1) : '0.0'} 
+                        subtitle={`${stats.totalReviews} avaliações no total`} 
+                        icon={Star} 
+                        color="amber" 
+                        onClick={() => handleTabChange('REVIEWS')}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <RecentBookingsTable bookings={myBookings} clients={clients} />
+                    <TopTripsCard trips={myTrips} />
                 </div>
             </div>
         )}
