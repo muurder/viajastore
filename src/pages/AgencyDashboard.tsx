@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -6,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
@@ -17,6 +16,18 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
     'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, // 1 esq, corredor, 2 dir
     'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 } // 12 embaixo, 48 cima
+};
+
+// Safe Date Helper to prevent crashes
+const safeDate = (dateStr: string | undefined) => {
+    if (!dateStr) return 'Data n/a';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return 'Data Inválida';
+        return d.toLocaleDateString();
+    } catch (e) {
+        return 'Data Erro';
+    }
 };
 
 // --- CUSTOM MODALS ---
@@ -742,7 +753,7 @@ const OperationsModule: React.FC<{
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <h4 className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-primary-900' : 'text-gray-800'}`}>{trip.title}</h4>
-                                    <span className="text-[10px] font-mono text-gray-400">{new Date(trip.startDate).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })}</span>
+                                    <span className="text-[10px] font-mono text-gray-400">{safeDate(trip.startDate)}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
                                     <div className="flex items-center gap-1.5 text-gray-500">
@@ -890,7 +901,6 @@ const AgencyDashboard: React.FC = () => {
   const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
   const myReviews = agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId);
 
-  // ... (Keep existing effects and handlers)
   useEffect(() => { if (currentAgency) { setProfileForm({ name: currentAgency.name, description: currentAgency.description, whatsapp: currentAgency.whatsapp || '', phone: currentAgency.phone || '', website: currentAgency.website || '', address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, logo: currentAgency.logo }); setHeroForm({ heroMode: currentAgency.heroMode || 'TRIPS', heroBannerUrl: currentAgency.heroBannerUrl || '', heroTitle: currentAgency.heroTitle || '', heroSubtitle: currentAgency.heroSubtitle || '' }); } }, [currentAgency]);
   useEffect(() => { const fetchTheme = async () => { if (currentAgency) { const savedTheme = await getAgencyTheme(currentAgency.agencyId); if (savedTheme) { setThemeForm(savedTheme.colors); } } }; fetchTheme(); }, [currentAgency, getAgencyTheme]);
 
@@ -906,6 +916,32 @@ const AgencyDashboard: React.FC = () => {
   
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
   const confirmSubscription = async () => { if (!showConfirmSubscription) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
+
+  // New Save Trip Handler for the Form
+  const handleSaveTrip = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setLoading(true);
+      try {
+          // Validate date
+          if (!tripForm.startDate) throw new Error('Data de início é obrigatória.');
+          if (!tripForm.title) throw new Error('Título é obrigatório.');
+
+          if (editingTripId) {
+              await updateTrip({ ...tripForm, id: editingTripId } as Trip);
+              showToast('Pacote atualizado!', 'success');
+          } else {
+              await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip);
+              showToast('Novo pacote criado!', 'success');
+          }
+          setIsEditingTrip(false);
+          setEditingTripId(null);
+          setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [], operationalData: { transport: { vehicleConfig: VEHICLE_TYPES['BUS_46'], seats: [] }, rooming: [], manualPassengers: [] } });
+      } catch (error: any) {
+          showToast(error.message, 'error');
+      } finally {
+          setLoading(false);
+      }
+  };
 
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
@@ -997,7 +1033,7 @@ const AgencyDashboard: React.FC = () => {
                                                     <h3 className="font-bold text-gray-900 text-lg mb-1 truncate" title={trip.title}>{trip.title}</h3>
                                                     <div className="flex items-center text-sm text-gray-500 mb-4 gap-3">
                                                         <span className="flex items-center"><MapPin size={14} className="mr-1"/> {trip.destination}</span>
-                                                        <span className="flex items-center"><Calendar size={14} className="mr-1"/> {new Date(trip.startDate).toLocaleDateString()}</span>
+                                                        <span className="flex items-center"><Calendar size={14} className="mr-1"/> {safeDate(trip.startDate)}</span>
                                                     </div>
                                                     <div className="mt-auto flex justify-between items-center pt-4 border-t border-gray-100">
                                                         <span className="font-bold text-primary-600 text-lg">R$ {trip.price.toLocaleString()}</span>
@@ -1031,7 +1067,7 @@ const AgencyDashboard: React.FC = () => {
                                                 return (
                                                     <tr key={trip.id} className="hover:bg-gray-50 transition-colors group">
                                                         <td className="px-6 py-4 font-bold text-gray-900">{trip.title}</td>
-                                                        <td className="px-6 py-4 text-gray-600">{new Date(trip.startDate).toLocaleDateString()}</td>
+                                                        <td className="px-6 py-4 text-gray-600">{safeDate(trip.startDate)}</td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-16 bg-gray-200 h-1.5 rounded-full overflow-hidden">
@@ -1066,7 +1102,72 @@ const AgencyDashboard: React.FC = () => {
                         )}
                     </>
                 ) : (
-                    <div>{/* Trip Builder Components (Simplified) */}</div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.2s]">
+                        <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                            <h2 className="text-2xl font-bold text-gray-900">{editingTripId ? 'Editar Pacote' : 'Novo Pacote'}</h2>
+                            <button onClick={() => { setIsEditingTrip(false); setEditingTripId(null); }} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
+                        </div>
+                        <form onSubmit={handleSaveTrip} className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote</label>
+                                    <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required placeholder="Ex: Final de Semana em Campos do Jordão" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Destino</label>
+                                    <input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required placeholder="Cidade, UF" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Preço (R$)</label>
+                                    <input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: parseFloat(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required min="0" step="0.01" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label>
+                                    <input type="date" value={tripForm.startDate ? tripForm.startDate.split('T')[0] : ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+                                    <input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: parseInt(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required min="1" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa</label>
+                                    <textarea value={tripForm.description} onChange={e => setTripForm({...tripForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" rows={5} placeholder="Detalhes do roteiro, o que levar, etc." />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão</label>
+                                    <select 
+                                        value={tripForm.operationalData?.transport?.vehicleConfig.type || 'BUS_46'} 
+                                        onChange={e => {
+                                            const type = e.target.value as VehicleType;
+                                            const newConfig = VEHICLE_TYPES[type];
+                                            setTripForm({
+                                                ...tripForm,
+                                                operationalData: {
+                                                    ...tripForm.operationalData!,
+                                                    transport: {
+                                                        ...tripForm.operationalData!.transport!,
+                                                        vehicleConfig: newConfig
+                                                    }
+                                                }
+                                            });
+                                        }}
+                                        className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
+                                    >
+                                        {Object.values(VEHICLE_TYPES).map(v => (
+                                            <option key={v.type} value={v.type}>{v.label}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">Isso define o layout inicial do mapa de assentos.</p>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                <button type="button" onClick={() => { setIsEditingTrip(false); setEditingTripId(null); }} className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
+                                <button type="submit" disabled={loading} className="px-6 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50">
+                                    {loading ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 )}
              </div>
         )}
@@ -1097,7 +1198,7 @@ const AgencyDashboard: React.FC = () => {
                             }
                         </div>
                         <h3 className="text-4xl font-extrabold text-gray-900">{PLANS.find(p => p.id === currentAgency.subscriptionPlan)?.name || 'Plano Desconhecido'}</h3>
-                        <p className="text-gray-500 mt-2">Próxima renovação: <span className="font-bold text-gray-800">{new Date(currentAgency.subscriptionExpiresAt).toLocaleDateString()}</span></p>
+                        <p className="text-gray-500 mt-2">Próxima renovação: <span className="font-bold text-gray-800">{safeDate(currentAgency.subscriptionExpiresAt)}</span></p>
                     </div>
                     
                     <div className="flex gap-4">
