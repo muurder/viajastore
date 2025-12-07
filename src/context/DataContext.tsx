@@ -475,7 +475,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
-  // --- ACTION IMPLEMENTATIONS (Placeholders/Implementations) ---
+  // --- ACTION IMPLEMENTATIONS ---
 
   const getReviewsByTripId = (id: string) => agencyReviews.filter(r => r.trip_id === id); // simplified
   const getReviewsByAgencyId = (id: string) => agencyReviews.filter(r => r.agencyId === id);
@@ -505,21 +505,92 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           agency_id: trip.agencyId,
           title: trip.title,
           slug: trip.slug || trip.title.toLowerCase().replace(/ /g, '-'),
-          // ... map fields ...
+          description: trip.description,
+          destination: trip.destination,
           price: trip.price,
           start_date: trip.startDate,
+          end_date: trip.endDate,
           duration_days: trip.durationDays,
           category: trip.category,
-          is_active: trip.is_active
+          tags: trip.tags,
+          traveler_types: trip.travelerTypes,
+          itinerary: trip.itinerary,
+          boarding_points: trip.boardingPoints,
+          payment_methods: trip.paymentMethods,
+          is_active: trip.is_active,
+          included: trip.included,
+          not_included: trip.notIncluded,
+          featured: trip.featured,
+          featured_in_hero: trip.featuredInHero,
+          popular_near_sp: trip.popularNearSP,
+          operational_data: trip.operationalData
       }).select();
       if (!error) await refreshData();
   };
   
   const updateTrip = async (trip: Trip) => { 
       const sb = guardSupabase();
-      if (!sb) return;
-      await sb.from('trips').update({ title: trip.title, price: trip.price }).eq('id', trip.id);
-      await refreshData();
+      if (!sb) throw new Error("Conexão com banco de dados não estabelecida.");
+
+      try {
+          // 1. Update Trip Data
+          const { error: tripError } = await sb.from('trips').update({
+              title: trip.title,
+              slug: trip.slug,
+              description: trip.description,
+              destination: trip.destination,
+              price: trip.price,
+              start_date: trip.startDate,
+              end_date: trip.endDate,
+              duration_days: trip.durationDays,
+              category: trip.category,
+              tags: trip.tags,
+              traveler_types: trip.travelerTypes,
+              itinerary: trip.itinerary,
+              boarding_points: trip.boardingPoints,
+              payment_methods: trip.paymentMethods,
+              is_active: trip.is_active,
+              included: trip.included,
+              not_included: trip.notIncluded,
+              featured: trip.featured,
+              featured_in_hero: trip.featuredInHero,
+              popular_near_sp: trip.popularNearSP,
+              operational_data: trip.operationalData
+          }).eq('id', trip.id);
+
+          if (tripError) throw tripError;
+
+          // 2. Handle Images (Sync trip_images table)
+          if (trip.images) {
+              // A. Delete existing images for this trip
+              const { error: deleteError } = await sb
+                  .from('trip_images')
+                  .delete()
+                  .eq('trip_id', trip.id);
+              
+              if (deleteError) throw deleteError;
+
+              // B. Insert new images (if any)
+              if (trip.images.length > 0) {
+                  const imagePayload = trip.images.map((url, index) => ({
+                      trip_id: trip.id,
+                      image_url: url,
+                      position: index
+                  }));
+
+                  const { error: insertError } = await sb
+                      .from('trip_images')
+                      .insert(imagePayload);
+
+                  if (insertError) throw insertError;
+              }
+          }
+
+          await refreshData();
+      } catch (err: any) {
+          console.error("Error updating trip:", err);
+          throw new Error(err.message || "Erro ao atualizar viagem.");
+      }
   };
   
   const deleteTrip = async (id: string) => {
@@ -537,7 +608,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await refreshData();
       }
   };
-  const toggleTripFeatureStatus = async (id: string) => {};
+  const toggleTripFeatureStatus = async (id: string) => {
+      const t = getTripById(id);
+      if(t && guardSupabase()) {
+          await guardSupabase()!.from('trips').update({ featured: !t.featured }).eq('id', id);
+          await refreshData();
+      }
+  };
   const updateTripOperationalData = async (id: string, data: OperationalData) => {
       if(guardSupabase()) {
           await guardSupabase()!.from('trips').update({ operational_data: data }).eq('id', id);
@@ -596,8 +673,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
   const toggleFavorite = async (tripId: string, userId: string) => {
-      // In real app, update profile favorites array
-      showToast('Favorito atualizado (simulado)', 'success');
+      const sb = guardSupabase();
+      if (!sb) return;
+      
+      const client = clients.find(c => c.id === userId);
+      if (!client) return;
+
+      const currentFavorites = client.favorites || [];
+      const newFavorites = currentFavorites.includes(tripId)
+          ? currentFavorites.filter(id => id !== tripId)
+          : [...currentFavorites, tripId];
+
+      const { error } = await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
+      
+      if (!error) {
+          showToast(currentFavorites.includes(tripId) ? 'Removido dos favoritos' : 'Adicionado aos favoritos', 'success');
+          // Update local state without full refresh if possible, but simplest is full refresh
+          await refreshData();
+      } else {
+          showToast('Erro ao atualizar favoritos', 'error');
+      }
   };
   const updateClientProfile = async (userId: string, data: Partial<Client>) => {
       if(guardSupabase()) {
@@ -613,25 +708,127 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   const updateAgencyProfileByAdmin = async (agencyId: string, data: Partial<Agency>) => {
       if(guardSupabase()) {
-          await guardSupabase()!.from('agencies').update(data).eq('id', agencyId);
+          const updates: any = {};
+          if (data.name) updates.name = data.name;
+          if (data.slug) updates.slug = data.slug;
+          if (data.description) updates.description = data.description;
+          if (data.cnpj) updates.cnpj = data.cnpj;
+          if (data.phone) updates.phone = data.phone;
+          if (data.whatsapp) updates.whatsapp = data.whatsapp;
+          if (data.website) updates.website = data.website;
+          if (data.address) updates.address = data.address;
+          if (data.bankInfo) updates.bank_info = data.bankInfo;
+
+          await guardSupabase()!.from('agencies').update(updates).eq('id', agencyId);
           await refreshData();
       }
   };
-  const toggleAgencyStatus = async (agencyId: string) => {};
-  const softDeleteEntity = async () => {};
-  const restoreEntity = async () => {};
-  const deleteUser = async () => {};
-  const deleteMultipleUsers = async () => {};
-  const deleteMultipleAgencies = async () => {};
-  const getUsersStats = async () => [];
-  const updateMultipleUsersStatus = async () => {};
-  const updateMultipleAgenciesStatus = async () => {};
-  const logAuditAction = async () => {};
-  const sendPasswordReset = async () => {};
-  const updateUserAvatarByAdmin = async () => null;
-  const getAgencyTheme = async (id: string) => null;
-  const saveAgencyTheme = async () => false;
-  const incrementTripViews = async () => {};
+  const toggleAgencyStatus = async (agencyId: string) => {
+      const agency = agencies.find(a => a.agencyId === agencyId);
+      if (agency && guardSupabase()) {
+          const newStatus = agency.subscriptionStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+          await guardSupabase()!.from('agencies').update({ subscription_status: newStatus, is_active: newStatus === 'ACTIVE' }).eq('id', agencyId);
+          await refreshData();
+      }
+  };
+  const softDeleteEntity = async (id: string, table: string) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
+          await refreshData();
+      }
+  };
+  const restoreEntity = async (id: string, table: string) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from(table).update({ deleted_at: null }).eq('id', id);
+          await refreshData();
+      }
+  };
+  const deleteUser = async (id: string, role: string) => {
+      if(guardSupabase()) {
+          // Cascade delete usually handles profiles, but we might want explicit logic
+          await guardSupabase()!.from('profiles').delete().eq('id', id);
+          await refreshData();
+      }
+  };
+  const deleteMultipleUsers = async (ids: string[]) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from('profiles').delete().in('id', ids);
+          await refreshData();
+      }
+  };
+  const deleteMultipleAgencies = async (ids: string[]) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from('agencies').delete().in('id', ids);
+          await refreshData();
+      }
+  };
+  const getUsersStats = async (userIds: string[]) => {
+      // Mock stats
+      return userIds.map(id => ({
+          userId: id,
+          userName: clients.find(c => c.id === id)?.name || 'Usuário',
+          totalSpent: 1250.00,
+          totalBookings: 3,
+          totalReviews: 1
+      }));
+  };
+  const updateMultipleUsersStatus = async (ids: string[], status: string) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from('profiles').update({ status }).in('id', ids);
+          await refreshData();
+      }
+  };
+  const updateMultipleAgenciesStatus = async (ids: string[], status: string) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.from('agencies').update({ subscription_status: status, is_active: status === 'ACTIVE' }).in('id', ids);
+          await refreshData();
+      }
+  };
+  const logAuditAction = async (action: string, details: string) => {
+      // Stub
+  };
+  const sendPasswordReset = async (email: string) => {
+      if(guardSupabase()) {
+          await guardSupabase()!.auth.resetPasswordForEmail(email);
+          showToast('Email de recuperação enviado.', 'success');
+      }
+  };
+  const updateUserAvatarByAdmin = async (userId: string, file: File) => {
+      if(guardSupabase()) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${userId}-${Date.now()}.${fileExt}`;
+          const { error } = await guardSupabase()!.storage.from('avatars').upload(fileName, file);
+          if(!error) {
+              const { data } = guardSupabase()!.storage.from('avatars').getPublicUrl(fileName);
+              return data.publicUrl;
+          }
+      }
+      return null;
+  };
+  const getAgencyTheme = async (id: string) => {
+      if(guardSupabase()) {
+          const { data } = await guardSupabase()!.from('agency_themes').select('*').eq('agency_id', id).single();
+          if(data) return { agencyId: data.agency_id, colors: data.colors, updatedAt: data.updated_at };
+      }
+      return null;
+  };
+  const saveAgencyTheme = async (id: string, colors: ThemeColors) => {
+      if(guardSupabase()) {
+          const { error } = await guardSupabase()!.from('agency_themes').upsert({ agency_id: id, colors }, { onConflict: 'agency_id' });
+          return !error;
+      }
+      return false;
+  };
+  const incrementTripViews = async (tripId: string) => {
+      if(guardSupabase()) {
+          // Using rpc or simple increment logic. For now simple update with read
+          // Note: In high traffic, use an RPC function 'increment_views'
+          const t = getTripById(tripId);
+          if (t) {
+             await guardSupabase()!.from('trips').update({ views_count: (t.views || 0) + 1 }).eq('id', tripId);
+          }
+      }
+  };
 
   const values: DataContextType = {
     agencies, trips, bookings, reviews: MOCK_REVIEWS, agencyReviews, clients, auditLogs, activityLogs, loading,
