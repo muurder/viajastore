@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +9,7 @@ import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import CreateTripWizard from '../components/agency/CreateTripWizard';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
@@ -217,15 +217,9 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
     );
 };
 
-// ... (TransportManager, RoomingManager, OperationsModule omitted for brevity but remain same structure)
-// Re-including them briefly to keep file valid if copy-pasted, but focused on fixing the errors.
-// Assume TransportManager, RoomingManager, OperationsModule are defined exactly as before.
-// I will paste them to be safe.
+// --- DYNAMIC SEAT MAP LOGIC ---
 
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
-    // ... (Content same as previous, just to keep file valid)
-    // For brevity in the fix, I assume the user retains the local components.
-    // However, the prompt asks for FULL content. I will include them.
     const vehicleConfig = trip.operationalData?.transport?.vehicleConfig;
     
     const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig | null; seats: PassengerSeat[] }>({ 
@@ -981,9 +975,10 @@ const AgencyDashboard: React.FC = () => {
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
   
   const handleEditTrip = (trip: Trip) => { 
-      const bp = (trip.boardingPoints && trip.boardingPoints.length > 0) ? trip.boardingPoints : [{ id: crypto.randomUUID(), time: '', location: '' }];
+      // Set form state (useful if we need it for something else) but mainly set ID and flag
+      // The CreateTripWizard handles fetching/initialization based on initialTripData prop
       const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
-      setTripForm({ ...trip, boardingPoints: bp, operationalData: opData }); 
+      setTripForm({ ...trip, operationalData: opData }); 
       setEditingTripId(trip.id); 
       setIsEditingTrip(true); 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
@@ -997,34 +992,9 @@ const AgencyDashboard: React.FC = () => {
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
   const confirmSubscription = async () => { if (!showConfirmSubscription) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
 
-  const handleSaveTrip = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setLoading(true);
-      try {
-          if (!tripForm.startDate) throw new Error('Data de início é obrigatória.');
-          if (!tripForm.title) throw new Error('Título é obrigatório.');
-
-          const finalTripData = {
-              ...tripForm,
-              operationalData: tripForm.operationalData || DEFAULT_OPERATIONAL_DATA
-          };
-
-          if (editingTripId) {
-              await updateTrip({ ...finalTripData, id: editingTripId } as Trip);
-              showToast('Pacote atualizado!', 'success');
-          } else {
-              await createTrip({ ...finalTripData, agencyId: currentAgency.agencyId } as Trip);
-              showToast('Novo pacote criado!', 'success');
-          }
-          setIsEditingTrip(false);
-          setEditingTripId(null);
-          setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [], operationalData: DEFAULT_OPERATIONAL_DATA });
-      } catch (error: any) {
-          showToast(error.message, 'error');
-      } finally {
-          setLoading(false);
-      }
-  };
+  // This handleSaveTrip is for the OLD form, which we are replacing. 
+  // We can keep it or remove it, but the Wizard handles its own saving.
+  // We'll leave it but it won't be called by the Wizard directly (Wizard calls context methods).
 
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
@@ -1081,6 +1051,7 @@ const AgencyDashboard: React.FC = () => {
                                         featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }],
                                         operationalData: DEFAULT_OPERATIONAL_DATA
                                     }); 
+                                    setEditingTripId(null);
                                     setIsEditingTrip(true); 
                                 }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all active:scale-95">
                                     <Plus size={18}/> Novo Pacote
@@ -1195,7 +1166,7 @@ const AgencyDashboard: React.FC = () => {
                                                                 <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"><Eye size={16}/></button>
                                                                 <button title="Editar" onClick={() => handleEditTrip(trip)} className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded"><Edit size={16}/></button>
                                                                 <button title="Duplicar" onClick={() => handleDuplicateTrip(trip)} className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded"><Copy size={16}/></button>
-                                                                <button title={trip.is_active ? "Pausar" : "Ativar"} onClick={() => toggleTripStatus(trip.id)} className={`p-1.5 rounded ${trip.is_active ? 'text-gray-400 hover:text-amber-600 hover:bg-amber-50' : 'text-green-600 bg-green-50 hover:bg-green-100'}`}>
+                                                                <button title="Ativar/Pausar" onClick={() => toggleTripStatus(trip.id)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded">
                                                                     {trip.is_active ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
                                                                 </button>
                                                                 <div className="h-4 w-px bg-gray-200 mx-1"></div>
@@ -1219,72 +1190,11 @@ const AgencyDashboard: React.FC = () => {
                         )}
                     </>
                 ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.2s]">
-                        <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                            <h2 className="text-2xl font-bold text-gray-900">{editingTripId ? 'Editar Pacote' : 'Novo Pacote'}</h2>
-                            <button onClick={() => { setIsEditingTrip(false); setEditingTripId(null); }} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
-                        </div>
-                        <form onSubmit={handleSaveTrip} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote</label>
-                                    <input value={tripForm.title} onChange={e => setTripForm({...tripForm, title: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required placeholder="Ex: Final de Semana em Campos do Jordão" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Destino</label>
-                                    <input value={tripForm.destination} onChange={e => setTripForm({...tripForm, destination: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required placeholder="Cidade, UF" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Preço (R$)</label>
-                                    <input type="number" value={tripForm.price} onChange={e => setTripForm({...tripForm, price: parseFloat(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required min="0" step="0.01" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início</label>
-                                    <input type="date" value={tripForm.startDate ? tripForm.startDate.split('T')[0] : ''} onChange={e => setTripForm({...tripForm, startDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
-                                    <input type="number" value={tripForm.durationDays} onChange={e => setTripForm({...tripForm, durationDays: parseInt(e.target.value)})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" required min="1" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa</label>
-                                    <textarea value={tripForm.description} onChange={e => setTripForm({...tripForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" rows={5} placeholder="Detalhes do roteiro, o que levar, etc." />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão</label>
-                                    <select 
-                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || 'BUS_46'} 
-                                        onChange={e => {
-                                            const type = e.target.value as VehicleType;
-                                            const newConfig = VEHICLE_TYPES[type];
-                                            setTripForm({
-                                                ...tripForm,
-                                                operationalData: {
-                                                    ...tripForm.operationalData!,
-                                                    transport: {
-                                                        ...(tripForm.operationalData?.transport || DEFAULT_OPERATIONAL_DATA.transport!),
-                                                        vehicleConfig: newConfig
-                                                    }
-                                                }
-                                            });
-                                        }}
-                                        className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
-                                    >
-                                        {Object.values(VEHICLE_TYPES).map(v => (
-                                            <option key={v.type} value={v.type}>{v.label}</option>
-                                        ))}
-                                    </select>
-                                    <p className="text-xs text-gray-500 mt-1">Isso define o layout inicial do mapa de assentos.</p>
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                                <button type="button" onClick={() => { setIsEditingTrip(false); setEditingTripId(null); }} className="px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
-                                <button type="submit" disabled={loading} className="px-6 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50">
-                                    {loading ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Pacote
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                    <CreateTripWizard 
+                        onClose={() => { setIsEditingTrip(false); setEditingTripId(null); }}
+                        onSuccess={() => { setIsEditingTrip(false); setEditingTripId(null); }}
+                        initialTripData={editingTripId ? tripForm : undefined} // Use tripForm populated by handleEditTrip
+                    />
                 )}
              </div>
         )}
