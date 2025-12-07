@@ -3,17 +3,123 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, Agency, Plan, ItineraryDay, TripCategory, ThemeColors, BoardingPoint, Booking, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger } from '../types';
+import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, Bold, Italic, Underline, List, UserCheck, UserPlus, Armchair, User, Rocket, LogOut } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
 const MAX_IMAGES = 8;
-const SUGGESTED_INCLUDED = ['Hospedagem', 'Café da manhã', 'Passagens Aéreas', 'Transfer Aeroporto', 'Guia Turístico', 'Seguro Viagem', 'Ingressos', 'Almoço', 'Jantar', 'Passeios de Barco'];
-const SUGGESTED_NOT_INCLUDED = ['Passagens Aéreas', 'Bebidas alcoólicas', 'Gorjetas', 'Despesas Pessoais', 'Jantar', 'Almoço', 'Taxas de Turismo'];
+
+// --- CUSTOM MODALS ---
+
+const ConfirmationModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  title: string; 
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'warning' | 'info';
+}> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirmar', cancelText = 'Cancelar', variant = 'danger' }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative scale-100 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+        <div className="flex flex-col items-center text-center">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${variant === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                <AlertTriangle size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+            <p className="text-sm text-gray-500 mb-6 leading-relaxed">{message}</p>
+            
+            <div className="flex gap-3 w-full">
+                <button 
+                    onClick={onClose} 
+                    className="flex-1 py-2.5 text-gray-700 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm"
+                >
+                    {cancelText}
+                </button>
+                <button 
+                    onClick={() => { onConfirm(); onClose(); }} 
+                    className={`flex-1 py-2.5 text-white font-bold rounded-xl transition-colors text-sm shadow-sm ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                >
+                    {confirmText}
+                </button>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AddRoomModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: (name: string, capacity: number) => void; 
+}> = ({ isOpen, onClose, onConfirm }) => {
+    const [name, setName] = useState('');
+    const [capacity, setCapacity] = useState(2);
+
+    useEffect(() => {
+        if (isOpen) {
+            setName('');
+            setCapacity(2);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name) return;
+        onConfirm(name, capacity);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-900">Adicionar Quarto</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Quarto</label>
+                        <input 
+                            value={name} 
+                            onChange={e => setName(e.target.value)} 
+                            placeholder="Ex: Suíte 01, Chalé Família..." 
+                            className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                            autoFocus
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Capacidade (Pessoas)</label>
+                        <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => setCapacity(Math.max(1, capacity - 1))} className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold">-</button>
+                            <input 
+                                type="number" 
+                                value={capacity} 
+                                onChange={e => setCapacity(Math.max(1, parseInt(e.target.value) || 1))} 
+                                className="flex-1 text-center font-bold text-gray-900 text-lg border-none focus:ring-0"
+                            />
+                            <button type="button" onClick={() => setCapacity(capacity + 1)} className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 text-gray-600 font-bold">+</button>
+                        </div>
+                    </div>
+                    <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex justify-center items-center gap-2">
+                        <Plus size={18}/> Criar Quarto
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentType<any>; activeTab: string; onClick: (tabId: string) => void; hasNotification?: boolean; }> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
   <button onClick={() => onClick(tabId)} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
@@ -139,6 +245,9 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
     const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(trip.operationalData?.manualPassengers || []);
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
+    
+    // Deletion Modal State
+    const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
         const client = clients.find(c => c.id === b.clientId);
@@ -160,12 +269,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         const existingSeat = isSeatOccupied(seatNum);
 
         if (existingSeat) {
-            if (window.confirm(`Remover ${existingSeat.passengerName} da poltrona ${seatNum}?`)) {
-                const newSeats = config.seats.filter(s => s.seatNumber !== seatNum);
-                const newConfig = { ...config, seats: newSeats };
-                setConfig(newConfig);
-                onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
-            }
+            setSeatToDelete({ seatNum, name: existingSeat.passengerName });
         } else if (selectedPassenger) {
             const newSeat: PassengerSeat = {
                 seatNumber: seatNum,
@@ -178,6 +282,15 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
             onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
             setSelectedPassenger(null);
         }
+    };
+
+    const confirmRemoveSeat = () => {
+        if (!seatToDelete) return;
+        const newSeats = config.seats.filter(s => s.seatNumber !== seatToDelete.seatNum);
+        const newConfig = { ...config, seats: newSeats };
+        setConfig(newConfig);
+        onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
+        setSeatToDelete(null);
     };
 
     const handleAddManual = (p: ManualPassenger) => {
@@ -249,6 +362,16 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
+            <ConfirmationModal 
+                isOpen={!!seatToDelete} 
+                onClose={() => setSeatToDelete(null)} 
+                onConfirm={confirmRemoveSeat} 
+                title="Liberar Assento" 
+                message={`Deseja remover ${seatToDelete?.name} da poltrona ${seatToDelete?.seatNum}?`} 
+                confirmText="Liberar"
+                variant="warning"
+            />
+
             {/* Passenger Sidebar */}
             <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col h-full max-h-[300px] lg:max-h-full shadow-sm">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
@@ -348,6 +471,10 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+    
+    // New States for "Custom Room" and "Delete Modal"
+    const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+    const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
         const client = clients.find(c => c.id === b.clientId);
@@ -372,11 +499,10 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
     const assignedSet = getAssignedPassengers();
     const unassignedPassengers = allPassengers.filter(p => !assignedSet.has(p.name + p.bookingId));
 
-    const addRoom = (type: 'DOUBLE' | 'TRIPLE' | 'QUAD') => {
-        const capacity = type === 'DOUBLE' ? 2 : type === 'TRIPLE' ? 3 : 4;
+    const addRoom = (name: string, capacity: number, type: 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE' = 'COLLECTIVE') => {
         const newRoom: RoomConfig = {
             id: crypto.randomUUID(),
-            name: `Quarto ${rooms.length + 1}`,
+            name,
             type,
             capacity,
             guests: []
@@ -384,6 +510,10 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
         const updatedRooms = [...rooms, newRoom];
         setRooms(updatedRooms);
         onSave({ ...trip.operationalData, rooming: updatedRooms });
+    };
+
+    const handleCreateCustomRoom = (name: string, capacity: number) => {
+        addRoom(name, capacity);
     };
 
     const handleAddManual = (p: ManualPassenger) => {
@@ -422,11 +552,12 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
         onSave({ ...trip.operationalData, rooming: updatedRooms });
     };
 
-    const deleteRoom = (roomId: string) => {
-        if(window.confirm('Excluir este quarto?')) {
-            const updatedRooms = rooms.filter(r => r.id !== roomId);
+    const confirmDeleteRoom = () => {
+        if(roomToDelete) {
+            const updatedRooms = rooms.filter(r => r.id !== roomToDelete);
             setRooms(updatedRooms);
             onSave({ ...trip.operationalData, rooming: updatedRooms });
+            setRoomToDelete(null);
         }
     };
 
@@ -439,10 +570,30 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex gap-3 mb-6 overflow-x-auto pb-2 flex-shrink-0">
-                <button onClick={() => addRoom('DOUBLE')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Duplo</button>
-                <button onClick={() => addRoom('TRIPLE')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Triplo</button>
-                <button onClick={() => addRoom('QUAD')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Quádruplo</button>
+            <ConfirmationModal 
+                isOpen={!!roomToDelete} 
+                onClose={() => setRoomToDelete(null)} 
+                onConfirm={confirmDeleteRoom} 
+                title="Excluir Quarto" 
+                message="Tem certeza que deseja excluir este quarto? Os hóspedes serão removidos." 
+            />
+            
+            <AddRoomModal 
+                isOpen={showAddRoomModal} 
+                onClose={() => setShowAddRoomModal(false)} 
+                onConfirm={handleCreateCustomRoom} 
+            />
+
+            <div className="flex gap-3 mb-6 overflow-x-auto pb-2 flex-shrink-0 items-center">
+                {/* Main Action Button */}
+                <button onClick={() => setShowAddRoomModal(true)} className="bg-primary-600 text-white px-5 py-2.5 rounded-xl hover:bg-primary-700 shadow-md shadow-primary-500/30 transition-all flex items-center gap-2 text-sm font-bold active:scale-95">
+                    <Plus size={18}/> Novo Quarto
+                </button>
+                <div className="h-8 w-px bg-gray-300 mx-2"></div>
+                {/* Quick Add Shortcuts */}
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 2, 'DOUBLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold"><Plus size={14}/> Duplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 3, 'TRIPLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold"><Plus size={14}/> Triplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 4, 'QUAD')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold"><Plus size={14}/> Quádruplo</button>
             </div>
             
             <div className="flex flex-col lg:flex-row gap-8 h-full overflow-hidden">
@@ -509,7 +660,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                                             {room.guests.length}/{room.capacity}
                                                         </span>
-                                                        <span className="text-[10px] text-gray-400 uppercase font-bold">{room.type === 'DOUBLE' ? 'Duplo' : room.type === 'TRIPLE' ? 'Triplo' : 'Quádruplo'}</span>
+                                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Vagas</span>
                                                     </div>
                                                 </>
                                             )}
@@ -517,7 +668,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                                     </div>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={(e) => { e.stopPropagation(); setEditingRoomId(room.id); }} className="text-gray-400 hover:text-primary-500 p-1.5 rounded hover:bg-white"><Edit size={14}/></button>
-                                        <button onClick={(e) => { e.stopPropagation(); deleteRoom(room.id); }} className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-white"><Trash2 size={14}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setRoomToDelete(room.id); }} className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-white"><Trash2 size={14}/></button>
                                     </div>
                                 </div>
 
@@ -544,7 +695,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                             <div className="col-span-full py-16 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
                                 <BedDouble size={48} className="mb-4 text-gray-300"/>
                                 <p className="font-medium">Nenhum quarto criado</p>
-                                <p className="text-sm mt-1">Use os botões acima para adicionar quartos.</p>
+                                <p className="text-sm mt-1">Clique em "Novo Quarto" para começar.</p>
                             </div>
                         )}
                     </div>

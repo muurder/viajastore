@@ -9,7 +9,8 @@ import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, Ch
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
-  const { slug, agencySlug } = useParams<{ slug: string; agencySlug?: string }>();
+  // Update: Add tripSlug to support agency microsite routes defined in App.tsx
+  const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const navigate = useNavigate();
   const { getTripBySlug, getTripById, getAgencyBySlug, addBooking, toggleFavorite, clients } = useData();
   const { user } = useAuth();
@@ -26,9 +27,12 @@ const TripDetails: React.FC = () => {
   useEffect(() => {
     const loadData = () => {
       setLoading(true);
-      let foundTrip = getTripBySlug(slug || '');
-      if (!foundTrip && slug) {
-          foundTrip = getTripById(slug);
+      // Resolve identifier: Global route uses 'slug', Agency route uses 'tripSlug'
+      const activeTripIdentifier = slug || tripSlug || '';
+
+      let foundTrip = getTripBySlug(activeTripIdentifier);
+      if (!foundTrip && activeTripIdentifier) {
+          foundTrip = getTripById(activeTripIdentifier);
       }
 
       if (foundTrip) {
@@ -48,7 +52,7 @@ const TripDetails: React.FC = () => {
       setLoading(false);
     };
     loadData();
-  }, [slug, agencySlug, getTripBySlug, getTripById, getAgencyBySlug]);
+  }, [slug, tripSlug, agencySlug, getTripBySlug, getTripById, getAgencyBySlug]);
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
