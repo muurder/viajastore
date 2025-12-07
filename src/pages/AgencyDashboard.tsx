@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -6,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -155,53 +154,6 @@ const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentT
     <Icon size={16} /> {label} {hasNotification && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} 
   </button>
 );
-
-const ActionsMenu: React.FC<{ 
-  trip: Trip; 
-  onEdit: () => void; 
-  onManage: () => void; 
-  onDuplicate: () => void; 
-  onDelete: () => void; 
-  onToggleStatus: () => void; 
-  fullAgencyLink?: string;
-}> = ({ trip, onEdit, onManage, onDuplicate, onDelete, onToggleStatus, fullAgencyLink }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-        <MoreHorizontal size={18} />
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-bottom-right ring-1 ring-black/5">
-          <div className="py-1">
-            <button onClick={() => { onManage(); setIsOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Bus size={16}/> Gerenciar</button>
-            <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Edit size={16}/> Editar</button>
-            <button onClick={() => { onDuplicate(); setIsOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Copy size={16}/> Duplicar</button>
-            <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-              {trip.is_active ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
-              {trip.is_active ? 'Pausar' : 'Ativar'}
-            </button>
-            {fullAgencyLink && (
-               <a href={`${fullAgencyLink}/viagem/${trip.slug || trip.id}`} target="_blank" rel="noopener noreferrer" className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"><Eye size={16}/> Ver Online</a>
-            )}
-            <div className="border-t border-gray-100 my-1"></div>
-            <button onClick={() => { onDelete(); setIsOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 size={16}/> Excluir</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const SubscriptionConfirmationModal: React.FC<{ 
   plan: Plan; 
@@ -1147,9 +1099,30 @@ const AgencyDashboard: React.FC = () => {
                                                         <span className="flex items-center"><MapPin size={14} className="mr-1"/> {trip.destination}</span>
                                                         <span className="flex items-center"><Calendar size={14} className="mr-1"/> {safeDate(trip.startDate)}</span>
                                                     </div>
-                                                    <div className="mt-auto flex justify-between items-center pt-4 border-t border-gray-100">
-                                                        <span className="font-bold text-primary-600 text-lg">R$ {trip.price.toLocaleString()}</span>
-                                                        <ActionsMenu trip={trip} onEdit={() => handleEditTrip(trip)} onManage={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={`${window.location.origin}/#/${currentAgency?.slug}`}/>
+                                                    
+                                                    {/* NEW ACTION BAR FOR GRID */}
+                                                    <div className="mt-auto pt-4 border-t border-gray-100">
+                                                        <div className="flex justify-between items-end mb-3">
+                                                            <span className="font-bold text-primary-600 text-lg">R$ {trip.price.toLocaleString()}</span>
+                                                            <button 
+                                                                onClick={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }}
+                                                                className="text-xs font-bold text-white bg-primary-600 px-4 py-1.5 rounded-lg hover:bg-primary-700 flex items-center gap-1.5 transition-colors shadow-sm shadow-primary-500/30 active:scale-95"
+                                                            >
+                                                                <Bus size={14}/> Gerenciar
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-1 text-gray-400">
+                                                            <div className="flex gap-1">
+                                                                <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-2 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={18}/></button>
+                                                                <button title="Editar" onClick={() => handleEditTrip(trip)} className="p-2 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"><Edit size={18}/></button>
+                                                                <button title="Duplicar" onClick={() => handleDuplicateTrip(trip)} className="p-2 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><Copy size={18}/></button>
+                                                                <button title={trip.is_active ? "Pausar" : "Ativar"} onClick={() => toggleTripStatus(trip.id)} className={`p-2 rounded-lg transition-colors ${trip.is_active ? 'hover:text-amber-600 hover:bg-amber-50' : 'text-green-600 bg-green-50 hover:bg-green-100'}`}>
+                                                                    {trip.is_active ? <PauseCircle size={18}/> : <PlayCircle size={18}/>}
+                                                                </button>
+                                                            </div>
+                                                            <div className="h-4 w-px bg-gray-200 mx-1"></div>
+                                                            <button title="Excluir" onClick={() => handleDeleteTrip(trip.id)} className="p-2 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1178,7 +1151,12 @@ const AgencyDashboard: React.FC = () => {
 
                                                 return (
                                                     <tr key={trip.id} className="hover:bg-gray-50 transition-colors group">
-                                                        <td className="px-6 py-4 font-bold text-gray-900">{trip.title}</td>
+                                                        <td className="px-6 py-4 font-bold text-gray-900">
+                                                            <div className="flex items-center gap-3">
+                                                                {trip.images[0] && <img src={trip.images[0]} className="w-10 h-10 rounded object-cover" />}
+                                                                {trip.title}
+                                                            </div>
+                                                        </td>
                                                         <td className="px-6 py-4 text-gray-600">{safeDate(trip.startDate)}</td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
@@ -1193,8 +1171,17 @@ const AgencyDashboard: React.FC = () => {
                                                         </td>
                                                         <td className="px-6 py-4 font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
                                                         <td className="px-6 py-4 text-right">
-                                                            <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <ActionsMenu trip={trip} onEdit={() => handleEditTrip(trip)} onManage={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} onDuplicate={() => handleDuplicateTrip(trip)} onDelete={() => handleDeleteTrip(trip.id)} onToggleStatus={() => toggleTripStatus(trip.id)} fullAgencyLink={`${window.location.origin}/#/${currentAgency?.slug}`}/>
+                                                            {/* NEW ACTION BAR FOR TABLE */}
+                                                            <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button title="Gerenciar" onClick={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} className="p-1.5 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded mr-2"><Bus size={16}/></button>
+                                                                <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"><Eye size={16}/></button>
+                                                                <button title="Editar" onClick={() => handleEditTrip(trip)} className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded"><Edit size={16}/></button>
+                                                                <button title="Duplicar" onClick={() => handleDuplicateTrip(trip)} className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded"><Copy size={16}/></button>
+                                                                <button title={trip.is_active ? "Pausar" : "Ativar"} onClick={() => toggleTripStatus(trip.id)} className={`p-1.5 rounded ${trip.is_active ? 'text-gray-400 hover:text-amber-600 hover:bg-amber-50' : 'text-green-600 bg-green-50 hover:bg-green-100'}`}>
+                                                                    {trip.is_active ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
+                                                                </button>
+                                                                <div className="h-4 w-px bg-gray-200 mx-1"></div>
+                                                                <button title="Excluir" onClick={() => handleDeleteTrip(trip.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1284,71 +1271,166 @@ const AgencyDashboard: React.FC = () => {
              </div>
         )}
 
-        {/* --- OPERATIONS TAB (Master Detail View) --- */}
         {activeTab === 'OPERATIONS' && (
-            <OperationsModule 
-                myTrips={myTrips} 
-                myBookings={myBookings} 
-                clients={clients} 
-                selectedTripId={selectedOperationalTripId}
-                onSelectTrip={setSelectedOperationalTripId}
-                onSaveTripData={updateTripOperationalData}
-            />
+             <div className="h-full">
+                 <OperationsModule 
+                    myTrips={myTrips} 
+                    myBookings={myBookings} 
+                    clients={clients}
+                    selectedTripId={selectedOperationalTripId} 
+                    onSelectTrip={setSelectedOperationalTripId}
+                    onSaveTripData={updateTripOperationalData}
+                 />
+             </div>
         )}
 
-        {/* --- PLAN TAB --- */}
-        {activeTab === 'PLAN' && (
-            <div className="animate-[fadeIn_0.3s]">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Minha Assinatura</h2>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="text-sm font-bold uppercase text-gray-500 tracking-wider">Plano Atual</span>
-                            {currentAgency.subscriptionStatus === 'ACTIVE' 
-                                ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> Ativo</span>
-                                : <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">Inativo</span>
-                            }
-                        </div>
-                        <h3 className="text-4xl font-extrabold text-gray-900">{PLANS.find(p => p.id === currentAgency.subscriptionPlan)?.name || 'Plano Desconhecido'}</h3>
-                        <p className="text-gray-500 mt-2">Próxima renovação: <span className="font-bold text-gray-800">{safeDate(currentAgency.subscriptionExpiresAt)}</span></p>
-                    </div>
-                    
-                    <div className="flex gap-4">
-                        <button onClick={() => { setActivatingPlanId(null); setShowConfirmSubscription(PLANS.find(p => p.id !== currentAgency.subscriptionPlan) || PLANS[0]); }} className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-lg flex items-center gap-2">
-                            <Rocket size={18}/> Mudar Plano
-                        </button>
-                    </div>
-                </div>
+        {activeTab === 'BOOKINGS' && (
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-[fadeIn_0.3s]">
+                 <table className="w-full text-sm text-left">
+                     <thead className="bg-gray-50 text-gray-500 font-bold border-b border-gray-200">
+                         <tr>
+                             <th className="px-6 py-4">Reserva</th>
+                             <th className="px-6 py-4">Pacote</th>
+                             <th className="px-6 py-4">Cliente</th>
+                             <th className="px-6 py-4">Data</th>
+                             <th className="px-6 py-4">Status</th>
+                             <th className="px-6 py-4 text-right">Valor</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-100">
+                         {myBookings.map(booking => {
+                             const client = clients.find(c => c.id === booking.clientId);
+                             return (
+                                 <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                     <td className="px-6 py-4 font-mono text-gray-600">{booking.voucherCode}</td>
+                                     <td className="px-6 py-4 font-bold text-gray-900">{booking._trip?.title}</td>
+                                     <td className="px-6 py-4 flex items-center gap-2">
+                                         <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{client?.name?.charAt(0)}</div>
+                                         {client?.name}
+                                     </td>
+                                     <td className="px-6 py-4 text-gray-600">{new Date(booking.date).toLocaleDateString()}</td>
+                                     <td className="px-6 py-4">
+                                         <span className={`px-2 py-1 rounded text-xs font-bold ${booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status}</span>
+                                     </td>
+                                     <td className="px-6 py-4 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
+                                 </tr>
+                             );
+                         })}
+                     </tbody>
+                 </table>
+                 {myBookings.length === 0 && <div className="p-8 text-center text-gray-500">Nenhuma reserva encontrada.</div>}
+             </div>
+        )}
 
-                <div className="mt-8 grid md:grid-cols-2 gap-6 opacity-70 hover:opacity-100 transition-opacity">
-                    {PLANS.map(plan => (
-                        <div key={plan.id} className={`p-6 rounded-xl border ${currentAgency.subscriptionPlan === plan.id ? 'bg-primary-50 border-primary-200 ring-2 ring-primary-100' : 'bg-white border-gray-200'}`}>
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-lg">{plan.name}</h4>
-                                {currentAgency.subscriptionPlan === plan.id && <span className="text-xs font-bold text-primary-600 bg-white px-2 py-1 rounded border border-primary-100">Atual</span>}
-                            </div>
-                            <ul className="space-y-2 text-sm text-gray-600">
-                                {plan.features.map((f, i) => <li key={i} className="flex items-center gap-2"><Check size={14} className="text-green-500"/> {f}</li>)}
-                            </ul>
-                        </div>
-                    ))}
-                </div>
-                
-                {showConfirmSubscription && (
-                    <SubscriptionConfirmationModal 
+        {activeTab === 'REVIEWS' && (
+             <div className="space-y-4 animate-[fadeIn_0.3s]">
+                 {agencyReviews.length > 0 ? agencyReviews.map(review => (
+                     <div key={review.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                         <div className="flex justify-between items-start mb-2">
+                             <div>
+                                 <h4 className="font-bold text-gray-900">{review.clientName}</h4>
+                                 <div className="flex text-amber-400 text-sm">
+                                     {[...Array(5)].map((_, i) => <Star key={i} size={12} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />)}
+                                 </div>
+                             </div>
+                             <span className="text-xs text-gray-400">{new Date(review.createdAt).toLocaleDateString()}</span>
+                         </div>
+                         <p className="text-gray-600 text-sm italic mb-4">"{review.comment}"</p>
+                         {review.tripTitle && <div className="text-xs text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded w-fit mb-2">Pacote: {review.tripTitle}</div>}
+                         
+                         <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 mt-2">
+                             <p className="text-xs font-bold text-gray-500 uppercase mb-1">Sua Resposta</p>
+                             {review.response ? (
+                                 <p className="text-sm text-gray-700">{review.response}</p>
+                             ) : (
+                                 <button className="text-xs text-primary-600 font-bold hover:underline">Responder</button>
+                             )}
+                         </div>
+                     </div>
+                 )) : <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-500">Nenhuma avaliação recebida.</div>}
+             </div>
+        )}
+
+        {activeTab === 'PLAN' && (
+             <div className="space-y-8 animate-[fadeIn_0.3s]">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     {PLANS.map(plan => {
+                         const isCurrent = currentAgency?.subscriptionPlan === plan.id;
+                         return (
+                             <div key={plan.id} className={`p-6 rounded-2xl border-2 transition-all ${isCurrent ? 'border-primary-500 bg-primary-50 shadow-md' : 'border-gray-100 bg-white shadow-sm hover:border-primary-200'}`}>
+                                 <div className="flex justify-between items-center mb-4">
+                                     <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
+                                     {isCurrent && <span className="bg-primary-600 text-white text-xs font-bold px-3 py-1 rounded-full">Atual</span>}
+                                 </div>
+                                 <p className="text-3xl font-extrabold text-gray-900 mb-6">R$ {plan.price.toFixed(2)}<span className="text-sm font-medium text-gray-500">/mês</span></p>
+                                 <ul className="space-y-3 mb-8">
+                                     {plan.features.map((feature, i) => (
+                                         <li key={i} className="flex items-center text-sm text-gray-600"><CheckCircle size={16} className="text-green-500 mr-2 flex-shrink-0"/> {feature}</li>
+                                     ))}
+                                 </ul>
+                                 <button 
+                                    onClick={() => !isCurrent && handleSelectPlan(plan)}
+                                    disabled={isCurrent}
+                                    className={`w-full py-3 rounded-xl font-bold text-sm transition-colors ${isCurrent ? 'bg-gray-200 text-gray-500 cursor-default' : 'bg-primary-600 text-white hover:bg-primary-700'}`}
+                                 >
+                                     {isCurrent ? 'Plano Ativo' : 'Mudar para este plano'}
+                                 </button>
+                             </div>
+                         );
+                     })}
+                 </div>
+                 {showConfirmSubscription && (
+                     <SubscriptionConfirmationModal 
                         plan={showConfirmSubscription} 
                         onClose={() => setShowConfirmSubscription(null)} 
-                        onConfirm={confirmSubscription} 
-                        isSubmitting={!!activatingPlanId} 
-                    />
-                )}
-            </div>
+                        onConfirm={confirmSubscription}
+                        isSubmitting={!!activatingPlanId}
+                     />
+                 )}
+             </div>
         )}
 
-        {(activeTab === 'BOOKINGS' || activeTab === 'REVIEWS' || activeTab === 'SETTINGS') && (
-             <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-gray-200"><p className="text-gray-500">Conteúdo da aba {activeTab} (Simplificado)</p></div>
-        )}
+        {activeTab === 'SETTINGS' && (
+             <div className="space-y-8 animate-[fadeIn_0.3s]">
+                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                     <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center"><User size={20} className="mr-2"/> Dados da Agência</h3>
+                     <form onSubmit={handleSaveProfile} className="space-y-6">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Fantasia</label><input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone / WhatsApp</label><input value={profileForm.whatsapp} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Site</label><input value={profileForm.website} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Logo URL</label><input value={profileForm.logo} onChange={e => setProfileForm({...profileForm, logo: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                         </div>
+                         
+                         <div className="pt-6 border-t border-gray-100">
+                             <h4 className="text-sm font-bold text-gray-900 mb-4">Configuração do Microsite</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label><select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"><option value="TRIPS">Carrossel de Viagens</option><option value="STATIC">Banner Estático</option></select></div>
+                                {heroForm.heroMode === 'STATIC' && (
+                                    <>
+                                        <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Banner URL</label><input value={heroForm.heroBannerUrl} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Título Hero</label><input value={heroForm.heroTitle} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo Hero</label><input value={heroForm.heroSubtitle} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                                    </>
+                                )}
+                             </div>
+                         </div>
 
+                         <button type="submit" disabled={loading} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">{loading ? <Loader size={18} className="animate-spin"/> : <Save size={18}/>} Salvar Alterações</button>
+                     </form>
+                 </div>
+
+                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                     <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center"><Palette size={20} className="mr-2"/> Personalização de Cores</h3>
+                     <form onSubmit={handleSaveTheme} className="flex flex-wrap gap-6 items-end">
+                         <div><label className="block text-sm font-bold text-gray-700 mb-1">Cor Primária</label><div className="flex items-center gap-2"><input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-10 h-10 rounded border cursor-pointer"/><input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="border p-2 rounded-lg w-28 uppercase font-mono"/></div></div>
+                         <div><label className="block text-sm font-bold text-gray-700 mb-1">Cor Secundária</label><div className="flex items-center gap-2"><input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-10 h-10 rounded border cursor-pointer"/><input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="border p-2 rounded-lg w-28 uppercase font-mono"/></div></div>
+                         <button type="submit" disabled={loading} className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black disabled:opacity-50 h-[42px]">Salvar Tema</button>
+                     </form>
+                 </div>
+             </div>
+        )}
       </div>
     </div>
   );
