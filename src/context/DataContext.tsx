@@ -441,7 +441,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     id: b.id,
                     tripId: b.trip_id,
                     clientId: b.client_id,
-                    date: b.booking_date,
+                    date: b.created_at, // Use created_at from Supabase
                     status: b.status,
                     totalPrice: b.total_price,
                     passengers: b.passengers,
@@ -465,7 +465,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     *, 
                     trips:trip_id ( *, agencies:agency_id(*) )
                 `)
-                .eq('agency_id', agencyUser.agencyId); // Ensure this matches the booking's agency_id
+                // FIX: Filter bookings by agency_id via the trips relationship
+                .eq('trips.agency_id', agencyUser.agencyId); 
 
              if (agencyBookingsError) throw agencyBookingsError;
 
@@ -474,7 +475,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     id: b.id,
                     tripId: b.trip_id,
                     clientId: b.client_id,
-                    date: b.booking_date,
+                    date: b.created_at, // Use created_at from Supabase
                     status: b.status,
                     totalPrice: b.total_price,
                     passengers: b.passengers,
@@ -689,10 +690,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       try {
           const { data, error } = await sb.from('bookings').insert({
-              id: b.id,
               trip_id: b.tripId,
               client_id: b.clientId,
-              booking_date: b.date,
               status: b.status,
               total_price: b.totalPrice,
               passengers: b.passengers,
@@ -703,22 +702,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (error) throw error;
 
           if (data) {
-              // Adiciona na lista local na hora
-              setBookings(prev => [...prev, {
-                  id: data.id,
-                  tripId: data.trip_id,
-                  clientId: data.client_id,
-                  date: data.booking_date,
-                  status: data.status,
-                  totalPrice: data.total_price,
-                  passengers: data.passengers,
-                  voucherCode: data.voucher_code,
-                  paymentMethod: data.payment_method,
-                  _trip: b._trip, // Keep original _trip/_agency for immediate UI
-                  _agency: b._agency
-              }]); 
+              const newBooking: Booking = {
+                id: data.id,
+                tripId: data.trip_id,
+                clientId: data.client_id,
+                date: data.created_at, // Use created_at from Supabase
+                status: data.status,
+                totalPrice: data.total_price,
+                passengers: data.passengers,
+                voucherCode: data.voucher_code,
+                paymentMethod: data.payment_method,
+                _trip: b._trip, // Keep original _trip/_agency for immediate UI
+                _agency: b._agency
+              }
+              setBookings(prev => [...prev, newBooking]); // Adiciona na lista local na hora
               await refreshUserData(); // Garante sincronia total em background
-              return { ...b, id: data.id }; // Return the booking with the actual ID from DB
+              return newBooking; 
           }
           return undefined; // Should not happen if no error
       } catch (error: any) {
@@ -732,29 +731,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!sb) return;
       
       try {
-          const clientProfile = clients.find(c => c.id === userId);
-          if (!clientProfile) {
-              throw new Error("Client profile not found locally.");
+          // 1. Check if already favorited in the 'favorites' table
+          const { data: existingFavorite, error: selectError } = await sb
+              .from('favorites')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('trip_id', tripId)
+              .maybeSingle();
+
+          if (selectError) throw selectError;
+
+          let newFavorites: string[] = [];
+
+          if (existingFavorite) {
+              // It's favorited, so delete it
+              const { error: deleteError } = await sb
+                  .from('favorites')
+                  .delete()
+                  .eq('user_id', userId)
+                  .eq('trip_id', tripId);
+              
+              if (deleteError) throw deleteError;
+              showToast('Removido dos favoritos', 'success');
+              // Update local state by finding the client and updating their favorites array
+              setClients(prevClients => prevClients.map(c => 
+                c.id === userId ? { ...c, favorites: c.favorites.filter(id => id !== tripId) } : c
+              ));
+
+          } else {
+              // Not favorited, so add it
+              const { error: insertError } = await sb
+                  .from('favorites')
+                  .insert({ user_id: userId, trip_id: tripId });
+              
+              if (insertError) throw insertError;
+              showToast('Adicionado aos favoritos', 'success');
+              // Update local state
+              setClients(prevClients => prevClients.map(c => 
+                c.id === userId ? { ...c, favorites: [...c.favorites, tripId] } : c
+              ));
           }
-
-          const currentFavorites = clientProfile.favorites || [];
-          const isFavorited = currentFavorites.includes(tripId);
-          const newFavorites = isFavorited 
-              ? currentFavorites.filter(id => id !== tripId) // Remove
-              : [...currentFavorites, tripId]; // Adiciona
-
-          const { error } = await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
           
-          if (error) throw error;
+          await reloadUser(); // Trigger AuthContext to update its user object, which holds favorites
 
-          // Imediatamente após o await do banco, atualize o estado 'clients'
-          setClients(prev => prev.map(client => {
-              if (client.id !== userId) return client;
-              return { ...client, favorites: newFavorites };
-          }));
-
-          showToast(isFavorited ? 'Removido dos favoritos' : 'Adicionado aos favoritos', 'success');
-          await refreshUserData(); // Garante sincronia total em background (inclui reloadUser)
       } catch (error: any) {
           console.error("Erro detalhado (toggleFavorite):", error);
           showToast('Erro ao atualizar favoritos', 'error');
