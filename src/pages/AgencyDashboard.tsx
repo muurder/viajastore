@@ -461,7 +461,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                                     >
                                         <option value={2}>2 Colunas (Carros / Vans Pequenas)</option>
                                         <option value={3}>3 Colunas (Vans Médias / Executivas)</option>
-                                        <option value={4}>4 Colunas (Ônibus / Micro)</option>
+                                        <option value={4}>4 Colunas (Ônibus)</option>
                                     </select>
                                     <p className="text-xs text-gray-500 mt-1">Como os assentos serão desenhados na tela.</p>
                                 </div>
@@ -1262,7 +1262,7 @@ const AgencyDashboard: React.FC = () => {
                                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">{client?.name?.charAt(0)}</div>
                                          {client?.name}
                                      </td>
-                                     <td className="px-6 py-4 text-gray-600">{new Date(booking.date).toLocaleDateString()}</p></td>
+                                     <td className="px-6 py-4 text-gray-600">{new Date(booking.date).toLocaleDateString()}</td>
                                      <td className="px-6 py-4">
                                          <span className={`px-2 py-1 rounded text-xs font-bold ${booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{booking.status}</span>
                                      </td>
