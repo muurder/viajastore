@@ -26,18 +26,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Changed for auth simulation from `string` to `string | undefined`
+  password?: string;
   role: UserRole;
   avatar?: string;
   createdAt?: string;
-  deleted_at?: string; // For soft delete
+  deleted_at?: string;
 }
 
 export interface Client extends User {
   role: UserRole.CLIENT;
   cpf?: string;
   phone?: string;
-  favorites: string[]; // Trip IDs
+  favorites: string[];
   notificationsEnabled?: boolean;
   address?: Address;
   status?: 'ACTIVE' | 'SUSPENDED';
@@ -46,32 +46,26 @@ export interface Client extends User {
 
 export interface Agency extends User {
   role: UserRole.AGENCY;
-  agencyId: string; // The primary key of the 'agencies' table
-  slug: string; // New field for multi-tenant URL
-  whatsapp?: string; // New field for contact
-  // Fix: Make cnpj optional as it's not collected during initial registration
-  cnpj?: string; 
+  agencyId: string;
+  slug: string;
+  whatsapp?: string;
+  cnpj?: string;
   description: string;
   logo: string;
   is_active?: boolean;
-  
-  // Hero / Microsite Config
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;
   heroSubtitle?: string;
-
-  // Custom Suggestions (Tags, Includes, etc saved by the agency)
   customSettings?: {
     tags?: string[];
     included?: string[];
     notIncluded?: string[];
     paymentMethods?: string[];
   };
-
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
   subscriptionPlan: 'BASIC' | 'PREMIUM';
-  subscriptionExpiresAt: string; // ISO Date
+  subscriptionExpiresAt: string;
   website?: string;
   phone?: string;
   address?: Address;
@@ -82,7 +76,6 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
-// Updated Category List based on requirements (Removed SOZINHO)
 export type TripCategory = 
   | 'PRAIA' 
   | 'AVENTURA' 
@@ -96,7 +89,6 @@ export type TripCategory =
   | 'VIAGEM_BARATA' 
   | 'ARTE';
 
-// New Traveler Type definition
 export type TravelerType = 
   | 'SOZINHO' 
   | 'CASAL' 
@@ -111,74 +103,67 @@ export interface ItineraryDay {
   description: string;
 }
 
-// --- OPERATIONAL TYPES ---
-
 export interface BoardingPoint {
   id: string;
   time: string;
   location: string;
-  address?: string;
 }
 
-export interface ManualPassenger {
-  id: string;
-  name: string;
-  document?: string; // CPF or RG
-  phone?: string;
-  email?: string;
-  notes?: string;
-}
-
-// Updated definitions for Transport
 export interface PassengerSeat {
   seatNumber: string; 
   passengerName: string;
-  bookingId: string; // Can be a booking ID or 'manual-{id}'
+  bookingId: string;
   status: 'occupied' | 'blocked' | 'available';
   gender?: 'M' | 'F' | 'OTHER';
 }
 
-// NEW: Vehicle Layout Configuration
-export type VehicleType = 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'DD_60';
+// UPDATE: Added CAR_4 and VAN_20
+export type VehicleType = 'CAR_4' | 'BUS_46' | 'BUS_50' | 'MICRO_26' | 'VAN_15' | 'VAN_20' | 'DD_60' | 'CUSTOM';
 
 export interface VehicleLayoutConfig {
   type: VehicleType;
   label: string;
   totalSeats: number;
-  cols: number; // e.g. 4 for bus (2+2), 3 for van (1+2)
-  aisleAfterCol: number; // e.g. 2 for bus (after 2nd seat), 1 for van
-  lowerDeckSeats?: number; // For Double Decker
+  cols: number;
+  aisleAfterCol: number;
+  lowerDeckSeats?: number;
 }
 
 export interface TransportConfig {
-  vehicleConfig: VehicleLayoutConfig; 
-  seats: PassengerSeat[]; 
+    vehicleConfig: VehicleLayoutConfig | null;
+    seats: PassengerSeat[];
+}
+
+export interface ManualPassenger {
+    id: string;
+    name: string;
+    document?: string;
+}
+
+export interface Guest {
+    name: string;
+    bookingId: string;
 }
 
 export interface RoomConfig {
-  id: string;
-  name: string; 
-  type: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
-  capacity: number;
-  guests: { 
-      name: string; 
-      bookingId: string;
-      avatar?: string;
-  }[];
+    id: string;
+    name: string;
+    type: 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
+    capacity: number;
+    guests: Guest[];
 }
 
 export interface OperationalData {
-  transport?: TransportConfig;
-  rooming?: RoomConfig[];
-  manualPassengers?: ManualPassenger[];
-  notes?: string;
+    transport?: TransportConfig;
+    rooming?: RoomConfig[];
+    manualPassengers?: ManualPassenger[];
 }
 
 export interface Trip {
   id: string;
   agencyId: string;
   title: string;
-  slug: string; // SEO friendly URL
+  slug: string;
   description: string;
   destination: string;
   price: number;
@@ -186,77 +171,66 @@ export interface Trip {
   endDate: string;
   durationDays: number;
   images: string[];
-  
-  // New Fields
   category: TripCategory;
-  tags: string[]; // E.g., 'História', 'Trilhas', 'Ideal para viajar sozinho'
-  travelerTypes: TravelerType[]; // E.g., ['SOZINHO', 'MOCHILAO']
-  
-  // Richer content
+  tags: string[];
+  travelerTypes: TravelerType[];
   itinerary?: ItineraryDay[];
   boardingPoints?: BoardingPoint[];
-  paymentMethods?: string[]; // New field for accepted payment methods
-
-  is_active: boolean; // Controlled by agency
-  tripRating?: number; // Made optional
-  tripTotalReviews?: number; // Made optional
+  paymentMethods?: string[];
+  is_active: boolean;
+  rating?: number;
+  totalReviews?: number;
+  tripRating?: number; 
+  tripTotalReviews?: number; 
   included: string[];
   notIncluded?: string[];
-  views?: number; // For stats
-  sales?: number; // For stats
-  
-  // Featured Flags
-  featured?: boolean; // Global feature
-  featuredInHero?: boolean; // Agency Microsite Hero feature
+  views?: number;
+  sales?: number;
+  featured?: boolean;
+  featuredInHero?: boolean;
   popularNearSP?: boolean;
-
   operationalData?: OperationalData;
-  
-  // Computed on frontend for UI
-  occupancyRate?: number;
 }
 
 export interface Booking {
   id: string;
   tripId: string;
   clientId: string;
-  date: string; // Booking date
+  date: string;
   status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
   totalPrice: number;
   passengers: number;
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   _trip?: Trip; 
-  _agency?: Agency; // Expanded agency data
+  _agency?: Agency;
 }
 
-// Legacy Trip Review (Deprecated - Use AgencyReview)
 export interface Review {
   id: string;
   tripId: string;
   clientId: string;
-  rating: number; // 1-5
+  rating: number;
   comment: string;
   date: string;
   clientName: string;
-  response?: string; // Agency response
+  response?: string;
 }
 
-// New Agency Review Table
 export interface AgencyReview {
   id: string;
   agencyId: string;
   clientId: string;
   bookingId?: string;
   trip_id?: string;
-  rating: number; // 1-5
+  rating: number;
   comment: string;
   tags?: string[];
   createdAt: string;
-  clientName?: string; // Joined
-  clientAvatar?: string; // Added for display
-  agencyName?: string; // Joined for client view
-  agencyLogo?: string; // Joined for client view
+  clientName?: string;
+  clientAvatar?: string;
+  agencyName?: string;
+  agencyLogo?: string;
   response?: string;
   tripTitle?: string;
 }
@@ -268,11 +242,9 @@ export interface Plan {
   features: string[];
 }
 
-// --- NEW MASTER ADMIN TYPES ---
-
 export interface ThemeColors {
-  primary: string; // Hex Code
-  secondary: string; // Hex Code
+  primary: string;
+  secondary: string;
   background: string;
   text: string;
 }
@@ -294,7 +266,7 @@ export interface AgencyTheme {
 export interface AuditLog {
   id: string;
   adminEmail: string;
-  action: string; // 'DELETE_USER', 'CHANGE_THEME', etc.
+  action: string;
   details: string;
   createdAt: string;
 }
@@ -307,7 +279,6 @@ export interface UserStats {
   totalReviews: number;
 }
 
-// Fix: Add averageRating and totalReviews to DashboardStats
 export interface DashboardStats {
   totalRevenue: number;
   totalViews: number;
@@ -317,45 +288,12 @@ export interface DashboardStats {
   totalReviews?: number;
 }
 
-export type ActivityActorRole = 'CLIENT' | 'AGENCY' | 'ADMIN';
-export type ActivityActionType =
-  | 'TRIP_VIEWED'
-  | 'BOOKING_CREATED'
-  | 'BOOKING_CANCELLED'
-  | 'REVIEW_SUBMITTED'
-  | 'REVIEW_UPDATED'
-  | 'REVIEW_DELETED'
-  | 'FAVORITE_TOGGLED'
-  | 'TRIP_CREATED'
-  | 'TRIP_UPDATED'
-  | 'TRIP_DELETED'
-  | 'TRIP_STATUS_TOGGLED'
-  | 'TRIP_FEATURE_TOGGLED'
-  | 'AGENCY_PROFILE_UPDATED'
-  | 'AGENCY_STATUS_TOGGLED'
-  | 'AGENCY_SUBSCRIPTION_UPDATED'
-  | 'CLIENT_PROFILE_UPDATED'
-  | 'PASSWORD_RESET_INITIATED'
-  | 'ACCOUNT_DELETED'
-  | 'ADMIN_USER_MANAGED'
-  | 'ADMIN_AGENCY_MANAGED'
-  | 'ADMIN_THEME_MANAGED'
-  | 'ADMIN_MOCK_DATA_MIGRATED'
-  | 'ADMIN_ACTION'
-  | 'TRIP_OPERATIONAL_UPDATE';
+export type ActivityActionType = 'TRIP_CREATED' | 'TRIP_UPDATED' | 'TRIP_DELETED' | 'BOOKING_CREATED' | 'AGENCY_UPDATED' | 'REVIEW_SUBMITTED' | 'CLIENT_PROFILE_UPDATED' | 'AGENCY_SUBSCRIPTION_UPDATED' | 'AGENCY_PROFILE_UPDATED' | 'AGENCY_STATUS_TOGGLED' | 'TRIP_STATUS_TOGGLED' | 'FAVORITE_TOGGLED' | 'REVIEW_DELETED' | 'REVIEW_UPDATED';
 
 export interface ActivityLog {
-  id: string;
-  user_id: string | null;
-  agency_id: string | null;
-  actor_email: string;
-  actor_role: ActivityActorRole;
-  action_type: ActivityActionType;
-  details: any;
-  created_at: string;
-  user_name?: string;
-  user_avatar?: string;
-  agency_name?: string;
-  agency_logo?: string;
-  trip_title?: string;
+    id: string;
+    userId: string;
+    actionType: ActivityActionType;
+    details: any;
+    createdAt: string;
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -5,22 +6,26 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, Settings2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
 const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
+    'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
+    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, // 1 esq, corredor, 2 dir
+    'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
+    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
     'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
     'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
-    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, // 1 esq, corredor, 2 dir
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 } // 12 embaixo, 48 cima
+    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, // 12 embaixo, 48 cima
+    'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
 };
 
-// INITIALIZE EMPTY to force selection
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
-    transport: undefined, // Changed from pre-filled to undefined
+    transport: undefined, // Force user setup
     rooming: [],
     manualPassengers: []
 };
@@ -262,11 +267,8 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
 // --- DYNAMIC SEAT MAP LOGIC ---
 
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
-    // Determine initial state: If vehicleConfig is missing, it means transport isn't set up.
-    // We do NOT default to BUS_46 automatically anymore.
     const vehicleConfig = trip.operationalData?.transport?.vehicleConfig;
     
-    // Config state
     const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig | null; seats: PassengerSeat[] }>({ 
         vehicleConfig: vehicleConfig || null,
         seats: trip.operationalData?.transport?.seats || [] 
@@ -276,10 +278,21 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     
+    const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
+    const [customVehicleData, setCustomVehicleData] = useState({
+        label: '',
+        totalSeats: 4,
+        cols: 2
+    });
+    
     const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
 
-    // Initial Setup Handler
     const handleSelectVehicleType = (type: VehicleType) => {
+        if (type === 'CUSTOM') {
+            setShowCustomVehicleForm(true);
+            return;
+        }
+
         const newConfig = VEHICLE_TYPES[type];
         const newTransportState = {
             vehicleConfig: newConfig,
@@ -290,6 +303,28 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
             ...trip.operationalData, 
             transport: newTransportState as TransportConfig 
         });
+    };
+
+    const handleSaveCustomVehicle = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newConfig: VehicleLayoutConfig = {
+            type: 'CUSTOM',
+            label: customVehicleData.label || 'Veículo Personalizado',
+            totalSeats: customVehicleData.totalSeats,
+            cols: customVehicleData.cols,
+            aisleAfterCol: Math.floor(customVehicleData.cols / 2)
+        };
+        
+        const newTransportState = {
+            vehicleConfig: newConfig,
+            seats: []
+        };
+        setConfig(newTransportState);
+        onSave({ 
+            ...trip.operationalData, 
+            transport: newTransportState as TransportConfig 
+        });
+        setShowCustomVehicleForm(false);
     };
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
@@ -342,7 +377,6 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         onSave({ ...trip.operationalData, manualPassengers: newManuals });
     };
 
-    // --- RENDER DYNAMIC GRID ---
     const renderBusLayout = () => {
         if (!config.vehicleConfig) return null;
 
@@ -353,11 +387,9 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         for (let r = 1; r <= rows; r++) {
             const rowSeats = [];
             
-            // Build the row
             for (let c = 1; c <= cols; c++) {
                 const seatNum = ((r - 1) * cols) + c;
                 
-                // Add Aisle Spacer
                 if (c === aisleAfterCol + 1) {
                     rowSeats.push(<div key={`aisle-${r}`} className="w-8 flex justify-center items-center text-xs text-slate-300 font-mono select-none">{r}</div>);
                 }
@@ -390,7 +422,6 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                         </button>
                     );
                 } else {
-                    // Empty space for last row if incomplete
                     rowSeats.push(<div key={`empty-${c}`} className="w-10 h-10 md:w-12 md:h-12"></div>);
                 }
             }
@@ -404,39 +435,93 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         return grid;
     };
 
-    // --- SETUP VIEW (Empty State) ---
+    const occupancyRate = config.vehicleConfig && config.vehicleConfig.totalSeats > 0 
+        ? (config.seats.length / config.vehicleConfig.totalSeats) * 100 
+        : 0;
+
     if (!config.vehicleConfig) {
         return (
             <div className="flex-1 h-full bg-slate-50 flex flex-col items-center justify-center p-8 animate-[fadeIn_0.3s]">
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 max-w-2xl w-full text-center">
-                    <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
-                        <Settings2 size={32}/>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure o Transporte</h2>
-                    <p className="text-gray-500 mb-8 max-w-md mx-auto">
-                        Esta viagem ainda não possui um veículo definido. Escolha o layout ideal para começar a alocar os passageiros.
-                    </p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {Object.values(VEHICLE_TYPES).map(v => (
-                            <button 
-                                key={v.type}
-                                onClick={() => handleSelectVehicleType(v.type)}
-                                className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 hover:shadow-md transition-all group bg-white"
-                            >
-                                <Truck size={24} className="mb-3 text-gray-400 group-hover:text-primary-600"/>
-                                <span className="font-bold text-gray-700 group-hover:text-primary-700 text-sm">{v.label}</span>
-                                <span className="text-xs text-gray-400 mt-1">{v.totalSeats} Lugares</span>
-                            </button>
-                        ))}
-                    </div>
+                    {!showCustomVehicleForm ? (
+                        <>
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
+                                <Settings2 size={32}/>
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure o Transporte</h2>
+                            <p className="text-gray-500 mb-8 max-w-md mx-auto">
+                                Escolha um modelo padrão ou crie um layout personalizado para seu veículo.
+                            </p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.values(VEHICLE_TYPES).map(v => (
+                                    <button 
+                                        key={v.type}
+                                        onClick={() => handleSelectVehicleType(v.type)}
+                                        className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 hover:shadow-md transition-all group bg-white"
+                                    >
+                                        <Truck size={24} className="mb-3 text-gray-400 group-hover:text-primary-600"/>
+                                        <span className="font-bold text-gray-700 group-hover:text-primary-700 text-sm">{v.label}</span>
+                                        <span className="text-xs text-gray-400 mt-1">{v.totalSeats > 0 ? `${v.totalSeats} Lugares` : 'Definir'}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <form onSubmit={handleSaveCustomVehicle} className="text-left max-w-sm mx-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold text-gray-900">Veículo Personalizado</h3>
+                                <button type="button" onClick={() => setShowCustomVehicleForm(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Nome do Veículo</label>
+                                    <input 
+                                        required
+                                        value={customVehicleData.label} 
+                                        onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})}
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500" 
+                                        placeholder="Ex: Doblo Prata, Carro do Guia, Van Alugada"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Quantidade de Lugares</label>
+                                    <input 
+                                        type="number"
+                                        required
+                                        min="1"
+                                        max="100"
+                                        value={customVehicleData.totalSeats} 
+                                        onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})}
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500" 
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Insira o número exato de assentos disponíveis.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Disposição Visual</label>
+                                    <select 
+                                        value={customVehicleData.cols} 
+                                        onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value)})}
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500" 
+                                    >
+                                        <option value={2}>2 Colunas (Carros / Vans Pequenas)</option>
+                                        <option value={3}>3 Colunas (Vans Médias / Executivas)</option>
+                                        <option value={4}>4 Colunas (Ônibus / Micro)</option>
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">Como os assentos serão desenhados na tela.</p>
+                                </div>
+                                <button type="submit" className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg mt-4 flex items-center justify-center gap-2">
+                                    <Check size={18} /> Criar Layout
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </div>
             </div>
         );
     }
-
-    // --- MAP VIEW ---
-    const occupancyRate = (config.seats.length / config.vehicleConfig.totalSeats) * 100;
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden bg-white">
@@ -450,7 +535,6 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                 variant="warning"
             />
 
-            {/* Passenger Sidebar */}
             <div className="w-full lg:w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-10">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Lista de Passageiros</h4>
@@ -459,7 +543,6 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                 
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                     {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                    
                     <div className="space-y-2">
                         {allPassengers.map(p => {
                             const isSeated = config.seats.some(s => s.bookingId === p.bookingId && s.passengerName === p.name);
@@ -467,15 +550,10 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                                 <div 
                                     key={p.id} 
                                     onClick={() => !isSeated && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)}
-                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group
-                                        ${isSeated ? 'bg-gray-50 border-gray-100 opacity-60' : 
-                                          selectedPassenger?.id === p.id ? 'bg-primary-50 border-primary-500 ring-1 ring-primary-500 shadow-sm' : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-sm'}
-                                    `}
+                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group ${isSeated ? 'bg-gray-50 border-gray-100 opacity-60' : selectedPassenger?.id === p.id ? 'bg-primary-50 border-primary-500 ring-1 ring-primary-500 shadow-sm' : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-sm'}`}
                                 >
                                     <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isSeated ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-600'}`}>
-                                            {p.name.charAt(0).toUpperCase()}
-                                        </div>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isSeated ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-600'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                         <span className={`truncate ${isSeated ? 'text-gray-400' : 'text-gray-700 font-medium'}`}>{p.name}</span>
                                     </div>
                                     {isSeated ? <div className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100">OK</div> : <div className="w-2 h-2 rounded-full bg-gray-300 group-hover:bg-primary-400 transition-colors"></div>}
@@ -486,52 +564,36 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                 </div>
             </div>
 
-            {/* Bus Layout Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-gray-200 text-xs font-bold text-gray-600 z-20 flex items-center gap-2">
                     <Truck size={14} /> {config.vehicleConfig.label}
                     <span className="w-px h-4 bg-gray-300 mx-1"></span>
                     <span className={occupancyRate >= 80 ? 'text-green-600' : 'text-gray-500'}>{occupancyRate.toFixed(0)}% Ocupado</span>
-                    
-                    {/* Option to change vehicle (Reset) */}
                     <button 
                         onClick={() => {
-                            if(window.confirm('Mudar o veículo irá remover todos os passageiros dos assentos atuais. Continuar?')) {
+                            if(window.confirm('Isso irá resetar o layout do veículo. Deseja continuar?')) {
                                 setConfig({ vehicleConfig: null, seats: [] });
                                 onSave({ ...trip.operationalData, transport: undefined });
                             }
                         }}
-                        className="ml-2 p-1 text-gray-400 hover:text-red-500"
+                        className="ml-2 text-gray-400 hover:text-red-500"
                         title="Trocar Veículo"
                     >
-                        <Edit size={12}/>
+                        <Settings size={14} />
                     </button>
                 </div>
 
                 <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
-                    <div className="w-full max-w-lg pb-20 m-auto">
-                        {/* Bus Chassis */}
+                    <div className="w-full max-w-lg pb-20">
                         <div className="bg-white px-6 md:px-12 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative transition-all duration-500 min-h-[600px]">
-                            
-                            {/* Front of Bus (Driver) */}
                             <div className="absolute top-0 left-0 right-0 h-28 border-b-2 border-slate-200 rounded-t-[34px] bg-gradient-to-b from-slate-50 to-white flex justify-between px-8 pt-6">
                                 <div className="flex flex-col items-center">
-                                    <div className="w-10 h-10 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner">
-                                        <User size={20} />
-                                    </div>
+                                    <div className="w-10 h-10 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner"><User size={20} /></div>
                                 </div>
-                                <div className="flex flex-col items-center justify-center opacity-50">
-                                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Frente</span>
-                                </div>
+                                <div className="flex flex-col items-center justify-center opacity-50"><span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Frente</span></div>
                                 <div className="w-10"></div>
                             </div>
-
-                            {/* Seats Grid */}
-                            <div className="mt-16 space-y-2 mb-10">
-                                {renderBusLayout()}
-                            </div>
-
-                            {/* Rear of Bus */}
+                            <div className="mt-16 space-y-2">{renderBusLayout()}</div>
                             <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
                         </div>
                     </div>
@@ -547,8 +609,6 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
-    
-    // New States for "Custom Room" and "Delete Modal"
     const [showAddRoomModal, setShowAddRoomModal] = useState(false);
     const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
 
@@ -588,10 +648,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
         onSave({ ...trip.operationalData, rooming: updatedRooms });
     };
 
-    const handleCreateCustomRoom = (name: string, capacity: number) => {
-        addRoom(name, capacity);
-    };
-
+    const handleCreateCustomRoom = (name: string, capacity: number) => addRoom(name, capacity);
     const handleAddManual = (p: ManualPassenger) => {
         const newManuals = [...manualPassengers, p];
         setManualPassengers(newManuals);
@@ -602,10 +659,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
         if (!selectedPassenger) return;
         const updatedRooms = rooms.map(r => {
             if (r.id === roomId) {
-                if (r.guests.length >= r.capacity) {
-                    alert('Quarto cheio!');
-                    return r;
-                }
+                if (r.guests.length >= r.capacity) { alert('Quarto cheio!'); return r; }
                 return { ...r, guests: [...r.guests, { name: selectedPassenger.name, bookingId: selectedPassenger.bookingId }] };
             }
             return r;
@@ -644,33 +698,39 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
         setEditingRoomId(null);
     };
 
+    const totalCapacity = rooms.reduce((sum, r) => sum + r.capacity, 0);
+    const totalOccupied = rooms.reduce((sum, r) => sum + r.guests.length, 0);
+    const occupancyRate = totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0;
+
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white">
-            <ConfirmationModal 
-                isOpen={!!roomToDelete} 
-                onClose={() => setRoomToDelete(null)} 
-                onConfirm={confirmDeleteRoom} 
-                title="Excluir Quarto" 
-                message="Tem certeza que deseja excluir este quarto? Os hóspedes serão removidos." 
-            />
-            
-            <AddRoomModal 
-                isOpen={showAddRoomModal} 
-                onClose={() => setShowAddRoomModal(false)} 
-                onConfirm={handleCreateCustomRoom} 
-            />
+            <ConfirmationModal isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os hóspedes serão removidos." />
+            <AddRoomModal isOpen={showAddRoomModal} onClose={() => setShowAddRoomModal(false)} onConfirm={handleCreateCustomRoom} />
 
-            <div className="flex gap-3 mb-6 overflow-x-auto pb-2 flex-shrink-0 items-center px-6 pt-6">
-                <button onClick={() => setShowAddRoomModal(true)} className="bg-primary-600 text-white px-5 py-2.5 rounded-xl hover:bg-primary-700 shadow-md shadow-primary-500/30 transition-all flex items-center gap-2 text-sm font-bold active:scale-95">
-                    <Plus size={18}/> Novo Quarto
-                </button>
+            <div className="bg-slate-50 border-b border-gray-200 px-6 py-2 flex items-center justify-between text-xs">
+                <div className="flex gap-4 text-gray-600">
+                    <span className="font-bold">Capacidade Hotel: <span className="text-gray-900">{totalCapacity}</span></span>
+                    <span>Ocupado: <span className="font-bold text-blue-600">{totalOccupied}</span></span>
+                    <span>Livre: <span className="font-bold text-green-600">{totalCapacity - totalOccupied}</span></span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${occupancyRate}%` }}></div>
+                    </div>
+                    <span className="font-bold text-gray-700">{occupancyRate}%</span>
+                </div>
+            </div>
+
+            <div className="flex gap-3 mb-2 overflow-x-auto pb-2 flex-shrink-0 items-center px-6 pt-4">
+                <button onClick={() => setShowAddRoomModal(true)} className="bg-primary-600 text-white px-5 py-2.5 rounded-xl hover:bg-primary-700 shadow-md shadow-primary-500/30 transition-all flex items-center gap-2 text-sm font-bold active:scale-95 whitespace-nowrap"><Plus size={18}/> Novo Quarto</button>
                 <div className="h-8 w-px bg-gray-300 mx-2"></div>
-                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 2, 'DOUBLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold"><Plus size={14}/> Duplo</button>
-                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 3, 'TRIPLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold"><Plus size={14}/> Triplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 2, 'DOUBLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold whitespace-nowrap"><Plus size={14}/> Duplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 3, 'TRIPLE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold whitespace-nowrap"><Plus size={14}/> Triplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 4, 'QUAD')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold whitespace-nowrap"><Plus size={14}/> Quádruplo</button>
+                <button onClick={() => addRoom(`Quarto ${rooms.length + 1}`, 5, 'COLLECTIVE')} className="bg-white border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all flex items-center gap-2 text-xs font-bold whitespace-nowrap"><Plus size={14}/> Quíntuplo</button>
             </div>
             
             <div className="flex flex-col lg:flex-row gap-0 h-full overflow-hidden border-t border-gray-100">
-                {/* Guests Sidebar */}
                 <div className="w-full lg:w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-10">
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Hóspedes ({unassignedPassengers.length})</h4>
@@ -680,13 +740,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                         <div className="space-y-2">
                             {unassignedPassengers.map(p => (
-                                <div 
-                                    key={p.id} 
-                                    onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)}
-                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group
-                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300 text-gray-700 hover:shadow-sm'}
-                                    `}
-                                >
+                                <div key={p.id} onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300 text-gray-700 hover:shadow-sm'}`}>
                                     <span className="font-medium truncate">{p.name}</span>
                                     {selectedPassenger?.id === p.id ? <CheckCircle size={16} className="text-white"/> : <div className="w-2 h-2 bg-gray-300 rounded-full group-hover:bg-primary-400"></div>}
                                 </div>
@@ -695,43 +749,24 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                     </div>
                 </div>
 
-                {/* Rooms Grid */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50 h-full custom-scrollbar">
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
                         {rooms.map(room => (
-                            <div 
-                                key={room.id} 
-                                onClick={() => selectedPassenger && assignPassengerToRoom(room.id)}
-                                className={`bg-white rounded-xl border transition-all relative h-fit shadow-sm group overflow-hidden
-                                    ${selectedPassenger && room.guests.length < room.capacity ? 'border-primary-400 ring-2 ring-primary-100 cursor-pointer hover:shadow-lg scale-[1.01]' : 'border-gray-200'}
-                                `}
-                            >
-                                {/* Header */}
+                            <div key={room.id} onClick={() => selectedPassenger && assignPassengerToRoom(room.id)} className={`bg-white rounded-xl border transition-all relative h-fit shadow-sm group overflow-hidden ${selectedPassenger && room.guests.length < room.capacity ? 'border-primary-400 ring-2 ring-primary-100 cursor-pointer hover:shadow-lg scale-[1.01]' : 'border-gray-200'}`}>
                                 <div className="p-3 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
                                     <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-600' : 'bg-white border border-gray-200 text-gray-400'}`}>
-                                            <BedDouble size={18}/>
-                                        </div>
+                                        <div className={`p-2 rounded-lg ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-600' : 'bg-white border border-gray-200 text-gray-400'}`}><BedDouble size={18}/></div>
                                         <div>
                                             {editingRoomId === room.id ? (
                                                 <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
                                                     <input defaultValue={room.name} className="text-sm border rounded p-1 w-28" id={`name-${room.id}`} />
                                                     <input type="number" defaultValue={room.capacity} className="text-xs border rounded p-1 w-16" id={`cap-${room.id}`} />
-                                                    <button onClick={() => {
-                                                        const name = (document.getElementById(`name-${room.id}`) as HTMLInputElement).value;
-                                                        const cap = parseInt((document.getElementById(`cap-${room.id}`) as HTMLInputElement).value);
-                                                        updateRoomDetails(room.id, name, cap);
-                                                    }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
+                                                    <button onClick={() => { const name = (document.getElementById(`name-${room.id}`) as HTMLInputElement).value; const cap = parseInt((document.getElementById(`cap-${room.id}`) as HTMLInputElement).value); updateRoomDetails(room.id, name, cap); }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
                                                 </div>
                                             ) : (
                                                 <>
                                                     <h5 className="font-bold text-gray-800 text-sm">{room.name}</h5>
-                                                    <div className="flex items-center gap-1.5 mt-0.5">
-                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                            {room.guests.length}/{room.capacity}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 uppercase font-bold">Vagas</span>
-                                                    </div>
+                                                    <div className="flex items-center gap-1.5 mt-0.5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{room.guests.length}/{room.capacity}</span><span className="text-[10px] text-gray-400 uppercase font-bold">Vagas</span></div>
                                                 </>
                                             )}
                                         </div>
@@ -741,22 +776,15 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                                         <button onClick={(e) => { e.stopPropagation(); setRoomToDelete(room.id); }} className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-white"><Trash2 size={14}/></button>
                                     </div>
                                 </div>
-
-                                {/* Body */}
                                 <div className="p-3 space-y-2 min-h-[100px]">
                                     {room.guests.map((guest, idx) => (
                                         <div key={idx} className="bg-blue-50 px-3 py-2 rounded-lg text-xs text-blue-900 font-medium flex justify-between items-center group/guest border border-blue-100 animate-[fadeIn_0.2s]">
-                                            <span className="truncate max-w-[85%] flex items-center gap-2">
-                                                <User size={12} className="text-blue-400"/>
-                                                {guest.name}
-                                            </span>
+                                            <span className="truncate max-w-[85%] flex items-center gap-2"><User size={12} className="text-blue-400"/>{guest.name}</span>
                                             <button onClick={(e) => { e.stopPropagation(); removeGuest(room.id, idx); }} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100 transition-opacity"><X size={14}/></button>
                                         </div>
                                     ))}
                                     {Array.from({ length: Math.max(0, room.capacity - room.guests.length) }).map((_, i) => (
-                                        <div key={i} className="border-2 border-dashed border-gray-100 rounded-lg px-3 py-2 text-xs text-gray-300 flex items-center justify-center gap-1 select-none">
-                                            <Plus size={12}/> Vaga Disponível
-                                        </div>
+                                        <div key={i} className="border-2 border-dashed border-gray-100 rounded-lg px-3 py-2 text-xs text-gray-300 flex items-center justify-center gap-1 select-none"><Plus size={12}/> Vaga Disponível</div>
                                     ))}
                                 </div>
                             </div>
@@ -783,21 +811,75 @@ const OperationsModule: React.FC<{
     const [isSaving, setIsSaving] = useState(false);
     const { showToast } = useToast();
 
+    // Optimistic Save with timeout safety
     const handleSave = async (data: OperationalData) => {
         if (!selectedTripId) return;
         setIsSaving(true);
+        
+        // Safety timeout to prevent infinite spinner
+        const timer = setTimeout(() => setIsSaving(false), 5000);
+
         try {
             await onSaveTripData(selectedTripId, data);
         } catch (error) {
             showToast('Erro ao salvar.', 'error');
         } finally {
+            clearTimeout(timer);
             setIsSaving(false);
+        }
+    };
+
+    const handleExportPDF = () => {
+        if (!selectedTrip) return;
+        
+        try {
+            const doc = new jsPDF();
+            const dateStr = safeDate(selectedTrip.startDate);
+            const opData = selectedTrip.operationalData || { transport: { vehicleConfig: null, seats: [] }, rooming: [], manualPassengers: [] };
+            
+            doc.setFontSize(22);
+            doc.text('Manifesto de Viagem', 14, 20);
+            doc.setFontSize(12);
+            doc.text(`${selectedTrip.title}`, 14, 30);
+            doc.setFontSize(10);
+            doc.text(`Data: ${dateStr}`, 14, 36);
+            
+            const paxData: any[] = [];
+            const tripBookings = myBookings.filter(b => b.tripId === selectedTrip.id && b.status === 'CONFIRMED');
+            tripBookings.forEach(b => {
+                const client = clients.find(c => c.id === b.clientId);
+                paxData.push([client?.name || 'Cliente', client?.cpf || '---', client?.phone || '---']);
+                for(let i=1; i<b.passengers; i++) paxData.push([`Convidado de ${client?.name || '...'}`, '---', '---']);
+            });
+            opData.manualPassengers?.forEach(p => paxData.push([p.name, p.document || '---', '---']));
+
+            (doc as any).autoTable({ startY: 45, head: [['Nome Completo', 'Documento', 'Telefone']], body: paxData, theme: 'striped' });
+
+            let finalY = (doc as any).lastAutoTable.finalY + 15;
+            doc.setFontSize(14);
+            doc.text('Rooming List (Hospedagem)', 14, finalY);
+            
+            const roomData = opData.rooming?.map(r => [r.name, r.type, `${r.guests.length}/${r.capacity}`, r.guests.map(g => g.name).join(', ')]) || [];
+            (doc as any).autoTable({ startY: finalY + 5, head: [['Quarto', 'Tipo', 'Ocupação', 'Hóspedes']], body: roomData, theme: 'grid' });
+
+            finalY = (doc as any).lastAutoTable.finalY + 15;
+            doc.setFontSize(14);
+            doc.text('Mapa de Assentos', 14, finalY);
+
+            const seatData = opData.transport?.seats?.sort((a,b) => parseInt(a.seatNumber) - parseInt(b.seatNumber)).map(s => [s.seatNumber, s.passengerName]) || [];
+            (doc as any).autoTable({ startY: finalY + 5, head: [['Poltrona', 'Passageiro']], body: seatData, theme: 'plain' });
+
+            doc.save(`manifesto_${selectedTrip.slug}.pdf`);
+            showToast('PDF gerado com sucesso!', 'success');
+
+        } catch (e: any) {
+            console.error(e);
+            showToast('Erro ao gerar PDF: ' + e.message, 'error');
         }
     };
 
     return (
         <div className="flex h-[calc(100vh-220px)] min-h-[600px] border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-            {/* Left Sidebar: Trip List */}
             <div className="w-1/3 min-w-[300px] border-r border-gray-200 bg-white flex flex-col">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                     <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider flex items-center gap-2"><Bus size={16} /> Viagens Ativas</h3>
@@ -811,9 +893,8 @@ const OperationsModule: React.FC<{
                     {activeTrips.map(trip => {
                         const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                         const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                        // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
-                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
-                        const occupancy = Math.round((paxCount / totalSeats) * 100);
+                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 0; // Fixed: default to 0 to avoid NaN
+                        const occupancy = totalSeats > 0 ? Math.round((paxCount / totalSeats) * 100) : 0;
                         const isSelected = selectedTripId === trip.id;
 
                         return (
@@ -829,13 +910,12 @@ const OperationsModule: React.FC<{
                                 <div className="flex justify-between items-center text-xs">
                                     <div className="flex items-center gap-1.5 text-gray-500">
                                         <Users size={14} />
-                                        <span>{paxCount}/{totalSeats}</span>
+                                        <span>{paxCount}/{totalSeats || '-'}</span>
                                     </div>
                                     <div className={`px-2 py-0.5 rounded-full font-bold ${occupancy > 80 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                                         {occupancy}%
                                     </div>
                                 </div>
-                                {/* Progress Bar */}
                                 <div className="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden">
                                     <div className={`h-full rounded-full transition-all duration-500 ${occupancy > 80 ? 'bg-green-500' : 'bg-primary-500'}`} style={{ width: `${occupancy}%` }}></div>
                                 </div>
@@ -845,40 +925,25 @@ const OperationsModule: React.FC<{
                 </div>
             </div>
 
-            {/* Right Panel: Operations Details (Master Detail) */}
             <div className="flex-1 flex flex-col bg-gray-50 relative">
                 {selectedTrip ? (
                     <>
-                        {/* Header Tabs */}
                         <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-20">
                             <div className="flex items-center gap-6">
-                                <button 
-                                    onClick={() => setViewMode('MAP')} 
-                                    className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'MAP' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-                                >
-                                    <Grip size={18}/> Mapa de Assentos
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('ROOMING')} 
-                                    className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-                                >
-                                    <BedDouble size={18}/> Rooming List
-                                </button>
+                                <button onClick={() => setViewMode('MAP')} className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'MAP' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Grip size={18}/> Mapa de Assentos</button>
+                                <button onClick={() => setViewMode('ROOMING')} className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Rooming List</button>
                             </div>
                             <div className="flex items-center gap-3">
-                                {isSaving ? (
-                                    <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full"><Loader size={12} className="animate-spin mr-1.5"/> Salvando...</span>
-                                ) : (
-                                    <span className="text-xs font-bold text-green-600 flex items-center bg-green-50 px-3 py-1.5 rounded-full"><CheckCircle size={12} className="mr-1.5"/> Salvo</span>
-                                )}
+                                <button onClick={handleExportPDF} className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all active:scale-95"><FileText size={14}/> Exportar Manifesto</button>
+                                <div className="h-6 w-px bg-gray-200 mx-1"></div>
+                                {isSaving ? <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full"><Loader size={12} className="animate-spin mr-1.5"/> Salvando...</span> : <span className="text-xs font-bold text-green-600 flex items-center bg-green-50 px-3 py-1.5 rounded-full"><CheckCircle size={12} className="mr-1.5"/> Salvo</span>}
                             </div>
                         </div>
 
-                        {/* Content Area */}
                         <div className="flex-1 overflow-hidden relative">
                             {viewMode === 'MAP' ? (
                                 <TransportManager 
-                                    key={selectedTrip.id} // Force remount on switch
+                                    key={selectedTrip.id} 
                                     trip={selectedTrip} 
                                     bookings={myBookings.filter(b => b.tripId === selectedTrip.id)} 
                                     clients={clients} 
@@ -886,7 +951,7 @@ const OperationsModule: React.FC<{
                                 />
                             ) : (
                                 <RoomingManager 
-                                    key={selectedTrip.id} // Force remount on switch
+                                    key={selectedTrip.id} 
                                     trip={selectedTrip} 
                                     bookings={myBookings.filter(b => b.tripId === selectedTrip.id)} 
                                     clients={clients} 
@@ -897,9 +962,7 @@ const OperationsModule: React.FC<{
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-slate-50">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
-                            <Truck size={32} className="text-gray-300" />
-                        </div>
+                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100"><Truck size={32} className="text-gray-300" /></div>
                         <p className="font-medium text-lg text-gray-500">Selecione uma viagem ao lado</p>
                         <p className="text-sm max-w-xs text-center mt-2">Gerencie assentos e quartos selecionando um pacote ativo na lista.</p>
                     </div>
@@ -910,45 +973,23 @@ const OperationsModule: React.FC<{
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, updateUser, logout, loading: authLoading, uploadImage } = useAuth();
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, updateAgencyReview, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, refreshData, updateAgencyProfileByAdmin, clients, updateTripOperationalData } = useData();
+  const { user, logout, loading: authLoading, updateUser } = useAuth();
+  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients } = useData();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
-  const { themes, activeTheme, setTheme, setAgencyTheme: setGlobalAgencyTheme } = useTheme();
+  const { setAgencyTheme: setGlobalAgencyTheme } = useTheme();
 
   const currentAgency = agencies.find(a => a.id === user?.id);
   const navigate = useNavigate();
   
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
-  const [activeStep, setActiveStep] = useState(0); 
   const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
-  
-  // Trip Catalog View Mode
   const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>('GRID');
 
-  // ... (Keep existing TripForm, ProfileForm, etc. logic)
   const [tripForm, setTripForm] = useState<Partial<Trip>>({ 
-      title: '', 
-      description: '', 
-      destination: '', 
-      price: 0, 
-      durationDays: 1, 
-      startDate: '', 
-      endDate: '', 
-      images: [], 
-      category: 'PRAIA', 
-      tags: [], 
-      travelerTypes: [], 
-      itinerary: [], 
-      paymentMethods: [], 
-      included: [], 
-      notIncluded: [], 
-      featured: false, 
-      is_active: true, 
-      boardingPoints: [],
-      // Default Operational Data with Bus 46
+      title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [],
       operationalData: DEFAULT_OPERATIONAL_DATA
   });
 
@@ -963,22 +1004,18 @@ const AgencyDashboard: React.FC = () => {
   const stats = currentAgency ? getAgencyStats(currentAgency.agencyId) : { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
   const myTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
   const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
-  const myReviews = agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId);
 
   useEffect(() => { if (currentAgency) { setProfileForm({ name: currentAgency.name, description: currentAgency.description, whatsapp: currentAgency.whatsapp || '', phone: currentAgency.phone || '', website: currentAgency.website || '', address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, logo: currentAgency.logo }); setHeroForm({ heroMode: currentAgency.heroMode || 'TRIPS', heroBannerUrl: currentAgency.heroBannerUrl || '', heroTitle: currentAgency.heroTitle || '', heroSubtitle: currentAgency.heroSubtitle || '' }); } }, [currentAgency]);
   useEffect(() => { const fetchTheme = async () => { if (currentAgency) { const savedTheme = await getAgencyTheme(currentAgency.agencyId); if (savedTheme) { setThemeForm(savedTheme.colors); } } }; fetchTheme(); }, [currentAgency, getAgencyTheme]);
 
-  const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setActiveStep(0); setSelectedOperationalTripId(null); };
+  const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
   
-  // Handler implementations
   const handleEditTrip = (trip: Trip) => { 
       const bp = (trip.boardingPoints && trip.boardingPoints.length > 0) ? trip.boardingPoints : [{ id: crypto.randomUUID(), time: '', location: '' }];
-      // FIX: Ensure operationalData exists to avoid crashes in form
       const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
       setTripForm({ ...trip, boardingPoints: bp, operationalData: opData }); 
       setEditingTripId(trip.id); 
       setIsEditingTrip(true); 
-      setActiveStep(0); 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
   const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
@@ -990,16 +1027,13 @@ const AgencyDashboard: React.FC = () => {
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
   const confirmSubscription = async () => { if (!showConfirmSubscription) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
 
-  // New Save Trip Handler for the Form
   const handleSaveTrip = async (e: React.FormEvent) => {
       e.preventDefault();
       setLoading(true);
       try {
-          // Validate date
           if (!tripForm.startDate) throw new Error('Data de início é obrigatória.');
           if (!tripForm.title) throw new Error('Título é obrigatório.');
 
-          // Ensure operationalData is set before saving
           const finalTripData = {
               ...tripForm,
               operationalData: tripForm.operationalData || DEFAULT_OPERATIONAL_DATA
@@ -1065,7 +1099,6 @@ const AgencyDashboard: React.FC = () => {
                                 Meus Pacotes <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{myTrips.length}</span>
                             </h2>
                             <div className="flex items-center gap-3">
-                                {/* Toggle View Mode */}
                                 <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                                     <button onClick={() => setTripViewMode('GRID')} className={`p-1.5 rounded-md transition-colors ${tripViewMode === 'GRID' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`} title="Grade"><LayoutGrid size={18}/></button>
                                     <button onClick={() => setTripViewMode('TABLE')} className={`p-1.5 rounded-md transition-colors ${tripViewMode === 'TABLE' ? 'bg-white shadow text-primary-600' : 'text-gray-500 hover:text-gray-700'}`} title="Lista"><List size={18}/></button>
@@ -1091,9 +1124,8 @@ const AgencyDashboard: React.FC = () => {
                                     {myTrips.map(trip => {
                                         const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                                         const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                                        // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
-                                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
-                                        const occupancy = Math.round((paxCount / totalSeats) * 100);
+                                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 0; 
+                                        const occupancy = totalSeats > 0 ? Math.round((paxCount / totalSeats) * 100) : 0;
 
                                         return (
                                             <div key={trip.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden group hover:shadow-md transition-all flex flex-col">
@@ -1141,9 +1173,8 @@ const AgencyDashboard: React.FC = () => {
                                             {myTrips.map(trip => {
                                                 const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                                                 const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                                                // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
-                                                const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
-                                                const occupancy = Math.round((paxCount / totalSeats) * 100);
+                                                const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 0; 
+                                                const occupancy = totalSeats > 0 ? Math.round((paxCount / totalSeats) * 100) : 0;
 
                                                 return (
                                                     <tr key={trip.id} className="hover:bg-gray-50 transition-colors group">
@@ -1154,7 +1185,7 @@ const AgencyDashboard: React.FC = () => {
                                                                 <div className="w-16 bg-gray-200 h-1.5 rounded-full overflow-hidden">
                                                                     <div className={`h-full rounded-full ${occupancy > 80 ? 'bg-green-500' : 'bg-primary-500'}`} style={{ width: `${occupancy}%` }}></div>
                                                                 </div>
-                                                                <span className="text-xs font-bold text-gray-500">{paxCount}/{totalSeats}</span>
+                                                                <span className="text-xs font-bold text-gray-500">{paxCount}/{totalSeats || '-'}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
@@ -1215,31 +1246,30 @@ const AgencyDashboard: React.FC = () => {
                                     <textarea value={tripForm.description} onChange={e => setTripForm({...tripForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" rows={5} placeholder="Detalhes do roteiro, o que levar, etc." />
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão (Opcional)</label>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão</label>
                                     <select 
-                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || ''} 
+                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || 'BUS_46'} 
                                         onChange={e => {
-                                            const type = e.target.value as VehicleType | '';
-                                            const newConfig = type ? VEHICLE_TYPES[type] : undefined;
+                                            const type = e.target.value as VehicleType;
+                                            const newConfig = VEHICLE_TYPES[type];
                                             setTripForm({
                                                 ...tripForm,
                                                 operationalData: {
                                                     ...tripForm.operationalData!,
-                                                    transport: newConfig ? {
-                                                        ...(tripForm.operationalData?.transport || { seats: [] }),
+                                                    transport: {
+                                                        ...(tripForm.operationalData?.transport || DEFAULT_OPERATIONAL_DATA.transport!),
                                                         vehicleConfig: newConfig
-                                                    } : undefined
+                                                    }
                                                 }
                                             });
                                         }}
                                         className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
                                     >
-                                        <option value="">Definir depois na aba Operações</option>
                                         {Object.values(VEHICLE_TYPES).map(v => (
                                             <option key={v.type} value={v.type}>{v.label}</option>
                                         ))}
                                     </select>
-                                    <p className="text-xs text-gray-500 mt-1">Você pode deixar em branco e configurar o layout exato mais tarde.</p>
+                                    <p className="text-xs text-gray-500 mt-1">Isso define o layout inicial do mapa de assentos.</p>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
