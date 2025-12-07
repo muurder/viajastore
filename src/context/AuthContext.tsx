@@ -36,7 +36,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
-    console.log("[AuthContext] fetchUserData START", authId, email); // Debug Log
+    // CRITICAL FIX: Add guard to prevent redundant re-fetches if user is already in state
+    // This stops the infinite loop from DataContext's useEffect triggering reloadUser repeatedly
+    if (user && user.id === authId && user.email === email && !localStorage.getItem('viajastore_pending_role')) {
+      console.log("[AuthContext] fetchUserData: User data already in state, skipping re-fetch for ID:", authId);
+      return; 
+    }
+
+    console.log("[AuthContext] fetchUserData START for ID:", authId, "Email:", email); // Debug Log
     if (!supabase) return;
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
@@ -121,7 +128,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             customSettings: agencyData.custom_settings || {},
             subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
             subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
-            subscriptionExpiresAt: new Date().toISOString(), 
+            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(), 
             website: agencyData.website,
             phone: agencyData.phone,
             address: agencyData.address || {},
@@ -149,7 +156,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           avatar: profileData.avatar_url, 
           cpf: profileData.cpf,
           phone: profileData.phone,
-          favorites: [],
+          favorites: profileData.favorites || [], // Ensure favorites are loaded here
           createdAt: profileData.created_at,
           address: profileData.address || {},
           status: profileData.status || 'ACTIVE'
@@ -280,7 +287,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeAuth();
-  }, []);
+  }, []); // THIS DEPENDENCY ARRAY IS ALREADY EMPTY. The bug must be in DataContext's useEffect
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
@@ -527,11 +534,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
         if (userData.avatar) updates.avatar_url = userData.avatar;
         if (userData.address) updates.address = (userData as Client).address;
+        if ((userData as Client).favorites) updates.favorites = (userData as Client).favorites;
+
 
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;
       }
 
+      // After successful DB update, update the local AuthContext user state
       setUser({ ...user, ...userData } as any);
       return { success: true };
 
