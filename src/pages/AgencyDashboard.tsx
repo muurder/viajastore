@@ -18,6 +18,15 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 } // 12 embaixo, 48 cima
 };
 
+const DEFAULT_OPERATIONAL_DATA: OperationalData = {
+    transport: {
+        vehicleConfig: VEHICLE_TYPES['BUS_46'],
+        seats: []
+    },
+    rooming: [],
+    manualPassengers: []
+};
+
 // Safe Date Helper to prevent crashes
 const safeDate = (dateStr: string | undefined) => {
     if (!dateStr) return 'Data n/a';
@@ -257,8 +266,10 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
     // Default to BUS_46 if not set
     const defaultVehicle = VEHICLE_TYPES['BUS_46'];
+    // FIX: Safely access vehicleConfig, fallback to defaultVehicle if operationalData or transport or vehicleConfig is missing
     const vehicleConfig = trip.operationalData?.transport?.vehicleConfig || defaultVehicle;
     
+    // FIX: Initialize state with robust check
     const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig; seats: PassengerSeat[] }>({ 
         vehicleConfig: vehicleConfig,
         seats: trip.operationalData?.transport?.seats || [] 
@@ -741,7 +752,8 @@ const OperationsModule: React.FC<{
                     {activeTrips.map(trip => {
                         const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                         const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                        const totalSeats = trip.operationalData?.transport?.vehicleConfig.totalSeats || 46;
+                        // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
+                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
                         const occupancy = Math.round((paxCount / totalSeats) * 100);
                         const isSelected = selectedTripId === trip.id;
 
@@ -878,14 +890,7 @@ const AgencyDashboard: React.FC = () => {
       is_active: true, 
       boardingPoints: [],
       // Default Operational Data with Bus 46
-      operationalData: {
-          transport: {
-              vehicleConfig: VEHICLE_TYPES['BUS_46'],
-              seats: []
-          },
-          rooming: [],
-          manualPassengers: []
-      }
+      operationalData: DEFAULT_OPERATIONAL_DATA
   });
 
   const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
@@ -907,7 +912,16 @@ const AgencyDashboard: React.FC = () => {
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setActiveStep(0); setSelectedOperationalTripId(null); };
   
   // Handler implementations
-  const handleEditTrip = (trip: Trip) => { const bp = (trip.boardingPoints && trip.boardingPoints.length > 0) ? trip.boardingPoints : [{ id: crypto.randomUUID(), time: '', location: '' }]; setTripForm({ ...trip, boardingPoints: bp }); setEditingTripId(trip.id); setIsEditingTrip(true); setActiveStep(0); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const handleEditTrip = (trip: Trip) => { 
+      const bp = (trip.boardingPoints && trip.boardingPoints.length > 0) ? trip.boardingPoints : [{ id: crypto.randomUUID(), time: '', location: '' }];
+      // FIX: Ensure operationalData exists to avoid crashes in form
+      const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
+      setTripForm({ ...trip, boardingPoints: bp, operationalData: opData }); 
+      setEditingTripId(trip.id); 
+      setIsEditingTrip(true); 
+      setActiveStep(0); 
+      window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
   const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
   const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await updateUser(profileForm); await updateUser({ heroMode: heroForm.heroMode as 'TRIPS' | 'STATIC', heroBannerUrl: heroForm.heroBannerUrl, heroTitle: heroForm.heroTitle, heroSubtitle: heroForm.heroSubtitle }); showToast('Perfil atualizado!', 'success'); } catch (err) { showToast('Erro ao atualizar perfil.', 'error'); } finally { setLoading(false); } };
@@ -926,16 +940,22 @@ const AgencyDashboard: React.FC = () => {
           if (!tripForm.startDate) throw new Error('Data de início é obrigatória.');
           if (!tripForm.title) throw new Error('Título é obrigatório.');
 
+          // Ensure operationalData is set before saving
+          const finalTripData = {
+              ...tripForm,
+              operationalData: tripForm.operationalData || DEFAULT_OPERATIONAL_DATA
+          };
+
           if (editingTripId) {
-              await updateTrip({ ...tripForm, id: editingTripId } as Trip);
+              await updateTrip({ ...finalTripData, id: editingTripId } as Trip);
               showToast('Pacote atualizado!', 'success');
           } else {
-              await createTrip({ ...tripForm, agencyId: currentAgency.agencyId } as Trip);
+              await createTrip({ ...finalTripData, agencyId: currentAgency.agencyId } as Trip);
               showToast('Novo pacote criado!', 'success');
           }
           setIsEditingTrip(false);
           setEditingTripId(null);
-          setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [], operationalData: { transport: { vehicleConfig: VEHICLE_TYPES['BUS_46'], seats: [] }, rooming: [], manualPassengers: [] } });
+          setTripForm({ title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [], operationalData: DEFAULT_OPERATIONAL_DATA });
       } catch (error: any) {
           showToast(error.message, 'error');
       } finally {
@@ -997,7 +1017,7 @@ const AgencyDashboard: React.FC = () => {
                                         startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], 
                                         travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], 
                                         featured: false, is_active: true, boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }],
-                                        operationalData: { transport: { vehicleConfig: VEHICLE_TYPES['BUS_46'], seats: [] }, rooming: [], manualPassengers: [] }
+                                        operationalData: DEFAULT_OPERATIONAL_DATA
                                     }); 
                                     setIsEditingTrip(true); 
                                 }} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all active:scale-95">
@@ -1012,7 +1032,8 @@ const AgencyDashboard: React.FC = () => {
                                     {myTrips.map(trip => {
                                         const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                                         const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                                        const totalSeats = trip.operationalData?.transport?.vehicleConfig.totalSeats || 46;
+                                        // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
+                                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
                                         const occupancy = Math.round((paxCount / totalSeats) * 100);
 
                                         return (
@@ -1061,7 +1082,8 @@ const AgencyDashboard: React.FC = () => {
                                             {myTrips.map(trip => {
                                                 const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
                                                 const paxCount = tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-                                                const totalSeats = trip.operationalData?.transport?.vehicleConfig.totalSeats || 46;
+                                                // FIX: PROTECT AGAINST UNDEFINED OPERATIONAL DATA
+                                                const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 46;
                                                 const occupancy = Math.round((paxCount / totalSeats) * 100);
 
                                                 return (
@@ -1136,7 +1158,7 @@ const AgencyDashboard: React.FC = () => {
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão</label>
                                     <select 
-                                        value={tripForm.operationalData?.transport?.vehicleConfig.type || 'BUS_46'} 
+                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || 'BUS_46'} 
                                         onChange={e => {
                                             const type = e.target.value as VehicleType;
                                             const newConfig = VEHICLE_TYPES[type];
@@ -1145,7 +1167,7 @@ const AgencyDashboard: React.FC = () => {
                                                 operationalData: {
                                                     ...tripForm.operationalData!,
                                                     transport: {
-                                                        ...tripForm.operationalData!.transport!,
+                                                        ...(tripForm.operationalData?.transport || DEFAULT_OPERATIONAL_DATA.transport!),
                                                         vehicleConfig: newConfig
                                                     }
                                                 }
