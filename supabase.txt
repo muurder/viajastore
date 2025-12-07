@@ -15,6 +15,7 @@ ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_rating NUMERIC DEFAULT 0;
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS trip_total_reviews INTEGER DEFAULT 0; -- NOVO
 
 -- NOVO: Colunas para gestão operacional e detalhes premium
+-- IMPORTANTE: Rode estas linhas para que o Mapa de Assentos e Rooming List funcionem!
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS boarding_points JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS operational_data JSONB DEFAULT '{}'::jsonb;
 

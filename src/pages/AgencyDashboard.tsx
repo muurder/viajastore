@@ -7,7 +7,7 @@ import { Trip, Agency, Plan, ItineraryDay, TripCategory, TravelerType, ThemeColo
 import { PLANS } from '../services/mockData';
 import { slugify } from '../utils/slugify';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Upload, ArrowRight, CheckCircle, Bold, Italic, Underline, List, Settings, BedDouble, Bus, FileText, Download, UserCheck, GripVertical, UserPlus } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, Heading1, Heading2, Link as LinkIcon, ListOrdered, ExternalLink, Smartphone, Layout, Image as ImageIcon, Star, BarChart2, DollarSign, Users, Search, Tag, Calendar, Check, Plane, CreditCard, AlignLeft, AlignCenter, AlignRight, Quote, Smile, MapPin, Clock, ShoppingBag, Filter, ChevronUp, ChevronDown, MoreHorizontal, PauseCircle, PlayCircle, Globe, Bell, MessageSquare, Rocket, Palette, RefreshCw, LogOut, LucideProps, MonitorPlay, Info, AlertCircle, ShieldCheck, Upload, ArrowRight, CheckCircle, Bold, Italic, Underline, List, Settings, BedDouble, Bus, FileText, Download, UserCheck, GripVertical, UserPlus, Armchair, User, Disc } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -220,7 +220,7 @@ const TripManagementModal: React.FC<{ trip: Trip; bookings: Booking[]; clients: 
         setLoading(true);
         try {
             await updateTripOperationalData(trip.id, data);
-            // showToast('Salvo com sucesso!', 'success'); // Optional: too many toasts might be annoying
+            // Auto-save feedback is handled by loading state
         } catch (error) {
             console.error("Failed to save op data", error);
             showToast('Erro ao salvar.', 'error');
@@ -230,13 +230,21 @@ const TripManagementModal: React.FC<{ trip: Trip; bookings: Booking[]; clients: 
     };
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex border-b border-gray-200 mb-0 bg-white sticky top-0 z-10 px-6 flex-shrink-0">
-                <button onClick={() => setActiveView('TRANSPORT')} className={`px-6 py-4 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Bus size={18}/> Mapa de Assentos</button>
-                <button onClick={() => setActiveView('ROOMING')} className={`px-6 py-4 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Rooming List</button>
-                {loading && <div className="ml-auto flex items-center text-xs text-gray-400"><Loader size={14} className="animate-spin mr-2"/> Salvando...</div>}
+        <div className="flex flex-col h-full bg-gray-50">
+            <div className="flex justify-between items-center border-b border-gray-200 bg-white px-6 py-2 shadow-sm sticky top-0 z-20">
+                <div className="flex gap-4">
+                    <button onClick={() => setActiveView('TRANSPORT')} className={`px-4 py-3 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Bus size={18}/> Mapa de Assentos</button>
+                    <button onClick={() => setActiveView('ROOMING')} className={`px-4 py-3 font-bold text-sm border-b-2 flex items-center gap-2 transition-colors ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Rooming List</button>
+                </div>
+                <div className="flex items-center gap-3">
+                    {loading ? (
+                        <div className="flex items-center text-xs text-primary-600 font-bold bg-primary-50 px-3 py-1.5 rounded-full"><Loader size={14} className="animate-spin mr-2"/> Salvando...</div>
+                    ) : (
+                        <div className="flex items-center text-xs text-green-600 font-bold bg-green-50 px-3 py-1.5 rounded-full"><CheckCircle size={14} className="mr-1.5"/> Salvo</div>
+                    )}
+                </div>
             </div>
-            <div className="flex-1 p-6 min-h-0 overflow-hidden bg-gray-50"> 
+            <div className="flex-1 p-6 min-h-0 overflow-hidden relative"> 
                 {activeView === 'TRANSPORT' ? <TransportManager trip={trip} bookings={bookings} clients={clients} onSave={handleSave} /> : <RoomingManager trip={trip} bookings={bookings} clients={clients} onSave={handleSave} />}
             </div>
         </div>
@@ -255,14 +263,14 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
         onClose();
     };
     return (
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4">
+        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4 animate-[fadeIn_0.2s]">
             <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Novo Passageiro Manual</h4>
             <form onSubmit={handleSubmit} className="space-y-3">
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Nome Completo" className="w-full text-sm border p-2 rounded" autoFocus />
-                <input value={doc} onChange={e => setDoc(e.target.value)} placeholder="RG/CPF (Opcional)" className="w-full text-sm border p-2 rounded" />
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="Nome Completo" className="w-full text-sm border p-2 rounded focus:ring-1 focus:ring-primary-500 outline-none" autoFocus />
+                <input value={doc} onChange={e => setDoc(e.target.value)} placeholder="RG/CPF (Opcional)" className="w-full text-sm border p-2 rounded focus:ring-1 focus:ring-primary-500 outline-none" />
                 <div className="flex gap-2">
-                    <button type="button" onClick={onClose} className="flex-1 text-xs bg-white border p-2 rounded hover:bg-gray-100">Cancelar</button>
-                    <button type="submit" className="flex-1 text-xs bg-primary-600 text-white p-2 rounded hover:bg-primary-700 font-bold">Adicionar</button>
+                    <button type="button" onClick={onClose} className="flex-1 text-xs bg-white border border-gray-300 text-gray-700 p-2 rounded hover:bg-gray-50 font-medium">Cancelar</button>
+                    <button type="submit" className="flex-1 text-xs bg-primary-600 text-white p-2 rounded hover:bg-primary-700 font-bold shadow-sm">Adicionar</button>
                 </div>
             </form>
         </div>
@@ -345,35 +353,40 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
             const s3 = ((r - 1) * 4) + 3;
             const s4 = ((r - 1) * 4) + 4;
 
-            [s1, s2, s3, s4].forEach(num => {
-                if (num <= total) {
-                    const seatStr = num.toString();
-                    const occupant = isSeatOccupied(seatStr);
-                    seatsInRow.push(
-                        <button 
-                            key={num} 
-                            onClick={() => handleSeatClick(seatStr)}
-                            className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold transition-all border shadow-sm
-                                ${occupant 
-                                    ? 'bg-primary-600 text-white border-primary-700' 
-                                    : selectedPassenger 
-                                        ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100 animate-pulse cursor-pointer' 
-                                        : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                }
-                            `}
-                            title={occupant ? occupant.passengerName : `Poltrona ${num}`}
-                        >
-                            {occupant ? num : num} 
-                        </button>
-                    );
-                }
-            });
+            const renderSeat = (num: number) => {
+                if (num > total) return <div className="w-10 h-10"></div>;
+                const seatStr = num.toString();
+                const occupant = isSeatOccupied(seatStr);
+                return (
+                    <button 
+                        key={num} 
+                        onClick={() => handleSeatClick(seatStr)}
+                        className={`w-10 h-10 md:w-12 md:h-12 rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all border-2 shadow-sm relative group
+                            ${occupant 
+                                ? 'bg-primary-600 text-white border-primary-700 shadow-primary-500/30' 
+                                : selectedPassenger 
+                                    ? 'bg-green-50 border-green-400 text-green-700 hover:bg-green-100 hover:scale-105 cursor-pointer border-dashed' 
+                                    : 'bg-white border-gray-200 text-gray-400 hover:border-gray-400 hover:bg-gray-50'
+                            }
+                        `}
+                        title={occupant ? occupant.passengerName : `Poltrona ${num}`}
+                    >
+                        <Armchair size={16} className={`mb-0.5 ${occupant ? 'fill-current' : ''}`}/>
+                        <span className="text-[10px]">{num}</span>
+                        {occupant && (
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                {occupant.passengerName}
+                            </div>
+                        )}
+                    </button>
+                );
+            };
 
             grid.push(
-                <div key={r} className="flex justify-between items-center gap-8 mb-3">
-                    <div className="flex gap-2">{seatsInRow[0]}{seatsInRow[1]}</div>
-                    <div className="text-xs text-gray-300 font-mono">{r}</div>
-                    <div className="flex gap-2">{seatsInRow[2]}{seatsInRow[3]}</div>
+                <div key={r} className="flex justify-between items-center gap-4 mb-3">
+                    <div className="flex gap-2">{renderSeat(s1)}{renderSeat(s2)}</div>
+                    <div className="text-xs text-gray-300 font-mono w-4 text-center">{r}</div>
+                    <div className="flex gap-2">{renderSeat(s3)}{renderSeat(s4)}</div>
                 </div>
             );
         }
@@ -381,14 +394,15 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
     };
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 h-full overflow-hidden">
-            <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col h-full max-h-full">
+        <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
+            {/* Passenger Sidebar */}
+            <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col h-full max-h-[300px] lg:max-h-full shadow-sm">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
-                    <h4 className="font-bold text-gray-900 text-sm">Passageiros</h4>
-                    <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1" title="Adicionar Manual"><UserPlus size={18}/></button>
+                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Lista de Passageiros</h4>
+                    <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors" title="Adicionar Manual"><UserPlus size={18}/></button>
                 </div>
                 
-                <div className="p-4 flex-1 overflow-y-auto">
+                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                     {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                     
                     <div className="space-y-2">
@@ -397,39 +411,75 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                             return (
                                 <div 
                                     key={p.id} 
-                                    onClick={() => !isSeated && setSelectedPassenger(p)}
-                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between
+                                    onClick={() => !isSeated && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)}
+                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group
                                         ${isSeated ? 'bg-gray-50 border-gray-100 opacity-60' : 
-                                          selectedPassenger?.id === p.id ? 'bg-primary-50 border-primary-500 ring-1 ring-primary-500' : 'bg-white border-gray-200 hover:border-primary-300'}
+                                          selectedPassenger?.id === p.id ? 'bg-primary-50 border-primary-500 ring-1 ring-primary-500 shadow-sm' : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-sm'}
                                     `}
                                 >
-                                    <div className="flex items-center gap-2 overflow-hidden">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isSeated ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-600'}`}>
+                                            {p.name.charAt(0).toUpperCase()}
+                                        </div>
                                         <span className={`truncate ${isSeated ? 'text-gray-400' : 'text-gray-700 font-medium'}`}>{p.name}</span>
                                     </div>
-                                    {isSeated ? <CheckCircle size={14} className="text-green-500 flex-shrink-0"/> : <div className="w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></div>}
+                                    {isSeated ? <div className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100">OK</div> : <div className="w-2 h-2 rounded-full bg-gray-300 group-hover:bg-primary-400 transition-colors"></div>}
                                 </div>
                             );
                         })}
                     </div>
                 </div>
+                <div className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-xl text-xs text-gray-500 text-center">
+                    Selecione um passageiro para alocar
+                </div>
             </div>
 
-            <div className="flex-1 bg-gray-50 rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden">
-                <div className="p-4 border-b border-gray-200 bg-white rounded-t-xl flex justify-between items-center">
-                     <h4 className="font-bold text-gray-700 text-sm">Mapa do Veículo</h4>
-                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Vagas:</span>
-                        <input type="number" value={config.totalSeats} onChange={handleUpdateTotalSeats} className="w-16 border rounded p-1 text-sm text-center" />
+            {/* Bus Layout Area */}
+            <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm relative">
+                <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-xl flex justify-between items-center shadow-sm z-10">
+                     <h4 className="font-bold text-gray-700 text-sm flex items-center gap-2"><Bus size={16}/> Configuração do Veículo</h4>
+                     <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                        <span className="text-xs font-bold text-gray-500 uppercase">Lugares:</span>
+                        <input type="number" value={config.totalSeats} onChange={handleUpdateTotalSeats} className="w-16 border border-gray-300 rounded p-1 text-sm text-center font-bold text-gray-700 focus:ring-2 focus:ring-primary-500 outline-none" />
                      </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-8 flex justify-center">
-                    <div className="bg-white p-8 rounded-[40px] border-2 border-gray-300 shadow-xl relative w-fit h-fit">
-                        <div className="absolute top-6 left-6 border-b-2 border-gray-200 w-full mb-10">
-                            <div className="w-10 h-10 rounded-lg border-2 border-gray-300 flex items-center justify-center mb-4 text-gray-400"><Users size={20}/></div>
-                        </div>
-                        <div className="mt-20 space-y-2">
-                            {renderBusLayout()}
+                {/* Scrollable Container with Centered Content */}
+                <div className="flex-1 overflow-auto bg-slate-100 relative p-8">
+                    {/* Legend */}
+                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-sm border border-gray-200 text-xs z-20 hidden md:block">
+                        <div className="flex items-center gap-2 mb-2"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span>Livre</span></div>
+                        <div className="flex items-center gap-2 mb-2"><div className="w-3 h-3 bg-primary-600 border border-primary-700 rounded"></div><span>Ocupado</span></div>
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-50 border border-green-400 border-dashed rounded"></div><span>Selecionado</span></div>
+                    </div>
+
+                    <div className="min-h-full flex justify-center items-start pt-4 pb-20">
+                        {/* Bus Chassis */}
+                        <div className="bg-white px-8 md:px-12 py-16 rounded-[40px] md:rounded-[60px] border-[6px] border-slate-300 shadow-2xl relative w-fit mx-auto transition-all duration-500">
+                            
+                            {/* Front of Bus (Driver) */}
+                            <div className="absolute top-0 left-0 right-0 h-32 border-b-2 border-slate-200 rounded-t-[35px] md:rounded-t-[55px] bg-gradient-to-b from-slate-50 to-white flex justify-between px-8 md:px-10 pt-8">
+                                <div className="flex flex-col items-center">
+                                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner">
+                                        <User size={24} className="md:w-8 md:h-8" />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Motorista</span>
+                                </div>
+                                <div className="flex flex-col items-center justify-center opacity-50">
+                                    <div className="w-16 md:w-20 h-1 bg-slate-200 rounded mb-1"></div>
+                                    <div className="w-12 md:w-16 h-1 bg-slate-200 rounded"></div>
+                                    <span className="text-[10px] text-slate-300 mt-2 font-bold uppercase">Corredor</span>
+                                </div>
+                                <div className="w-12 md:w-14"></div> {/* Spacer for symmetry */}
+                            </div>
+
+                            {/* Seats Grid */}
+                            <div className="mt-20 space-y-2">
+                                {renderBusLayout()}
+                            </div>
+
+                            {/* Rear of Bus */}
+                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[35px] md:rounded-b-[55px] border-t border-slate-200"></div>
                         </div>
                     </div>
                 </div>
@@ -535,85 +585,114 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex gap-4 mb-4 overflow-x-auto pb-2 flex-shrink-0">
-                <button onClick={() => addRoom('DOUBLE')} className="bg-white border border-dashed border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:border-primary-500 hover:text-primary-600 transition-colors flex items-center gap-2 text-sm"><Plus size={16}/> Quarto Duplo</button>
-                <button onClick={() => addRoom('TRIPLE')} className="bg-white border border-dashed border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:border-primary-500 hover:text-primary-600 transition-colors flex items-center gap-2 text-sm"><Plus size={16}/> Quarto Triplo</button>
-                <button onClick={() => addRoom('QUAD')} className="bg-white border border-dashed border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:border-primary-500 hover:text-primary-600 transition-colors flex items-center gap-2 text-sm"><Plus size={16}/> Quarto Quádruplo</button>
+            <div className="flex gap-3 mb-6 overflow-x-auto pb-2 flex-shrink-0">
+                <button onClick={() => addRoom('DOUBLE')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Duplo</button>
+                <button onClick={() => addRoom('TRIPLE')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Triplo</button>
+                <button onClick={() => addRoom('QUAD')} className="bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl hover:border-primary-500 hover:text-primary-600 hover:shadow-md transition-all flex items-center gap-2 text-sm font-bold shadow-sm active:scale-95"><Plus size={16}/> Quarto Quádruplo</button>
             </div>
             
             <div className="flex flex-col lg:flex-row gap-8 h-full overflow-hidden">
-                <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col h-full">
+                {/* Guests Sidebar */}
+                <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col h-full max-h-[300px] lg:max-h-full shadow-sm">
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
-                        <h4 className="font-bold text-gray-900 text-sm">Hóspedes ({unassignedPassengers.length})</h4>
-                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1"><UserPlus size={18}/></button>
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Hóspedes ({unassignedPassengers.length})</h4>
+                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"><UserPlus size={18}/></button>
                     </div>
-                    <div className="p-4 flex-1 overflow-y-auto">
+                    <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                         <div className="space-y-2">
                             {unassignedPassengers.map(p => (
                                 <div 
                                     key={p.id} 
                                     onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)}
-                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between
-                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300 text-gray-700'}
+                                    className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group
+                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md transform scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300 text-gray-700 hover:shadow-sm'}
                                     `}
                                 >
                                     <span className="font-medium truncate">{p.name}</span>
-                                    {selectedPassenger?.id === p.id && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                    {selectedPassenger?.id === p.id ? <CheckCircle size={16} className="text-white"/> : <div className="w-2 h-2 bg-gray-300 rounded-full group-hover:bg-primary-400"></div>}
                                 </div>
                             ))}
                         </div>
                     </div>
+                    <div className="p-3 border-t border-gray-100 bg-gray-50 rounded-b-xl text-xs text-gray-500 text-center">
+                        Selecione um hóspede para alocar
+                    </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 h-full">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
+                {/* Rooms Grid */}
+                <div className="flex-1 overflow-y-auto p-1 h-full custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
                         {rooms.map(room => (
                             <div 
                                 key={room.id} 
                                 onClick={() => selectedPassenger && assignPassengerToRoom(room.id)}
-                                className={`bg-white rounded-xl border p-4 transition-all relative h-fit
-                                    ${selectedPassenger && room.guests.length < room.capacity ? 'border-primary-400 ring-2 ring-primary-100 cursor-pointer hover:shadow-md' : 'border-gray-200'}
+                                className={`bg-white rounded-xl border transition-all relative h-fit shadow-sm group overflow-hidden
+                                    ${selectedPassenger && room.guests.length < room.capacity ? 'border-primary-400 ring-2 ring-primary-100 cursor-pointer hover:shadow-lg scale-[1.01]' : 'border-gray-200'}
                                 `}
                             >
-                                <div className="absolute top-2 right-2 flex gap-1">
-                                    <button onClick={(e) => { e.stopPropagation(); setEditingRoomId(room.id); }} className="text-gray-300 hover:text-primary-500 p-1"><Edit size={14}/></button>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteRoom(room.id); }} className="text-gray-300 hover:text-red-500 p-1"><X size={14}/></button>
-                                </div>
-
-                                <div className="flex items-center gap-2 mb-3">
-                                    <div className={`p-2 rounded-lg ${room.guests.length >= room.capacity ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}><BedDouble size={20}/></div>
-                                    <div>
-                                        {editingRoomId === room.id ? (
-                                            <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
-                                                <input defaultValue={room.name} className="text-sm border rounded p-1 w-28" id={`name-${room.id}`} />
-                                                <input type="number" defaultValue={room.capacity} className="text-xs border rounded p-1 w-16" id={`cap-${room.id}`} />
-                                                <button onClick={() => {
-                                                    const name = (document.getElementById(`name-${room.id}`) as HTMLInputElement).value;
-                                                    const cap = parseInt((document.getElementById(`cap-${room.id}`) as HTMLInputElement).value);
-                                                    updateRoomDetails(room.id, name, cap);
-                                                }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <h5 className="font-bold text-gray-800 text-sm">{room.name}</h5>
-                                                <p className="text-[10px] text-gray-500 uppercase font-bold">{room.guests.length} / {room.capacity} Vagas</p>
-                                            </>
-                                        )}
+                                {/* Header */}
+                                <div className="p-3 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-2 rounded-lg ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-600' : 'bg-white border border-gray-200 text-gray-400'}`}>
+                                            <BedDouble size={18}/>
+                                        </div>
+                                        <div>
+                                            {editingRoomId === room.id ? (
+                                                <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
+                                                    <input defaultValue={room.name} className="text-sm border rounded p-1 w-28" id={`name-${room.id}`} />
+                                                    <input type="number" defaultValue={room.capacity} className="text-xs border rounded p-1 w-16" id={`cap-${room.id}`} />
+                                                    <button onClick={() => {
+                                                        const name = (document.getElementById(`name-${room.id}`) as HTMLInputElement).value;
+                                                        const cap = parseInt((document.getElementById(`cap-${room.id}`) as HTMLInputElement).value);
+                                                        updateRoomDetails(room.id, name, cap);
+                                                    }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <h5 className="font-bold text-gray-800 text-sm">{room.name}</h5>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${room.guests.length >= room.capacity ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {room.guests.length}/{room.capacity}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 uppercase font-bold">{room.type === 'DOUBLE' ? 'Duplo' : room.type === 'TRIPLE' ? 'Triplo' : 'Quádruplo'}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={(e) => { e.stopPropagation(); setEditingRoomId(room.id); }} className="text-gray-400 hover:text-primary-500 p-1.5 rounded hover:bg-white"><Edit size={14}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); deleteRoom(room.id); }} className="text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-white"><Trash2 size={14}/></button>
                                     </div>
                                 </div>
-                                <div className="space-y-2 min-h-[60px]">
+
+                                {/* Body */}
+                                <div className="p-3 space-y-2 min-h-[100px]">
                                     {room.guests.map((guest, idx) => (
-                                        <div key={idx} className="bg-gray-50 px-2 py-1.5 rounded text-xs text-gray-700 flex justify-between items-center group border border-gray-100">
-                                            <span className="truncate max-w-[80%]">{guest.name}</span>
-                                            <button onClick={(e) => { e.stopPropagation(); removeGuest(room.id, idx); }} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                                        <div key={idx} className="bg-blue-50 px-3 py-2 rounded-lg text-xs text-blue-900 font-medium flex justify-between items-center group/guest border border-blue-100 animate-[fadeIn_0.2s]">
+                                            <span className="truncate max-w-[85%] flex items-center gap-2">
+                                                <User size={12} className="text-blue-400"/>
+                                                {guest.name}
+                                            </span>
+                                            <button onClick={(e) => { e.stopPropagation(); removeGuest(room.id, idx); }} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100 transition-opacity"><X size={14}/></button>
                                         </div>
                                     ))}
-                                    {Array.from({ length: Math.max(0, room.capacity - room.guests.length) }).map((_, i) => (<div key={i} className="border border-dashed border-gray-200 rounded px-2 py-1.5 text-xs text-gray-300 flex justify-center">Vazio</div>))}
+                                    {Array.from({ length: Math.max(0, room.capacity - room.guests.length) }).map((_, i) => (
+                                        <div key={i} className="border-2 border-dashed border-gray-100 rounded-lg px-3 py-2 text-xs text-gray-300 flex items-center justify-center gap-1 select-none">
+                                            <Plus size={12}/> Vaga Disponível
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))}
-                        {rooms.length === 0 && <div className="col-span-full text-center py-12 text-gray-400 italic">Crie quartos para começar a organizar a hospedagem.</div>}
+                        {rooms.length === 0 && (
+                            <div className="col-span-full py-16 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                                <BedDouble size={48} className="mb-4 text-gray-300"/>
+                                <p className="font-medium">Nenhum quarto criado</p>
+                                <p className="text-sm mt-1">Use os botões acima para adicionar quartos.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1075,6 +1154,8 @@ const AgencyDashboard: React.FC = () => {
          <NavButton tabId="OPERATIONS" label="Operações" icon={Bus} activeTab={activeTab} onClick={handleTabChange} />
          <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange} hasNotification={bookings.some(b => b.status === 'PENDING')} />
          <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
+         {/* Added Subscription Tab to Menu */}
+         <NavButton tabId="PLAN" label="Meu Plano" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} />
          <NavButton tabId="SETTINGS" label="Configurações" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
       </div>
 
@@ -1200,6 +1281,55 @@ const AgencyDashboard: React.FC = () => {
                             <TripManagementModal trip={myTrips.find(t => t.id === selectedOperationalTripId)!} bookings={myBookings.filter(b => b.tripId === selectedOperationalTripId)} clients={clients} onClose={() => setSelectedOperationalTripId(null)} />
                         </div>
                     </div>
+                )}
+            </div>
+        )}
+
+        {/* --- NEW SUBSCRIPTION PLAN TAB --- */}
+        {activeTab === 'PLAN' && (
+            <div className="animate-[fadeIn_0.3s]">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Minha Assinatura</h2>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <span className="text-sm font-bold uppercase text-gray-500 tracking-wider">Plano Atual</span>
+                            {currentAgency.subscriptionStatus === 'ACTIVE' 
+                                ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle size={12}/> Ativo</span>
+                                : <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">Inativo</span>
+                            }
+                        </div>
+                        <h3 className="text-4xl font-extrabold text-gray-900">{PLANS.find(p => p.id === currentAgency.subscriptionPlan)?.name || 'Plano Desconhecido'}</h3>
+                        <p className="text-gray-500 mt-2">Próxima renovação: <span className="font-bold text-gray-800">{new Date(currentAgency.subscriptionExpiresAt).toLocaleDateString()}</span></p>
+                    </div>
+                    
+                    <div className="flex gap-4">
+                        <button onClick={() => { setActivatingPlanId(null); setShowConfirmSubscription(PLANS.find(p => p.id !== currentAgency.subscriptionPlan) || PLANS[0]); }} className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-colors shadow-lg flex items-center gap-2">
+                            <Rocket size={18}/> Mudar Plano
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mt-8 grid md:grid-cols-2 gap-6 opacity-70 hover:opacity-100 transition-opacity">
+                    {PLANS.map(plan => (
+                        <div key={plan.id} className={`p-6 rounded-xl border ${currentAgency.subscriptionPlan === plan.id ? 'bg-primary-50 border-primary-200 ring-2 ring-primary-100' : 'bg-white border-gray-200'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-bold text-lg">{plan.name}</h4>
+                                {currentAgency.subscriptionPlan === plan.id && <span className="text-xs font-bold text-primary-600 bg-white px-2 py-1 rounded border border-primary-100">Atual</span>}
+                            </div>
+                            <ul className="space-y-2 text-sm text-gray-600">
+                                {plan.features.map((f, i) => <li key={i} className="flex items-center gap-2"><Check size={14} className="text-green-500"/> {f}</li>)}
+                            </ul>
+                        </div>
+                    ))}
+                </div>
+                
+                {showConfirmSubscription && (
+                    <SubscriptionConfirmationModal 
+                        plan={showConfirmSubscription} 
+                        onClose={() => setShowConfirmSubscription(null)} 
+                        onConfirm={confirmSubscription} 
+                        isSubmitting={!!activatingPlanId} 
+                    />
                 )}
             </div>
         )}
