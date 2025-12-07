@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, Settings2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
@@ -18,11 +18,9 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 } // 12 embaixo, 48 cima
 };
 
+// INITIALIZE EMPTY to force selection
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
-    transport: {
-        vehicleConfig: VEHICLE_TYPES['BUS_46'],
-        seats: []
-    },
+    transport: undefined, // Changed from pre-filled to undefined
     rooming: [],
     manualPassengers: []
 };
@@ -264,14 +262,13 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
 // --- DYNAMIC SEAT MAP LOGIC ---
 
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
-    // Default to BUS_46 if not set
-    const defaultVehicle = VEHICLE_TYPES['BUS_46'];
-    // FIX: Safely access vehicleConfig, fallback to defaultVehicle if operationalData or transport or vehicleConfig is missing
-    const vehicleConfig = trip.operationalData?.transport?.vehicleConfig || defaultVehicle;
+    // Determine initial state: If vehicleConfig is missing, it means transport isn't set up.
+    // We do NOT default to BUS_46 automatically anymore.
+    const vehicleConfig = trip.operationalData?.transport?.vehicleConfig;
     
-    // FIX: Initialize state with robust check
-    const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig; seats: PassengerSeat[] }>({ 
-        vehicleConfig: vehicleConfig,
+    // Config state
+    const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig | null; seats: PassengerSeat[] }>({ 
+        vehicleConfig: vehicleConfig || null,
         seats: trip.operationalData?.transport?.seats || [] 
     });
     
@@ -280,6 +277,20 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
     const [showManualForm, setShowManualForm] = useState(false);
     
     const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
+
+    // Initial Setup Handler
+    const handleSelectVehicleType = (type: VehicleType) => {
+        const newConfig = VEHICLE_TYPES[type];
+        const newTransportState = {
+            vehicleConfig: newConfig,
+            seats: []
+        };
+        setConfig(newTransportState);
+        onSave({ 
+            ...trip.operationalData, 
+            transport: newTransportState as TransportConfig 
+        });
+    };
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
         const client = clients.find(c => c.id === b.clientId);
@@ -310,7 +321,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                 status: 'occupied'
             };
             const newConfig = { ...config, seats: [...config.seats, newSeat] };
-            setConfig(newConfig);
+            setConfig(newConfig as any);
             onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
             setSelectedPassenger(null);
         }
@@ -320,7 +331,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         if (!seatToDelete) return;
         const newSeats = config.seats.filter(s => s.seatNumber !== seatToDelete.seatNum);
         const newConfig = { ...config, seats: newSeats };
-        setConfig(newConfig);
+        setConfig(newConfig as any);
         onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
         setSeatToDelete(null);
     };
@@ -333,6 +344,8 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
 
     // --- RENDER DYNAMIC GRID ---
     const renderBusLayout = () => {
+        if (!config.vehicleConfig) return null;
+
         const { totalSeats, cols, aisleAfterCol } = config.vehicleConfig;
         const rows = Math.ceil(totalSeats / cols);
         const grid = [];
@@ -391,6 +404,38 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         return grid;
     };
 
+    // --- SETUP VIEW (Empty State) ---
+    if (!config.vehicleConfig) {
+        return (
+            <div className="flex-1 h-full bg-slate-50 flex flex-col items-center justify-center p-8 animate-[fadeIn_0.3s]">
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 max-w-2xl w-full text-center">
+                    <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600">
+                        <Settings2 size={32}/>
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure o Transporte</h2>
+                    <p className="text-gray-500 mb-8 max-w-md mx-auto">
+                        Esta viagem ainda não possui um veículo definido. Escolha o layout ideal para começar a alocar os passageiros.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {Object.values(VEHICLE_TYPES).map(v => (
+                            <button 
+                                key={v.type}
+                                onClick={() => handleSelectVehicleType(v.type)}
+                                className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 hover:shadow-md transition-all group bg-white"
+                            >
+                                <Truck size={24} className="mb-3 text-gray-400 group-hover:text-primary-600"/>
+                                <span className="font-bold text-gray-700 group-hover:text-primary-700 text-sm">{v.label}</span>
+                                <span className="text-xs text-gray-400 mt-1">{v.totalSeats} Lugares</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // --- MAP VIEW ---
     const occupancyRate = (config.seats.length / config.vehicleConfig.totalSeats) * 100;
 
     return (
@@ -447,10 +492,24 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                     <Truck size={14} /> {config.vehicleConfig.label}
                     <span className="w-px h-4 bg-gray-300 mx-1"></span>
                     <span className={occupancyRate >= 80 ? 'text-green-600' : 'text-gray-500'}>{occupancyRate.toFixed(0)}% Ocupado</span>
+                    
+                    {/* Option to change vehicle (Reset) */}
+                    <button 
+                        onClick={() => {
+                            if(window.confirm('Mudar o veículo irá remover todos os passageiros dos assentos atuais. Continuar?')) {
+                                setConfig({ vehicleConfig: null, seats: [] });
+                                onSave({ ...trip.operationalData, transport: undefined });
+                            }
+                        }}
+                        className="ml-2 p-1 text-gray-400 hover:text-red-500"
+                        title="Trocar Veículo"
+                    >
+                        <Edit size={12}/>
+                    </button>
                 </div>
 
-                <div className="flex-1 overflow-auto p-8 flex justify-center">
-                    <div className="w-full max-w-lg pb-20">
+                <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
+                    <div className="w-full max-w-lg pb-20 m-auto">
                         {/* Bus Chassis */}
                         <div className="bg-white px-6 md:px-12 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative transition-all duration-500 min-h-[600px]">
                             
@@ -468,7 +527,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                             </div>
 
                             {/* Seats Grid */}
-                            <div className="mt-16 space-y-2">
+                            <div className="mt-16 space-y-2 mb-10">
                                 {renderBusLayout()}
                             </div>
 
@@ -1156,30 +1215,31 @@ const AgencyDashboard: React.FC = () => {
                                     <textarea value={tripForm.description} onChange={e => setTripForm({...tripForm, description: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" rows={5} placeholder="Detalhes do roteiro, o que levar, etc." />
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão</label>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">Veículo Padrão (Opcional)</label>
                                     <select 
-                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || 'BUS_46'} 
+                                        value={tripForm.operationalData?.transport?.vehicleConfig?.type || ''} 
                                         onChange={e => {
-                                            const type = e.target.value as VehicleType;
-                                            const newConfig = VEHICLE_TYPES[type];
+                                            const type = e.target.value as VehicleType | '';
+                                            const newConfig = type ? VEHICLE_TYPES[type] : undefined;
                                             setTripForm({
                                                 ...tripForm,
                                                 operationalData: {
                                                     ...tripForm.operationalData!,
-                                                    transport: {
-                                                        ...(tripForm.operationalData?.transport || DEFAULT_OPERATIONAL_DATA.transport!),
+                                                    transport: newConfig ? {
+                                                        ...(tripForm.operationalData?.transport || { seats: [] }),
                                                         vehicleConfig: newConfig
-                                                    }
+                                                    } : undefined
                                                 }
                                             });
                                         }}
                                         className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none"
                                     >
+                                        <option value="">Definir depois na aba Operações</option>
                                         {Object.values(VEHICLE_TYPES).map(v => (
                                             <option key={v.type} value={v.type}>{v.label}</option>
                                         ))}
                                     </select>
-                                    <p className="text-xs text-gray-500 mt-1">Isso define o layout inicial do mapa de assentos.</p>
+                                    <p className="text-xs text-gray-500 mt-1">Você pode deixar em branco e configurar o layout exato mais tarde.</p>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
