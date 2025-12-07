@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
-import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight, ArrowUpDown, LayoutGrid, List, X } from 'lucide-react';
 import { TripCategory } from '../types';
 
 const ITEMS_PER_PAGE = 9;
@@ -12,6 +13,16 @@ const AgencyList: React.FC = () => {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState('RELEVANCE'); // RELEVANCE, RATING, TRIP_COUNT, NAME
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // View Mode State with Persistence
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('agencyViewMode') as 'grid' | 'list') || 'grid';
+  });
+
+  // Persist View Mode
+  useEffect(() => {
+    localStorage.setItem('agencyViewMode', viewMode);
+  }, [viewMode]);
   
   // TRUST THE DB: We show what the database gives us.
   const activeAgencies = agencies;
@@ -26,7 +37,6 @@ const AgencyList: React.FC = () => {
       const uniqueCategories = Array.from(new Set(categories));
       
       // Calculate stats
-      // FIX: Use tripRating instead of rating
       const totalRating = trips.reduce((acc, t) => acc + (t.tripRating || 0), 0);
       const avgRating = trips.length > 0 ? (totalRating / trips.length) : 5.0; // Default to 5 if new
 
@@ -70,7 +80,7 @@ const AgencyList: React.FC = () => {
         return result.sort((a, b) => b.tripCount - a.tripCount);
       case 'NAME':
         return result.sort((a, b) => a.name.localeCompare(b.name));
-      default: // RELEVANCE (Uses existing order roughly or mostly trip count weight)
+      default: // RELEVANCE
         return result.sort((a, b) => b.tripCount - a.tripCount); 
     }
   }, [filteredAgencies, sortOption]);
@@ -90,6 +100,11 @@ const AgencyList: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const clearFilters = () => {
+      setSearchTerm('');
+      setSelectedSpecialty(null);
+  };
+
   return (
     <div className="max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8">
       
@@ -103,31 +118,51 @@ const AgencyList: React.FC = () => {
                </p>
             </div>
             
-            <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3">
-               <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="text" 
-                    placeholder="Buscar agência..." 
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-               </div>
-               
-               {/* Sort Dropdown */}
-               <div className="relative w-full sm:w-48">
-                  <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <select
-                    value={sortOption}
-                    onChange={(e) => setSortOption(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm appearance-none cursor-pointer text-gray-700 font-medium text-sm"
-                  >
-                    <option value="RELEVANCE">Relevância</option>
-                    <option value="RATING">Melhor Avaliadas</option>
-                    <option value="TRIP_COUNT">Mais Viagens</option>
-                    <option value="NAME">Ordem Alfabética</option>
-                  </select>
+            <div className="w-full md:w-auto flex flex-col gap-3">
+               <div className="flex flex-col sm:flex-row gap-3">
+                   <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Buscar agência..." 
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                   </div>
+                   
+                   {/* Sort Dropdown */}
+                   <div className="relative w-full sm:w-48">
+                      <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <select
+                        value={sortOption}
+                        onChange={(e) => setSortOption(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm appearance-none cursor-pointer text-gray-700 font-medium text-sm"
+                      >
+                        <option value="RELEVANCE">Relevância</option>
+                        <option value="RATING">Melhor Avaliadas</option>
+                        <option value="TRIP_COUNT">Mais Viagens</option>
+                        <option value="NAME">Ordem Alfabética</option>
+                      </select>
+                   </div>
+
+                   {/* View Mode Toggle */}
+                   <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 flex-shrink-0">
+                      <button 
+                        onClick={() => setViewMode('grid')}
+                        className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Visualização em Grade"
+                      >
+                        <LayoutGrid size={18} />
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('list')}
+                        className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Visualização em Lista"
+                      >
+                        <List size={18} />
+                      </button>
+                   </div>
                </div>
             </div>
          </div>
@@ -138,7 +173,12 @@ const AgencyList: React.FC = () => {
          {/* 2. Sidebar Filters (Desktop) */}
          <aside className="hidden lg:block w-64 flex-shrink-0 space-y-8">
             <div>
-               <h3 className="font-bold text-gray-900 mb-4 flex items-center"><Filter size={16} className="mr-2"/> Especialidade</h3>
+               <h3 className="font-bold text-gray-900 mb-4 flex items-center justify-between">
+                   <span className="flex items-center"><Filter size={16} className="mr-2"/> Especialidade</span>
+                   {(selectedSpecialty || searchTerm) && (
+                       <button onClick={clearFilters} className="text-[10px] text-red-500 hover:underline font-bold uppercase">Limpar</button>
+                   )}
+               </h3>
                <div className="space-y-2">
                   <button 
                     onClick={() => setSelectedSpecialty(null)}
@@ -152,7 +192,7 @@ const AgencyList: React.FC = () => {
                       onClick={() => setSelectedSpecialty(spec)}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex justify-between items-center group ${selectedSpecialty === spec ? 'bg-primary-50 text-primary-700' : 'text-gray-600 hover:bg-gray-50'}`}
                     >
-                      <span className="capitalize">{spec.toLowerCase().replace('_', ' ')}</span>
+                      <span className="capitalize truncate">{spec.toLowerCase().replace('_', ' ')}</span>
                       <span className={`text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-500 group-hover:bg-white ${selectedSpecialty === spec ? 'bg-white text-primary-600' : ''}`}>
                         {enrichedAgencies.filter(a => a.specialties.includes(spec as TripCategory)).length}
                       </span>
@@ -189,33 +229,41 @@ const AgencyList: React.FC = () => {
              ))}
          </div>
 
-         {/* 3. Agency Grid */}
+         {/* 3. Agency Grid/List */}
          <div className="flex-1">
-            <div className="mb-4 text-sm text-gray-500 font-medium">
-               Mostrando <span className="text-gray-900 font-bold">{sortedAgencies.length}</span> agências
+            <div className="mb-4 flex justify-between items-center">
+               <div className="text-sm text-gray-500 font-medium">
+                  Mostrando <span className="text-gray-900 font-bold">{sortedAgencies.length}</span> agências
+               </div>
+               {(selectedSpecialty || searchTerm) && (
+                   <button onClick={clearFilters} className="text-sm text-primary-600 font-bold hover:underline flex items-center gap-1">
+                       <X size={14}/> Mostrar Todas
+                   </button>
+               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
                {paginatedAgencies.map(agency => (
                   <Link 
                     key={agency.agencyId}
                     to={`/${agency.slug}`}
-                    className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-lg transition-all duration-300 group relative flex flex-col animate-[fadeIn_0.3s]"
+                    className={`bg-white border border-gray-100 rounded-2xl hover:shadow-lg transition-all duration-300 group relative flex animate-[fadeIn_0.3s] ${viewMode === 'grid' ? 'flex-col p-5 h-full' : 'flex-row p-4 items-center'}`}
                   >
-                     <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                           <div className="relative">
-                              <img src={agency.logo} alt={agency.name} className="w-16 h-16 rounded-full object-cover border border-gray-100 shadow-sm group-hover:scale-105 transition-transform"/>
+                     <div className={`flex items-start ${viewMode === 'grid' ? 'justify-between mb-4 w-full' : 'gap-6 flex-1'}`}>
+                        <div className={`flex items-center gap-4 ${viewMode === 'grid' ? 'w-full' : ''}`}>
+                           <div className="relative flex-shrink-0">
+                              <img src={agency.logo} alt={agency.name} className={`${viewMode === 'grid' ? 'w-16 h-16' : 'w-14 h-14'} rounded-full object-cover border border-gray-100 shadow-sm group-hover:scale-105 transition-transform`}/>
                               <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm" title="Verificado">
                                  <CheckCircle size={16} className="text-blue-500 fill-blue-50" />
                               </div>
                            </div>
-                           <div>
-                              <h3 className="font-bold text-gray-900 text-lg leading-tight group-hover:text-primary-600 transition-colors line-clamp-1">
+                           <div className="min-w-0 flex-1">
+                              {/* Title with better truncation and spacing */}
+                              <h3 className={`font-bold text-gray-900 leading-tight group-hover:text-primary-600 transition-colors ${viewMode === 'grid' ? 'text-lg line-clamp-2 min-h-[1.5rem]' : 'text-lg truncate'}`}>
                                  {agency.name}
                               </h3>
                               <div className="flex items-center text-sm text-gray-500 mt-1">
-                                 <MapPin size={12} className="mr-1" /> 
+                                 <MapPin size={12} className="mr-1 flex-shrink-0" /> 
                                  <span>Brasil</span>
                                  <span className="mx-1.5 text-gray-300">•</span>
                                  <div className="flex items-center text-amber-500 font-bold">
@@ -224,32 +272,53 @@ const AgencyList: React.FC = () => {
                               </div>
                            </div>
                         </div>
-                     </div>
-
-                     <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">
-                        {agency.description}
-                     </p>
-
-                     {/* Specialties Tags */}
-                     <div className="flex flex-wrap gap-2 mb-6">
-                        {agency.specialties.slice(0, 3).map(spec => (
-                           <span key={spec} className="px-2 py-1 bg-gray-50 text-gray-600 text-xs rounded-md font-medium capitalize border border-gray-100">
-                              {spec.toLowerCase().replace('_', ' ')}
-                           </span>
-                        ))}
-                        {agency.specialties.length > 3 && (
-                           <span className="px-2 py-1 text-gray-400 text-xs font-medium">
-                              +{agency.specialties.length - 3}
-                           </span>
+                        
+                        {/* List Mode Description (Hidden on mobile) */}
+                        {viewMode === 'list' && (
+                            <div className="hidden md:block flex-1 px-4 border-l border-gray-100 ml-4 h-full">
+                                <p className="text-gray-500 text-sm line-clamp-2">
+                                    {agency.description}
+                                </p>
+                                <div className="flex gap-2 mt-2">
+                                    {agency.specialties.slice(0, 3).map(spec => (
+                                        <span key={spec} className="text-[10px] bg-gray-50 text-gray-600 px-2 py-0.5 rounded border border-gray-100 capitalize">
+                                            {spec.toLowerCase().replace('_', ' ')}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                      </div>
 
-                     <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
-                        <div className="text-xs font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full">
-                           <span className="font-bold text-gray-900">{agency.tripCount}</span> pacotes ativos
+                     {/* Grid Mode Specifics */}
+                     {viewMode === 'grid' && (
+                         <>
+                            <p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">
+                                {agency.description}
+                            </p>
+
+                            {/* Specialties Tags */}
+                            <div className="flex flex-wrap gap-2 mb-6">
+                                {agency.specialties.slice(0, 3).map(spec => (
+                                <span key={spec} className="px-2 py-1 bg-gray-50 text-gray-600 text-xs rounded-md font-medium capitalize border border-gray-100">
+                                    {spec.toLowerCase().replace('_', ' ')}
+                                </span>
+                                ))}
+                                {agency.specialties.length > 3 && (
+                                <span className="px-2 py-1 text-gray-400 text-xs font-medium">
+                                    +{agency.specialties.length - 3}
+                                </span>
+                                )}
+                            </div>
+                         </>
+                     )}
+
+                     <div className={`${viewMode === 'grid' ? 'mt-auto pt-4 border-t border-gray-50 w-full flex items-center justify-between' : 'flex items-center gap-4 ml-auto border-l border-gray-100 pl-4'}`}>
+                        <div className="text-xs font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full whitespace-nowrap">
+                           <span className="font-bold text-gray-900">{agency.tripCount}</span> pacotes
                         </div>
                         
-                        <div className="text-sm font-bold text-primary-600 group-hover:text-primary-700 flex items-center">
+                        <div className={`text-sm font-bold text-primary-600 group-hover:text-primary-700 flex items-center whitespace-nowrap ${viewMode === 'list' ? 'bg-primary-50 px-4 py-2 rounded-lg' : ''}`}>
                            Ver Página <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
                         </div>
                      </div>
@@ -264,9 +333,9 @@ const AgencyList: React.FC = () => {
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">Nenhuma agência encontrada</h3>
                   <p className="text-gray-500 mt-1">Tente ajustar os filtros ou buscar por outro nome.</p>
-                  {selectedSpecialty && (
-                     <button onClick={() => setSelectedSpecialty(null)} className="mt-4 text-primary-600 font-bold hover:underline">
-                        Limpar filtros
+                  {(selectedSpecialty || searchTerm) && (
+                     <button onClick={clearFilters} className="mt-4 text-primary-600 font-bold hover:underline">
+                        Limpar filtros e ver todas
                      </button>
                   )}
                </div>
@@ -308,21 +377,21 @@ const AgencyList: React.FC = () => {
       {/* 4. Trust Signals (Moved to bottom, simplified) */}
       <div className="mt-20 pt-10 border-t border-gray-200">
          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <div className="flex items-start gap-4 opacity-80 hover:opacity-100 transition-opacity">
+            <div className="flex items-start gap-4">
                <div className="bg-green-50 p-3 rounded-xl text-green-600"><Shield size={24} /></div>
                <div>
                   <h4 className="font-bold text-gray-900 text-sm">Verificação Rigorosa</h4>
                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">Todas as agências passam por validação documental e de histórico.</p>
                </div>
             </div>
-            <div className="flex items-start gap-4 opacity-80 hover:opacity-100 transition-opacity">
+            <div className="flex items-start gap-4">
                <div className="bg-purple-50 p-3 rounded-xl text-purple-600"><Sparkles size={24} /></div>
                <div>
                   <h4 className="font-bold text-gray-900 text-sm">Melhores Experiências</h4>
                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">Curadoria de parceiros com alto índice de satisfação dos viajantes.</p>
                </div>
             </div>
-            <div className="flex items-start gap-4 opacity-80 hover:opacity-100 transition-opacity">
+            <div className="flex items-start gap-4">
                <div className="bg-amber-50 p-3 rounded-xl text-amber-600"><Users size={24} /></div>
                <div>
                   <h4 className="font-bold text-gray-900 text-sm">Avaliações Reais</h4>
