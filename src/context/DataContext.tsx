@@ -221,7 +221,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) {
         setBookings([]); // Clear bookings if no supabase
-        await reloadUser(); // Still try to refresh auth user data
+        // Removed: await reloadUser(); // Removed this line to prevent infinite loop
         setLoading(false);
         return;
     }
@@ -267,7 +267,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setBookings([]);
         }
 
-        await reloadUser(); // Always refresh the AuthContext user to get latest profile, favorites etc.
+        // Removed: await reloadUser(); // Removed this line to prevent infinite loop
 
     } catch (error: any) {
         console.error("Error fetching user-specific data:", error.message);
@@ -276,7 +276,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [guardSupabase, trips, agencies, reloadUser, showToast]); // Dependencies for useCallback
+  }, [guardSupabase, trips, agencies, showToast]); // Dependencies for useCallback
 
   // --- Main Effect Hook for Global Data (runs once on mount) ---
   useEffect(() => {
@@ -287,7 +287,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const subscriptions: any[] = [];
         
         // Subscribe to global data changes, triggering _fetchGlobalAndClientProfiles
-        const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'audit_logs', 'activity_logs'];
+        const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'audit_logs', 'activity_logs', 'trip_images']; // Added trip_images
         globalTablesToSubscribe.forEach(table => {
             subscriptions.push(sb.channel(`${table}_changes`).on('postgres_changes', { event: '*', schema: 'public', table: table }, payload => {
                 console.log(`${table} change received!`, payload);
