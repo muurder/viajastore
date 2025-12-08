@@ -507,18 +507,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getReviewsByClientId = (id: string) => agencyReviews.filter(r => r.clientId === id);
 
   const getAgencyStats = async (agencyId: string): Promise<DashboardStats> => {
-      // In a real app, this would be an aggregation query
-      // For now, aggregate locally if data is loaded, or return defaults
-      const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-      const agencyBookings = bookings.filter(b => b._trip?.agencyId === agencyId);
-      
-      const totalRevenue = agencyBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
-      const totalSales = agencyBookings.length;
-      const totalViews = agencyTrips.reduce((sum, t) => sum + (t.views || 0), 0);
-      const reviews = getReviewsByAgencyId(agencyId);
-      const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+      const sb = guardSupabase();
+      if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
 
-      return { totalRevenue, totalViews, totalSales, conversionRate: 2.5, averageRating: avgRating, totalReviews: reviews.length };
+      try {
+          const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+              const stats = data[0]; // rpc returns an array
+              return {
+                  totalRevenue: stats.total_revenue || 0,
+                  totalViews: stats.total_views || 0,
+                  totalSales: stats.total_sales || 0,
+                  averageRating: stats.average_rating || 0,
+                  totalReviews: stats.total_reviews || 0,
+                  conversionRate: stats.conversion_rate || 0,
+              };
+          }
+      } catch (e) {
+          console.error("Error fetching agency dashboard stats:", e);
+          showToast("Erro ao carregar estatísticas. Tente atualizar.", 'error');
+      }
+      return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
   };
 
   const createTrip = async (trip: Trip) => { 
@@ -740,8 +752,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .maybeSingle();
 
           if (selectError) throw selectError;
-
-          let newFavorites: string[] = [];
 
           if (existingFavorite) {
               // It's favorited, so delete it
