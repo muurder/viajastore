@@ -1265,8 +1265,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return { data: mappedTrips, count: count || 0 };
       } catch (error: any) {
           console.error("Error searching trips:", error.message);
-          showToast(`Erro ao buscar viagens: ${error.message}`, 'error');
-          return { data: [], count: 0, error: error.message };
+          showToast(`Erro ao buscar viagens: ${error.message}. Carregando dados de exemplo.`, 'error');
+          
+          // Fallback to local mock data filtering and sorting (replicated from !sb block)
+          let filteredMocks = MOCK_TRIPS.filter(t => {
+            const matchesQuery = !params.query || 
+                normalizeText(t.title).includes(normalizeText(params.query)) ||
+                normalizeText(t.description).includes(normalizeText(params.query)) ||
+                normalizeText(t.destination).includes(normalizeText(params.query)) ||
+                t.tags.some(tag => normalizeText(tag).includes(normalizeText(params.query)));
+
+            const matchesCategory = !params.category || t.category === params.category;
+            const matchesAgency = !params.agencyId || t.agencyId === params.agencyId;
+            const matchesFeatured = !params.featured || t.featured === params.featured;
+            const matchesMinPrice = !params.minPrice || t.price >= params.minPrice;
+            const matchesMaxPrice = !params.maxPrice || t.price <= params.maxPrice;
+
+            return matchesQuery && matchesCategory && matchesAgency && matchesFeatured && matchesMinPrice && matchesMaxPrice;
+          });
+
+          switch (params.sort) {
+              case 'LOW_PRICE': filteredMocks.sort((a, b) => a.price - b.price); break;
+              case 'HIGH_PRICE': filteredMocks.sort((a, b) => b.price - a.price); break;
+              case 'DATE_ASC': filteredMocks.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
+              case 'RATING': filteredMocks.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
+              case 'RELEVANCE': 
+              default: 
+                  filteredMocks.sort((a, b) => {
+                      const scoreA = ((b.tripRating || 0) * 10) + ((b.views || 0) / 100);
+                      const scoreB = ((a.tripRating || 0) * 10) + ((a.views || 0) / 100);
+                      return scoreA - scoreB;
+                  });
+          }
+
+          const count = filteredMocks.length;
+          const from = ((params.page || 1) - 1) * (params.limit || 10);
+          const to = from + (params.limit || 10);
+          const paginatedMocks = filteredMocks.slice(from, to);
+
+          return { data: paginatedMocks, count: count, error: "Modo Offline/Demo." };
       }
   }, [showToast, guardSupabase]);
 
