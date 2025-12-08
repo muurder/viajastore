@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -19,7 +19,8 @@ import {
   Info, 
   Palette, 
   Search, 
-  LucideProps 
+  LucideProps,
+  Zap
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
@@ -240,6 +241,43 @@ const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
 
 // --- CUSTOM MODALS ---
 
+const SubscriptionConfirmationModal: React.FC<{ 
+  plan: Plan; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  isSubmitting: boolean 
+}> = ({ plan, onClose, onConfirm, isSubmitting }) => {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+      <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+        <div className="text-center mb-6">
+            <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
+                <Rocket size={32}/>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Mudar para {plan.name}?</h2>
+            <p className="text-gray-500">Você terá acesso a todos os recursos deste plano imediatamente após a confirmação.</p>
+        </div>
+        
+        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6">
+            <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-bold text-gray-600">Novo Valor Mensal</span>
+                <span className="text-xl font-extrabold text-gray-900">R$ {plan.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+            </div>
+            <p className="text-xs text-gray-400 text-center">Cobrança recorrente no cartão cadastrado.</p>
+        </div>
+
+        <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancelar</button>
+            <button onClick={onConfirm} disabled={isSubmitting} className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                {isSubmitting ? <Loader size={18} className="animate-spin"/> : 'Confirmar Mudança'}
+            </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ConfirmationModal: React.FC<{ 
   isOpen: boolean; 
   onClose: () => void; 
@@ -351,43 +389,6 @@ const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentT
     <Icon size={16} /> {label} {hasNotification && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} 
   </button>
 );
-
-const SubscriptionConfirmationModal: React.FC<{ 
-  plan: Plan; 
-  onClose: () => void; 
-  onConfirm: () => void; 
-  isSubmitting: boolean 
-}> = ({ plan, onClose, onConfirm, isSubmitting }) => {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-      <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-        <div className="text-center mb-6">
-            <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
-                <Rocket size={32}/>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Mudar para {plan.name}?</h2>
-            <p className="text-gray-500">Você terá acesso a todos os recursos deste plano imediatamente após a confirmação.</p>
-        </div>
-        
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-bold text-gray-600">Novo Valor Mensal</span>
-                <span className="text-xl font-extrabold text-gray-900">R$ {plan.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-            </div>
-            <p className="text-xs text-gray-400 text-center">Cobrança recorrente no cartão cadastrado.</p>
-        </div>
-
-        <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={isSubmitting} className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                {isSubmitting ? <Loader size={18} className="animate-spin"/> : 'Confirmar Mudança'}
-            </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClose: () => void }> = ({ onAdd, onClose }) => {
     const [name, setName] = useState('');
@@ -961,7 +962,6 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     );
 };
 
-// NEW: OperationsModule
 interface OperationsModuleProps {
     myTrips: Trip[];
     myBookings: Booking[];
@@ -972,55 +972,69 @@ interface OperationsModuleProps {
 }
 
 const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData }) => {
+    const selectedTrip = myTrips.find(t => t.id === selectedTripId);
     const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
-    
-    // Using React.useMemo since useMemo might not be imported in destructured list
-    const selectedTrip = React.useMemo(() => myTrips.find(t => t.id === selectedTripId), [myTrips, selectedTripId]);
-    
-    const tripBookings = React.useMemo(() => 
-        selectedTripId ? myBookings.filter(b => b.tripId === selectedTripId && b.status === 'CONFIRMED') : [], 
-    [myBookings, selectedTripId]);
 
-    if (!selectedTripId) {
+    if (!selectedTripId || !selectedTrip) {
         return (
-            <div className="flex h-full min-h-[500px]">
-                <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto">
-                    <div className="p-4 border-b border-gray-100 font-bold text-gray-700">Selecione uma Viagem</div>
-                    {myTrips.filter(t => t.is_active).map(trip => (
-                        <div 
-                            key={trip.id} 
-                            onClick={() => onSelectTrip(trip.id)}
-                            className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                        >
-                            <div className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">{trip.title}</div>
-                            <div className="text-xs text-gray-500 flex items-center gap-2">
-                                <Calendar size={12}/> {new Date(trip.startDate).toLocaleDateString()}
-                            </div>
-                        </div>
-                    ))}
-                    {myTrips.filter(t => t.is_active).length === 0 && (
-                        <div className="p-8 text-center text-gray-400 text-sm">Nenhuma viagem ativa encontrada.</div>
-                    )}
+            <div className="flex h-full">
+                <div className="w-80 border-r border-gray-200 bg-white p-4 overflow-y-auto custom-scrollbar">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase mb-4">Selecione uma viagem</h3>
+                    <div className="space-y-2">
+                        {myTrips.map(trip => (
+                            <button 
+                                key={trip.id}
+                                onClick={() => onSelectTrip(trip.id)}
+                                className="w-full text-left p-3 rounded-lg hover:bg-gray-50 border border-gray-100 hover:border-gray-300 transition-all text-sm font-medium text-gray-700"
+                            >
+                                {trip.title}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex-1 bg-gray-50 flex items-center justify-center text-gray-400 flex-col">
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
                     <Bus size={48} className="mb-4 opacity-50"/>
-                    <p>Selecione uma viagem para gerenciar o operacional.</p>
+                    <p>Selecione um pacote para gerenciar.</p>
                 </div>
             </div>
         );
     }
 
-    if (!selectedTrip) return null;
+    const tripBookings = myBookings.filter(b => b.tripId === selectedTripId);
 
     return (
-        <div className="flex flex-col h-full min-h-[600px]">
-            <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-                <button onClick={() => setActiveView('TRANSPORT')} className={`py-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Bus size={18}/> Transporte</button>
-                <button onClick={() => setActiveView('ROOMING')} className={`py-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><BedDouble size={18}/> Rooming List</button>
-                <div className="ml-auto flex items-center gap-2 text-sm text-gray-500"><span className="font-bold text-gray-900">{tripBookings.reduce((acc, b) => acc + b.passengers, 0)}</span> Passageiros Confirmados</div>
+        <div className="flex flex-col h-full">
+            <div className="flex border-b border-gray-200 bg-white px-6">
+                <button 
+                    onClick={() => setActiveView('TRANSPORT')}
+                    className={`py-4 px-6 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    <Bus size={18}/> Transporte
+                </button>
+                <button 
+                    onClick={() => setActiveView('ROOMING')}
+                    className={`py-4 px-6 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                    <BedDouble size={18}/> Hospedagem (Rooming List)
+                </button>
             </div>
-            <div className="flex-1 overflow-hidden relative">
-                {activeView === 'TRANSPORT' ? <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)}/> : <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)}/>}
+            
+            <div className="flex-1 overflow-hidden">
+                {activeView === 'TRANSPORT' ? (
+                    <TransportManager 
+                        trip={selectedTrip} 
+                        bookings={tripBookings} 
+                        clients={clients} 
+                        onSave={(data) => onSaveTripData(selectedTrip.id, data)}
+                    />
+                ) : (
+                    <RoomingManager 
+                        trip={selectedTrip} 
+                        bookings={tripBookings} 
+                        clients={clients} 
+                        onSave={(data) => onSaveTripData(selectedTrip.id, data)}
+                    />
+                )}
             </div>
         </div>
     );
@@ -1070,6 +1084,15 @@ const AgencyDashboard: React.FC = () => {
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
   const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
+
+  // Helper to determine new booking
+  const isNewBooking = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); 
+      return diffHours <= 24;
+  };
 
   useEffect(() => {
       const loadStats = async () => {
@@ -1196,6 +1219,133 @@ const AgencyDashboard: React.FC = () => {
     { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
   ];
 
+  // Render Plan Tab Content
+  const renderPlanTab = () => {
+      const today = new Date();
+      const expiryDate = new Date(currentAgency?.subscriptionExpiresAt || '');
+      const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const totalCycleDays = 30; // Assuming monthly cycle for visuals
+      const progressPercent = Math.max(0, Math.min(100, (daysLeft / totalCycleDays) * 100));
+      
+      const isPremium = currentAgency?.subscriptionPlan === 'PREMIUM';
+      const planColor = isPremium ? 'bg-purple-600' : 'bg-blue-600';
+      const planName = isPremium ? 'Premium' : 'Básico';
+      const planPrice = isPremium ? 'R$ 199,90' : 'R$ 99,90';
+
+      return (
+          <div className="space-y-8 animate-[fadeIn_0.3s]">
+              {/* Subscription Status Card */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className={`h-2 ${planColor}`}></div>
+                  <div className="p-8">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                          <div>
+                              <div className="flex items-center gap-3 mb-2">
+                                  <h2 className="text-2xl font-bold text-gray-900">Meu Plano</h2>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wider ${planColor}`}>
+                                      {planName}
+                                  </span>
+                              </div>
+                              <p className="text-gray-500 text-sm">Gerencie sua assinatura e cobranças.</p>
+                          </div>
+                          <div className="flex gap-3">
+                              <button className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm">
+                                  Gerenciar Pagamento
+                              </button>
+                              <button className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90`}>
+                                  Renovar Agora
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* Progress Bar Section */}
+                      <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8">
+                          <div className="flex justify-between items-center mb-2 text-sm font-bold text-gray-700">
+                              <span>Dias Restantes</span>
+                              <span className={daysLeft < 7 ? 'text-red-500' : 'text-green-600'}>{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                              <div 
+                                  className={`h-2.5 rounded-full transition-all duration-1000 ${daysLeft < 7 ? 'bg-red-500' : daysLeft < 15 ? 'bg-amber-500' : 'bg-green-500'}`} 
+                                  style={{ width: `${progressPercent}%` }}
+                              ></div>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Calendar size={16}/></div>
+                                  <div>
+                                      <p className="text-gray-500 text-xs uppercase font-bold">Próxima Cobrança</p>
+                                      <p className="font-bold text-gray-900">{expiryDate.toLocaleDateString()}</p>
+                                  </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><DollarSign size={16}/></div>
+                                  <div>
+                                      <p className="text-gray-500 text-xs uppercase font-bold">Valor do Plano</p>
+                                      <p className="font-bold text-gray-900">{planPrice}/mês</p>
+                                  </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Zap size={16}/></div>
+                                  <div>
+                                      <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
+                                      <p className="font-bold text-green-600 flex items-center gap-1">
+                                          <span className="w-2 h-2 bg-green-500 rounded-full"></span> Ativo
+                                      </p>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Plans Options */}
+              <div className="grid md:grid-cols-2 gap-8">
+                  {PLANS.map((plan) => (
+                      <div 
+                          key={plan.id} 
+                          className={`bg-white rounded-2xl shadow-sm border p-8 transition-all hover:shadow-md relative ${currentAgency?.subscriptionPlan === plan.id ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-100'}`}
+                      >
+                          {currentAgency?.subscriptionPlan === plan.id && (
+                              <div className="absolute top-4 right-4 bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-100">
+                                  Plano Atual
+                              </div>
+                          )}
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                          <div className="flex items-baseline gap-1 mb-6">
+                              <span className="text-3xl font-extrabold text-gray-900">R$ {plan.price.toFixed(2)}</span>
+                              <span className="text-gray-500 font-medium">/mês</span>
+                          </div>
+                          <ul className="space-y-4 mb-8">
+                              {plan.features.map((feature, i) => (
+                                  <li key={i} className="flex items-start text-sm text-gray-600">
+                                      <Check size={16} className="text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                                      {feature}
+                                  </li>
+                              ))}
+                          </ul>
+                          <button
+                              onClick={() => handleSelectPlan(plan)}
+                              disabled={currentAgency?.subscriptionPlan === plan.id}
+                              className={`w-full py-3 rounded-xl font-bold transition-colors ${
+                                  currentAgency?.subscriptionPlan === plan.id
+                                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                      : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'
+                              }`}
+                          >
+                              {currentAgency?.subscriptionPlan === plan.id ? 'Plano Atual' : 'Mudar Plano'}
+                          </button>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  };
+
+  const sortedBookings = useMemo(() => {
+      return [...myBookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [myBookings]);
+
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
   return (
@@ -1259,6 +1409,7 @@ const AgencyDashboard: React.FC = () => {
         <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="PLAN" label="Meu Plano" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="PROFILE" label="Meu Perfil" icon={User} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="THEME" label="Meu Tema" icon={Palette} activeTab={activeTab} onClick={handleTabChange} />
       </div>
@@ -1472,14 +1623,20 @@ const AgencyDashboard: React.FC = () => {
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 bg-white">
-                              {myBookings.map(booking => {
+                              {sortedBookings.map(booking => {
                                   const client = clients.find(c => c.id === booking.clientId);
+                                  const isNew = isNewBooking(booking.date);
                                   return (
                                       <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
                                           <td className="px-6 py-4 font-mono text-xs text-gray-700">{booking.voucherCode}</td>
                                           <td className="px-6 py-4 text-sm font-bold text-gray-900">{booking._trip?.title || 'N/A'}</td>
                                           <td className="px-6 py-4 text-sm text-gray-700">{client?.name || 'Cliente Desconhecido'}</td>
-                                          <td className="px-6 py-4 text-sm text-gray-500">{new Date(booking.date).toLocaleDateString()}</td>
+                                          <td className="px-6 py-4 text-sm text-gray-500">
+                                              <div className="flex items-center gap-2">
+                                                  {new Date(booking.date).toLocaleDateString()}
+                                                  {isNew && <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NOVO</span>}
+                                              </div>
+                                          </td>
                                           <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
                                           <td className="px-6 py-4">
                                               <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>{booking.status}</Badge>
@@ -1575,6 +1732,8 @@ const AgencyDashboard: React.FC = () => {
               )}
           </div>
       )}
+
+      {activeTab === 'PLAN' && renderPlanTab()}
 
       {activeTab === 'PROFILE' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
