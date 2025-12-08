@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
+import { useToast } from './ToastContext'; // Import useToast
 
 // Define a more granular return type for register
 interface RegisterResult {
@@ -33,6 +33,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast(); // Use toast for feedback
 
   // Fetch user profile/agency data based on Auth ID
   const fetchUserData = async (authId: string, email: string) => {
@@ -342,8 +343,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Perform signOut in background, don't await to block UI
       try {
         await (supabase.auth as any).signOut();
-      } catch (e) {
+      } catch (e: any) {
         console.error("Background signout error:", e);
+        showToast("Erro ao desconectar. Verifique sua conexão.", "error"); // Added Toast feedback
+
+        // Forcefully clear Supabase session from local storage if signout fails
+        // This is a common workaround if Supabase's internal cleanup fails on network error
+        for (const key in localStorage) {
+          if (key.startsWith('sb-') && key.includes('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        }
       }
     }
   };

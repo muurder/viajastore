@@ -818,7 +818,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trips').update({ operational_data: data }).eq('id', tripId);
         showToast('Dados operacionais atualizados!', 'success');
         _fetchGlobalAndClientProfiles(); // To ensure local cache is up-to-date
-    } catch (error: any) {
+    } catch (error: any) => {
         console.error("Error updating operational data:", error.message);
         showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
         throw error;
@@ -1155,44 +1155,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const sb = guardSupabase();
       if (!sb) {
           console.warn("[DataContext] Supabase not configured for searchTrips. Falling back to mock data.");
+          showToast("Conexão falhou. Usando dados de demonstração para a busca de viagens.", "info");
           // Fallback to local mock data filtering and sorting
-          let filteredMocks = MOCK_TRIPS.filter(t => {
-              const matchesQuery = !params.query || 
-                  normalizeText(t.title).includes(normalizeText(params.query)) ||
-                  normalizeText(t.description).includes(normalizeText(params.query)) ||
-                  normalizeText(t.destination).includes(normalizeText(params.query)) ||
-                  t.tags.some(tag => normalizeText(tag).includes(normalizeText(params.query)));
-
-              const matchesCategory = !params.category || t.category === params.category;
-              const matchesAgency = !params.agencyId || t.agencyId === params.agencyId;
-              const matchesFeatured = !params.featured || t.featured === params.featured;
-              const matchesMinPrice = !params.minPrice || t.price >= params.minPrice;
-              const matchesMaxPrice = !params.maxPrice || t.price <= params.maxPrice;
-
-              return matchesQuery && matchesCategory && matchesAgency && matchesFeatured && matchesMinPrice && matchesMaxPrice;
-          });
-
-          // Apply local sorting to mock data
-          switch (params.sort) {
-              case 'LOW_PRICE': filteredMocks.sort((a, b) => a.price - b.price); break;
-              case 'HIGH_PRICE': filteredMocks.sort((a, b) => b.price - a.price); break;
-              case 'DATE_ASC': filteredMocks.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
-              case 'RATING': filteredMocks.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
-              case 'RELEVANCE': 
-              default: 
-                  filteredMocks.sort((a, b) => {
-                      const scoreA = ((b.tripRating || 0) * 10) + ((b.views || 0) / 100);
-                      const scoreB = ((a.tripRating || 0) * 10) + ((a.views || 0) / 100);
-                      return scoreA - scoreB;
-                  });
-          }
-
-          const count = filteredMocks.length;
-          const from = ((params.page || 1) - 1) * (params.limit || 10);
-          const to = from + (params.limit || 10);
-          const paginatedMocks = filteredMocks.slice(from, to);
-
-          return { data: paginatedMocks, count: count, error: "Modo Offline/Demo." };
+          const mockData = MOCK_TRIPS.filter(t => 
+              (!params.category || t.category === params.category) &&
+              (!params.query || t.title.toLowerCase().includes(params.query.toLowerCase()))
+          ).slice(0, params.limit || 10);
+          return { data: mockData, count: MOCK_TRIPS.length, error: "Modo Offline/Demo." };
       }
 
       let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
@@ -1267,43 +1236,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error searching trips:", error.message);
           showToast(`Erro ao buscar viagens: ${error.message}. Carregando dados de exemplo.`, 'error');
           
-          // Fallback to local mock data filtering and sorting (replicated from !sb block)
-          let filteredMocks = MOCK_TRIPS.filter(t => {
-            const matchesQuery = !params.query || 
-                normalizeText(t.title).includes(normalizeText(params.query)) ||
-                normalizeText(t.description).includes(normalizeText(params.query)) ||
-                normalizeText(t.destination).includes(normalizeText(params.query)) ||
-                t.tags.some(tag => normalizeText(tag).includes(normalizeText(params.query)));
+          // Fallback to local mock data filtering (replicated from !sb block)
+          const mockData = MOCK_TRIPS.filter(t => 
+              (!params.category || t.category === params.category) &&
+              (!params.query || t.title.toLowerCase().includes(params.query.toLowerCase()))
+          ).slice(0, params.limit || 10);
 
-            const matchesCategory = !params.category || t.category === params.category;
-            const matchesAgency = !params.agencyId || t.agencyId === params.agencyId;
-            const matchesFeatured = !params.featured || t.featured === params.featured;
-            const matchesMinPrice = !params.minPrice || t.price >= params.minPrice;
-            const matchesMaxPrice = !params.maxPrice || t.price <= params.maxPrice;
-
-            return matchesQuery && matchesCategory && matchesAgency && matchesFeatured && matchesMinPrice && matchesMaxPrice;
-          });
-
-          switch (params.sort) {
-              case 'LOW_PRICE': filteredMocks.sort((a, b) => a.price - b.price); break;
-              case 'HIGH_PRICE': filteredMocks.sort((a, b) => b.price - a.price); break;
-              case 'DATE_ASC': filteredMocks.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
-              case 'RATING': filteredMocks.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
-              case 'RELEVANCE': 
-              default: 
-                  filteredMocks.sort((a, b) => {
-                      const scoreA = ((b.tripRating || 0) * 10) + ((b.views || 0) / 100);
-                      const scoreB = ((a.tripRating || 0) * 10) + ((a.views || 0) / 100);
-                      return scoreA - scoreB;
-                  });
-          }
-
-          const count = filteredMocks.length;
-          const from = ((params.page || 1) - 1) * (params.limit || 10);
-          const to = from + (params.limit || 10);
-          const paginatedMocks = filteredMocks.slice(from, to);
-
-          return { data: paginatedMocks, count: count, error: "Modo Offline/Demo." };
+          return { data: mockData, count: MOCK_TRIPS.length, error: "Modo Offline/Demo." };
       }
   }, [showToast, guardSupabase]);
 
