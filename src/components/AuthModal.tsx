@@ -72,9 +72,9 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         } catch (err) {
             console.error("Login submission error:", err);
             setError("Um erro inesperado ocorreu. Tente novamente.");
-        } 
-        // Ensure loading state is reset in both success and error paths
-        setIsLoading(false);
+        } finally { // FIX: Ensure loading state is reset in both success and error paths
+            setIsLoading(false);
+        }
     };
     
     return (
@@ -101,7 +101,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                     <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
+                        <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" required />
                     </div>
                 </div>
                 <div>
@@ -186,9 +186,9 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         } catch (err: any) {
             console.error("Signup submission error:", err);
             setError(err.message || "Um erro inesperado ocorreu. Tente novamente.");
-        } 
-        // Removed finally block entirely and moved setIsLoading to try/catch
-        setIsLoading(false); // Ensure loading is always false after attempt
+        } finally { // FIX: Ensure loading state is reset in both success and error paths
+            setIsLoading(false);
+        }
     };
     
     // Handler for Google Signup: Passes the specific role based on the active tab

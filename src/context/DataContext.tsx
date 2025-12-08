@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { useToast } from './ToastContext';
+import { slugify } from '../utils/slugify';
 
 // --- NEW SERVER-SIDE SEARCH TYPES ---
 export interface SearchTripsParams {
@@ -100,6 +101,14 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+// Helper to normalize strings for comparison (remove accents, lowercase)
+const normalizeText = (text: string) => {
+    return text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+};
+
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, reloadUser, loading: authLoading } = useAuth(); // Import reloadUser from AuthContext
   const { showToast } = useToast();
@@ -130,7 +139,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn("[DataContext] Supabase not configured. Falling back to mock data for global profiles.");
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
-        setAgencyReviews([]); 
+        setAgencyReviews([]); // MOCK_REVIEWS is for old `Review` interface, so keep empty for `AgencyReview`
         setClients(MOCK_CLIENTS);
         setAuditLogs([]);
         setActivityLogs([]);
@@ -470,7 +479,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
-        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
+        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting review:", error.message);
@@ -1144,7 +1153,47 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
       const sb = guardSupabase();
-      if (!sb) return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured for searchTrips. Falling back to mock data.");
+          // Fallback to local mock data filtering and sorting
+          let filteredMocks = MOCK_TRIPS.filter(t => {
+              const matchesQuery = !params.query || 
+                  normalizeText(t.title).includes(normalizeText(params.query)) ||
+                  normalizeText(t.description).includes(normalizeText(params.query)) ||
+                  normalizeText(t.destination).includes(normalizeText(params.query)) ||
+                  t.tags.some(tag => normalizeText(tag).includes(normalizeText(params.query)));
+
+              const matchesCategory = !params.category || t.category === params.category;
+              const matchesAgency = !params.agencyId || t.agencyId === params.agencyId;
+              const matchesFeatured = !params.featured || t.featured === params.featured;
+              const matchesMinPrice = !params.minPrice || t.price >= params.minPrice;
+              const matchesMaxPrice = !params.maxPrice || t.price <= params.maxPrice;
+
+              return matchesQuery && matchesCategory && matchesAgency && matchesFeatured && matchesMinPrice && matchesMaxPrice;
+          });
+
+          // Apply local sorting to mock data
+          switch (params.sort) {
+              case 'LOW_PRICE': filteredMocks.sort((a, b) => a.price - b.price); break;
+              case 'HIGH_PRICE': filteredMocks.sort((a, b) => b.price - a.price); break;
+              case 'DATE_ASC': filteredMocks.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
+              case 'RATING': filteredMocks.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
+              case 'RELEVANCE': 
+              default: 
+                  filteredMocks.sort((a, b) => {
+                      const scoreA = ((b.tripRating || 0) * 10) + ((b.views || 0) / 100);
+                      const scoreB = ((a.tripRating || 0) * 10) + ((a.views || 0) / 100);
+                      return scoreA - scoreB;
+                  });
+          }
+
+          const count = filteredMocks.length;
+          const from = ((params.page || 1) - 1) * (params.limit || 10);
+          const to = from + (params.limit || 10);
+          const paginatedMocks = filteredMocks.slice(from, to);
+
+          return { data: paginatedMocks, count: count, error: "Modo Offline/Demo." };
+      }
 
       let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
 
