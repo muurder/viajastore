@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -127,12 +128,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     
     if (!sb) {
+        console.warn("[DataContext] Supabase not configured. Falling back to mock data for global profiles.");
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
         setAgencyReviews([]); 
         setClients(MOCK_CLIENTS);
         setAuditLogs([]);
         setActivityLogs([]);
+        setLoading(false);
         return;
     }
 
@@ -191,7 +194,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (error: any) {
         console.error("Error fetching global and client profiles data:", error.message);
-        showToast(`Erro ao carregar dados: ${error.message}`, 'error');
+        console.warn("[DataContext] Entrando em modo Offline/Fallback devido a erro de rede ou Supabase.");
+        showToast(`Erro ao carregar dados: ${error.message}. Carregando dados de exemplo.`, 'error');
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
         setAgencyReviews([]);
@@ -1052,14 +1056,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [showToast, logAuditAction, _fetchGlobalAndClientProfiles, guardSupabase]);
 
-  // FIX: Implement RPC call for getAgencyStats
+  // FIX: Implement local calculation fallback for getAgencyStats
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
     const sb = guardSupabase();
-    if (!sb) {
-        // Fallback or default stats if Supabase not available
-        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
-    }
     try {
+        if (!sb) throw new Error("Supabase não configurado."); // Force error for fallback if no SB
         const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
         if (error) throw error;
 
@@ -1074,11 +1075,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
         return stats;
     } catch (error: any) {
-        console.error("Error fetching agency stats via RPC:", error.message);
-        showToast(`Erro ao buscar estatísticas da agência: ${error.message}`, 'error');
-        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+        console.error("Error fetching agency stats via RPC, calculating locally:", error.message);
+        // Fallback: Calculate stats locally using existing state data
+        const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+        const agencyBookings = bookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
+        const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
+
+        const totalRevenue = agencyBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+        const totalViews = agencyTrips.reduce((sum, t) => sum + (t.views || 0), 0);
+        const totalSales = agencyTrips.reduce((sum, t) => sum + (t.sales || 0), 0);
+        const totalReviews = agencyReviewsForStats.length;
+        const averageRating = totalReviews > 0 
+            ? agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
+            : 0;
+        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+
+        showToast(`Erro ao buscar estatísticas da agência: ${error.message}. Dados calculados localmente podem ser imprecisos.`, 'warning');
+        return { totalRevenue, totalViews, totalSales, conversionRate, averageRating, totalReviews };
     }
-  }, [guardSupabase, showToast]);
+  }, [guardSupabase, showToast, trips, bookings, agencyReviews]);
 
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {

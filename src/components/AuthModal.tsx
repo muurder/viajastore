@@ -63,11 +63,17 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        const result = await login(email, password);
-        if (result.success) {
-            onClose();
-        } else {
-            setError(result.error || 'Falha no login.');
+        try {
+            const result = await login(email, password);
+            if (result.success) {
+                onClose();
+            } else {
+                setError(result.error || 'Falha no login.');
+            }
+        } catch (err) {
+            console.error("Login submission error:", err);
+            setError("Um erro inesperado ocorreu. Tente novamente.");
+        } finally {
             setIsLoading(false);
         }
     };
@@ -169,6 +175,7 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             }
         } else {
             setError(result.error || 'Erro ao criar conta.');
+        } finally {
             setIsLoading(false);
         }
     };
@@ -181,6 +188,12 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     
     return (
         <div className="p-8 md:p-10 max-h-[90vh] overflow-y-auto scrollbar-thin">
+            {agencyContext && (
+                <div className="text-center mb-4">
+                    <img src={agencyContext.logo} className="w-14 h-14 rounded-full mx-auto mb-2 border-2 border-gray-100" alt={`${agencyContext.name} logo`} />
+                    <p className="text-xs text-gray-500">Acessando <span className="font-bold text-gray-700">{agencyContext.name}</span></p>
+                </div>
+            )}
             <h2 className="text-2xl font-bold text-center text-gray-900">Crie sua conta</h2>
             <p className="text-center text-sm text-gray-500 mt-2 mb-6">É rápido e fácil.</p>
             

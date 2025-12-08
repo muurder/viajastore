@@ -293,16 +293,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
-    const { error } = await (supabase.auth as any).signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error } = await (supabase.auth as any).signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
-      return { success: false, error: msg };
+      if (error) {
+        const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
+        return { success: false, error: msg };
+      }
+      return { success: true };
+    } catch (networkError: any) {
+      console.error("Network or unexpected error during login:", networkError);
+      return { success: false, error: "Erro de conexão. Verifique sua internet." };
     }
-    return { success: true };
   };
 
   const loginWithGoogle = async (role?: UserRole, redirectPath?: string) => {
