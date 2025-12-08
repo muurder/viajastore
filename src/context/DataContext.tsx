@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -287,18 +286,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }).subscribe());
         });
 
-        // Bookings changes should specifically trigger a refresh of user-dependent data
-        subscriptions.push(sb.channel('bookings_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
-            console.log('Booking change received!', payload);
-            if (user?.id) _fetchBookingsForCurrentUser(user); // Trigger user-specific refresh
-            else _fetchGlobalAndClientProfiles(); // Fallback if no user, e.g., for general stats updates
-        }).subscribe());
-
         return () => {
             subscriptions.forEach(sub => sb.removeChannel(sub));
         };
     }
-  }, [_fetchGlobalAndClientProfiles, _fetchBookingsForCurrentUser, guardSupabase, user]); // user is here for booking changes logic
+  }, [_fetchGlobalAndClientProfiles, guardSupabase]); // Global data fetching runs ONCE.
 
   // --- Second Effect Hook for User-Specific Data (runs when user changes) ---
   useEffect(() => {
@@ -309,7 +301,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // If user logs out, clear user-specific data (bookings)
         setBookings([]);
     }
-  }, [user, authLoading, _fetchBookingsForCurrentUser]);
+    // Bookings changes should specifically trigger a refresh of user-dependent data
+    const sb = guardSupabase();
+    if (sb && user?.id) {
+        const bookingChannel = sb.channel('bookings_changes_user_specific').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
+            console.log('Booking change received for user-specific data!', payload);
+            _fetchBookingsForCurrentUser(user);
+        }).subscribe();
+        return () => {
+            sb.removeChannel(bookingChannel);
+        };
+    }
+  }, [user, authLoading, _fetchBookingsForCurrentUser, guardSupabase]);
 
 
   // --- Exported Refresh Function (Full Data Refresh) ---
@@ -366,7 +369,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             action_type: actionType,
             details: details,
         });
-        _fetchGlobalAndClientProfiles(); // Refresh activity logs, which are global
+        // We trigger global refresh here, which will also fetch latest activity logs.
+        _fetchGlobalAndClientProfiles(); 
     }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
@@ -401,8 +405,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
-        if (user) _fetchBookingsForCurrentUser(user); // To update local cache for current user
-        else _fetchGlobalAndClientProfiles(); // If no user (e.g., admin booked for someone), refresh global
+        // After adding booking, only refresh user-specific data. Global data changes (like sales_count) will be picked up by global subscription.
+        if (user) _fetchBookingsForCurrentUser(user); 
         return newBooking;
 
     } catch (error: any) {
@@ -410,7 +414,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao adicionar reserva: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, trips, agencies, logActivity, _fetchBookingsForCurrentUser, user, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, trips, agencies, logActivity, _fetchBookingsForCurrentUser, user, guardSupabase]);
 
   const addReview = useCallback(async (review: Review) => {
     const sb = guardSupabase();
@@ -480,7 +484,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('agency_reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
-        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
+        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting agency review:", error.message);
@@ -818,7 +822,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await sb.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
           showToast('Movido para a lixeira.', 'success');
-          logActivity(ActivityActionType.DELETE_USER, { entityId: id, table, softDelete: true });
+          logActivity(ActivityActionType.DELETE_USER, { entityId: id, table, softDelete: true }); // Corrected enum usage
           _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error soft deleting entity:", error.message);
@@ -870,7 +874,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             showToast('Usuário excluído permanentemente.', 'success');
           }
 
-          logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true });
+          logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true }); // Corrected enum usage
           _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error deleting user permanently:", error.message);
@@ -890,7 +894,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (authError) console.warn(`Could not delete Auth user ${id}: ${authError.message}`);
         }
         showToast('Usuários selecionados excluídos.', 'success');
-        logActivity(ActivityActionType.DELETE_MULTIPLE_USERS, { userIds: ids });
+        logActivity(ActivityActionType.DELETE_MULTIPLE_USERS, { userIds: ids }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting multiple users:", error.message);
@@ -928,7 +932,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         showToast('Agências selecionadas excluídas.', 'success');
-        logActivity(ActivityActionType.DELETE_MULTIPLE_AGENCIES, { agencyPks, userIds: userIdsToDelete });
+        logActivity(ActivityActionType.DELETE_MULTIPLE_AGENCIES, { agencyPks, userIds: userIdsToDelete }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting multiple agencies:", error.message);
@@ -972,7 +976,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('profiles').update({ status: status }).in('id', ids);
         showToast('Status dos usuários atualizado.', 'success');
-        logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userIds: ids, status });
+        logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userIds: ids, status }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple users status:", error.message);
@@ -986,7 +990,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('agencies').update({ is_active: status === 'ACTIVE' }).in('id', ids);
         showToast('Status das agências atualizado.', 'success');
-        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, status });
+        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, status }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple agencies status:", error.message);

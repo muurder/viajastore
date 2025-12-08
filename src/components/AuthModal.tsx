@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserRole, Agency } from '../types';
@@ -73,9 +72,9 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         } catch (err) {
             console.error("Login submission error:", err);
             setError("Um erro inesperado ocorreu. Tente novamente.");
-        } finally {
-            setIsLoading(false);
-        }
+        } 
+        // Ensure loading state is reset in both success and error paths
+        setIsLoading(false);
     };
     
     return (
