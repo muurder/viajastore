@@ -203,13 +203,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setClients(mappedClients);
         }
 
-        // 5. Fetch Agency Reviews (without immediate client/agency lookup for stability)
-        const { data: reviewsData } = await sb.from('agency_reviews').select('*');
+        // 5. Fetch Agency Reviews (JOIN with profiles to get name/avatar)
+        const { data: reviewsData } = await sb.from('agency_reviews')
+          .select('*, client:client_id(full_name, avatar_url)'); // Join with profiles
+        
         if (reviewsData) {
             setAgencyReviews(reviewsData.map((r: any) => ({
-                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, trip_id: r.trip_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, 
-                // Client/Agency names will be resolved by getters or in components that consume `agencyReviews`
-                clientName: undefined, agencyName: undefined, tripTitle: undefined,
+                id: r.id, 
+                agencyId: r.agency_id, 
+                clientId: r.client_id, 
+                bookingId: r.booking_id, 
+                trip_id: r.trip_id, 
+                rating: r.rating, 
+                comment: r.comment, 
+                tags: r.tags, 
+                createdAt: r.created_at, 
+                response: r.response, 
+                // Map joined data
+                clientName: r.client?.full_name || 'Viajante', 
+                clientAvatar: r.client?.avatar_url,
+                agencyName: undefined, 
+                tripTitle: undefined,
             })));
         }
         
@@ -280,9 +294,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const myTripIds = myAgencyTrips.map(t => t.id);
             console.log("[DataContext] _fetchBookingsForCurrentUser: Agency user, fetching bookings for trip IDs:", myTripIds); // Debug Log
 
+            // FIX: Join with profiles (client:client_id) to get client name and avatar
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
-                .select('*, trips:trip_id(*, agencies:agency_id(*))') // Deep nesting
-                .in('trip_id', myTripIds)); // FIX: Correctly use .in with trip_id
+                .select('*, trips:trip_id(*, agencies:agency_id(*)), client:client_id(full_name, avatar_url)') // Deep nesting + client join
+                .in('trip_id', myTripIds)); 
             
         } else if (user.role === UserRole.CLIENT) {
             console.log("[DataContext] _fetchBookingsForCurrentUser: Client user, fetching bookings for client ID:", user.id); // Debug Log
@@ -305,8 +320,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 voucherCode: b.voucher_code,
                 paymentMethod: b.payment_method,
                 _trip: b.trips, // Deep nesting: trips is already augmented
-                _agency: b.trips?.agencies // Deep nesting: agency is inside trips
-            }));
+                _agency: b.trips?.agencies, // Deep nesting: agency is inside trips
+                // Add _client property (custom extension for Dashboard usage)
+                _client: b.client ? { name: b.client.full_name, avatar: b.client.avatar_url } : undefined 
+            } as any)); // cast as any to bypass strict Booking type for _client
             setBookings(augmentedBookings);
             console.log("[DataContext] User-specific data loaded. Bookings:", augmentedBookings.length); // Debug Log
         } else {
@@ -420,8 +437,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .filter(r => r.trip_id === tripId)
       .map(r => ({
         ...r,
-        clientName: currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
-        clientAvatar: currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
+        // Prefer the pre-joined data if available, else fallback to lookup
+        clientName: r.clientName || currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
+        clientAvatar: r.clientAvatar || currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
         agencyName: currentAgencies.find(a => a.agencyId === r.agencyId)?.name || 'Agência Desconhecida',
         agencyLogo: currentAgencies.find(a => a.agencyId === r.agencyId)?.logo || undefined,
         tripTitle: currentTrips.find(t => t.id === r.trip_id)?.title || undefined,
@@ -437,8 +455,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .filter(r => r.agencyId === agencyId)
       .map(r => ({
         ...r,
-        clientName: currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
-        clientAvatar: currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
+        clientName: r.clientName || currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
+        clientAvatar: r.clientAvatar || currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
         agencyName: currentAgencies.find(a => a.agencyId === r.agencyId)?.name || 'Agência Desconhecida',
         agencyLogo: currentAgencies.find(a => a.agencyId === r.agencyId)?.logo || undefined,
         tripTitle: currentTrips.find(t => t.id === r.trip_id)?.title || undefined,
@@ -1121,16 +1139,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           await sb.from('profiles').delete().eq('id', id);
           
-          // Delete Auth user
-          // Note: This operation might require service_role key or RLS policies.
-          // For frontend, we typically don't directly call auth.admin.deleteUser
-          // So this might fail if not an admin context.
+          // Delete from auth.users (requires admin)
+          // For frontend, assume logic handled or soft delete is primary
+          // If we really want to delete auth user from client, we need a backend function or service role
           const { error: authError } = await sb.auth.admin.deleteUser(id);
           if (authError) {
-            console.warn(`[DataContext] Could not delete Auth user ${id}: ${authError.message}`); // Debug Log
-            showToast(`Usuário DB excluído, mas conta de autenticação pode persistir: ${authError.message}`, 'warning');
+             console.warn(`[DataContext] Could not delete Auth user ${id}: ${authError.message}`); // Debug Log
+             // Try self-delete fallback for current user not applicable here as this is admin action
+             // Just warn
+             showToast(`Usuário DB excluído, mas conta de autenticação pode persistir: ${authError.message}`, 'warning');
           } else {
-            showToast('Usuário excluído permanentemente.', 'success');
+             showToast('Usuário excluído permanentemente.', 'success');
           }
 
           logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true }); // Corrected enum usage
@@ -1368,53 +1387,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log("[DataContext] Fetching agency stats for ID:", agencyId); // Debug Log
     
     try {
-        const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
-        if (error || !data || data.length === 0) throw error;
-        const s = data[0];
-        console.log("[DataContext] Agency stats loaded from RPC:", s); // Debug Log
+        // Fallback: calculate locally if RPC fails or not available, but also useful logic to review.
+        // We use local calculation for sales to ensure passenger count logic is correct as requested.
+        const currentTrips = tripsRef.current; // Use ref
+        const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
+        const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
+ 
+        const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
+ 
+        let totalViews = 0;
+        let totalRatingSum = 0;
+        let totalReviews = 0;
+ 
+        agencyTrips.forEach(trip => {
+            totalViews += trip.views || 0;
+            totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
+            totalReviews += trip.tripTotalReviews || 0;
+        });
+
+        // REFACTOR: Calculate Total Passengers (Sales) from Bookings
+        const relevantBookings = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
+        const totalSales = relevantBookings.reduce((sum, b) => sum + (b.passengers || 1), 0); // Sum passengers
+
+        const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
+        const totalRevenue = relevantBookings.reduce((sum, b) => sum + b.totalPrice, 0); 
+ 
+        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+ 
         return {
-           totalRevenue: Number(s.total_revenue) || 0,
-           totalViews: Number(s.total_views) || 0,
-           totalSales: Number(s.total_sales) || 0,
-           conversionRate: Number(s.conversion_rate) || 0,
-           averageRating: Number(s.average_rating) || 0,
-           totalReviews: Number(s.total_reviews) || 0
-        };
-      } catch (err: any) {
-         console.warn("[DataContext] Agency stats RPC failed, calculating locally:", err.message); // Debug Log
-         // Mantenha o cálculo local antigo aqui como fallback no catch
-         const currentTrips = tripsRef.current; // Use ref
-         const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
-         const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
- 
-         // Fallback: calculate locally using available data
-         const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
- 
-         let totalViews = 0;
-         let totalSales = 0;
-         let totalRatingSum = 0;
-         let totalReviews = 0;
- 
-         agencyTrips.forEach(trip => {
-             totalViews += trip.views || 0;
-             totalSales += trip.sales || 0;
-             totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
-             totalReviews += trip.tripTotalReviews || 0;
-         });
- 
-         const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
-         const totalRevenue = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED').reduce((sum, b) => sum + b.totalPrice, 0); // Filter myBookings by the current agency's trips
- 
-         const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
- 
-         return {
              totalRevenue,
              totalViews,
-             totalSales,
+             totalSales, // Now represents total passengers/seats sold
              conversionRate,
              averageRating,
              totalReviews: currentAgencyReviews.length, // Use actual review count for the agency
-         };
+        };
+        
+      } catch (err: any) {
+         console.warn("[DataContext] Agency stats calculation failed:", err.message); // Debug Log
+         return zeros;
       }
    }, [guardSupabase, tripsRef, bookings, agencyReviews]);
 

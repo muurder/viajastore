@@ -20,12 +20,15 @@ import {
   Palette, 
   Search, 
   LucideProps,
-  Zap
+  Zap,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
+import { slugify } from '../utils/slugify';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
@@ -170,16 +173,24 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {recentBookings.map(booking => {
-                                const client = clients.find(c => c.id === booking.clientId);
+                                // Try to get client data from the booking object itself (via join) first, then fallback to clients list
+                                const clientData = (booking as any)._client || clients.find(c => c.id === booking.clientId);
+                                
                                 return (
                                     <tr key={booking.id} className="hover:bg-gray-50">
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{client?.name?.charAt(0)}</div>
-                                                <span className="font-medium text-gray-900">{client?.name || 'Cliente'}</span>
+                                                {clientData?.avatar ? (
+                                                    <img src={clientData.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                                        {clientData?.name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                                <span className="font-medium text-gray-900 truncate max-w-[120px]">{clientData?.name || 'Cliente'}</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-gray-700">{booking._trip?.title || 'N/A'}</td>
+                                        <td className="px-4 py-3 text-gray-700 truncate max-w-[150px]">{booking._trip?.title || 'N/A'}</td>
                                         <td className="px-4 py-3 text-gray-500">{new Date(booking.date).toLocaleDateString()}</td>
                                         <td className="px-4 py-3 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
                                         <td className="px-4 py-3">
@@ -486,11 +497,13 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     };
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
-        const client = clients.find(c => c.id === b.clientId);
+        // Try to get name from client join or fallback
+        const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
+        
         return Array.from({ length: b.passengers }).map((_, i) => ({
             id: `${b.id}-${i}`,
             bookingId: b.id,
-            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, 
+            name: i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`, 
         }));
     });
 
@@ -778,11 +791,11 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
-        const client = clients.find(c => c.id === b.clientId);
+        const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
         return Array.from({ length: b.passengers }).map((_, i) => ({
             id: `${b.id}-${i}`,
             bookingId: b.id,
-            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, 
+            name: i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`, 
         }));
     });
 
@@ -1041,8 +1054,8 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
 };
 
 const AgencyDashboard: React.FC = () => {
-  const { user, logout, loading: authLoading, updateUser } = useAuth(); // FIX: Destructure updateUser
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients } = useData(); // FIX: Destructure all needed from useData
+  const { user, logout, loading: authLoading, updateUser, uploadImage } = useAuth(); // Import uploadImage
+  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview } = useData(); // Import updateAgencyReview
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
@@ -1054,7 +1067,10 @@ const AgencyDashboard: React.FC = () => {
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
   const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
-  const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>('GRID');
+  const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>(() => {
+      // Initialize view mode from localStorage
+      return (localStorage.getItem('agencyTripViewMode') as 'GRID' | 'TABLE') || 'GRID';
+  });
 
   // FILTERS STATE
   const [tripSearch, setTripSearch] = useState('');
@@ -1084,6 +1100,10 @@ const AgencyDashboard: React.FC = () => {
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
   const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
+
+  // State for Review Reply
+  const [replyText, setReplyText] = useState('');
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
   // Helper to determine new booking
   const isNewBooking = (dateStr: string) => {
@@ -1150,6 +1170,12 @@ const AgencyDashboard: React.FC = () => {
   }, [currentAgency?.agencyId, getAgencyTheme]);
 
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
+
+  // Handle Trip View Mode Change & Persistence
+  const handleSetTripViewMode = (mode: 'GRID' | 'TABLE') => {
+      setTripViewMode(mode);
+      localStorage.setItem('agencyTripViewMode', mode);
+  };
   
   const handleEditTrip = (trip: Trip) => { 
       const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
@@ -1164,7 +1190,15 @@ const AgencyDashboard: React.FC = () => {
       e.preventDefault(); 
       setLoading(true); 
       try { 
-          await updateUser(profileForm); // FIX: call updateUser with profileForm
+          // Validate Slug
+          const slug = profileForm.slug || '';
+          const safeSlug = slugify(slug);
+
+          if (safeSlug !== slug) {
+             setProfileForm(prev => ({ ...prev, slug: safeSlug })); // Correct slug in state
+          }
+          
+          await updateUser({ ...profileForm, slug: safeSlug }); // Send corrected slug
           await updateUser({ // FIX: call updateUser with heroForm data
               heroMode: heroForm.heroMode, 
               heroBannerUrl: heroForm.heroBannerUrl, 
@@ -1192,6 +1226,35 @@ const AgencyDashboard: React.FC = () => {
       } 
   };
   const handleLogout = async () => { await logout(); navigate('/'); };
+
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+          setLoading(true);
+          const url = await uploadImage(e.target.files[0], 'trip-images'); // Using trip-images bucket for banners
+          if (url) {
+              setHeroForm(prev => ({ ...prev, heroBannerUrl: url }));
+              showToast('Imagem carregada com sucesso!', 'success');
+          } else {
+              showToast('Erro ao carregar imagem.', 'error');
+          }
+          setLoading(false);
+      }
+  };
+
+  const handleReplySubmit = async (reviewId: string) => {
+      if (!replyText.trim()) return;
+      setLoading(true);
+      try {
+          await updateAgencyReview(reviewId, { response: replyText });
+          setReplyText('');
+          setActiveReplyId(null);
+          showToast('Resposta enviada!', 'success');
+      } catch (error) {
+          showToast('Erro ao enviar resposta.', 'error');
+      } finally {
+          setLoading(false);
+      }
+  };
   
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
   const confirmSubscription = async () => { 
@@ -1491,8 +1554,8 @@ const AgencyDashboard: React.FC = () => {
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                     </div>
                     <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 flex-shrink-0">
-                        <button onClick={() => setTripViewMode('GRID')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><LayoutGrid size={18} /></button>
-                        <button onClick={() => setTripViewMode('TABLE')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><List size={18} /></button>
+                        <button onClick={() => handleSetTripViewMode('GRID')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><LayoutGrid size={18} /></button>
+                        <button onClick={() => handleSetTripViewMode('TABLE')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><List size={18} /></button>
                     </div>
                 </div>
             </div>
@@ -1689,7 +1752,11 @@ const AgencyDashboard: React.FC = () => {
                           <div key={review.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                               <div className="flex justify-between items-start mb-3">
                                   <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{review.clientName?.charAt(0)}</div>
+                                      {review.clientAvatar ? (
+                                        <img src={review.clientAvatar} alt={review.clientName} className="w-10 h-10 rounded-full border border-gray-200 object-cover" />
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{review.clientName?.charAt(0)}</div>
+                                      )}
                                       <div>
                                           <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Cliente ViajaStore'}</p>
                                           <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
@@ -1715,8 +1782,24 @@ const AgencyDashboard: React.FC = () => {
                                           <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Sua Resposta:</h4>
                                           <p className="text-sm text-gray-700 italic">"{review.response}"</p>
                                       </div>
+                                  ) : activeReplyId === review.id ? (
+                                      <div className="bg-white p-3 rounded-lg border border-gray-200 animate-[fadeIn_0.2s]">
+                                          <textarea 
+                                              value={replyText} 
+                                              onChange={e => setReplyText(e.target.value)} 
+                                              placeholder="Escreva sua resposta..." 
+                                              className="w-full text-sm p-2 border border-gray-300 rounded mb-2 outline-none focus:border-primary-500"
+                                              rows={3}
+                                          />
+                                          <div className="flex justify-end gap-2">
+                                              <button onClick={() => { setActiveReplyId(null); setReplyText(''); }} className="text-xs text-gray-500 hover:text-gray-700 font-bold px-3 py-1.5">Cancelar</button>
+                                              <button onClick={() => handleReplySubmit(review.id)} disabled={loading} className="text-xs bg-primary-600 text-white font-bold px-3 py-1.5 rounded hover:bg-primary-700 disabled:opacity-50">
+                                                  {loading ? 'Enviando...' : 'Enviar Resposta'}
+                                              </button>
+                                          </div>
+                                      </div>
                                   ) : (
-                                      <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-2">
+                                      <button onClick={() => setActiveReplyId(review.id)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-2 transition-colors">
                                           <MessageCircle size={16}/> Responder Avaliação
                                       </button>
                                   )}
@@ -1744,6 +1827,22 @@ const AgencyDashboard: React.FC = () => {
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://suaagencia.com.br" /></div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">URL Personalizada (Slug)</label>
+                          <div className="flex rounded-lg shadow-sm">
+                            <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                                viajastore.com/#/
+                            </span>
+                            <input
+                                type="text"
+                                value={profileForm.slug || ''}
+                                onChange={e => setProfileForm({...profileForm, slug: slugify(e.target.value)})}
+                                className="flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 sm:text-sm outline-none"
+                                placeholder="minha-agencia"
+                            />
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">Apenas letras minúsculas e hífens.</p>
+                      </div>
                       <div className="md:col-span-2">
                           <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Curta</label>
                           <textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Fale um pouco sobre sua agência..." />
@@ -1763,9 +1862,18 @@ const AgencyDashboard: React.FC = () => {
                           {heroForm.heroMode === 'STATIC' && (
                               <div className="space-y-4 animate-[fadeIn_0.3s]">
                                   <div>
-                                      <label className="block text-sm font-bold text-gray-700 mb-1">URL da Imagem do Hero</label>
-                                      <input value={heroForm.heroBannerUrl || ''} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://suaagencia.com/banner.jpg" />
-                                      {heroForm.heroBannerUrl && <img src={heroForm.heroBannerUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg mt-3 border border-gray-200" />}
+                                      <label className="block text-sm font-bold text-gray-700 mb-1">Imagem do Hero</label>
+                                      
+                                      <div className="flex items-center gap-4">
+                                        {heroForm.heroBannerUrl && (
+                                            <img src={heroForm.heroBannerUrl} alt="Preview" className="w-32 h-20 object-cover rounded-lg border border-gray-200" />
+                                        )}
+                                        <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2 px-4 rounded-lg inline-flex items-center transition-colors">
+                                            <Upload size={16} className="mr-2"/>
+                                            {loading ? 'Carregando...' : 'Fazer Upload'}
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleHeroUpload} disabled={loading} />
+                                        </label>
+                                      </div>
                                   </div>
                                   <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Hero</label><input value={heroForm.heroTitle || ''} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Bem-vindo à Sua Agência" /></div>
                                   <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Hero</label><textarea value={heroForm.heroSubtitle || ''} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={2} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="As melhores experiências esperam por você!" /></div>
@@ -1785,18 +1893,40 @@ const AgencyDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Personalizar Tema do Meu Microsite</h2>
               <form onSubmit={handleSaveTheme} className="space-y-6">
+                  
+                  <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
+                    {[
+                        {p: '#3b82f6', s: '#f97316'}, // Default
+                        {p: '#10b981', s: '#3b82f6'}, // Green/Blue
+                        {p: '#8b5cf6', s: '#ec4899'}, // Purple/Pink
+                        {p: '#ef4444', s: '#f59e0b'}, // Red/Amber
+                        {p: '#0f172a', s: '#64748b'}, // Slate/Gray
+                    ].map((c, i) => (
+                        <button 
+                            key={i} 
+                            type="button"
+                            onClick={() => setThemeForm({ primary: c.p, secondary: c.s, background: '#f9fafb', text: '#111827' })}
+                            className="w-10 h-10 rounded-full border-2 border-white shadow-md flex overflow-hidden hover:scale-110 transition-transform"
+                            title="Aplicar cores"
+                        >
+                            <div className="w-1/2 h-full" style={{background: c.p}}></div>
+                            <div className="w-1/2 h-full" style={{background: c.s}}></div>
+                        </button>
+                    ))}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
                           <div className="flex items-center gap-2">
-                              <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                              <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-8 h-8 rounded-full border cursor-pointer" />
                               <input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500" />
                           </div>
                       </div>
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
                           <div className="flex items-center gap-2">
-                              <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                              <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-8 h-8 rounded-full border cursor-pointer" />
                               <input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500" />
                           </div>
                       </div>
