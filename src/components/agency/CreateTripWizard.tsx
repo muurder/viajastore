@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Trip, TripCategory, OperationalData, Agency } from '../../types';
+import { Trip, TripCategory, OperationalData, Agency, BoardingPoint } from '../../types';
 import { 
   X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, Image as ImageIcon,
-  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 
@@ -22,6 +23,8 @@ const ALL_TRIP_CATEGORIES: TripCategory[] = [
     'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA',
     'VIAGEM_BARATA', 'ARTE'
 ];
+
+const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
 
 interface CreateTripWizardProps {
   onClose: () => void;
@@ -216,6 +219,28 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     }
   };
 
+  // --- BOARDING POINTS LOGIC ---
+  const addBoardingPoint = () => {
+    setTripData(prev => ({
+        ...prev,
+        boardingPoints: [...(prev.boardingPoints || []), { id: crypto.randomUUID(), time: '08:00', location: '' }]
+    }));
+  };
+
+  const removeBoardingPoint = (id: string) => {
+    setTripData(prev => ({
+        ...prev,
+        boardingPoints: prev.boardingPoints?.filter(bp => bp.id !== id)
+    }));
+  };
+
+  const updateBoardingPoint = (id: string, field: keyof BoardingPoint, value: string) => {
+    setTripData(prev => ({
+        ...prev,
+        boardingPoints: prev.boardingPoints?.map(bp => bp.id === id ? { ...bp, [field]: value } : bp)
+    }));
+  };
+
   // --- UI RENDERERS ---
 
   const renderStep1 = () => (
@@ -320,6 +345,42 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         </div>
       </div>
       {errors.dates && <p className="text-red-500 text-sm font-bold bg-red-50 p-2 rounded">{errors.dates}</p>}
+
+      {/* Boarding Points Section - RESTORED */}
+      <div className="border-t border-gray-200 pt-6 mt-2">
+          <div className="flex justify-between items-center mb-4">
+              <label className="block text-sm font-bold text-gray-700">Locais de Embarque (Saídas)</label>
+              <button onClick={addBoardingPoint} className="text-xs font-bold text-primary-600 flex items-center hover:bg-primary-50 px-2 py-1 rounded transition-colors"><Plus size={14} className="mr-1"/> Adicionar Local</button>
+          </div>
+          
+          <div className="space-y-3">
+              {tripData.boardingPoints?.map((bp, idx) => (
+                  <div key={bp.id} className="flex gap-3 items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
+                      <div className="relative w-32 flex-shrink-0">
+                          <input 
+                              type="time" 
+                              value={bp.time} 
+                              onChange={e => updateBoardingPoint(bp.id, 'time', e.target.value)}
+                              className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                      </div>
+                      <div className="relative flex-1">
+                          <input 
+                              type="text" 
+                              value={bp.location} 
+                              onChange={e => updateBoardingPoint(bp.id, 'location', e.target.value)}
+                              placeholder="Ex: Metrô Tatuapé - Rua A, 123"
+                              className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
+                          />
+                      </div>
+                      <button onClick={() => removeBoardingPoint(bp.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 size={16}/></button>
+                  </div>
+              ))}
+              {(!tripData.boardingPoints || tripData.boardingPoints.length === 0) && (
+                  <p className="text-xs text-gray-500 italic">Nenhum local de embarque definido.</p>
+              )}
+          </div>
+      </div>
     </div>
   );
 
@@ -346,6 +407,14 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), val] }));
                 e.currentTarget.value = '';
             }
+        }
+    };
+
+    const toggleTag = (tag: string) => {
+        if (tripData.tags?.includes(tag)) {
+            setTripData(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) }));
+        } else {
+            setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), tag] }));
         }
     };
 
@@ -397,19 +466,37 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         {/* Tags */}
         <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Tags (Pressione Enter)</label>
+            
+            {/* Tag Pills - RESTORED */}
+            <div className="flex flex-wrap gap-2 mb-3">
+                {SUGGESTED_TAGS.map(tag => (
+                    <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition-all flex items-center gap-1 ${
+                            tripData.tags?.includes(tag) 
+                            ? 'bg-primary-600 text-white border-primary-600' 
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        }`}
+                    >
+                        {tag} {tripData.tags?.includes(tag) && <Check size={12} />}
+                    </button>
+                ))}
+            </div>
+
             <div className="relative">
                 <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                 <input
                     type="text"
                     onKeyDown={addTag}
                     className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Ex: Família, Trilha, Cachoeira..."
+                    placeholder="Ou digite uma tag personalizada e aperte Enter..."
                 />
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
                 {tripData.tags?.map(tag => (
-                    <span key={tag} className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1">
-                        {tag}
+                    <span key={String(tag)} className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1">
+                        {String(tag)}
                         <button onClick={() => setTripData(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) }))} className="hover:text-red-500"><X size={12}/></button>
                     </span>
                 ))}

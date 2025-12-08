@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
@@ -873,11 +874,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             payment_methods: trip.paymentMethods,
             is_active: trip.is_active,
             included: trip.included,
-            notIncluded: trip.notIncluded,
+            not_included: trip.notIncluded,
             featured: trip.featured,
-            featuredInHero: trip.featuredInHero,
-            popularNearSP: trip.popularNearSP,
-            operationalData: trip.operationalData,
+            featured_in_hero: trip.featuredInHero, // FIX: Corrected column name
+            popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
+            operational_data: trip.operationalData,
         }).select().single();
 
         if (error) throw error;
@@ -919,22 +920,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             description: trip.description,
             destination: trip.destination,
             price: trip.price,
-            startDate: trip.startDate,
-            endDate: trip.endDate,
-            durationDays: trip.durationDays,
+            start_date: trip.startDate,
+            end_date: trip.endDate,
+            duration_days: trip.durationDays,
             category: trip.category,
             tags: trip.tags,
-            travelerTypes: trip.travelerTypes,
+            traveler_types: trip.travelerTypes,
             itinerary: trip.itinerary,
-            boardingPoints: trip.boardingPoints,
-            paymentMethods: trip.paymentMethods,
+            boarding_points: trip.boardingPoints,
+            payment_methods: trip.paymentMethods,
             is_active: trip.is_active,
             included: trip.included,
-            notIncluded: trip.notIncluded,
+            not_included: trip.notIncluded,
             featured: trip.featured,
-            featuredInHero: trip.featuredInHero,
-            popularNearSP: trip.popularNearSP,
-            operationalData: trip.operationalData,
+            featured_in_hero: trip.featuredInHero, // FIX: Corrected column name
+            popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
+            operational_data: trip.operationalData,
         }).eq('id', trip.id);
 
         if (error) throw error;
