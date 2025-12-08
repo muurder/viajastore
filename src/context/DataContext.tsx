@@ -818,7 +818,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trips').update({ operational_data: data }).eq('id', tripId);
         showToast('Dados operacionais atualizados!', 'success');
         _fetchGlobalAndClientProfiles(); // To ensure local cache is up-to-date
-    } catch (error: any) => {
+    } catch (error: any) {
         console.error("Error updating operational data:", error.message);
         showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
         throw error;
