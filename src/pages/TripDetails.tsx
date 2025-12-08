@@ -1,16 +1,20 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Booking, Agency, Trip, UserRole, ItineraryDay, BoardingPoint } from '../types';
-// Add ImageIcon to the import
-import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight, BookOpen, Bus, Loader, Plane, ImageIcon } from 'lucide-react';
+import { 
+  MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, 
+  User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight, BookOpen, 
+  Bus, Loader, Grid, ChevronLeft, ChevronRight
+} from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
 
-// Componente de Input Isolado para evitar re-render do pai inteiro a cada tecla
+// --- Componente de Input Isolado (Modernizado) ---
 const PassengerInput = React.memo(({ 
   index, 
   field, 
@@ -27,37 +31,42 @@ const PassengerInput = React.memo(({
   required?: boolean;
 }) => {
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(index, field, e.target.value)}
-      className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
-      placeholder={placeholder}
-      required={required}
-    />
+    <div className="relative group">
+        <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(index, field, e.target.value)}
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 pl-4 text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all placeholder-gray-400 group-hover:bg-white"
+        placeholder={placeholder}
+        required={required}
+        />
+    </div>
   );
 });
 
 const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const navigate = useNavigate();
-  const { getTripBySlug, clients, agencies, addBooking, toggleFavorite, incrementTripViews } = useData(); // Added incrementTripViews
+  const { getTripBySlug, clients, agencies, addBooking, toggleFavorite, incrementTripViews } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
 
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
   const [agency, setAgency] = useState<Agency | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   
-  // Booking State - Local e Isolado
+  // Gallery State
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  
+  // Booking State
   const [passengers, setPassengers] = useState(1);
   const [passengerDetails, setPassengerDetails] = useState<{name: string, document: string}[]>([{name: '', document: ''}]);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isBookingProcessing, setIsBookingProcessing] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => { // Made loadData async
+    const loadData = async () => {
       setLoading(true);
       const activeTripIdentifier = slug || tripSlug || '';
       if (!activeTripIdentifier) {
@@ -68,38 +77,27 @@ const TripDetails: React.FC = () => {
       let foundTrip: Trip | undefined = undefined;
       let foundAgency: Agency | undefined = undefined;
 
-      // 1. Attempt to find trip in local DataContext cache (which contains active public trips)
-      let cachedTrip = getTripBySlug(activeTripIdentifier); // This function already checks both slug and id on cached trips
+      let cachedTrip = getTripBySlug(activeTripIdentifier);
       if (cachedTrip) {
         foundTrip = cachedTrip;
         foundAgency = agencies.find(a => a.agencyId === cachedTrip?.agencyId);
       }
 
-      // 2. If not found in cache, attempt to fetch directly from Supabase
       if (!foundTrip) {
         const sb = supabase;
         if (!sb) {
-          console.warn('Supabase not configured, cannot fetch trip from DB.');
           setLoading(false);
           return;
         }
 
         try {
-          // Fetch trip with associated agency data
           const { data: dbData, error: dbError } = await sb
             .from('trips')
-            .select('*, agencies:agency_id(*), trip_images(*)') // Also fetch trip_images for consistency
+            .select('*, agencies:agency_id(*), trip_images(*)')
             .or(`slug.eq.${activeTripIdentifier},id.eq.${activeTripIdentifier}`)
             .maybeSingle();
 
-          if (dbError) {
-            console.error('Error fetching trip from DB:', dbError);
-            setLoading(false);
-            return;
-          }
-
           if (dbData) {
-            // Map Supabase response to Trip and Agency types
             const mappedTripFromDb: Trip = {
                 id: dbData.id,
                 agencyId: dbData.agency_id,
@@ -132,8 +130,8 @@ const TripDetails: React.FC = () => {
             };
 
             const mappedAgencyFromDb: Agency | undefined = dbData.agencies ? {
-                id: dbData.agencies.user_id, // User ID (from auth)
-                agencyId: dbData.agencies.id, // Primary Key of agencies table
+                id: dbData.agencies.user_id,
+                agencyId: dbData.agencies.id,
                 name: dbData.agencies.name,
                 email: dbData.agencies.email || '',
                 role: UserRole.AGENCY,
@@ -149,7 +147,7 @@ const TripDetails: React.FC = () => {
                 heroSubtitle: dbData.agencies.hero_subtitle,
                 customSettings: dbData.agencies.custom_settings || {},
                 subscriptionStatus: dbData.agencies.is_active ? 'ACTIVE' : 'INACTIVE',
-                subscriptionPlan: 'BASIC', // Placeholder
+                subscriptionPlan: 'BASIC',
                 subscriptionExpiresAt: dbData.agencies.subscription_expires_at || new Date().toISOString(),
                 website: dbData.agencies.website,
                 phone: dbData.agencies.phone,
@@ -165,21 +163,16 @@ const TripDetails: React.FC = () => {
         }
       }
 
-      // 3. If a trip is found (either from cache or DB), set states
       if (foundTrip) {
-        // Check if the current user is the agency owner and the trip is inactive
         const isAgencyOwnerViewingInactiveTrip = user?.role === UserRole.AGENCY && user.id === foundTrip.agencyId && !foundTrip.is_active;
 
         if (foundTrip.is_active || isAgencyOwnerViewingInactiveTrip) {
             setTrip(foundTrip);
             setAgency(foundAgency);
-
-            // Increment views for active trips only, and only if not agency owner viewing their own
             if (foundTrip.is_active && (!user || user.id !== foundTrip.agencyId)) {
                 incrementTripViews(foundTrip.id);
             }
         } else {
-            // Trip is inactive and not being viewed by its owner
             setTrip(undefined);
             setAgency(undefined);
         }
@@ -187,31 +180,25 @@ const TripDetails: React.FC = () => {
         setTrip(undefined);
         setAgency(undefined);
       }
-      
       setLoading(false);
     };
     loadData();
-  }, [slug, tripSlug, agencySlug, getTripBySlug, clients, agencies, user, incrementTripViews]); // Added clients and agencies to dependencies
+  }, [slug, tripSlug, agencySlug, getTripBySlug, clients, agencies, user, incrementTripViews]);
 
-
-  // Atualiza o array de detalhes quando o número de passageiros muda
   useEffect(() => {
     setPassengerDetails(prev => {
       const newDetails = [...prev];
       if (passengers > prev.length) {
-        // Adiciona novos campos vazios
         for (let i = prev.length; i < passengers; i++) {
           newDetails.push({ name: '', document: '' });
         }
       } else if (passengers < prev.length) {
-        // Remove excedentes
         return newDetails.slice(0, passengers);
       }
       return newDetails;
     });
   }, [passengers]);
 
-  // Handler Otimizado com useCallback
   const handlePassengerChange = useCallback((index: number, field: 'name' | 'document', value: string) => {
     setPassengerDetails(prev => {
       const newDetails = [...prev];
@@ -220,9 +207,8 @@ const TripDetails: React.FC = () => {
     });
   }, []);
 
-  // Pre-fill user data for first passenger
   useEffect(() => {
-    if (user && isBookingModalOpen && passengerDetails[0]?.name === '') { // Added optional chaining to passengerDetails[0]
+    if (user && isBookingModalOpen && passengerDetails[0]?.name === '') {
         const clientData = clients.find(c => c.id === user.id);
         if (clientData) {
             handlePassengerChange(0, 'name', clientData.name);
@@ -233,422 +219,396 @@ const TripDetails: React.FC = () => {
     }
   }, [user, isBookingModalOpen, clients, handlePassengerChange, passengerDetails]);
 
+  // --- Lightbox Functions ---
+  const openLightbox = (index: number) => {
+    setPhotoIndex(index);
+    setIsLightboxOpen(true);
+    document.body.style.overflow = 'hidden'; // Prevent scrolling
+  };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
-  }
+  const closeLightbox = () => {
+    setIsLightboxOpen(false);
+    document.body.style.overflow = 'auto'; // Restore scrolling
+  };
 
-  if (!trip) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Viagem não encontrada</h2>
-        <p className="text-gray-500 mb-6">Parece que esta viagem não está mais disponível ou nunca existiu.</p>
-        <button onClick={() => navigate(-1)} className="text-primary-600 font-bold hover:underline flex items-center gap-2">
-            <ArrowRight className="rotate-180" size={18}/> Voltar
-        </button>
-      </div>
-    );
-  }
+  const nextPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotoIndex((prev) => (prev + 1) % (trip?.images?.length || 1));
+  };
+
+  const prevPhoto = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPhotoIndex((prev) => (prev - 1 + (trip?.images?.length || 1)) % (trip?.images?.length || 1));
+  };
+
+  // --- Handler Functions ---
+  const handleFavorite = () => {
+      if (!user) { showToast('Faça login para favoritar.', 'info'); return; }
+      if (user.role !== 'CLIENT') { showToast('Apenas viajantes podem favoritar.', 'warning'); return; }
+      toggleFavorite(trip!.id, user.id);
+  };
+
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) { showToast('Faça login para reservar.', 'info'); navigate('/#login'); return; }
+      if (user.role !== 'CLIENT') { showToast('Apenas viajantes podem fazer reservas.', 'warning'); return; }
+
+      for (let i = 0; i < passengers; i++) {
+          if (!passengerDetails[i].name.trim()) { showToast(`Preencha o nome do passageiro ${i + 1}.`, 'warning'); return; }
+      }
+
+      setIsBookingProcessing(true); 
+      try {
+        const newBookingId = crypto.randomUUID();
+        const voucherCode = `VS-${Math.floor(Math.random() * 100000)}`;
+        const bookingData: Booking = {
+            id: newBookingId,
+            tripId: trip!.id,
+            clientId: user.id,
+            date: new Date().toISOString(),
+            status: 'CONFIRMED', 
+            totalPrice: (trip!.price * passengers),
+            passengers: passengers,
+            voucherCode: voucherCode,
+            paymentMethod: 'PIX',
+            _trip: trip, _agency: agency 
+        };
+        const createdBooking = await addBooking(bookingData); 
+        setIsBookingModalOpen(false);
+        showToast('Reserva realizada com sucesso!', 'success');
+        const successLink = agencySlug ? `/${agencySlug}/checkout/success` : `/checkout/success`;
+        navigate(successLink, { state: { booking: createdBooking } });
+      } catch (error: any) {
+        showToast(`Erro ao criar reserva: ${error.message}`, 'error');
+      } finally {
+        setIsBookingProcessing(false);
+      }
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
+  if (!trip) return <div className="min-h-screen flex flex-col items-center justify-center text-center p-8"><h2 className="text-2xl font-bold mb-4">Viagem não encontrada</h2><button onClick={() => navigate(-1)} className="text-primary-600 font-bold hover:underline">Voltar</button></div>;
 
   const totalPrice = trip.price * passengers;
   const contactNumber = agency?.whatsapp || agency?.phone;
   const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
   const clientData = clients.find(c => c.id === user?.id);
   const isFavorite = clientData?.favorites?.includes(trip.id);
-
-  const handleFavorite = () => {
-      if (!user) {
-          showToast('Faça login para favoritar.', 'info');
-          return;
-      }
-      if (user.role !== 'CLIENT') {
-          showToast('Apenas viajantes podem favoritar.', 'warning');
-          return;
-      }
-      toggleFavorite(trip.id, user.id);
-  };
-
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      
-      if (!user) {
-          showToast('Faça login para reservar.', 'info');
-          // Salva estado para retorno? (Implementação futura)
-          navigate('/#login');
-          return;
-      }
-      if (user.role !== 'CLIENT') {
-          showToast('Apenas viajantes podem fazer reservas.', 'warning');
-          return;
-      }
-
-      // Validação Básica
-      for (let i = 0; i < passengers; i++) {
-          if (!passengerDetails[i].name.trim()) {
-              showToast(`Preencha o nome do passageiro ${i + 1}.`, 'warning');
-              return;
-          }
-      }
-
-      setIsBookingProcessing(true); 
-      
-      try {
-        const newBookingId = crypto.randomUUID();
-        const voucherCode = `VS-${Math.floor(Math.random() * 100000)}`;
-
-        const bookingData: Booking = {
-            id: newBookingId,
-            tripId: trip.id,
-            clientId: user.id,
-            date: new Date().toISOString(),
-            status: 'CONFIRMED', 
-            totalPrice: totalPrice,
-            passengers: passengers,
-            voucherCode: voucherCode,
-            paymentMethod: 'PIX', // Default hardcoded for now, could be form field
-            _trip: trip, 
-            _agency: agency 
-        };
-
-        // TODO: Em uma implementação real, salvaríamos os detalhes dos passageiros em uma tabela separada 'booking_passengers'
-        console.log("Passenger Details:", passengerDetails);
-
-        const createdBooking = await addBooking(bookingData); 
-
-        setIsBookingModalOpen(false);
-        showToast('Reserva realizada com sucesso!', 'success');
-        
-        const successLink = agencySlug 
-          ? `/${agencySlug}/checkout/success` 
-          : `/checkout/success`;
-          
-        navigate(successLink, { state: { booking: createdBooking } });
-
-      } catch (error: any) {
-        showToast(`Erro ao criar reserva: ${error.message || 'Erro desconhecido'}`, 'error');
-        console.error("Booking failed:", error);
-      } finally {
-        setIsBookingProcessing(false);
-      }
-  };
-
-  const firstImage = trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem';
-  const remainingImages = trip.images.slice(1);
-  const displayImages = trip.images.length > 0 ? trip.images : ['https://placehold.co/800x600?text=Sem+Imagem'];
+  const images = trip.images && trip.images.length > 0 ? trip.images : ['https://placehold.co/1200x800?text=Sem+Imagem'];
 
   return (
-    <div className="max-w-7xl mx-auto pb-12 pt-6 px-4 sm:px-6 lg:px-8">
-      {/* Breadcrumb */}
-      <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 mb-6 font-medium transition-colors">
-        <ArrowRight className="rotate-180 mr-2" size={18} /> Voltar
-      </button>
+    <div className="bg-white min-h-screen pb-20">
+      
+      {/* --- LIGHTBOX --- */}
+      {isLightboxOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-[fadeIn_0.2s]" onClick={closeLightbox}>
+            <button onClick={closeLightbox} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50"><X size={32}/></button>
+            
+            <button onClick={prevPhoto} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block"><ChevronLeft size={48}/></button>
+            <button onClick={nextPhoto} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block"><ChevronRight size={48}/></button>
+            
+            <div className="max-w-7xl max-h-[90vh] w-full px-4 flex items-center justify-center relative">
+                <img src={images[photoIndex]} alt="" className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl" onClick={(e) => e.stopPropagation()} />
+            </div>
+            
+            <div className="absolute bottom-6 left-0 right-0 text-center text-white/80 font-medium">
+                {photoIndex + 1} / {images.length}
+            </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        
-        {/* Left Column: Images & Content */}
-        <div className="lg:col-span-2 space-y-10">
-          
-          {/* Gallery - Desktop Airbnb Style */}
-          <div className="hidden md:grid lg:grid-cols-5 gap-3 rounded-2xl overflow-hidden shadow-xl group">
-              <div className="lg:col-span-3 relative h-96">
-                  <img 
-                      src={firstImage} 
-                      alt={trip.title} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-l-2xl" 
-                  />
-                  <button onClick={handleFavorite} className={`absolute top-4 right-4 p-3 rounded-full bg-white shadow-md transition-transform hover:scale-110 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
+      {/* --- HEADER NAVIGATION --- */}
+      <div className="border-b border-gray-100 bg-white sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+              <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 font-medium transition-colors">
+                  <ArrowRight className="rotate-180 mr-2" size={18} /> Voltar
+              </button>
+              <div className="flex gap-4">
+                  <button className="text-gray-400 hover:text-gray-900 transition-colors"><Share2 size={20}/></button>
+                  <button onClick={handleFavorite} className={`text-gray-400 transition-colors ${isFavorite ? 'text-red-500 fill-current' : 'hover:text-red-500'}`}>
                       <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
                   </button>
               </div>
-              <div className="lg:col-span-2 grid grid-cols-2 gap-3">
-                  {remainingImages.slice(0, 4).map((img, idx) => (
-                      <img 
-                          key={idx} 
-                          src={img || 'https://placehold.co/400x300?text=Imagem'} 
-                          alt={`Imagem ${idx + 2}`} 
-                          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 
-                          ${idx === 1 ? 'rounded-tr-2xl' : ''}
-                          ${idx === 3 ? 'rounded-br-2xl' : ''}
-                          `}
-                      />
-                  ))}
-                  {remainingImages.length < 4 && Array.from({length: 4 - remainingImages.length}).map((_, idx) => (
-                      <div key={`placeholder-${idx}`} className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400 rounded-lg">
-                          <ImageIcon size={32}/>
+          </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          
+          {/* --- TITLE & RATING --- */}
+          <div className="mb-6">
+              <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 leading-tight">{trip.title}</h1>
+              <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-1 font-bold text-gray-900"><Star size={14} className="fill-gray-900"/> {trip.tripRating?.toFixed(1) || '5.0'}</div>
+                  <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                  <span className="underline decoration-gray-300 underline-offset-4">{trip.tripTotalReviews || 0} avaliações</span>
+                  <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                  <span className="flex items-center gap-1"><MapPin size={14}/> {trip.destination}</span>
+              </div>
+          </div>
+
+          {/* --- IMAGE GALLERY (Grid Desktop / Carousel Mobile) --- */}
+          <div className="relative mb-10 group">
+              {/* Desktop Grid */}
+              <div className="hidden md:grid grid-cols-4 grid-rows-2 gap-2 h-[450px] rounded-2xl overflow-hidden cursor-pointer" onClick={() => openLightbox(0)}>
+                  <div className="col-span-2 row-span-2 relative overflow-hidden group/img">
+                      <img src={images[0]} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105" />
+                      <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors"></div>
+                  </div>
+                  {images.slice(1, 5).map((img, idx) => (
+                      <div key={idx} className="col-span-1 row-span-1 relative overflow-hidden group/img">
+                          <img src={img} alt="" className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105" />
+                          <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors"></div>
+                          {idx === 3 && images.length > 5 && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-lg backdrop-blur-sm">
+                                  +{images.length - 5} fotos
+                              </div>
+                          )}
                       </div>
                   ))}
               </div>
-          </div>
 
-          {/* Gallery - Mobile Carousel Style */}
-          <div className="block md:hidden space-y-4">
-            <div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden shadow-sm relative group">
-              <img 
-                src={displayImages[activeImageIndex]} 
-                alt={trip.title} 
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-              />
-              <button onClick={handleFavorite} className={`absolute top-4 right-4 p-3 rounded-full bg-white shadow-md transition-transform hover:scale-110 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
-                  <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-              {displayImages.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                    {displayImages.map((_, idx) => (
-                        <div key={idx} className={`w-2 h-2 rounded-full ${activeImageIndex === idx ? 'bg-primary-600' : 'bg-white/50'}`}></div>
-                    ))}
-                </div>
-              )}
-            </div>
-            {displayImages.length > 1 && (
-              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                {displayImages.map((img, idx) => (
-                  <button 
-                    key={idx} 
-                    onClick={() => setActiveImageIndex(idx)}
-                    className={`flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                  >
-                    <img 
-                      src={img} 
-                      alt={`Thumbnail ${idx + 1}`} 
-                      className="w-full h-full object-cover" 
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-
-          {/* Trip Details */}
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
-            <h1 className="text-3xl font-extrabold text-gray-900 mb-4">{trip.title}</h1>
-            <div className="flex flex-wrap items-center gap-4 text-gray-500 text-sm mb-6">
-              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 font-medium">
-                <MapPin size={16}/> {trip.destination}
-              </span>
-              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 text-green-600 font-medium">
-                <Calendar size={16}/> {new Date(trip.startDate).toLocaleDateString()}
-              </span>
-              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 text-purple-600 font-medium">
-                <Clock size={16}/> {trip.durationDays} dias
-              </span>
-            </div>
-
-            {/* Price on mobile/tablet */}
-            <div className="lg:hidden flex justify-between items-center bg-primary-50 p-4 rounded-xl mb-6 border border-primary-100">
-                <div>
-                    <p className="text-sm text-primary-700 font-bold uppercase">Preço a partir de</p>
-                    <p className="text-3xl font-extrabold text-primary-900">R$ {trip.price.toLocaleString('pt-BR')}</p>
-                </div>
-                <button 
-                    onClick={() => setIsBookingModalOpen(true)}
-                    className="bg-primary-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center gap-2"
-                >
-                    <ShoppingBag size={18} /> Reservar
-                </button>
-            </div>
-
-            <p className="text-gray-700 leading-relaxed text-lg mb-8">{trip.description}</p>
-            
-            {/* Agency Info */}
-            {agency && (
-                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 flex items-center gap-4 mb-8">
-                    <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full object-cover border-2 border-gray-200"/>
-                    <div>
-                        <p className="text-xs text-gray-500 uppercase font-bold">Organizado por</p>
-                        <Link to={`/${agency.slug}`} className="text-lg font-bold text-gray-900 hover:text-primary-600 transition-colors flex items-center gap-2">
-                            {agency.name} <ShieldCheck size={16} className="text-green-500" />
-                        </Link>
-                    </div>
-                </div>
-            )}
-
-            {/* Included */}
-            <div className="mb-8">
-              <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><Check size={24} className="mr-3 text-green-500"/> O que está incluso</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                {trip.included.map((item, idx) => (
-                  <div key={idx} className="flex items-center text-gray-700 text-base">
-                    <Check size={20} className="mr-3 text-green-400 flex-shrink-0"/> {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Not Included */}
-            {trip.notIncluded && trip.notIncluded.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><X size={24} className="mr-3 text-red-500"/> Não está incluso</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  {trip.notIncluded.map((item, idx) => (
-                    <div key={idx} className="flex items-center text-gray-700 text-base">
-                      <X size={20} className="mr-3 text-red-400 flex-shrink-0"/> {item}
-                    </div>
+              {/* Mobile Carousel */}
+              <div className="md:hidden -mx-4 overflow-x-auto snap-x snap-mandatory flex scrollbar-hide h-80">
+                  {images.map((img, idx) => (
+                      <div key={idx} className="snap-center w-full flex-shrink-0 relative" onClick={() => openLightbox(idx)}>
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                      </div>
                   ))}
-                </div>
+                  <div className="absolute bottom-4 right-4 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-md">
+                      1 / {images.length}
+                  </div>
               </div>
-            )}
 
-            {/* Itinerary - Vertical Timeline */}
-            {trip.itinerary && trip.itinerary.length > 0 && (
-                <div className="mb-8">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center"><BookOpen size={24} className="mr-3 text-primary-500"/> Roteiro Detalhado</h3>
-                    <div className="relative pl-8 md:pl-12">
-                        {/* Timeline vertical line */}
-                        <div className="absolute left-3 md:left-6 top-0 h-full w-0.5 bg-gray-200"></div>
-                        {trip.itinerary.map((day: ItineraryDay, idx: number) => (
-                            <div key={idx} className="mb-8 last:mb-0 relative">
-                                {/* Timeline day marker */}
-                                <div className="absolute -left-5 md:-left-8 top-0 flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-lg shadow-md">
-                                    {day.day}
-                                </div>
-                                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 ml-4 md:ml-0">
-                                    <h4 className="font-bold text-gray-900 text-xl mb-2">{day.title}</h4>
-                                    <p className="text-gray-700 text-base leading-relaxed">{day.description}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Boarding Points */}
-            {trip.boardingPoints && trip.boardingPoints.length > 0 && (
-                <div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><Bus size={24} className="mr-3 text-primary-500"/> Pontos de Embarque</h3>
-                    <ul className="space-y-4">
-                        {trip.boardingPoints.map((bp: BoardingPoint, idx: number) => (
-                            <li key={idx} className="flex items-center text-gray-700 text-base bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
-                                <Clock size={20} className="mr-4 text-primary-500 flex-shrink-0"/>
-                                <span className="font-bold mr-3">{bp.time}</span>
-                                <span>{bp.location}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+              {/* Show All Photos Button (Desktop) */}
+              <button 
+                onClick={() => openLightbox(0)}
+                className="hidden md:flex absolute bottom-4 right-4 bg-white border border-gray-900/10 shadow-lg px-4 py-2 rounded-lg text-sm font-bold items-center gap-2 hover:bg-gray-50 hover:scale-105 transition-all"
+              >
+                  <Grid size={16}/> Mostrar todas as fotos
+              </button>
           </div>
-        </div>
 
-        {/* Right Column: Sticky Booking Card */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 sticky top-28 animate-[fadeInUp_0.5s]">
-            <div className="flex justify-between items-center mb-4">
-              <p className="text-lg font-bold text-gray-900">Total <span className="text-sm text-gray-500 font-normal">por pessoa</span></p>
-              <p className="text-4xl font-extrabold text-primary-600">R$ {totalPrice.toLocaleString('pt-BR')}</p>
-            </div>
-            <div className="mb-6">
-              <label htmlFor="passengers" className="block text-sm font-bold text-gray-700 mb-2">Número de Passageiros</label>
-              <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <button 
-                  onClick={() => setPassengers(Math.max(1, passengers - 1))} 
-                  className="p-3 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-bold"
-                >
-                  <ChevronDown size={20}/>
-                </button>
-                <input 
-                  type="number" 
-                  id="passengers" 
-                  value={passengers} 
-                  onChange={(e) => setPassengers(Math.max(1, parseInt(e.target.value) || 1))} 
-                  min="1"
-                  className="flex-1 text-center font-bold text-lg border-none focus:ring-0 outline-none"
-                />
-                <button 
-                  onClick={() => setPassengers(passengers + 1)} 
-                  className="p-3 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-bold"
-                >
-                  <ChevronUp size={20}/>
-                </button>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 relative">
+              
+              {/* --- LEFT COLUMN: DETAILS --- */}
+              <div className="lg:col-span-2 space-y-10">
+                  
+                  {/* Highlights */}
+                  <div className="flex flex-wrap gap-4 pb-8 border-b border-gray-100">
+                      <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-2xl flex items-center gap-3 font-medium text-sm">
+                          <Calendar size={20}/>
+                          <div>
+                              <p className="text-[10px] uppercase font-bold text-blue-400">Data</p>
+                              {new Date(trip.startDate).toLocaleDateString()}
+                          </div>
+                      </div>
+                      <div className="bg-purple-50 text-purple-700 px-4 py-3 rounded-2xl flex items-center gap-3 font-medium text-sm">
+                          <Clock size={20}/>
+                          <div>
+                              <p className="text-[10px] uppercase font-bold text-purple-400">Duração</p>
+                              {trip.durationDays} dias
+                          </div>
+                      </div>
+                      <div className="bg-green-50 text-green-700 px-4 py-3 rounded-2xl flex items-center gap-3 font-medium text-sm">
+                          <User size={20}/>
+                          <div>
+                              <p className="text-[10px] uppercase font-bold text-green-500">Vagas</p>
+                              Limitadas
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Description */}
+                  <div className="prose prose-blue text-gray-600 leading-relaxed text-base max-w-none">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
+                      <p>{trip.description}</p>
+                  </div>
+
+                  {/* Included / Not Included */}
+                  <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-6">O que está incluso</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {trip.included.map((item, idx) => (
+                              <div key={idx} className="flex items-start gap-3">
+                                  <div className="mt-0.5 bg-green-100 text-green-600 rounded-full p-1"><Check size={12}/></div>
+                                  <span className="text-gray-600 text-sm">{item}</span>
+                              </div>
+                          ))}
+                          {trip.notIncluded?.map((item, idx) => (
+                              <div key={`not-${idx}`} className="flex items-start gap-3">
+                                  <div className="mt-0.5 bg-red-100 text-red-500 rounded-full p-1"><X size={12}/></div>
+                                  <span className="text-gray-500 text-sm line-through decoration-gray-300">{item}</span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Itinerary */}
+                  {trip.itinerary && trip.itinerary.length > 0 && (
+                      <div className="pt-8 border-t border-gray-100">
+                          <h3 className="text-xl font-bold text-gray-900 mb-8">Roteiro Dia a Dia</h3>
+                          <div className="space-y-0 relative pl-8 border-l-2 border-gray-100 ml-4">
+                              {trip.itinerary.map((day: ItineraryDay, idx: number) => (
+                                  <div key={idx} className="mb-10 last:mb-0 relative">
+                                      <div className="absolute -left-[41px] top-0 w-5 h-5 bg-gray-900 rounded-full border-4 border-white shadow-sm flex items-center justify-center">
+                                          <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                      </div>
+                                      <h4 className="font-bold text-gray-900 text-lg mb-2 flex items-center gap-3">
+                                          <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded uppercase tracking-wider font-bold">Dia {day.day}</span>
+                                          {day.title}
+                                      </h4>
+                                      <p className="text-gray-600 leading-relaxed text-sm">{day.description}</p>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* Boarding Points */}
+                  {trip.boardingPoints && trip.boardingPoints.length > 0 && (
+                      <div className="pt-8 border-t border-gray-100">
+                          <h3 className="text-xl font-bold text-gray-900 mb-6">Locais de Embarque</h3>
+                          <div className="space-y-3">
+                              {trip.boardingPoints.map((bp: BoardingPoint, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                      <div className="bg-white p-2 rounded-lg text-primary-600 shadow-sm"><Bus size={20}/></div>
+                                      <div>
+                                          <p className="text-sm font-bold text-gray-900">{bp.time}</p>
+                                          <p className="text-sm text-gray-600">{bp.location}</p>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* Agency Card */}
+                  {agency && (
+                      <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm flex items-center gap-6 mt-12">
+                          <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-gray-50"/>
+                          <div>
+                              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Organizado por</p>
+                              <h3 className="text-xl font-bold text-gray-900 mb-1">{agency.name}</h3>
+                              <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                                  <ShieldCheck size={16}/> Agência Verificada
+                              </div>
+                              <Link to={`/${agency.slug}`} className="mt-3 inline-block text-primary-600 text-sm font-bold hover:underline">Ver perfil da agência</Link>
+                          </div>
+                      </div>
+                  )}
               </div>
-            </div>
-            <button 
-                onClick={() => setIsBookingModalOpen(true)}
-                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:from-primary-700 hover:to-primary-600 transition-all hover:-translate-y-1 active:translate-y-0 active:shadow flex items-center justify-center gap-2"
-            >
-                <ShoppingBag size={18} /> Reservar Agora
-            </button>
-            {whatsappLink && (
-                <a 
-                    href={whatsappLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="w-full bg-[#25D366] text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-[#128C7E] transition-all hover:-translate-y-1 active:translate-y-0 active:shadow flex items-center justify-center gap-2 mt-3"
-                >
-                    <MessageCircle size={18} className="fill-white/20"/> Falar no WhatsApp
-                </a>
-            )}
+
+              {/* --- RIGHT COLUMN: STICKY BOOKING CARD --- */}
+              <div className="lg:col-span-1 relative">
+                  <div className="sticky top-24 bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 z-30">
+                      <div className="mb-6">
+                          <p className="text-sm text-gray-500 font-medium line-through decoration-gray-400">de R$ {(trip.price * 1.2).toLocaleString('pt-BR')}</p>
+                          <div className="flex items-baseline gap-1">
+                              <span className="text-sm font-bold text-gray-900">R$</span>
+                              <span className="text-4xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+                              <span className="text-sm text-gray-500 font-normal">/ pessoa</span>
+                          </div>
+                      </div>
+
+                      <div className="space-y-4 mb-6">
+                          <div className="border border-gray-200 rounded-xl p-3 flex justify-between items-center bg-gray-50/50">
+                              <div className="flex items-center gap-3">
+                                  <div className="bg-white p-2 rounded-lg text-gray-500 shadow-sm"><User size={16}/></div>
+                                  <span className="text-sm font-bold text-gray-700">Passageiros</span>
+                              </div>
+                              <div className="flex items-center gap-3 bg-white rounded-lg px-2 py-1 shadow-sm border border-gray-100">
+                                  <button onClick={() => setPassengers(Math.max(1, passengers - 1))} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary-600 transition-colors font-bold disabled:opacity-50">-</button>
+                                  <span className="font-bold text-gray-900 w-4 text-center">{passengers}</span>
+                                  <button onClick={() => setPassengers(passengers + 1)} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-primary-600 transition-colors font-bold">+</button>
+                              </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-sm px-1">
+                              <span className="text-gray-500">Total estimado</span>
+                              <span className="font-bold text-gray-900">R$ {(trip.price * passengers).toLocaleString('pt-BR')}</span>
+                          </div>
+                      </div>
+
+                      <button 
+                          onClick={() => setIsBookingModalOpen(true)}
+                          className="w-full bg-gradient-to-r from-primary-600 to-blue-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary-600/30 hover:shadow-primary-600/50 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                          <ShoppingBag size={20}/> Reservar Agora
+                      </button>
+
+                      {whatsappLink && (
+                          <a 
+                              href={whatsappLink} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="mt-3 w-full bg-white border-2 border-[#25D366] text-[#25D366] font-bold py-3.5 rounded-xl hover:bg-[#25D366] hover:text-white transition-all flex items-center justify-center gap-2 group"
+                          >
+                              <MessageCircle size={20} className="group-hover:fill-white/20 transition-colors"/> Dúvidas no WhatsApp
+                          </a>
+                      )}
+                      
+                      <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+                          <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
+                              <ShieldCheck size={12}/> Pagamento Seguro via PIX
+                          </p>
+                      </div>
+                  </div>
+              </div>
           </div>
-        </div>
       </div>
 
-      {/* Booking Modal */}
+      {/* --- BOOKING MODAL --- */}
       {isBookingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setIsBookingModalOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setIsBookingModalOpen(false)}>
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative animate-[scaleIn_0.3s] max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setIsBookingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <button onClick={() => setIsBookingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
+            
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Confirmar Reserva</h2>
             
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6 flex items-center gap-4">
-                <img src={firstImage} alt={trip.title} className="w-24 h-16 object-cover rounded-xl border border-gray-200"/>
+            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-8 flex items-center gap-4">
+                <img src={images[0]} alt={trip.title} className="w-20 h-20 object-cover rounded-xl shadow-sm"/>
                 <div>
-                    <h3 className="font-bold text-gray-900 text-lg line-clamp-1">{trip.title}</h3>
-                    <p className="text-sm text-gray-500 flex items-center gap-2">
-                        <MapPin size={14} className="text-gray-400"/>{trip.destination} • {trip.durationDays} dias
-                    </p>
+                    <h3 className="font-bold text-gray-900 text-base line-clamp-1">{trip.title}</h3>
+                    <p className="text-sm text-gray-500 mt-1">{new Date(trip.startDate).toLocaleDateString()} • {passengers} pessoas</p>
+                    <p className="text-sm font-bold text-primary-600 mt-1">Total: R$ {totalPrice.toLocaleString('pt-BR')}</p>
                 </div>
             </div>
 
             <form onSubmit={handleBookingSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3">Detalhes dos Passageiros ({passengers})</label>
-                <div className="space-y-4">
+                <label className="block text-sm font-bold text-gray-900 mb-4">Dados dos Passageiros</label>
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {Array.from({ length: passengers }).map((_, idx) => (
-                    <div key={idx} className="bg-gray-100 p-4 rounded-xl border border-gray-200">
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Passageiro {idx + 1}</p>
-                        <div className="flex flex-col md:flex-row gap-3">
-                            <div className="flex-1">
-                                <PassengerInput 
-                                    index={idx} 
-                                    field="name" 
-                                    value={passengerDetails[idx]?.name || ''} 
-                                    onChange={handlePassengerChange} 
-                                    placeholder="Nome Completo"
-                                    required
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <PassengerInput 
-                                    index={idx} 
-                                    field="document" 
-                                    value={passengerDetails[idx]?.document || ''} 
-                                    onChange={handlePassengerChange} 
-                                    placeholder={idx === 0 ? "CPF (Obrigatório)" : "CPF (Opcional)"}
-                                    required={idx === 0}
-                                />
-                            </div>
-                        </div>
+                    <div key={idx} className="space-y-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Passageiro {idx + 1}</p>
+                        <PassengerInput 
+                            index={idx} 
+                            field="name" 
+                            value={passengerDetails[idx]?.name || ''} 
+                            onChange={handlePassengerChange} 
+                            placeholder="Nome Completo"
+                            required
+                        />
+                        <PassengerInput 
+                            index={idx} 
+                            field="document" 
+                            value={passengerDetails[idx]?.document || ''} 
+                            onChange={handlePassengerChange} 
+                            placeholder={idx === 0 ? "CPF (Obrigatório)" : "CPF (Opcional)"}
+                            required={idx === 0}
+                        />
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Booking Summary */}
-              <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 text-center shadow-md">
-                <p className="text-sm text-primary-700 font-bold uppercase mb-2">Valor Total da Reserva</p>
-                <p className="text-4xl font-extrabold text-primary-900">R$ {totalPrice.toLocaleString('pt-BR')}</p>
-                <p className="text-xs text-primary-600 mt-2 flex items-center justify-center gap-1.5">
-                    <Info size={14}/> Pagamento via PIX na confirmação.
-                </p>
-              </div>
-
               <button 
                 type="submit" 
                 disabled={isBookingProcessing}
-                className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:from-green-700 hover:to-green-600 transition-all active:translate-y-0 active:shadow flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isBookingProcessing ? <Loader size={18} className="animate-spin" /> : <Check size={18} />} Finalizar Reserva
+                {isBookingProcessing ? <Loader size={20} className="animate-spin" /> : <Check size={20} />} Confirmar e Pagar
               </button>
+              <p className="text-center text-xs text-gray-400">Ao confirmar, você concorda com os termos de uso.</p>
             </form>
           </div>
         </div>
