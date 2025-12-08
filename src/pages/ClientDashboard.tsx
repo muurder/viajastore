@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -92,8 +93,6 @@ const ClientDashboard: React.FC = () => {
     if (!authLoading && user?.role === UserRole.CLIENT) {
       await refreshAllData(); // Calls DataContext's refreshUserData
       // FIX: Pass the current user object to reloadUser
-      // Pass the current user object to `reloadUser` as it expects one argument.
-      // @ts-ignore
       await reloadUser(user); // Reload AuthContext's user to get latest favorites/profile
     }
   }, [authLoading, user, refreshAllData, reloadUser]);

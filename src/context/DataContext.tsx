@@ -481,8 +481,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Reserva criada com sucesso!', 'success');
         
         // Increment sales count for the trip
-        const { error: tripUpdateError } = await sb.from('trips')
-            .rpc('increment_sales', { trip_id_param: booking.tripId, increment_value: 1 }); // Call RPC function
+        const { error: tripUpdateError } = await sb.rpc('increment_sales', { trip_id_param: booking.tripId, increment_value: 1 }); // Call RPC function
         if (tripUpdateError) console.error("[DataContext] Error incrementing sales:", tripUpdateError); // Debug Log
 
         // Augment data before returning (using refs for stability)
@@ -809,10 +808,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             payment_methods: trip.paymentMethods,
             is_active: trip.is_active,
             included: trip.included,
-            not_included: trip.notIncluded,
+            notIncluded: trip.notIncluded,
             featured: trip.featured,
             featuredInHero: trip.featuredInHero,
-            popular_near_sp: trip.popularNearSP,
+            popularNearSP: trip.popularNearSP,
             operationalData: trip.operationalData,
         }).select().single();
 
@@ -964,7 +963,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         const newFeaturedStatus = !trip.featured;
         console.log(`[DataContext] Toggling featured status for trip ${tripId} to ${newFeaturedStatus}`); // Debug Log
-        await sb.from('trips').update({ featured: newFeaturedStatus }).eq('id', tripId);
+        await sb.from('trips').update({ featured: newFeaturedStatus }).eq('id', trip.id);
         showToast(`Viagem ${newFeaturedStatus ? 'destacada' : 'removida do destaque'} com sucesso!`, 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId, featured: newFeaturedStatus });
         _fetchGlobalAndClientProfiles();
