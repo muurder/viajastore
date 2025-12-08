@@ -603,7 +603,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                                     <label className="block text-sm font-bold text-gray-700 mb-1">Disposição Visual</label>
                                     <select 
                                         value={customVehicleData.cols} 
-                                        onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value)})}
+                                        onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})}
                                         className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500" 
                                     >
                                         <option value={2}>2 Colunas (Carros / Vans Pequenas)</option>
@@ -1221,16 +1221,16 @@ const AgencyDashboard: React.FC = () => {
                 {!isEditingTrip ? (
                     <>
                         <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex items-center gap-4 flex-1">
+                            <div className="flex items-center gap-4 flex-1 flex-wrap"> {/* Added flex-wrap for better responsiveness */}
                                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 whitespace-nowrap">
                                     Meus Pacotes <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{myTrips.length}</span>
                                 </h2>
-                                <div className="h-6 w-px bg-gray-200"></div>
-                                <div className="relative flex-1 max-w-sm">
+                                <div className="h-6 w-px bg-gray-200 hidden md:block"></div> {/* Hidden on mobile, shown on desktop */}
+                                <div className="relative flex-1 min-w-[200px] max-w-sm"> {/* Added min-w */}
                                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                     <input 
                                         type="text" 
-                                        placeholder="Buscar pacote..." 
+                                        placeholder="Buscar por nome ou destino..." 
                                         value={tripSearch}
                                         onChange={e => setTripSearch(e.target.value)}
                                         className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"

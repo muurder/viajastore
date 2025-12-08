@@ -316,11 +316,22 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   // --- Step 2: Mídia & Descrição ---
   const renderStep2 = () => {
-    const [newImageUrl, setNewImageUrl] = useState('');
+    const [tempImageUrl, setTempImageUrl] = useState(''); // State for immediate preview
+    const isUrlValid = (url: string) => {
+        try {
+            new URL(url);
+            return url.startsWith('http');
+        } catch {
+            return false;
+        }
+    };
+
     const handleAddImage = () => {
-      if (newImageUrl && !tripData.images?.includes(newImageUrl)) {
-        setTripData(prev => ({ ...prev, images: [...(prev.images || []), newImageUrl] }));
-        setNewImageUrl('');
+      if (tempImageUrl && !tripData.images?.includes(tempImageUrl) && isUrlValid(tempImageUrl)) {
+        setTripData(prev => ({ ...prev, images: [...(prev.images || []), tempImageUrl] }));
+        setTempImageUrl('');
+      } else if (!isUrlValid(tempImageUrl)) {
+        showToast("URL de imagem inválida.", "error");
       }
     };
     const handleRemoveImage = (urlToRemove: string) => {
@@ -368,24 +379,38 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
     return (
       <div className="space-y-6">
-        <div>
+        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
           <label className="block text-sm font-bold text-gray-700 mb-2">Imagens do Pacote <span className="text-red-500">*</span></label>
-          <div className="flex gap-2 mb-2">
-            <input
-              type="url"
-              value={newImageUrl}
-              onChange={e => setNewImageUrl(e.target.value)}
-              className={`flex-1 border ${errors.images ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none`}
-              placeholder="URL da imagem (ex: https://...)"
-            />
-            <button
-              type="button"
-              onClick={handleAddImage}
-              className="bg-primary-600 text-white px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
-            >
-              <Plus size={16} /> Add
-            </button>
+          <div className="flex flex-col md:flex-row gap-3 items-start">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="url"
+                  value={tempImageUrl}
+                  onChange={e => setTempImageUrl(e.target.value)}
+                  className={`flex-1 border ${errors.images ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none`}
+                  placeholder="Cole o link direto da imagem (ex: https://site.com/imagem.jpg)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImage}
+                  disabled={!isUrlValid(tempImageUrl)}
+                  className="bg-primary-600 text-white px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus size={16} /> Adicionar
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mb-2">Cole o link direto da imagem (JPG/PNG).</p>
+            </div>
+            
+            {isUrlValid(tempImageUrl) && (
+              <div className="w-24 h-16 rounded-lg overflow-hidden border border-gray-300 flex-shrink-0 relative">
+                <img src={tempImageUrl} alt="Preview" className="w-full h-full object-cover"/>
+                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded-sm">Preview</span>
+              </div>
+            )}
           </div>
+          
           {errors.images && <p className="text-red-500 text-xs mt-1">{errors.images}</p>}
           <div className="grid grid-cols-3 md:grid-cols-4 gap-3 mt-3">
             {tripData.images?.map((url, index) => (

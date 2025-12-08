@@ -4,9 +4,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Booking, Agency, Trip } from '../types';
+import { Booking, Agency, Trip, UserRole } from '../types';
 import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
+import { supabase } from '../services/supabase';
+import { slugify } from '../utils/slugify';
 
 // Componente de Input Isolado para evitar re-render do pai inteiro a cada tecla
 const PassengerInput = React.memo(({ 
@@ -39,7 +41,7 @@ const PassengerInput = React.memo(({
 const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const navigate = useNavigate();
-  const { getTripBySlug, getTripById, getAgencyBySlug, addBooking, toggleFavorite, clients } = useData();
+  const { getTripBySlug, clients, agencies, addBooking, toggleFavorite, incrementTripViews } = useData(); // Added incrementTripViews
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -55,35 +57,142 @@ const TripDetails: React.FC = () => {
   const [isBookingProcessing, setIsBookingProcessing] = useState(false);
 
   useEffect(() => {
-    const loadData = () => {
+    const loadData = async () => { // Made loadData async
       setLoading(true);
       const activeTripIdentifier = slug || tripSlug || '';
-
-      let foundTrip = getTripBySlug(activeTripIdentifier);
-      if (!foundTrip && activeTripIdentifier) {
-          foundTrip = getTripById(activeTripIdentifier);
+      if (!activeTripIdentifier) {
+        setLoading(false);
+        return;
       }
 
+      let foundTrip: Trip | undefined = undefined;
+      let foundAgency: Agency | undefined = undefined;
+
+      // 1. Attempt to find trip in local DataContext cache (which contains active public trips)
+      let cachedTrip = getTripBySlug(activeTripIdentifier); // This function already checks both slug and id on cached trips
+      if (cachedTrip) {
+        foundTrip = cachedTrip;
+        foundAgency = agencies.find(a => a.agencyId === cachedTrip?.agencyId);
+      }
+
+      // 2. If not found in cache, attempt to fetch directly from Supabase
+      if (!foundTrip) {
+        const sb = supabase;
+        if (!sb) {
+          console.warn('Supabase not configured, cannot fetch trip from DB.');
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Fetch trip with associated agency data
+          const { data: dbData, error: dbError } = await sb
+            .from('trips')
+            .select('*, agencies:agency_id(*), trip_images(*)') // Also fetch trip_images for consistency
+            .or(`slug.eq.${activeTripIdentifier},id.eq.${activeTripIdentifier}`)
+            .maybeSingle();
+
+          if (dbError) {
+            console.error('Error fetching trip from DB:', dbError);
+            setLoading(false);
+            return;
+          }
+
+          if (dbData) {
+            // Map Supabase response to Trip and Agency types
+            const mappedTripFromDb: Trip = {
+                id: dbData.id,
+                agencyId: dbData.agency_id,
+                title: dbData.title,
+                slug: dbData.slug,
+                description: dbData.description,
+                destination: dbData.destination,
+                price: dbData.price,
+                startDate: dbData.start_date,
+                endDate: dbData.end_date,
+                durationDays: dbData.duration_days,
+                images: dbData.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [],
+                category: dbData.category,
+                tags: dbData.tags || [],
+                travelerTypes: dbData.traveler_types || [],
+                itinerary: dbData.itinerary || [],
+                boardingPoints: dbData.boarding_points || [],
+                paymentMethods: dbData.payment_methods || [],
+                is_active: dbData.is_active,
+                tripRating: dbData.trip_rating || 0,
+                tripTotalReviews: dbData.trip_total_reviews || 0,
+                included: dbData.included || [],
+                notIncluded: dbData.not_included || [],
+                views: dbData.views_count,
+                sales: dbData.sales_count,
+                featured: dbData.featured,
+                featuredInHero: dbData.featured_in_hero,
+                popularNearSP: dbData.popular_near_sp,
+                operationalData: dbData.operational_data || {}
+            };
+
+            const mappedAgencyFromDb: Agency | undefined = dbData.agencies ? {
+                id: dbData.agencies.user_id, // User ID (from auth)
+                agencyId: dbData.agencies.id, // Primary Key of agencies table
+                name: dbData.agencies.name,
+                email: dbData.agencies.email || '',
+                role: UserRole.AGENCY,
+                is_active: dbData.agencies.is_active,
+                slug: dbData.agencies.slug || slugify(dbData.agencies.name),
+                cnpj: dbData.agencies.cnpj || '',
+                description: dbData.agencies.description || '',
+                logo: dbData.agencies.logo_url || '',
+                whatsapp: dbData.agencies.whatsapp,
+                heroMode: dbData.agencies.hero_mode || 'TRIPS',
+                heroBannerUrl: dbData.agencies.hero_banner_url,
+                heroTitle: dbData.agencies.hero_title,
+                heroSubtitle: dbData.agencies.hero_subtitle,
+                customSettings: dbData.agencies.custom_settings || {},
+                subscriptionStatus: dbData.agencies.is_active ? 'ACTIVE' : 'INACTIVE',
+                subscriptionPlan: 'BASIC', // Placeholder
+                subscriptionExpiresAt: dbData.agencies.subscription_expires_at || new Date().toISOString(),
+                website: dbData.agencies.website,
+                phone: dbData.agencies.phone,
+                address: dbData.agencies.address || {},
+                bankInfo: dbData.agencies.bank_info || {}
+            } : undefined;
+
+            foundTrip = mappedTripFromDb;
+            foundAgency = mappedAgencyFromDb;
+          }
+        } catch (dbFetchError) {
+          console.error('Failed to fetch trip directly from DB:', dbFetchError);
+        }
+      }
+
+      // 3. If a trip is found (either from cache or DB), set states
       if (foundTrip) {
-        setTrip(foundTrip);
-        // Tenta encontrar a agência pelo slug da URL ou pelo ID da viagem
-        let foundAgency: Agency | undefined;
-        if (agencySlug) {
-            foundAgency = getAgencyBySlug(agencySlug);
+        // Check if the current user is the agency owner and the trip is inactive
+        const isAgencyOwnerViewingInactiveTrip = user?.role === UserRole.AGENCY && user.id === foundTrip.agencyId && !foundTrip.is_active;
+
+        if (foundTrip.is_active || isAgencyOwnerViewingInactiveTrip) {
+            setTrip(foundTrip);
+            setAgency(foundAgency);
+
+            // Increment views for active trips only, and only if not agency owner viewing their own
+            if (foundTrip.is_active && (!user || user.id !== foundTrip.agencyId)) {
+                incrementTripViews(foundTrip.id);
+            }
+        } else {
+            // Trip is inactive and not being viewed by its owner
+            setTrip(undefined);
+            setAgency(undefined);
         }
-        
-        // Se não achou pelo slug ou não tem slug, tenta buscar via contexto (simulado aqui pois getAgencyById não está exposto diretamente no useData, mas podemos inferir)
-        // Em um app real, getTripById deveria vir com dados da agência ou ter um getter específico
-        if (!foundAgency && foundTrip.agencyId) {
-             // Fallback: Tenta achar na lista de agencias se disponível no contexto (assumindo que o contexto carrega tudo)
-             // Como não temos acesso direto a 'agencies' aqui sem importar, vamos deixar undefined e o componente trata
-        }
-        setAgency(foundAgency);
+      } else {
+        setTrip(undefined);
+        setAgency(undefined);
       }
+      
       setLoading(false);
     };
     loadData();
-  }, [slug, tripSlug, agencySlug, getTripBySlug, getTripById, getAgencyBySlug]);
+  }, [slug, tripSlug, agencySlug, getTripBySlug, clients, agencies, user, incrementTripViews]); // Added clients and agencies to dependencies
+
 
   // Atualiza o array de detalhes quando o número de passageiros muda
   useEffect(() => {
@@ -113,7 +222,7 @@ const TripDetails: React.FC = () => {
 
   // Pre-fill user data for first passenger
   useEffect(() => {
-    if (user && isBookingModalOpen && passengerDetails[0].name === '') {
+    if (user && isBookingModalOpen && passengerDetails[0]?.name === '') { // Added optional chaining to passengerDetails[0]
         const clientData = clients.find(c => c.id === user.id);
         if (clientData) {
             handlePassengerChange(0, 'name', clientData.name);
@@ -122,7 +231,7 @@ const TripDetails: React.FC = () => {
             handlePassengerChange(0, 'name', user.name);
         }
     }
-  }, [user, isBookingModalOpen, clients, handlePassengerChange]);
+  }, [user, isBookingModalOpen, clients, handlePassengerChange, passengerDetails]);
 
 
   if (loading) {

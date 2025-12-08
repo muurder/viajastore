@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
@@ -101,7 +101,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, reloadUser } = useAuth(); // Import reloadUser from AuthContext
+  const { user, reloadUser, loading: authLoading } = useAuth(); // Import reloadUser from AuthContext
   const { showToast } = useToast();
   
   // State
@@ -247,14 +247,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // FIX 1: fetchGlobalData runs once on mount for public data
   useEffect(() => {
       fetchGlobalData();
-  }, [user]); // Re-fetch on user change (login/logout)
+  }, []);
 
   const refreshData = async () => {
       await fetchGlobalData();
       await refreshUserData(); // This will refresh the specific user data including AuthContext's user
   };
+
+  // FIX 2: Separate useEffect for user-specific data, dependent on user.id
+  useEffect(() => {
+    if (user?.id && !authLoading) {
+        refreshUserData();
+    }
+  }, [user?.id, authLoading]); // Trigger refresh when user ID changes, or auth loading state changes
 
   // --- SERVER-SIDE SEARCH IMPLEMENTATION ---
 
@@ -494,11 +502,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  useEffect(() => {
-    if (user) {
-        refreshUserData();
-    }
-  }, [user]);
 
   // --- ACTION IMPLEMENTATIONS ---
 
@@ -724,8 +727,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 passengers: data.passengers,
                 voucherCode: data.voucher_code,
                 paymentMethod: data.payment_method,
-                _trip: b._trip, // Keep original _trip/_agency for immediate UI
-                _agency: b._agency
+                _trip: b._trip, 
+                _agency: b._agency 
               }
               setBookings(prev => [...prev, newBooking]); // Adiciona na lista local na hora
               await refreshUserData(); // Garante sincronia total em background
