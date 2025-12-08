@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { 
   Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig 
@@ -10,31 +10,8 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, 
-  Globe, 
-  Trash2, 
-  CheckCircle, 
-  ChevronDown, 
-  MessageCircle, 
-  Info, 
-  Palette, 
-  Search, 
-  LucideProps,
-  Zap,
-  Camera,
-  Upload,
-  FileDown,
-  Building,
-  Armchair,
-  MousePointer2,
-  RefreshCw,
-  Archive,
-  ArchiveRestore,
-  Trash,
-  Ban,
-  Send
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send
 } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
@@ -252,7 +229,6 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
         return [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
     }, [bookings]);
 
-    // Check if booking is "new" (last 24h)
     const isNew = (date: string) => {
         return (new Date().getTime() - new Date(date).getTime()) < 24 * 60 * 60 * 1000;
     };
@@ -274,9 +250,7 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {recentBookings.map(booking => {
-                                // Try to get client data from the booking object itself (via join) first, then fallback to clients list
                                 const clientData = (booking as any)._client || clients.find(c => c.id === booking.clientId);
-                                
                                 return (
                                     <tr key={booking.id} className="hover:bg-gray-50">
                                         <td className="px-4 py-3">
@@ -320,7 +294,6 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
 
 // --- SUB-COMPONENTS FOR OPERATIONS ---
 
-// 1. TRANSPORT MANAGER (Híbrido)
 interface TransportManagerProps {
     trip: Trip; 
     bookings: Booking[]; 
@@ -594,6 +567,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // UI
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
+    const [dragOverRoom, setDragOverRoom] = useState<string | null>(null);
     
     // Batch Config
     const [invQty, setInvQty] = useState(1);
@@ -630,14 +604,13 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         onSave({ ...trip.operationalData, rooming: updated });
     };
 
-    const handleAssign = (roomId: string) => {
-        if (!selectedPassenger) return;
+    const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
         const target = rooms.find(r => r.id === roomId);
         if (target && target.guests.length < target.capacity) {
-            const updated = rooms.map(r => r.id === roomId ? { ...r, guests: [...r.guests, { name: selectedPassenger.name, bookingId: selectedPassenger.id }] } : r);
+            const updated = rooms.map(r => r.id === roomId ? { ...r, guests: [...r.guests, { name: passenger.name, bookingId: passenger.id }] } : r);
             setRooms(updated);
             onSave({ ...trip.operationalData, rooming: updated });
-            setSelectedPassenger(null);
+            if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
         } else {
             alert('Quarto lotado!');
         }
@@ -661,6 +634,22 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         const newManuals = [...manualPassengers, p];
         setManualPassengers(newManuals);
         onSave({ ...trip.operationalData, manualPassengers: newManuals });
+    };
+
+    // Drag Handlers
+    const handleDragStart = (e: React.DragEvent, passenger: any) => {
+        e.dataTransfer.setData('application/json', JSON.stringify(passenger));
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDrop = (e: React.DragEvent, roomId: string) => {
+        e.preventDefault();
+        setDragOverRoom(null);
+        try {
+            const data = e.dataTransfer.getData('application/json');
+            const passenger = JSON.parse(data);
+            if (passenger?.id) handleAssign(roomId, passenger);
+        } catch (err) {}
     };
 
     // Stats
@@ -692,8 +681,9 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                     <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                          {unassignedPassengers.map(p => (
-                             <div key={p.id} onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} className={`p-3 rounded-lg border text-sm cursor-pointer transition-all flex items-center justify-between group ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300'}`}>
+                             <div key={p.id} draggable onDragStart={(e) => handleDragStart(e, p)} onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} className={`p-3 rounded-lg border text-sm cursor-grab active:cursor-grabbing transition-all flex items-center justify-between group ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300'}`}>
                                  <div className="flex items-center gap-3 overflow-hidden">
+                                     <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>
                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                      <span className="truncate font-medium">{p.name}</span>
                                  </div>
@@ -701,7 +691,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                              </div>
                          ))}
                     </div>
-                    <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">Clique no passageiro e depois no quarto.</div>
+                    <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">Arraste para o quarto ou clique para selecionar.</div>
                 </div>
 
                 {/* Right Grid */}
@@ -709,9 +699,16 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
                         {rooms.map(room => {
                             const isFull = room.guests.length >= room.capacity;
-                            const isTarget = selectedPassenger && !isFull;
+                            const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
                             return (
-                                <div key={room.id} onClick={() => handleAssign(room.id)} className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}>
+                                <div 
+                                    key={room.id} 
+                                    onDragOver={(e) => { e.preventDefault(); if(!isFull) setDragOverRoom(room.id); }}
+                                    onDragLeave={() => setDragOverRoom(null)}
+                                    onDrop={(e) => handleDrop(e, room.id)}
+                                    onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
+                                    className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
+                                >
                                     <div className="p-3 border-b flex justify-between items-center bg-gray-50/50">
                                         <div className="flex items-center gap-3">
                                             <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
@@ -1570,7 +1567,7 @@ const AgencyDashboard: React.FC = () => {
                   </div>
               ) : (
                   <div className="text-center py-16 text-gray-400 text-sm">
-                      <ShoppingBag size={32} className="mx-auto mb-3" />
+                      <ShoppingBag size={32} className="mx-auto mb-3"/>
                       <p>Nenhuma reserva encontrada. Comece a vender!</p>
                   </div>
               )}
