@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -43,6 +42,7 @@ const ALL_TRAVELER_TYPES: TravelerType[] = [
     'SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'
 ];
 
+const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
 
 interface CreateTripWizardProps {
   onClose: () => void;
@@ -464,6 +464,26 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         <div className="space-y-4">
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Tags / Palavras-chave</label>
+                
+                {/* Suggestions Pills */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                    {SUGGESTED_TAGS.map(tag => {
+                        const tagValue = tag.toLowerCase();
+                        const isSelected = tripData.tags?.includes(tagValue);
+                        return (
+                            <button
+                                key={tag}
+                                type="button"
+                                onClick={() => isSelected ? handleRemoveTag(tagValue) : handleAddTag(tagValue)}
+                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
+                                    ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'}`}
+                            >
+                                {tag} {isSelected ? <Check size={12}/> : <Plus size={12}/>}
+                            </button>
+                        );
+                    })}
+                </div>
+
                 <input
                     type="text"
                     onKeyDown={(e) => {
@@ -474,13 +494,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                         }
                     }}
                     className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Pressione Enter para adicionar tags"
+                    placeholder="Ou digite uma tag personalizada e aperte Enter..."
                 />
                 <div className="flex flex-wrap gap-2 mt-3">
                     {tripData.tags?.map((tag, index) => (
                         <span key={index} className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                            {tag}
-                            <button type="button" onClick={() => handleRemoveTag(tag)} className="ml-2 text-gray-500 hover:text-gray-900"><X size={12}/></button>
+                            {String(tag)}
+                            <button type="button" onClick={() => handleRemoveTag(String(tag))} className="ml-2 text-gray-500 hover:text-gray-900"><X size={12}/></button>
                         </span>
                     ))}
                 </div>
