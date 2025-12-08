@@ -126,8 +126,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Refs to hold latest state values without being useCallback dependencies
   const tripsRef = useRef<Trip[]>([]);
   const agenciesRef = useRef<Agency[]>([]);
+  const clientsRef = useRef<Client[]>([]); // New ref for clients
   useEffect(() => { tripsRef.current = trips; }, [trips]);
   useEffect(() => { agenciesRef.current = agencies; }, [agencies]);
+  useEffect(() => { clientsRef.current = clients; }, [clients]); // Update clients ref
 
   const guardSupabase = useCallback(() => {
     if (!supabase) return null;
@@ -172,16 +174,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setTrips(mappedTrips);
         }
 
-        // 3. Fetch Agency Reviews
-        const { data: reviewsData } = await sb.from('agency_reviews').select('*');
-        if (reviewsData) {
-            setAgencyReviews(reviewsData.map((r: any) => ({
-                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, clientName: clients.find(c => c.id === r.client_id)?.name || 'Cliente Desconhecido', // clientName is dynamic from join
-                agencyName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', tripTitle: tripsData?.find((t: any) => t.id === r.trip_id)?.title || undefined,
-            })));
-        }
-
-        // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
+        // 3. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
         const { data: clientsData } = await sb.from('profiles').select('*').eq('role', UserRole.CLIENT);
         if (clientsData) {
             const mappedClients: Client[] = clientsData.map((c: any) => ({
@@ -190,6 +183,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setClients(mappedClients);
         }
 
+        // 4. Fetch Agency Reviews (without immediate client/agency lookup for stability)
+        const { data: reviewsData } = await sb.from('agency_reviews').select('*');
+        if (reviewsData) {
+            setAgencyReviews(reviewsData.map((r: any) => ({
+                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, 
+                // Client/Agency names will be resolved by getters or in components that consume `agencyReviews`
+                clientName: undefined, agencyName: undefined, tripTitle: undefined,
+            })));
+        }
+        
         // 5. Fetch Audit Logs
         const { data: auditLogsData } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false });
         if (auditLogsData) {
@@ -219,7 +222,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [guardSupabase, showToast, clients]); // Added clients as a dependency to map clientName in reviewsData
+  }, [guardSupabase, showToast]); // clients removed from dependencies
 
   // Fetches bookings specific to the currently logged-in user (client or agency)
   const _fetchBookingsForCurrentUser = useCallback(async () => {
@@ -290,7 +293,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [user, guardSupabase, showToast]); // Dependencies for useCallback: trips and agencies removed, using refs inside
+  }, [user, authLoading, showToast, guardSupabase]); // Dependencies for useCallback: trips and agencies removed, using refs inside
 
   // --- Main Effect Hook for Global Data (runs once on mount + subscribes) ---
   useEffect(() => {
@@ -373,16 +376,56 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [trips]);
 
   const getReviewsByTripId = useCallback((tripId: string) => {
-    return agencyReviews.filter(r => r.trip_id === tripId);
-  }, [agencyReviews]);
+    // Resolve clientName and agencyName dynamically when consuming reviews
+    const currentClients = clientsRef.current;
+    const currentAgencies = agenciesRef.current;
+    const currentTrips = tripsRef.current;
+    return agencyReviews
+      .filter(r => r.trip_id === tripId)
+      .map(r => ({
+        ...r,
+        clientName: currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
+        clientAvatar: currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
+        agencyName: currentAgencies.find(a => a.agencyId === r.agencyId)?.name || 'Agência Desconhecida',
+        agencyLogo: currentAgencies.find(a => a.agencyId === r.agencyId)?.logo || undefined,
+        tripTitle: currentTrips.find(t => t.id === r.trip_id)?.title || undefined,
+      }));
+  }, [agencyReviews, clientsRef, agenciesRef, tripsRef]);
 
   const getReviewsByAgencyId = useCallback((agencyId: string) => {
-    return agencyReviews.filter(r => r.agencyId === agencyId);
-  }, [agencyReviews]);
+    // Resolve clientName and agencyName dynamically when consuming reviews
+    const currentClients = clientsRef.current;
+    const currentAgencies = agenciesRef.current;
+    const currentTrips = tripsRef.current;
+    return agencyReviews
+      .filter(r => r.agencyId === agencyId)
+      .map(r => ({
+        ...r,
+        clientName: currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
+        clientAvatar: currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
+        agencyName: currentAgencies.find(a => a.agencyId === r.agencyId)?.name || 'Agência Desconhecida',
+        agencyLogo: currentAgencies.find(a => a.agencyId === r.agencyId)?.logo || undefined,
+        tripTitle: currentTrips.find(t => t.id === r.trip_id)?.title || undefined,
+      }));
+  }, [agencyReviews, clientsRef, agenciesRef, tripsRef]);
 
   const getReviewsByClientId = useCallback((clientId: string) => {
-    return agencyReviews.filter(r => r.clientId === clientId);
-  }, [agencyReviews]);
+    // Resolve clientName and agencyName dynamically when consuming reviews
+    const currentClients = clientsRef.current;
+    const currentAgencies = agenciesRef.current;
+    const currentTrips = tripsRef.current;
+    return agencyReviews
+      .filter(r => r.clientId === clientId)
+      .map(r => ({
+        ...r,
+        clientName: currentClients.find(c => c.id === r.clientId)?.name || 'Cliente Desconhecido',
+        clientAvatar: currentClients.find(c => c.id === r.clientId)?.avatar || undefined,
+        agencyName: currentAgencies.find(a => a.agencyId === r.agencyId)?.name || 'Agência Desconhecida',
+        agencyLogo: currentAgencies.find(a => a.agencyId === r.agencyId)?.logo || undefined,
+        tripTitle: currentTrips.find(t => t.id === r.trip_id)?.title || undefined,
+      }));
+  }, [agencyReviews, clientsRef, agenciesRef, tripsRef]);
+
 
   // Data Actions
   const logActivity = useCallback(async (actionType: ActivityActionType, details: any) => {
@@ -423,11 +466,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             .rpc('increment_sales', { trip_id_param: booking.tripId, increment_value: 1 }); // Call RPC function
         if (tripUpdateError) console.error("Error incrementing sales:", tripUpdateError);
 
-        // Augment data before returning
+        // Augment data before returning (using refs for stability)
         const newBooking = {
             ...booking,
-            _trip: trips.find(t => t.id === booking.tripId),
-            _agency: agencies.find(a => a.agencyId === trips.find(t => t.id === booking.tripId)?.agencyId)
+            _trip: tripsRef.current.find(t => t.id === booking.tripId),
+            _agency: agenciesRef.current.find(a => a.agencyId === tripsRef.current.find(t => t.id === booking.tripId)?.agencyId)
         };
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
@@ -440,7 +483,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao adicionar reserva: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, trips, agencies, logActivity, _fetchBookingsForCurrentUser, user, guardSupabase]);
+  }, [showToast, logActivity, _fetchBookingsForCurrentUser, user, guardSupabase, tripsRef, agenciesRef]); // tripsRef, agenciesRef added to dependencies
 
   const addReview = useCallback(async (review: Review) => {
     const sb = guardSupabase();
@@ -542,7 +585,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const sb = guardSupabase();
       if (!sb) return;
       
-      const client = clients.find(c => c.id === userId);
+      const currentClients = clientsRef.current; // Use ref
+      const client = currentClients.find(c => c.id === userId);
       if (!client) {
           showToast('Cliente não encontrado.', 'error');
           return;
@@ -571,7 +615,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error toggling favorite:", error.message);
           showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
       }
-  }, [showToast, clients, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, clientsRef]); // clientsRef added to dependencies
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
@@ -650,7 +694,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        const agency = agencies.find(a => a.agencyId === agencyId);
+        const currentAgencies = agenciesRef.current; // Use ref
+        const agency = currentAgencies.find(a => a.agencyId === agencyId);
         if (!agency) {
             showToast('Agência não encontrada.', 'error');
             return;
@@ -664,7 +709,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error toggling agency status:", error.message);
         showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
     }
-  }, [showToast, agencies, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, agenciesRef]);
 
   const createTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
@@ -790,7 +835,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        const trip = trips.find(t => t.id === tripId);
+        const currentTrips = tripsRef.current; // Use ref
+        const trip = currentTrips.find(t => t.id === tripId);
         if (!trip) {
             showToast('Viagem não encontrada.', 'error');
             return;
@@ -804,13 +850,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error toggling trip status:", error.message);
         showToast(`Erro ao alterar status da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]);
 
   const toggleTripFeatureStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        const trip = trips.find(t => t.id === tripId);
+        const currentTrips = tripsRef.current; // Use ref
+        const trip = currentTrips.find(t => t.id === tripId);
         if (!trip) {
             showToast('Viagem não encontrada.', 'error');
             return;
@@ -824,7 +871,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error toggling trip feature status:", error.message);
         showToast(`Erro ao alterar destaque da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]);
 
   const updateTripOperationalData = useCallback(async (tripId: string, data: OperationalData) => {
     const sb = guardSupabase();
@@ -904,7 +951,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error deleting user permanently:", error.message);
           showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
       }
-  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]); // tripsRef.current is used inside deleteUser, but not as dependency
+  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used inside deleteUser, but not as dependency
 
   const deleteMultipleUsers = useCallback(async (ids: string[]) => {
     const sb = guardSupabase();
@@ -962,14 +1009,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error deleting multiple agencies:", error.message);
         showToast(`Erro ao excluir múltiplas agências: ${error.message}`, 'error');
     }
-  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]); // tripsRef.current is used here too
+  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used here too
 
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
     if (!sb) return [];
     try {
         const statsPromises = userIds.map(async userId => {
-            const client = clients.find(c => c.id === userId);
+            const currentClients = clientsRef.current; // Use ref
+            const client = currentClients.find(c => c.id === userId);
             if (!client) return null;
 
             const userBookings = bookings.filter(b => b.clientId === userId);
@@ -992,7 +1040,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao buscar estatísticas de usuários: ${error.message}`, 'error');
         return [];
     }
-  }, [clients, bookings, agencyReviews, showToast, guardSupabase]);
+  }, [bookings, agencyReviews, showToast, guardSupabase, clientsRef]); // clientsRef added
 
   const updateMultipleUsersStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
@@ -1085,43 +1133,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
     
     try {
-        // Fetch all trips for the agency
-        const { data: agencyTripsData, error: tripsError } = await sb
-            .from('trips')
-            .select('id, views_count, sales_count, trip_rating, trip_total_reviews')
-            .eq('agency_id', agencyId);
+        const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
+        if (error) throw error;
+        if (data && data.length > 0) {
+            const s = data[0];
+            return {
+                totalRevenue: Number(s.total_revenue) || 0,
+                totalViews: Number(s.total_views) || 0,
+                totalSales: Number(s.total_sales) || 0,
+                conversionRate: Number(s.conversion_rate) || 0,
+                averageRating: Number(s.average_rating) || 0,
+                totalReviews: Number(s.total_reviews) || 0
+            };
+        }
+        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    } catch (error: any) {
+        console.error("Error fetching agency stats from RPC, calculating locally:", error.message);
+        showToast(`Erro ao buscar estatísticas da agência: ${error.message}. Calculando localmente.`, 'warning');
+        
+        const currentTrips = tripsRef.current; // Use ref
+        const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
+        const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
 
-        if (tripsError) throw tripsError;
+        // Fallback: calculate locally using available data
+        const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
 
         let totalViews = 0;
         let totalSales = 0;
         let totalRatingSum = 0;
         let totalReviews = 0;
 
-        if (agencyTripsData) {
-            agencyTripsData.forEach(trip => {
-                totalViews += trip.views_count || 0;
-                totalSales += trip.sales_count || 0;
-                totalRatingSum += (trip.trip_rating || 0) * (trip.trip_total_reviews || 0);
-                totalReviews += trip.trip_total_reviews || 0;
-            });
-        }
+        agencyTrips.forEach(trip => {
+            totalViews += trip.views || 0;
+            totalSales += trip.sales || 0;
+            totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
+            totalReviews += trip.tripTotalReviews || 0;
+        });
 
         const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
-
-        // Calculate total revenue from bookings
-        const { data: bookingsData, error: bookingsError } = await sb
-            .from('bookings')
-            .select('total_price, trips(agency_id)') // Select total_price and join with trips to filter by agency_id
-            .eq('status', 'CONFIRMED')
-            .eq('trips.agency_id', agencyId); // Filter bookings by agency's trips
-
-        if (bookingsError) throw bookingsError;
-
-        let totalRevenue = 0;
-        if (bookingsData) {
-            totalRevenue = bookingsData.reduce((sum, booking) => sum + booking.total_price, 0);
-        }
+        const totalRevenue = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED').reduce((sum, b) => sum + b.totalPrice, 0); // Filter myBookings by the current agency's trips
 
         const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
 
@@ -1131,14 +1181,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             totalSales,
             conversionRate,
             averageRating,
-            totalReviews,
+            totalReviews: currentAgencyReviews.length, // Use actual review count for the agency
         };
-    } catch (error: any) {
-        console.error("Error fetching agency stats:", error.message);
-        showToast(`Erro ao buscar estatísticas da agência: ${error.message}`, 'error');
-        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
     }
-  }, [showToast, guardSupabase]);
+  }, [showToast, guardSupabase, tripsRef, bookings, agencyReviews]);
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
       const sb = guardSupabase();
@@ -1212,7 +1258,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       searchTrips: async (params) => {
         const sb = guardSupabase();
-        if (!sb) return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
+        if (!sb) {
+          console.warn("Search offline. Using mocks for trips.");
+          const mockData = MOCK_TRIPS.filter(t => {
+              const matchCategory = !params.category || t.category === params.category;
+              const matchQuery = !params.query || normalizeText(t.title).includes(normalizeText(params.query)) || normalizeText(t.destination).includes(normalizeText(params.query));
+              const matchFeatured = !params.featured || t.featured === true;
+              return matchCategory && matchQuery && matchFeatured;
+          }).slice(0, params.limit || 10);
+          return { data: mockData, count: mockData.length };
+        }
 
         let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
 
@@ -1250,7 +1305,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data, error, count } = await query;
         if (error) {
           console.error("Error searching trips:", error.message);
-          return { data: [], count: 0, error: error.message };
+          // Fallback to mocks on search error
+          console.warn("Search offline. Using mocks for trips due to API error.");
+          const mockData = MOCK_TRIPS.filter(t => {
+              const matchCategory = !params.category || t.category === params.category;
+              const matchQuery = !params.query || normalizeText(t.title).includes(normalizeText(params.query)) || normalizeText(t.destination).includes(normalizeText(params.query));
+              const matchFeatured = !params.featured || t.featured === true;
+              return matchCategory && matchQuery && matchFeatured;
+          }).slice(0, params.limit || 10);
+          return { data: mockData, count: mockData.length, error: error.message };
         }
 
         const mappedTrips: Trip[] = (data || []).map((t: any) => ({
@@ -1262,7 +1325,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       searchAgencies: async (params) => {
         const sb = guardSupabase();
-        if (!sb) return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
+        if (!sb) {
+          console.warn("Search offline. Using mocks for agencies.");
+          return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
+        }
 
         let query = sb.from('agencies').select('*', { count: 'exact' }).eq('is_active', true).is('deleted_at', null); // Only active and not soft-deleted agencies
 
@@ -1290,7 +1356,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data, error, count } = await query;
         if (error) {
             console.error("Error searching agencies:", error.message);
-            return { data: [], count: 0, error: error.message };
+            // Fallback to mocks on search error
+            console.warn("Search offline. Using mocks for agencies due to API error.");
+            return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length, error: error.message };
         }
 
         const mappedAgencies: Agency[] = (data || []).map((a: any) => ({
