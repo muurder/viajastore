@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,11 +11,10 @@ import {
   Plus, X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, DollarSign, Calendar, Image as ImageIcon,
   BookOpen, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, Trash2, ShieldCheck, Square, Globe, Timer, Home,
-  Upload // Added Upload icon
+  Upload
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 
-// Re-declare VEHICLE_TYPES and DEFAULT_OPERATIONAL_DATA for self-containment
 const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
     'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 },
@@ -51,7 +51,7 @@ interface CreateTripWizardProps {
 }
 
 const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess, initialTripData }) => {
-  const { user, uploadImage } = useAuth(); // Import uploadImage
+  const { user, uploadImage } = useAuth(); 
   const { createTrip, updateTrip, agencies } = useData();
   const { showToast } = useToast();
   
@@ -62,6 +62,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const isEditing = useMemo(() => !!initialTripData?.id, [initialTripData]);
 
   const [currentStep, setCurrentStep] = useState(0);
+  
+  // State for raw files before upload
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  
   const [tripData, setTripData] = useState<Partial<Trip>>(() => ({
     agencyId: currentAgency?.agencyId || '',
     title: '',
@@ -87,8 +91,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     ...(initialTripData || {})
   }));
   
-  // NEW STATE: Files to upload
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -140,7 +142,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         newErrors.dates = "Data de início não pode ser maior que a data de fim.";
       }
     } else if (currentStep === 1) { // Media & Description
-      // Check both existing images AND pending uploads
+      // Validation Logic: Count existing images + new files to upload
       const totalImages = (tripData.images?.length || 0) + filesToUpload.length;
       if (totalImages === 0) newErrors.images = "Adicione ao menos uma imagem.";
       
@@ -184,16 +186,16 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
     setIsLoading(true);
     try {
-      // 1. Upload Pending Files
+      // 1. Upload Pending Files to Storage
       const uploadedUrls: string[] = [];
       if (filesToUpload.length > 0) {
           for (const file of filesToUpload) {
-              const url = await uploadImage(file, 'trip-images');
+              const url = await uploadImage(file, 'trip-images'); // Upload to 'trip-images' bucket
               if (url) uploadedUrls.push(url);
           }
       }
 
-      // 2. Combine with existing URLs
+      // 2. Combine existing URLs with newly uploaded URLs
       const finalImages = [...(tripData.images || []), ...uploadedUrls];
 
       const finalTrip: Trip = {
@@ -207,7 +209,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         startDate: new Date(tripData.startDate!).toISOString(),
         endDate: new Date(tripData.endDate!).toISOString(),
         durationDays: tripData.durationDays!,
-        images: finalImages, // Use consolidated images
+        images: finalImages, // Use the complete list
         category: tripData.category!,
         tags: tripData.tags!,
         travelerTypes: tripData.travelerTypes!,
@@ -326,16 +328,16 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     </div>
   );
 
-  // --- Step 2: Mídia & Descrição (Refactored) ---
+  // --- Step 2: Mídia & Descrição (Refatorado) ---
   const renderStep2 = () => {
-    // Handler for File Input
+    // File Selection Handler
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
         setFilesToUpload(prev => [...prev, ...Array.from(e.target.files!)]);
       }
     };
 
-    // Remove Existing URL
+    // Removal Handlers
     const handleRemoveUrl = (urlToRemove: string) => {
         setTripData(prev => ({ 
             ...prev, 
@@ -343,14 +345,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         }));
     };
 
-    // Remove Pending File
     const handleRemoveFile = (indexToRemove: number) => {
         setFilesToUpload(prev => prev.filter((_, idx) => idx !== indexToRemove));
     };
 
-    // Tag Logic
+    // Tags Logic
     const handleAddTag = (tagText: string) => {
-        const cleanedTag = tagText.trim().toLowerCase();
+        const cleanedTag = tagText.trim();
         if (cleanedTag && !tripData.tags?.includes(cleanedTag)) {
             setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), cleanedTag] }));
         }
@@ -359,7 +360,17 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         setTripData(prev => ({ ...prev, tags: (prev.tags || []).filter(tag => tag !== tagToRemove) }));
     };
 
-    // Include/Exclude Logic
+    // Traveler Types
+    const handleAddTravelerType = (type: TravelerType) => {
+        if (!tripData.travelerTypes?.includes(type)) {
+            setTripData(prev => ({ ...prev, travelerTypes: [...(prev.travelerTypes || []), type] }));
+        }
+    };
+    const handleRemoveTravelerType = (typeToRemove: TravelerType) => {
+        setTripData(prev => ({ ...prev, travelerTypes: (prev.travelerTypes || []).filter(type => type !== typeToRemove) }));
+    };
+
+    // Included/Excluded Logic
     const handleAddIncluded = (itemText: string) => {
         const cleanedItem = itemText.trim();
         if (cleanedItem && !tripData.included?.includes(cleanedItem)) {
@@ -380,21 +391,12 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         setTripData(prev => ({ ...prev, notIncluded: (prev.notIncluded || []).filter(item => item !== itemToRemove) }));
     };
 
-    const handleAddTravelerType = (type: TravelerType) => {
-        if (!tripData.travelerTypes?.includes(type)) {
-            setTripData(prev => ({ ...prev, travelerTypes: [...(prev.travelerTypes || []), type] }));
-        }
-    };
-    const handleRemoveTravelerType = (typeToRemove: TravelerType) => {
-        setTripData(prev => ({ ...prev, travelerTypes: (prev.travelerTypes || []).filter(type => type !== typeToRemove) }));
-    };
-
     return (
       <div className="space-y-6">
         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
           <label className="block text-sm font-bold text-gray-700 mb-2">Imagens do Pacote <span className="text-red-500">*</span></label>
           
-          {/* File Upload Dropzone */}
+          {/* File Input Dropzone */}
           <div className="mb-4">
             <label 
               htmlFor="img-upload" 
@@ -413,7 +415,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           
           {/* Hybrid Preview Grid */}
           <div className="grid grid-cols-3 md:grid-cols-4 gap-3 mt-3">
-            {/* 1. Existing URLs */}
+            {/* Existing Images */}
             {tripData.images?.map((url, index) => (
               <div key={`url-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200 group">
                 <img src={url} alt={`Existente ${index}`} className="w-full h-full object-cover" />
@@ -429,7 +431,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               </div>
             ))}
 
-            {/* 2. Pending Files */}
+            {/* Pending Files */}
             {filesToUpload.map((file, index) => (
               <div key={`file-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-amber-200 ring-1 ring-amber-300 group">
                 <img src={URL.createObjectURL(file)} alt={`Novo ${index}`} className="w-full h-full object-cover opacity-90" />
@@ -460,7 +462,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
         </div>
 
-        {/* Tags */}
+        {/* Tags Section */}
         <div className="space-y-4">
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Tags / Palavras-chave</label>
@@ -468,13 +470,12 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 {/* Suggestions Pills */}
                 <div className="flex flex-wrap gap-2 mb-3">
                     {SUGGESTED_TAGS.map(tag => {
-                        const tagValue = tag.toLowerCase();
-                        const isSelected = tripData.tags?.includes(tagValue);
+                        const isSelected = tripData.tags?.includes(tag);
                         return (
                             <button
                                 key={tag}
                                 type="button"
-                                onClick={() => isSelected ? handleRemoveTag(tagValue) : handleAddTag(tagValue)}
+                                onClick={() => isSelected ? handleRemoveTag(tag) : handleAddTag(tag)}
                                 className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
                                     ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'}`}
                             >
@@ -496,6 +497,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                     className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
                     placeholder="Ou digite uma tag personalizada e aperte Enter..."
                 />
+                
                 <div className="flex flex-wrap gap-2 mt-3">
                     {tripData.tags?.map((tag, index) => (
                         <span key={index} className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full text-xs font-medium">
