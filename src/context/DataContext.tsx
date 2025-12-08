@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
@@ -123,6 +123,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Refs to hold latest state values without being useCallback dependencies
+  const tripsRef = useRef<Trip[]>([]);
+  const agenciesRef = useRef<Agency[]>([]);
+  useEffect(() => { tripsRef.current = trips; }, [trips]);
+  useEffect(() => { agenciesRef.current = agencies; }, [agencies]);
+
   const guardSupabase = useCallback(() => {
     if (!supabase) return null;
     return supabase;
@@ -213,10 +219,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [guardSupabase, showToast]); // Dependencies for useCallback
+  }, [guardSupabase, showToast, clients]); // Added clients as a dependency to map clientName in reviewsData
 
   // Fetches bookings specific to the currently logged-in user (client or agency)
-  // FIX: _fetchBookingsForCurrentUser now relies on the `user` from AuthContext directly
   const _fetchBookingsForCurrentUser = useCallback(async () => {
     // Guard: If no user is logged in, clear bookings and stop loading.
     if (!user?.id) {
@@ -233,6 +238,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
     }
 
+    // Use refs to access latest trips and agencies without making them dependencies of useCallback
+    const currentTrips = tripsRef.current;
+    const currentAgencies = agenciesRef.current;
+
     try {
         let bookingsData: any[] | null = null;
         let bookingsError: any = null;
@@ -240,7 +249,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (user.role === UserRole.AGENCY) {
             const agencyUser = user as Agency;
             // Filter trips by agencyId (which is the agency's PK `id` in the `agencies` table)
-            const myAgencyTrips = trips.filter(t => t.agencyId === agencyUser.agencyId);
+            const myAgencyTrips = currentTrips.filter(t => t.agencyId === agencyUser.agencyId);
             const myTripIds = myAgencyTrips.map(t => t.id);
 
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
@@ -281,9 +290,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [user, guardSupabase, trips, agencies, showToast]); // Dependencies for useCallback: user is now a direct dependency
+  }, [user, guardSupabase, showToast]); // Dependencies for useCallback: trips and agencies removed, using refs inside
 
-  // --- Main Effect Hook for Global Data (runs once on mount) ---
+  // --- Main Effect Hook for Global Data (runs once on mount + subscribes) ---
   useEffect(() => {
     _fetchGlobalAndClientProfiles();
 
@@ -306,7 +315,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [_fetchGlobalAndClientProfiles, guardSupabase]); // Global data fetching runs ONCE.
 
-  // --- Second Effect Hook for User-Specific Data (runs when user changes) ---
+  // --- Second Effect Hook for User-Specific Data (runs when user or authLoading changes) ---
   useEffect(() => {
     // This effect runs when user.id changes, or after initial auth loading completes and user is available
     if (user?.id && !authLoading) {
@@ -331,11 +340,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Exported Refresh Function (Full Data Refresh) ---
   const refreshData = useCallback(async () => {
-      await _fetchGlobalAndClientProfiles(); // Refresh global data first
+      // Ensure global data is fetched first, then user-specific data
+      await _fetchGlobalAndClientProfiles(); 
       if (user) {
-          await _fetchBookingsForCurrentUser(); // FIX: Call without argument
+          await _fetchBookingsForCurrentUser(); 
       } else {
-          setBookings([]); // Clear bookings if no user is logged in
+          setBookings([]); 
       }
   }, [_fetchGlobalAndClientProfiles, user, _fetchBookingsForCurrentUser]);
 
@@ -384,6 +394,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             details: details,
         });
         // We trigger global refresh here, which will also fetch latest activity logs.
+        // It's generally better to rely on subscriptions for real-time updates
+        // but an explicit refetch can ensure consistency after a local action.
         _fetchGlobalAndClientProfiles(); 
     }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
@@ -420,7 +432,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
         // After adding booking, only refresh user-specific data. Global data changes (like sales_count) will be picked up by global subscription.
-        if (user) _fetchBookingsForCurrentUser(); // FIX: Call without argument
+        if (user) _fetchBookingsForCurrentUser(); 
         return newBooking;
 
     } catch (error: any) {
@@ -863,7 +875,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (role === UserRole.AGENCY) {
               await sb.from('agencies').delete().eq('user_id', id);
               // Also delete trips and reviews associated with this agency
-              const agencyTrips = trips.filter(t => t.agencyId === id); // assuming agencyId in trips is user_id
+              const agencyTrips = tripsRef.current.filter(t => t.agencyId === id); // Use ref here
               for (const trip of agencyTrips) {
                   await deleteTrip(trip.id); // Reuses deleteTrip logic
               }
@@ -892,7 +904,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error deleting user permanently:", error.message);
           showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
       }
-  }, [showToast, trips, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]); // tripsRef.current is used inside deleteUser, but not as dependency
 
   const deleteMultipleUsers = useCallback(async (ids: string[]) => {
     const sb = guardSupabase();
@@ -926,7 +938,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Delete associated trips and reviews for each agency
         for (const agencyId of agencyIdsToDelete) {
-            const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+            const agencyTrips = tripsRef.current.filter(t => t.agencyId === agencyId); // Use ref here
             for (const trip of agencyTrips) {
                 await deleteTrip(trip.id);
             }
@@ -950,7 +962,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error("Error deleting multiple agencies:", error.message);
         showToast(`Erro ao excluir múltiplas agências: ${error.message}`, 'error');
     }
-  }, [showToast, trips, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]); // tripsRef.current is used here too
 
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
@@ -1011,24 +1023,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const logAuditAction = useCallback(async (action: string, details: string) => {
-    const sb = guardSupabase();
-    if (sb && user?.email) {
-        await sb.from('audit_logs').insert({
-            admin_email: user.email,
-            action: action,
-            details: details,
-        });
-        _fetchGlobalAndClientProfiles();
-    }
+      const sb = guardSupabase();
+      if (!sb || !user?.email) return;
+
+      try {
+          await sb.from('audit_logs').insert({
+              admin_email: user.email,
+              action: action,
+              details: details
+          });
+          _fetchGlobalAndClientProfiles();
+      } catch (error: any) {
+          console.error("Error logging audit action:", error.message);
+      }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        const { error } = await sb.auth.resetPasswordForEmail(email);
+        const { error } = await sb.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/#/forgot-password` // Use hash for react-router-dom HashRouter
+        });
         if (error) throw error;
-        showToast(`Link de reset de senha enviado para ${email}`, 'success');
+        showToast('Link de reset de senha enviado para o email!', 'success');
     } catch (error: any) {
         console.error("Error sending password reset:", error.message);
         showToast(`Erro ao enviar link de reset: ${error.message}`, 'error');
@@ -1049,14 +1067,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (uploadError) throw uploadError;
 
         const { data } = sb.storage.from('avatars').getPublicUrl(fileName);
-        
-        // Update profile in DB
+
+        // Update profile table
         await sb.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
-        showToast('Avatar atualizado com sucesso!', 'success');
-        _fetchGlobalAndClientProfiles();
+
+        _fetchGlobalAndClientProfiles(); // Refresh to update UI
         return data.publicUrl;
     } catch (error: any) {
-        console.error("Error updating user avatar by admin:", error.message);
+        console.error("Admin avatar upload error:", error.message);
         showToast(`Erro ao atualizar avatar: ${error.message}`, 'error');
         return null;
     }
@@ -1067,31 +1085,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
     
     try {
-        // Fetch agency-specific trips
-        const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-        const tripIds = agencyTrips.map(t => t.id);
+        // Fetch all trips for the agency
+        const { data: agencyTripsData, error: tripsError } = await sb
+            .from('trips')
+            .select('id, views_count, sales_count, trip_rating, trip_total_reviews')
+            .eq('agency_id', agencyId);
 
-        // Calculate total sales and views
-        const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0);
-        const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+        if (tripsError) throw tripsError;
 
-        // Fetch bookings for these trips
-        const { data: agencyBookings, error: bookingsError } = await sb.from('bookings')
-            .select('total_price')
-            .in('trip_id', tripIds)
-            .eq('status', 'CONFIRMED');
+        let totalViews = 0;
+        let totalSales = 0;
+        let totalRatingSum = 0;
+        let totalReviews = 0;
+
+        if (agencyTripsData) {
+            agencyTripsData.forEach(trip => {
+                totalViews += trip.views_count || 0;
+                totalSales += trip.sales_count || 0;
+                totalRatingSum += (trip.trip_rating || 0) * (trip.trip_total_reviews || 0);
+                totalReviews += trip.trip_total_reviews || 0;
+            });
+        }
+
+        const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
+
+        // Calculate total revenue from bookings
+        const { data: bookingsData, error: bookingsError } = await sb
+            .from('bookings')
+            .select('total_price, trips(agency_id)') // Select total_price and join with trips to filter by agency_id
+            .eq('status', 'CONFIRMED')
+            .eq('trips.agency_id', agencyId); // Filter bookings by agency's trips
 
         if (bookingsError) throw bookingsError;
 
-        const totalRevenue = agencyBookings ? agencyBookings.reduce((sum, b) => sum + b.total_price, 0) : 0;
-        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+        let totalRevenue = 0;
+        if (bookingsData) {
+            totalRevenue = bookingsData.reduce((sum, booking) => sum + booking.total_price, 0);
+        }
 
-        // Fetch reviews for the agency
-        const agencyReviewsFiltered = agencyReviews.filter(r => r.agencyId === agencyId);
-        const totalReviews = agencyReviewsFiltered.length;
-        const averageRating = totalReviews > 0 
-            ? agencyReviewsFiltered.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
-            : 0;
+        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
 
         return {
             totalRevenue,
@@ -1099,185 +1131,175 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             totalSales,
             conversionRate,
             averageRating,
-            totalReviews
+            totalReviews,
         };
-
     } catch (error: any) {
-        console.error("Error getting agency stats:", error.message);
+        console.error("Error fetching agency stats:", error.message);
         showToast(`Erro ao buscar estatísticas da agência: ${error.message}`, 'error');
         return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
     }
-  }, [trips, bookings, agencyReviews, showToast, guardSupabase]);
+  }, [showToast, guardSupabase]);
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
-    const sb = guardSupabase();
-    if (!sb) return null;
-    try {
-        const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).single();
-        if (error && error.code !== 'PGRST116') throw error; // PGRST116 means no rows found
-        if (data) {
-            return {
-                agencyId: data.agency_id,
-                colors: data.colors,
-                updatedAt: data.updated_at
-            };
-        }
-        return null;
-    } catch (error: any) {
-        console.error("Error fetching agency theme:", error.message);
-        return null;
-    }
+      const sb = guardSupabase();
+      if (!sb) return null;
+      try {
+          const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).maybeSingle();
+          if (error) throw error;
+          if (data) {
+              return {
+                  agencyId: data.agency_id,
+                  colors: data.colors as ThemeColors,
+                  updatedAt: data.updated_at,
+              };
+          }
+          return null;
+      } catch (error: any) {
+          console.error("Error fetching agency theme:", error.message);
+          return null;
+      }
   }, [guardSupabase]);
 
   const saveAgencyTheme = useCallback(async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
-    const sb = guardSupabase();
-    if (!sb) return false;
-    try {
-        const { error } = await sb.from('agency_themes').upsert(
-            { agency_id: agencyId, colors: colors },
-            { onConflict: 'agency_id' }
-        );
-        if (error) throw error;
-        showToast('Tema da agência salvo com sucesso!', 'success');
-        _fetchGlobalAndClientProfiles(); // Refresh to update any theme-dependent UI
-        return true;
-    } catch (error: any) {
-        console.error("Error saving agency theme:", error.message);
-        showToast(`Erro ao salvar tema da agência: ${error.message}`, 'error');
-        return false;
-    }
-  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
+      const sb = guardSupabase();
+      if (!sb) return false;
+      try {
+          const { error } = await sb.from('agency_themes').upsert({
+              agency_id: agencyId,
+              colors: colors,
+          }, { onConflict: 'agency_id' }); // If a theme for this agency already exists, update it
+
+          if (error) throw error;
+          _fetchGlobalAndClientProfiles(); // Refresh to ensure theme is picked up if needed elsewhere
+          return true;
+      } catch (error: any) {
+          console.error("Error saving agency theme:", error.message);
+          return false;
+      }
+  }, [_fetchGlobalAndClientProfiles, guardSupabase]);
 
   const incrementTripViews = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        const { error } = await sb.rpc('increment_views', { trip_id_param: tripId, increment_value: 1 });
-        if (error) console.error("Error incrementing views:", error);
-    } catch (error) {
-        console.error("Error incrementing trip views (catch block):", error);
-    }
-  }, [guardSupabase]);
-
-  // Server-side search for trips
-  const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
-    const sb = guardSupabase();
-    if (!sb) return { data: [], count: 0, error: 'Supabase não configurado.' };
-
-    try {
-      let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
-
-      // Apply filters
-      if (params.agencyId) query = query.eq('agency_id', params.agencyId);
-      if (params.category) query = query.eq('category', params.category);
-      if (params.featured !== undefined) query = query.eq('featured', params.featured);
-      
-      if (params.query) {
-        const searchKeywords = params.query.split(' ').map(keyword => `%${keyword.toLowerCase()}%`);
-        query = query.or(`title.ilike.%${params.query}%,description.ilike.%${params.query}%,destination.ilike.%${params.query}%,tags.cs.{${params.query.toLowerCase()}}`);
-      }
-      
-      // Price range
-      if (params.minPrice) query = query.gte('price', params.minPrice);
-      if (params.maxPrice) query = query.lte('price', params.maxPrice);
-
-      // Sorting
-      switch (params.sort) {
-        case 'LOW_PRICE': query = query.order('price', { ascending: true }); break;
-        case 'HIGH_PRICE': query = query.order('price', { ascending: false }); break;
-        case 'DATE_ASC': query = query.order('start_date', { ascending: true }); break;
-        case 'RATING': query = query.order('trip_rating', { ascending: false }); break;
-        case 'RELEVANCE': // Placeholder for complex relevance sorting, may combine multiple fields
-        default: query = query.order('created_at', { ascending: false }); break; // Default to latest
-      }
-
-      // Pagination
-      const from = (params.page && params.limit) ? (params.page - 1) * params.limit : 0;
-      const to = (params.limit) ? from + params.limit - 1 : 9; // Default limit for UI if not specified
-
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-
-      const mappedTrips: Trip[] = data.map((t: any) => ({
-          id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
-      }));
-      
-      return { data: mappedTrips, count: count || 0 };
-
+        const { error } = await sb.rpc('increment_trip_views', { trip_id_param: tripId, increment_value: 1 });
+        if (error) throw error;
+        // No need to _fetchGlobalAndClientProfiles() immediately, let the subscription handle it or next refresh.
     } catch (error: any) {
-      console.error("Error searching trips:", error.message);
-      return { data: [], count: 0, error: error.message };
+        console.error("Error incrementing trip views:", error.message);
     }
   }, [guardSupabase]);
 
-  // Server-side search for agencies
-  const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
-    const sb = guardSupabase();
-    if (!sb) return { data: [], count: 0, error: 'Supabase não configurado.' };
+  // Unified refresh for user-dependent data
+  const refreshUserData = useCallback(async () => {
+    await _fetchBookingsForCurrentUser();
+    // No need to explicitly refetch reviews or client data, they are part of _fetchGlobalAndClientProfiles
+    // which is subscribed to. `reloadUser` in AuthContext will also refresh `user` state.
+  }, [_fetchBookingsForCurrentUser]);
 
-    try {
-      let query = sb.from('agencies').select('*', { count: 'exact' });
-
-      // Ensure only active agencies are shown by default for public search
-      query = query.eq('is_active', true);
-
-      if (params.query) {
-        query = query.or(`name.ilike.%${params.query}%,description.ilike.%${params.query}%`);
-      }
-      
-      if (params.specialty) {
-        // This assumes 'specialty' can map to a tag in the custom_settings or description
-        // For a more robust solution, 'specialty' should be a defined column or tag list in the DB
-        query = query.ilike('custom_settings->>tags', `%${params.specialty}%`);
-      }
-
-      switch (params.sort) {
-        case 'NAME': query = query.order('name', { ascending: true }); break;
-        case 'RATING': 
-          // This requires a pre-calculated average_rating column or a more complex join/subquery
-          // For now, sorting by name or a placeholder if no rating column exists
-          query = query.order('name', { ascending: true }); 
-          break;
-        case 'RELEVANCE': // Placeholder
-        default: query = query.order('created_at', { ascending: false }); break;
-      }
-
-      const from = (params.page && params.limit) ? (params.page - 1) * params.limit : 0;
-      const to = (params.limit) ? from + params.limit - 1 : 8; // Default limit
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-
-      const mappedAgencies: Agency[] = data.map((a: any) => ({
-          id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
-      }));
-
-      return { data: mappedAgencies, count: count || 0 };
-
-    } catch (error: any) {
-      console.error("Error searching agencies:", error.message);
-      return { data: [], count: 0, error: error.message };
-    }
-  }, [guardSupabase]);
 
   return (
     <DataContext.Provider value={{
       agencies,
       trips,
       bookings,
-      reviews: [], // Old Review is deprecated, keeping empty
+      reviews: [], // Old reviews not used
       agencyReviews,
       clients,
       auditLogs,
       activityLogs,
       loading,
-      searchTrips,
-      searchAgencies,
+
+      searchTrips: async (params) => {
+        const sb = guardSupabase();
+        if (!sb) return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
+
+        let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
+
+        if (params.agencyId) {
+          query = query.eq('agency_id', params.agencyId);
+        } else {
+          // Only show active trips globally
+          query = query.eq('is_active', true);
+        }
+
+        if (params.query) {
+          const cleanQuery = normalizeText(params.query);
+          query = query.or(`title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,destination.ilike.%${cleanQuery}%,tags.cs.{${cleanQuery}}`);
+        }
+        if (params.category) query = query.eq('category', params.category);
+        if (params.tags && params.tags.length > 0) query = query.contains('tags', params.tags);
+        if (params.featured) query = query.eq('featured', true);
+        if (params.minPrice) query = query.gte('price', params.minPrice);
+        if (params.maxPrice) query = query.lte('price', params.maxPrice);
+
+        switch (params.sort) {
+          case 'LOW_PRICE': query = query.order('price', { ascending: true }); break;
+          case 'HIGH_PRICE': query = query.order('price', { ascending: false }); break;
+          case 'DATE_ASC': query = query.order('start_date', { ascending: true }); break;
+          case 'RATING': query = query.order('trip_rating', { ascending: false }).order('trip_total_reviews', { ascending: false }); break;
+          case 'RELEVANCE': 
+          default:
+            query = query.order('featured', { ascending: false }).order('views_count', { ascending: false }).order('sales_count', { ascending: false });
+            break;
+        }
+
+        const offset = ((params.page || 1) - 1) * (params.limit || 10);
+        query = query.range(offset, offset + (params.limit || 10) - 1);
+
+        const { data, error, count } = await query;
+        if (error) {
+          console.error("Error searching trips:", error.message);
+          return { data: [], count: 0, error: error.message };
+        }
+
+        const mappedTrips: Trip[] = (data || []).map((t: any) => ({
+            id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
+        }));
+
+        return { data: mappedTrips, count: count || 0 };
+      },
+
+      searchAgencies: async (params) => {
+        const sb = guardSupabase();
+        if (!sb) return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
+
+        let query = sb.from('agencies').select('*', { count: 'exact' }).eq('is_active', true).is('deleted_at', null); // Only active and not soft-deleted agencies
+
+        if (params.query) {
+            const cleanQuery = normalizeText(params.query);
+            query = query.or(`name.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%`);
+        }
+        if (params.specialty) {
+            const cleanSpecialty = normalizeText(params.specialty);
+            query = query.or(`description.ilike.%${cleanSpecialty}%,custom_settings->>tags.ilike.%${cleanSpecialty}%`);
+        }
+        
+        switch (params.sort) {
+            case 'NAME': query = query.order('name', { ascending: true }); break;
+            case 'RATING': query = query.order('average_rating', { ascending: false }); break; // Assuming an average_rating column
+            case 'RELEVANCE': 
+            default:
+                query = query.order('is_active', { ascending: false }).order('created_at', { ascending: false }); // Latest active first
+                break;
+        }
+
+        const offset = ((params.page || 1) - 1) * (params.limit || 10);
+        query = query.range(offset, offset + (params.limit || 10) - 1);
+
+        const { data, error, count } = await query;
+        if (error) {
+            console.error("Error searching agencies:", error.message);
+            return { data: [], count: 0, error: error.message };
+        }
+
+        const mappedAgencies: Agency[] = (data || []).map((a: any) => ({
+            id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
+        }));
+
+        return { data: mappedAgencies, count: count || 0 };
+      },
+
       getTripBySlug,
       getAgencyBySlug,
       getTripById,
@@ -1318,7 +1340,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       getAgencyStats,
       getAgencyTheme,
       saveAgencyTheme,
-      refreshUserData: _fetchBookingsForCurrentUser, // Alias for user-specific data refresh
+      refreshUserData,
       incrementTripViews,
     }}>
       {children}
@@ -1328,8 +1350,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useData = () => {
   const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within a DataProvider');
-  }
+  if (!context) throw new Error('useData must be used within a DataProvider');
   return context;
 };
