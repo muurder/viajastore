@@ -5,7 +5,8 @@ import { useToast } from '../context/ToastContext';
 import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, TransportConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats } from '../types';
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Palette, Filter, Search, LucideProps, Activity } from 'lucide-react';
+// FIX: Add Search and Palette icons to the import from 'lucide-react'
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, ListChecks, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Clock, Activity, Search, Palette, LucideProps } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -1092,10 +1093,10 @@ const AgencyDashboard: React.FC = () => {
   const [tripSearch, setTripSearch] = useState('');
   const [tripStatusFilter, setTripStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DRAFT'>('ALL');
 
-  const [tripForm, setTripForm] = useState<Partial<Trip>>({ 
+  const [tripForm, setTripForm] = useState<Partial<Trip>>(() => ({ 
       title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [],
       operationalData: DEFAULT_OPERATIONAL_DATA
-  });
+  }));
 
   const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
   const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
@@ -1499,7 +1500,7 @@ const AgencyDashboard: React.FC = () => {
                                  <p className="text-3xl font-extrabold text-gray-900 mb-6">R$ {plan.price.toFixed(2)}<span className="text-sm font-medium text-gray-500">/mês</span></p>
                                  <ul className="space-y-3 mb-8">
                                      {plan.features.map((feature, i) => (
-                                         <li key={i} className="flex items-center text-sm text-gray-600"><CheckCircle size={16} className="text-green-500 mr-2 flex-shrink-0"/> {feature}</li>
+                                         <li key={i} className="flex items-center text-sm text-gray-600"><CheckCircle size={16} className="mr-2 flex-shrink-0"/> {feature}</li>
                                      ))}
                                  </ul>
                                  <button 

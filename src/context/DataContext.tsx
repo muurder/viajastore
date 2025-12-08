@@ -393,7 +393,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       heroSubtitle: a.hero_subtitle,
       customSettings: a.custom_settings || {},
       subscriptionStatus: a.subscription_status || 'ACTIVE',
-      subscriptionPlan: a.subscription_plan || 'BASIC',
+      subscriptionPlan: 'BASIC',
       subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(),
       website: a.website,
       phone: a.phone,
@@ -466,15 +466,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         } else if (user.role === UserRole.AGENCY) {
              const agencyUser = user as Agency;
-             // Fetch bookings with trip and agency details using Deep Nesting for agency dashboard
-             const { data: agencyBookings, error: agencyBookingsError } = await supabase
+             
+             // 1. Get all trip IDs for the current agency
+             const { data: agencyTripsData, error: agencyTripsError } = await supabase
+                .from('trips')
+                .select('id')
+                .eq('agency_id', agencyUser.agencyId);
+
+            if (agencyTripsError) throw agencyTripsError;
+            
+            const tripIds = agencyTripsData.map(t => t.id);
+
+            if (tripIds.length === 0) {
+                setBookings([]);
+                await reloadUser();
+                return;
+            }
+
+            // 2. Fetch bookings for these trip IDs with deep nesting
+            const { data: agencyBookings, error: agencyBookingsError } = await supabase
                 .from('bookings')
                 .select(`
                     *, 
                     trips:trip_id ( *, agencies:agency_id(*) )
                 `)
-                // FIX: Filter bookings by agency_id via the trips relationship
-                .eq('trips.agency_id', agencyUser.agencyId); 
+                .in('trip_id', tripIds); // FIX: Filter bookings by trip_id belonging to the agency
 
              if (agencyBookingsError) throw agencyBookingsError;
 
@@ -514,6 +530,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
 
       try {
+          // FIX: Use RPC for stats
           const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
 
           if (error) throw error;
