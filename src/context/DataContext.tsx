@@ -308,21 +308,28 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (bookingsError) throw bookingsError;
 
         if (bookingsData) {
-            const augmentedBookings: Booking[] = bookingsData.map((b: any) => ({
-                id: b.id,
-                tripId: b.trip_id,
-                clientId: b.client_id,
-                date: b.created_at,
-                status: b.status,
-                totalPrice: b.total_price,
-                passengers: b.passengers,
-                voucherCode: b.voucher_code,
-                paymentMethod: b.payment_method,
-                _trip: b.trips, // Deep nesting: trips is already augmented
-                _agency: b.trips?.agencies, // Deep nesting: agency is inside trips
-                // Add _client property (custom extension for Dashboard usage)
-                _client: b.client ? { name: b.client.full_name, avatar: b.client.avatar_url } : undefined 
-            } as any)); // cast as any to bypass strict Booking type for _client
+            const augmentedBookings: Booking[] = bookingsData.map((b: any) => {
+                // CORREÇÃO CRÍTICA: Mapear _trip usando o estado global `tripsRef` para garantir camelCase.
+                // O join `b.trips` retorna dados em snake_case (banco), o que quebra filtros no frontend.
+                const foundTrip = tripsRef.current.find(t => t.id === b.trip_id);
+                const foundAgency = agenciesRef.current.find(a => a.agencyId === foundTrip?.agencyId);
+
+                return {
+                    id: b.id,
+                    tripId: b.trip_id,
+                    clientId: b.client_id,
+                    date: b.created_at,
+                    status: b.status,
+                    totalPrice: b.total_price,
+                    passengers: b.passengers,
+                    voucherCode: b.voucher_code,
+                    paymentMethod: b.payment_method,
+                    _trip: foundTrip, // Use o objeto trip normalizado (camelCase)
+                    _agency: foundAgency, // Use o objeto agency normalizado
+                    // Add _client property (custom extension for Dashboard usage)
+                    _client: b.client ? { name: b.client.full_name, avatar: b.client.avatar_url } : undefined 
+                } as any;
+            });
             setBookings(augmentedBookings);
             console.log("[DataContext] User-specific data loaded. Bookings:", augmentedBookings.length); // Debug Log
         } else {
@@ -337,7 +344,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [user, authLoading, showToast, guardSupabase, tripsRef, agenciesRef]); // Dependencies for useCallback: trips and agencies removed, using refs inside
+  }, [user, authLoading, showToast, guardSupabase, tripsRef, agenciesRef]); 
 
   // --- Main Effect Hook for Global Data (runs once on mount + subscribes) ---
   useEffect(() => {
@@ -368,6 +375,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     console.log("[DataContext] User-specific data effect triggered. User:", user?.id, "AuthLoading:", authLoading); // Debug Log
     // This effect runs when user.id changes, or after initial auth loading completes and user is available
+    // Also added trips.length check to ensure bookings for Agencies are fetched only after trips are loaded (needed for filtering)
     if (user?.id && !authLoading) {
         _fetchBookingsForCurrentUser(); // FIX: Call without argument
     } else if (!user && !authLoading) {
@@ -388,7 +396,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             sb.removeChannel(bookingChannel);
         };
     }
-  }, [user, authLoading, _fetchBookingsForCurrentUser, guardSupabase]);
+  }, [user, authLoading, _fetchBookingsForCurrentUser, guardSupabase, trips.length]); // Added trips.length dependency
 
 
   // --- Exported Refresh Function (Full Data Refresh) ---
@@ -1386,40 +1394,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log("[DataContext] Fetching agency stats for ID:", agencyId); // Debug Log
     
     try {
-        // Fallback: calculate locally if RPC fails or not available, but also useful logic to review.
-        // We use local calculation for sales to ensure passenger count logic is correct as requested.
-        const currentTrips = tripsRef.current; // Use ref
-        const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
-        const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
- 
+        const currentTrips = tripsRef.current; 
+        const currentBookings = bookings; 
+        
+        // 1. Calcular Vendas e Receita baseado em Bookings
+        const relevantBookings = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
+        
+        // Vendas = Passageiros (não apenas pedidos)
+        const totalSales = relevantBookings.reduce((sum, b) => sum + Number(b.passengers || 1), 0); 
+        
+        const totalRevenue = relevantBookings.reduce((sum, b) => sum + Number(b.totalPrice), 0);
+
+        // 2. Calcular Views
         const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
- 
         let totalViews = 0;
-        let totalRatingSum = 0;
-        let totalReviews = 0;
- 
         agencyTrips.forEach(trip => {
             totalViews += Number(trip.views || 0);
-            totalRatingSum += (Number(trip.tripRating) || 0) * (Number(trip.tripTotalReviews) || 0); // Use trip-specific rating/reviews
-            totalReviews += Number(trip.tripTotalReviews || 0);
         });
 
-        // REFACTOR: Calculate Total Passengers (Sales) from Bookings
-        const relevantBookings = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
-        const totalSales = relevantBookings.reduce((sum, b) => sum + Number(b.passengers || 1), 0); // Sum passengers
-
+        // 3. Calcular Avaliação (usando Agency Reviews diretos)
+        const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
+        const totalReviews = currentAgencyReviews.length;
+        const totalRatingSum = currentAgencyReviews.reduce((sum, r) => sum + r.rating, 0);
         const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
-        const totalRevenue = relevantBookings.reduce((sum, b) => sum + Number(b.totalPrice), 0); 
  
         const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
  
         return {
              totalRevenue,
              totalViews,
-             totalSales, // Now represents total passengers/seats sold
+             totalSales,
              conversionRate,
              averageRating,
-             totalReviews: currentAgencyReviews.length, // Use actual review count for the agency
+             totalReviews,
         };
         
       } catch (err: any) {
