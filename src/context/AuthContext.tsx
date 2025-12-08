@@ -335,26 +335,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     if (supabase) {
-      console.log("[AuthContext] Logout triggered. Optimistically clearing user state."); // Added log for optimistic logout
-      // Optimistic update: Clear state immediately for better UX
-      setUser(null);
-      localStorage.removeItem('viajastore_pending_role');
-      
-      // Perform signOut in background, don't await to block UI
-      try {
-        await (supabase.auth as any).signOut();
-      } catch (e: any) {
-        console.error("Background signout error:", e);
-        showToast("Erro ao desconectar. Verifique sua conexão.", "error"); // Added Toast feedback
-
-        // Forcefully clear Supabase session from local storage if signout fails
-        // This is a common workaround if Supabase's internal cleanup fails on network error
-        for (const key in localStorage) {
-          if (key.startsWith('sb-') && key.includes('-auth-token')) {
-            localStorage.removeItem(key);
-          }
-        }
-      }
+      console.log("[AuthContext] Logout triggered. Clearing all local storage and user state.");
+      // Clear all local storage data immediately
+      localStorage.clear(); 
+      setUser(null); // Clear user state
+      // Attempt to sign out with Supabase, but catch any errors silently
+      await (supabase.auth as any).signOut().catch((e: any) => {
+          console.error("Silent Supabase signout failed:", e);
+      });
     }
   };
 
