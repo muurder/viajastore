@@ -110,7 +110,7 @@ const normalizeText = (text: string) => {
 };
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, reloadUser, loading: authLoading } = useAuth(); // Import reloadUser from AuthContext
+  const { user, loading: authLoading } = useAuth(); // Import reloadUser from AuthContext
   const { showToast } = useToast();
   
   // State
@@ -547,12 +547,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
           logActivity(action, { tripId, userId, isFavorite: !isCurrentlyFavorite });
           _fetchGlobalAndClientProfiles(); // Update local cache
-          reloadUser(); // Update user in AuthContext
       } catch (error: any) {
           console.error("Error toggling favorite:", error.message);
           showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
       }
-  }, [showToast, clients, logActivity, _fetchGlobalAndClientProfiles, reloadUser, guardSupabase]);
+  }, [showToast, clients, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
@@ -571,13 +570,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Perfil do cliente atualizado!', 'success');
         logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userId, updates });
         _fetchGlobalAndClientProfiles(); // Update local cache
-        reloadUser(); // Update user in AuthContext
     } catch (error: any) {
         console.error("Error updating client profile:", error.message);
         showToast(`Erro ao atualizar perfil do cliente: ${error.message}`, 'error');
         throw error; // Re-throw to allow component to handle loading state
     }
-  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, reloadUser, guardSupabase]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateAgencySubscription = useCallback(async (agencyId: string, status: string, plan: string, expiresAt?: string) => {
     const sb = guardSupabase();
@@ -986,7 +984,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple users status:", error.message);
-        showToast(`Erro ao atualizar status dos usuários: ${error.message}`, 'error');
+        showToast(`Erro ao atualizar status de múltiplos usuários: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
@@ -996,51 +994,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('agencies').update({ is_active: status === 'ACTIVE' }).in('id', ids);
         showToast('Status das agências atualizado.', 'success');
-        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, status }); // Corrected enum usage
+        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, newStatus: status === 'ACTIVE' });
         _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple agencies status:", error.message);
-        showToast(`Erro ao atualizar status das agências: ${error.message}`, 'error');
+        showToast(`Erro ao atualizar status de múltiplas agências: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const logAuditAction = useCallback(async (action: string, details: string) => {
-      const sb = guardSupabase();
-      if (!sb) return;
-      try {
-          await sb.from('audit_logs').insert({
-              admin_email: user?.email || 'unknown_admin',
-              action: action,
-              details: details,
-          });
-          _fetchGlobalAndClientProfiles();
-      } catch (error: any) {
-          console.error("Error logging audit action:", error.message);
-      }
+    const sb = guardSupabase();
+    if (sb && user?.email) {
+        await sb.from('audit_logs').insert({
+            admin_email: user.email,
+            action: action,
+            details: details,
+        });
+        _fetchGlobalAndClientProfiles();
+    }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
-      const sb = guardSupabase();
-      if (!sb) return;
-      try {
-          const { error } = await sb.auth.resetPasswordForEmail(email, {
-              redirectTo: `${window.location.origin}/#/forgot-password` // Adjust redirect as needed
-          });
-          if (error) throw error;
-          showToast('Link de recuperação de senha enviado para o e-mail.', 'success');
-          logAuditAction('PASSWORD_RESET_SENT', `Reset link sent to ${email}`);
-      } catch (error: any) {
-          console.error("Error sending password reset:", error.message);
-          showToast(`Erro ao enviar link de recuperação: ${error.message}`, 'error');
-      }
-  }, [showToast, logAuditAction, guardSupabase]);
+    const sb = guardSupabase();
+    if (!sb) return;
+    try {
+        const { error } = await sb.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+        showToast(`Link de reset de senha enviado para ${email}`, 'success');
+    } catch (error: any) {
+        console.error("Error sending password reset:", error.message);
+        showToast(`Erro ao enviar link de reset: ${error.message}`, 'error');
+    }
+  }, [showToast, guardSupabase]);
 
   const updateUserAvatarByAdmin = useCallback(async (userId: string, file: File): Promise<string | null> => {
     const sb = guardSupabase();
     if (!sb) return null;
     try {
         const fileExt = file.name.split('.').pop();
-        const fileName = `admin-${userId}-${Date.now()}.${fileExt}`; // Admin specific filename to avoid collision
+        const fileName = `${userId}-${Date.now()}.${fileExt}`;
         
         const { error: uploadError } = await sb.storage
             .from('avatars')
@@ -1049,331 +1041,278 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (uploadError) throw uploadError;
 
         const { data } = sb.storage.from('avatars').getPublicUrl(fileName);
-        const publicUrl = data.publicUrl;
-
-        // Update profile table
-        await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
         
-        showToast('Avatar atualizado por Admin.', 'success');
-        logAuditAction('USER_AVATAR_UPDATED_BY_ADMIN', `User ${userId} avatar updated to ${publicUrl}`);
-        _fetchGlobalAndClientProfiles(); // Refresh clients data
-
-        return publicUrl;
+        // Update profile in DB
+        await sb.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
+        showToast('Avatar atualizado com sucesso!', 'success');
+        _fetchGlobalAndClientProfiles();
+        return data.publicUrl;
     } catch (error: any) {
-        console.error("Admin avatar upload error:", error.message);
+        console.error("Error updating user avatar by admin:", error.message);
         showToast(`Erro ao atualizar avatar: ${error.message}`, 'error');
         return null;
     }
-  }, [showToast, logAuditAction, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
-      const sb = guardSupabase();
-      const zeros = { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
-      if (!sb) return zeros;
-      try {
-          const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
-          if (error) throw error;
-          if (data && data.length > 0) {
-              const s = data[0]; // Assuming RPC returns an array with a single object
-              return {
-                  totalRevenue: Number(s.total_revenue) || 0,
-                  totalViews: Number(s.total_views) || 0,
-                  totalSales: Number(s.total_sales) || 0,
-                  conversionRate: Number(s.conversion_rate) || 0,
-                  averageRating: Number(s.average_rating) || 0,
-                  totalReviews: Number(s.total_reviews) || 0
-              };
-          }
-          return zeros;
-      } catch (err: any) { 
-        console.error("Error fetching agency stats via RPC:", err.message);
-        showToast(`Erro ao buscar estatísticas da agência: ${err.message}.`, 'error');
-        return zeros; 
-      }
-  }, [guardSupabase, showToast]);
+    const sb = guardSupabase();
+    if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    
+    try {
+        // Fetch agency-specific trips
+        const agencyTrips = trips.filter(t => t.agencyId === agencyId);
+        const tripIds = agencyTrips.map(t => t.id);
 
+        // Calculate total sales and views
+        const totalSales = agencyTrips.reduce((sum, trip) => sum + (trip.sales || 0), 0);
+        const totalViews = agencyTrips.reduce((sum, trip) => sum + (trip.views || 0), 0);
+
+        // Fetch bookings for these trips
+        const { data: agencyBookings, error: bookingsError } = await sb.from('bookings')
+            .select('total_price')
+            .in('trip_id', tripIds)
+            .eq('status', 'CONFIRMED');
+
+        if (bookingsError) throw bookingsError;
+
+        const totalRevenue = agencyBookings ? agencyBookings.reduce((sum, b) => sum + b.total_price, 0) : 0;
+        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+
+        // Fetch reviews for the agency
+        const agencyReviewsFiltered = agencyReviews.filter(r => r.agencyId === agencyId);
+        const totalReviews = agencyReviewsFiltered.length;
+        const averageRating = totalReviews > 0 
+            ? agencyReviewsFiltered.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
+            : 0;
+
+        return {
+            totalRevenue,
+            totalViews,
+            totalSales,
+            conversionRate,
+            averageRating,
+            totalReviews
+        };
+
+    } catch (error: any) {
+        console.error("Error getting agency stats:", error.message);
+        showToast(`Erro ao buscar estatísticas da agência: ${error.message}`, 'error');
+        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    }
+  }, [trips, bookings, agencyReviews, showToast, guardSupabase]);
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
-      const sb = guardSupabase();
-      if (!sb) return null;
-      try {
-          const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).maybeSingle();
-          if (error) throw error;
-          if (data) {
-              return {
-                  agencyId: data.agency_id,
-                  colors: data.colors as ThemeColors, // Cast to ThemeColors
-                  updatedAt: data.updated_at
-              };
-          }
-          return null;
-      } catch (error: any) {
-          console.error("Error fetching agency theme:", error.message);
-          return null;
-      }
+    const sb = guardSupabase();
+    if (!sb) return null;
+    try {
+        const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).single();
+        if (error && error.code !== 'PGRST116') throw error; // PGRST116 means no rows found
+        if (data) {
+            return {
+                agencyId: data.agency_id,
+                colors: data.colors,
+                updatedAt: data.updated_at
+            };
+        }
+        return null;
+    } catch (error: any) {
+        console.error("Error fetching agency theme:", error.message);
+        return null;
+    }
   }, [guardSupabase]);
 
   const saveAgencyTheme = useCallback(async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
-      const sb = guardSupabase();
-      if (!sb) return false;
-      try {
-          const { error } = await sb.from('agency_themes').upsert(
-              {
-                  agency_id: agencyId,
-                  colors: colors,
-                  updated_at: new Date().toISOString()
-              },
-              { onConflict: 'agency_id' }
-          );
-          if (error) throw error;
-          showToast('Tema da agência salvo!', 'success');
-          return true;
-      } catch (error: any) {
-          console.error("Error saving agency theme:", error.message);
-          showToast(`Erro ao salvar tema da agência: ${error.message}`, 'error');
-          return false;
-      }
-  }, [showToast, guardSupabase]);
-
-  const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
-      const sb = guardSupabase();
-      if (!sb) {
-          console.warn("[DataContext] Supabase not configured for searchTrips. Falling back to mock data.");
-          showToast("Conexão falhou. Usando dados de demonstração para a busca de viagens.", "info");
-          // Fallback to local mock data filtering and sorting
-          const mockData = MOCK_TRIPS.filter(t => 
-              (!params.category || t.category === params.category) &&
-              (!params.query || t.title.toLowerCase().includes(params.query.toLowerCase()))
-          ).slice(0, params.limit || 10);
-          return { data: mockData, count: MOCK_TRIPS.length, error: "Modo Offline/Demo." };
-      }
-
-      let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
-
-      // Apply filters
-      if (params.agencyId) query = query.eq('agency_id', params.agencyId);
-      if (params.featured) query = query.eq('featured', true);
-      if (params.category) query = query.eq('category', params.category);
-      if (params.minPrice) query = query.gte('price', params.minPrice);
-      if (params.maxPrice) query = query.lte('price', params.maxPrice);
-      
-      // Text search
-      if (params.query) {
-          const searchTerm = `%${params.query.toLowerCase()}%`;
-          query = query.or(`title.ilike.${searchTerm},description.ilike.${searchTerm},destination.ilike.${searchTerm},tags.cs.{${params.query}}`); // Basic tag search
-      }
-
-      // Sorting
-      switch (params.sort) {
-          case 'LOW_PRICE': query = query.order('price', { ascending: true }); break;
-          case 'HIGH_PRICE': query = query.order('price', { ascending: false }); break;
-          case 'DATE_ASC': query = query.order('start_date', { ascending: true }); break;
-          case 'RATING': query = query.order('trip_rating', { ascending: false }); break;
-          case 'RELEVANCE': 
-          default: 
-              query = query.order('featured', { ascending: false }) // Featured first
-                           .order('views_count', { ascending: false }); // Then by views
-      }
-
-      // Pagination
-      const from = ((params.page || 1) - 1) * (params.limit || 10);
-      const to = from + (params.limit || 10) - 1;
-      query = query.range(from, to);
-
-      try {
-          const { data, error, count } = await query;
-          if (error) throw error;
-
-          const mappedTrips: Trip[] = data.map((t: any) => ({
-              id: t.id,
-              agencyId: t.agency_id,
-              title: t.title,
-              slug: t.slug,
-              description: t.description,
-              destination: t.destination,
-              price: t.price,
-              startDate: t.start_date,
-              endDate: t.end_date,
-              durationDays: t.duration_days,
-              images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [],
-              category: t.category,
-              tags: t.tags || [],
-              travelerTypes: t.traveler_types || [],
-              itinerary: t.itinerary,
-              boardingPoints: t.boarding_points,
-              paymentMethods: t.payment_methods,
-              is_active: t.is_active,
-              tripRating: t.trip_rating || 0,
-              tripTotalReviews: t.trip_total_reviews || 0,
-              included: t.included || [],
-              notIncluded: t.not_included || [],
-              views: t.views_count,
-              sales: t.sales_count,
-              featured: t.featured,
-              featuredInHero: t.featured_in_hero,
-              popularNearSP: t.popular_near_sp,
-              operationalData: t.operational_data || {}
-          }));
-          
-          return { data: mappedTrips, count: count || 0 };
-      } catch (error: any) {
-          console.error("Error searching trips:", error.message);
-          showToast(`Erro ao buscar viagens: ${error.message}. Carregando dados de exemplo.`, 'error');
-          
-          // Fallback to local mock data filtering (replicated from !sb block)
-          const mockData = MOCK_TRIPS.filter(t => 
-              (!params.category || t.category === params.category) &&
-              (!params.query || t.title.toLowerCase().includes(params.query.toLowerCase()))
-          ).slice(0, params.limit || 10);
-
-          return { data: mockData, count: MOCK_TRIPS.length, error: "Modo Offline/Demo." };
-      }
-  }, [showToast, guardSupabase]);
-
-  const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
-      const sb = guardSupabase();
-      if (!sb) return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
-
-      let query = sb.from('agencies').select('*', { count: 'exact' });
-
-      // Filter by active agencies only for public search
-      query = query.eq('is_active', true);
-
-      // Text search
-      if (params.query) {
-          const searchTerm = `%${params.query.toLowerCase()}%`;
-          query = query.or(`name.ilike.${searchTerm},description.ilike.${searchTerm},slug.ilike.${searchTerm}`);
-      }
-
-      // Specialty (simplified search across description/tags)
-      if (params.specialty) {
-          const specialtyTerm = `%${params.specialty.toLowerCase()}%`;
-          query = query.or(`description.ilike.${specialtyTerm},custom_settings->>tags.ilike.${specialtyTerm}`); // Assuming custom_settings.tags is a JSONB array of strings
-      }
-
-      // Sorting
-      switch (params.sort) {
-          case 'NAME': query = query.order('name', { ascending: true }); break;
-          case 'RATING': query = query.order('average_rating', { ascending: false }); break; // Assuming an average_rating column
-          case 'RELEVANCE': 
-          default: 
-              query = query.order('created_at', { ascending: false }); // Newest first for relevance
-      }
-
-      // Pagination
-      const from = ((params.page || 1) - 1) * (params.limit || 10);
-      const to = from + (params.limit || 10) - 1;
-      query = query.range(from, to);
-
-      try {
-          const { data, error, count } = await query;
-          if (error) throw error;
-
-          const mappedAgencies: Agency[] = data.map((a: any) => ({
-              id: a.user_id,
-              agencyId: a.id,
-              name: a.name,
-              email: a.email || '',
-              role: UserRole.AGENCY,
-              slug: a.slug || '',
-              whatsapp: a.whatsapp,
-              cnpj: a.cnpj,
-              description: a.description || '',
-              logo: a.logo_url || '',
-              is_active: a.is_active,
-              heroMode: a.hero_mode || 'TRIPS',
-              heroBannerUrl: a.hero_banner_url,
-              heroTitle: a.hero_title,
-              heroSubtitle: a.hero_subtitle,
-              customSettings: a.custom_settings || {},
-              subscriptionStatus: a.subscription_status || 'ACTIVE',
-              subscriptionPlan: 'BASIC',
-              subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(),
-              website: a.website,
-              phone: a.phone,
-              address: a.address || {},
-              bankInfo: a.bank_info || {}
-          }));
-
-          return { data: mappedAgencies, count: count || 0 };
-      } catch (error: any) {
-          console.error("Error searching agencies:", error.message);
-          showToast(`Erro ao buscar agências: ${error.message}`, 'error');
-          return { data: [], count: 0, error: error.message };
-      }
-  }, [showToast, guardSupabase]);
+    const sb = guardSupabase();
+    if (!sb) return false;
+    try {
+        const { error } = await sb.from('agency_themes').upsert(
+            { agency_id: agencyId, colors: colors },
+            { onConflict: 'agency_id' }
+        );
+        if (error) throw error;
+        showToast('Tema da agência salvo com sucesso!', 'success');
+        _fetchGlobalAndClientProfiles(); // Refresh to update any theme-dependent UI
+        return true;
+    } catch (error: any) {
+        console.error("Error saving agency theme:", error.message);
+        showToast(`Erro ao salvar tema da agência: ${error.message}`, 'error');
+        return false;
+    }
+  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const incrementTripViews = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
     if (!sb) return;
     try {
-        await sb.from('trips')
-            .rpc('increment_views', { trip_id_param: tripId, increment_value: 1 }); // Call RPC function
+        const { error } = await sb.rpc('increment_views', { trip_id_param: tripId, increment_value: 1 });
+        if (error) console.error("Error incrementing views:", error);
+    } catch (error) {
+        console.error("Error incrementing trip views (catch block):", error);
+    }
+  }, [guardSupabase]);
+
+  // Server-side search for trips
+  const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
+    const sb = guardSupabase();
+    if (!sb) return { data: [], count: 0, error: 'Supabase não configurado.' };
+
+    try {
+      let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
+
+      // Apply filters
+      if (params.agencyId) query = query.eq('agency_id', params.agencyId);
+      if (params.category) query = query.eq('category', params.category);
+      if (params.featured !== undefined) query = query.eq('featured', params.featured);
+      
+      if (params.query) {
+        const searchKeywords = params.query.split(' ').map(keyword => `%${keyword.toLowerCase()}%`);
+        query = query.or(`title.ilike.%${params.query}%,description.ilike.%${params.query}%,destination.ilike.%${params.query}%,tags.cs.{${params.query.toLowerCase()}}`);
+      }
+      
+      // Price range
+      if (params.minPrice) query = query.gte('price', params.minPrice);
+      if (params.maxPrice) query = query.lte('price', params.maxPrice);
+
+      // Sorting
+      switch (params.sort) {
+        case 'LOW_PRICE': query = query.order('price', { ascending: true }); break;
+        case 'HIGH_PRICE': query = query.order('price', { ascending: false }); break;
+        case 'DATE_ASC': query = query.order('start_date', { ascending: true }); break;
+        case 'RATING': query = query.order('trip_rating', { ascending: false }); break;
+        case 'RELEVANCE': // Placeholder for complex relevance sorting, may combine multiple fields
+        default: query = query.order('created_at', { ascending: false }); break; // Default to latest
+      }
+
+      // Pagination
+      const from = (params.page && params.limit) ? (params.page - 1) * params.limit : 0;
+      const to = (params.limit) ? from + params.limit - 1 : 9; // Default limit for UI if not specified
+
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      const mappedTrips: Trip[] = data.map((t: any) => ({
+          id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
+      }));
+      
+      return { data: mappedTrips, count: count || 0 };
+
     } catch (error: any) {
-        console.error("Error incrementing trip views:", error.message);
+      console.error("Error searching trips:", error.message);
+      return { data: [], count: 0, error: error.message };
+    }
+  }, [guardSupabase]);
+
+  // Server-side search for agencies
+  const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
+    const sb = guardSupabase();
+    if (!sb) return { data: [], count: 0, error: 'Supabase não configurado.' };
+
+    try {
+      let query = sb.from('agencies').select('*', { count: 'exact' });
+
+      // Ensure only active agencies are shown by default for public search
+      query = query.eq('is_active', true);
+
+      if (params.query) {
+        query = query.or(`name.ilike.%${params.query}%,description.ilike.%${params.query}%`);
+      }
+      
+      if (params.specialty) {
+        // This assumes 'specialty' can map to a tag in the custom_settings or description
+        // For a more robust solution, 'specialty' should be a defined column or tag list in the DB
+        query = query.ilike('custom_settings->>tags', `%${params.specialty}%`);
+      }
+
+      switch (params.sort) {
+        case 'NAME': query = query.order('name', { ascending: true }); break;
+        case 'RATING': 
+          // This requires a pre-calculated average_rating column or a more complex join/subquery
+          // For now, sorting by name or a placeholder if no rating column exists
+          query = query.order('name', { ascending: true }); 
+          break;
+        case 'RELEVANCE': // Placeholder
+        default: query = query.order('created_at', { ascending: false }); break;
+      }
+
+      const from = (params.page && params.limit) ? (params.page - 1) * params.limit : 0;
+      const to = (params.limit) ? from + params.limit - 1 : 8; // Default limit
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      const mappedAgencies: Agency[] = data.map((a: any) => ({
+          id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
+      }));
+
+      return { data: mappedAgencies, count: count || 0 };
+
+    } catch (error: any) {
+      console.error("Error searching agencies:", error.message);
+      return { data: [], count: 0, error: error.message };
     }
   }, [guardSupabase]);
 
   return (
-    <DataContext.Provider
-      value={{
-        agencies,
-        trips,
-        bookings,
-        reviews: [], // Reviews from `reviews` table are deprecated; use `agencyReviews`
-        agencyReviews,
-        clients,
-        auditLogs,
-        activityLogs,
-        loading,
-        searchTrips,
-        searchAgencies,
-        getTripBySlug,
-        getAgencyBySlug,
-        getTripById,
-        getAgencyPublicTrips,
-        getPublicTrips,
-        refreshData, // Full data refresh (global + user-specific)
-        addBooking,
-        addReview,
-        addAgencyReview,
-        deleteReview,
-        deleteAgencyReview,
-        updateAgencyReview,
-        toggleFavorite,
-        updateClientProfile,
-        updateAgencySubscription,
-        updateAgencyProfileByAdmin,
-        toggleAgencyStatus,
-        createTrip,
-        updateTrip,
-        deleteTrip,
-        toggleTripStatus,
-        toggleTripFeatureStatus,
-        updateTripOperationalData,
-        softDeleteEntity,
-        restoreEntity,
-        deleteUser,
-        deleteMultipleUsers,
-        deleteMultipleAgencies,
-        getUsersStats,
-        updateMultipleUsersStatus,
-        updateMultipleAgenciesStatus,
-        logAuditAction,
-        sendPasswordReset,
-        updateUserAvatarByAdmin,
-        getReviewsByTripId,
-        getReviewsByAgencyId,
-        getReviewsByClientId,
-        getAgencyStats,
-        getAgencyTheme,
-        saveAgencyTheme,
-        refreshUserData: useCallback(async () => { // Expose a dedicated user-data refresh
-            if (user) await _fetchBookingsForCurrentUser(user);
-        }, [user, _fetchBookingsForCurrentUser]),
-        incrementTripViews,
-      }}
-    >
+    <DataContext.Provider value={{
+      agencies,
+      trips,
+      bookings,
+      reviews: [], // Old Review is deprecated, keeping empty
+      agencyReviews,
+      clients,
+      auditLogs,
+      activityLogs,
+      loading,
+      searchTrips,
+      searchAgencies,
+      getTripBySlug,
+      getAgencyBySlug,
+      getTripById,
+      getAgencyPublicTrips,
+      getPublicTrips,
+      refreshData,
+      addBooking,
+      addReview,
+      addAgencyReview,
+      deleteReview,
+      deleteAgencyReview,
+      updateAgencyReview,
+      toggleFavorite,
+      updateClientProfile,
+      updateAgencySubscription,
+      updateAgencyProfileByAdmin,
+      toggleAgencyStatus,
+      createTrip,
+      updateTrip,
+      deleteTrip,
+      toggleTripStatus,
+      toggleTripFeatureStatus,
+      updateTripOperationalData,
+      softDeleteEntity,
+      restoreEntity,
+      deleteUser,
+      deleteMultipleUsers,
+      deleteMultipleAgencies,
+      getUsersStats,
+      updateMultipleUsersStatus,
+      updateMultipleAgenciesStatus,
+      logAuditAction,
+      sendPasswordReset,
+      updateUserAvatarByAdmin,
+      getReviewsByTripId,
+      getReviewsByAgencyId,
+      getReviewsByClientId,
+      getAgencyStats,
+      getAgencyTheme,
+      saveAgencyTheme,
+      refreshUserData: _fetchBookingsForCurrentUser, // Alias for user-specific data refresh
+      incrementTripViews,
+    }}>
       {children}
     </DataContext.Provider>
   );
