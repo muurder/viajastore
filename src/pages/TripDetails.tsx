@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -232,11 +231,13 @@ const TripDetails: React.FC = () => {
   };
 
   const nextPhoto = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     setPhotoIndex((prev) => (prev + 1) % (trip?.images?.length || 1));
   };
 
   const prevPhoto = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     setPhotoIndex((prev) => (prev - 1 + (trip?.images?.length || 1)) % (trip?.images?.length || 1));
   };
@@ -303,8 +304,8 @@ const TripDetails: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center animate-[fadeIn_0.2s]" onClick={closeLightbox}>
             <button onClick={closeLightbox} className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors z-50"><X size={32}/></button>
             
-            <button onClick={prevPhoto} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block"><ChevronLeft size={48}/></button>
-            <button onClick={nextPhoto} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block"><ChevronRight size={48}/></button>
+            <button onClick={prevPhoto} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block z-50"><ChevronLeft size={48}/></button>
+            <button onClick={nextPhoto} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 transition-colors hidden md:block z-50"><ChevronRight size={48}/></button>
             
             <div className="max-w-7xl max-h-[90vh] w-full px-4 flex items-center justify-center relative">
                 <img src={images[photoIndex]} alt="" className="max-w-full max-h-[85vh] object-contain rounded-md shadow-2xl" onClick={(e) => e.stopPropagation()} />
