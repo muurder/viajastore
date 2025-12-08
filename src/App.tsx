@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -21,9 +20,9 @@ import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <ThemeProvider>
-        <ToastProvider>
+    <ToastProvider> {/* Moved ToastProvider to the outermost layer */}
+      <AuthProvider>
+        <ThemeProvider>
           <DataProvider>
             <Router>
               <Routes>
@@ -73,9 +72,9 @@ const App: React.FC = () => {
               </Routes>
             </Router>
           </DataProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </AuthProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 

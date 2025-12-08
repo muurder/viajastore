@@ -92,6 +92,7 @@ const ClientDashboard: React.FC = () => {
     if (!authLoading && user?.role === UserRole.CLIENT) {
       await refreshAllData(); // Calls DataContext's refreshUserData
       // FIX: Pass the current user object to reloadUser
+      // Pass the current user object to `reloadUser` as it expects one argument.
       await reloadUser(user); // Reload AuthContext's user to get latest favorites/profile
     }
   }, [authLoading, user, refreshAllData, reloadUser]);
