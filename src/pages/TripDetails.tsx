@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Booking, Agency, Trip, UserRole } from '../types';
-import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight, BookOpen, Bus, Loader } from 'lucide-react';
+import { Booking, Agency, Trip, UserRole, ItineraryDay, BoardingPoint } from '../types';
+// Add ImageIcon to the import
+import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight, BookOpen, Bus, Loader, Plane, ImageIcon } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
@@ -30,7 +31,7 @@ const PassengerInput = React.memo(({
       type="text"
       value={value}
       onChange={(e) => onChange(index, field, e.target.value)}
-      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+      className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors"
       placeholder={placeholder}
       required={required}
     />
@@ -239,9 +240,12 @@ const TripDetails: React.FC = () => {
 
   if (!trip) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 py-12">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Viagem não encontrada</h2>
-        <button onClick={() => navigate(-1)} className="text-primary-600 font-bold hover:underline">Voltar</button>
+        <p className="text-gray-500 mb-6">Parece que esta viagem não está mais disponível ou nunca existiu.</p>
+        <button onClick={() => navigate(-1)} className="text-primary-600 font-bold hover:underline flex items-center gap-2">
+            <ArrowRight className="rotate-180" size={18}/> Voltar
+        </button>
       </div>
     );
   }
@@ -328,40 +332,83 @@ const TripDetails: React.FC = () => {
       }
   };
 
+  const firstImage = trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem';
+  const remainingImages = trip.images.slice(1);
+  const displayImages = trip.images.length > 0 ? trip.images : ['https://placehold.co/800x600?text=Sem+Imagem'];
+
   return (
     <div className="max-w-7xl mx-auto pb-12 pt-6 px-4 sm:px-6 lg:px-8">
       {/* Breadcrumb */}
       <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-900 mb-6 font-medium transition-colors">
-        <ChevronDown className="rotate-90 mr-1" size={20} /> Voltar
+        <ArrowRight className="rotate-180 mr-2" size={18} /> Voltar
       </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         
         {/* Left Column: Images & Content */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-10">
           
-          {/* Gallery */}
-          <div className="space-y-4">
+          {/* Gallery - Desktop Airbnb Style */}
+          <div className="hidden md:grid lg:grid-cols-5 gap-3 rounded-2xl overflow-hidden shadow-xl group">
+              <div className="lg:col-span-3 relative h-96">
+                  <img 
+                      src={firstImage} 
+                      alt={trip.title} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-l-2xl" 
+                  />
+                  <button onClick={handleFavorite} className={`absolute top-4 right-4 p-3 rounded-full bg-white shadow-md transition-transform hover:scale-110 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
+                      <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
+                  </button>
+              </div>
+              <div className="lg:col-span-2 grid grid-cols-2 gap-3">
+                  {remainingImages.slice(0, 4).map((img, idx) => (
+                      <img 
+                          key={idx} 
+                          src={img || 'https://placehold.co/400x300?text=Imagem'} 
+                          alt={`Imagem ${idx + 2}`} 
+                          className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 
+                          ${idx === 1 ? 'rounded-tr-2xl' : ''}
+                          ${idx === 3 ? 'rounded-br-2xl' : ''}
+                          `}
+                      />
+                  ))}
+                  {remainingImages.length < 4 && Array.from({length: 4 - remainingImages.length}).map((_, idx) => (
+                      <div key={`placeholder-${idx}`} className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400 rounded-lg">
+                          <ImageIcon size={32}/>
+                      </div>
+                  ))}
+              </div>
+          </div>
+
+          {/* Gallery - Mobile Carousel Style */}
+          <div className="block md:hidden space-y-4">
             <div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden shadow-sm relative group">
               <img 
-                src={trip.images[activeImageIndex] || 'https://placehold.co/800x600?text=Sem+Imagem'} 
+                src={displayImages[activeImageIndex]} 
                 alt={trip.title} 
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
               />
               <button onClick={handleFavorite} className={`absolute top-4 right-4 p-3 rounded-full bg-white shadow-md transition-transform hover:scale-110 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
                   <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
               </button>
+              {displayImages.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                    {displayImages.map((_, idx) => (
+                        <div key={idx} className={`w-2 h-2 rounded-full ${activeImageIndex === idx ? 'bg-primary-600' : 'bg-white/50'}`}></div>
+                    ))}
+                </div>
+              )}
             </div>
-            {trip.images.length > 1 && (
+            {displayImages.length > 1 && (
               <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                {trip.images.map((img, idx) => (
+                {displayImages.map((img, idx) => (
                   <button 
                     key={idx} 
                     onClick={() => setActiveImageIndex(idx)}
                     className={`flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
                   >
                     <img 
-                      src={img || 'https://placehold.co/80x60?text=Imagem'} 
+                      src={img} 
                       alt={`Thumbnail ${idx + 1}`} 
                       className="w-full h-full object-cover" 
                     />
@@ -371,13 +418,20 @@ const TripDetails: React.FC = () => {
             )}
           </div>
 
+
           {/* Trip Details */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">{trip.title}</h1>
-            <div className="flex items-center gap-4 text-gray-500 text-sm mb-6">
-              <span className="flex items-center"><MapPin size={16} className="mr-2"/> {trip.destination}</span>
-              <span className="flex items-center"><Calendar size={16} className="mr-2"/> {new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}</span>
-              <span className="flex items-center"><Clock size={16} className="mr-2"/> {trip.durationDays} dias</span>
+          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+            <h1 className="text-3xl font-extrabold text-gray-900 mb-4">{trip.title}</h1>
+            <div className="flex flex-wrap items-center gap-4 text-gray-500 text-sm mb-6">
+              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                <MapPin size={16}/> {trip.destination}
+              </span>
+              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 text-green-600 font-medium">
+                <Calendar size={16}/> {new Date(trip.startDate).toLocaleDateString()}
+              </span>
+              <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                <Clock size={16}/> {trip.durationDays} dias
+              </span>
             </div>
 
             {/* Price on mobile/tablet */}
@@ -394,26 +448,28 @@ const TripDetails: React.FC = () => {
                 </button>
             </div>
 
-            <p className="text-gray-600 leading-relaxed text-lg mb-6">{trip.description}</p>
+            <p className="text-gray-700 leading-relaxed text-lg mb-8">{trip.description}</p>
             
             {/* Agency Info */}
             {agency && (
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4 mb-6">
-                    <img src={agency.logo} alt={agency.name} className="w-12 h-12 rounded-full object-cover border border-gray-200"/>
+                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 flex items-center gap-4 mb-8">
+                    <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full object-cover border-2 border-gray-200"/>
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold">Organizado por</p>
-                        <Link to={`/${agency.slug}`} className="text-lg font-bold text-gray-900 hover:text-primary-600 transition-colors">{agency.name}</Link>
+                        <Link to={`/${agency.slug}`} className="text-lg font-bold text-gray-900 hover:text-primary-600 transition-colors flex items-center gap-2">
+                            {agency.name} <ShieldCheck size={16} className="text-green-500" />
+                        </Link>
                     </div>
                 </div>
             )}
 
             {/* Included */}
-            <div className="mb-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><Check size={20} className="mr-2 text-green-500"/> O que está incluso</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><Check size={24} className="mr-3 text-green-500"/> O que está incluso</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                 {trip.included.map((item, idx) => (
-                  <div key={idx} className="flex items-center text-gray-600 text-sm">
-                    <Check size={16} className="mr-2 text-green-400 flex-shrink-0"/> {item}
+                  <div key={idx} className="flex items-center text-gray-700 text-base">
+                    <Check size={20} className="mr-3 text-green-400 flex-shrink-0"/> {item}
                   </div>
                 ))}
               </div>
@@ -421,27 +477,35 @@ const TripDetails: React.FC = () => {
 
             {/* Not Included */}
             {trip.notIncluded && trip.notIncluded.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><X size={20} className="mr-2 text-red-500"/> Não está incluso</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><X size={24} className="mr-3 text-red-500"/> Não está incluso</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                   {trip.notIncluded.map((item, idx) => (
-                    <div key={idx} className="flex items-center text-gray-600 text-sm">
-                      <X size={16} className="mr-2 text-red-400 flex-shrink-0"/> {item}
+                    <div key={idx} className="flex items-center text-gray-700 text-base">
+                      <X size={20} className="mr-3 text-red-400 flex-shrink-0"/> {item}
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Itinerary */}
+            {/* Itinerary - Vertical Timeline */}
             {trip.itinerary && trip.itinerary.length > 0 && (
-                <div className="mb-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><BookOpen size={20} className="mr-2 text-primary-500"/> Roteiro Detalhado</h3>
-                    <div className="space-y-4">
-                        {trip.itinerary.map((day, idx) => (
-                            <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <h4 className="font-bold text-gray-900 text-lg mb-2">Dia {day.day}: {day.title}</h4>
-                                <p className="text-gray-700 text-sm">{day.description}</p>
+                <div className="mb-8">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center"><BookOpen size={24} className="mr-3 text-primary-500"/> Roteiro Detalhado</h3>
+                    <div className="relative pl-8 md:pl-12">
+                        {/* Timeline vertical line */}
+                        <div className="absolute left-3 md:left-6 top-0 h-full w-0.5 bg-gray-200"></div>
+                        {trip.itinerary.map((day: ItineraryDay, idx: number) => (
+                            <div key={idx} className="mb-8 last:mb-0 relative">
+                                {/* Timeline day marker */}
+                                <div className="absolute -left-5 md:-left-8 top-0 flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-lg shadow-md">
+                                    {day.day}
+                                </div>
+                                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 ml-4 md:ml-0">
+                                    <h4 className="font-bold text-gray-900 text-xl mb-2">{day.title}</h4>
+                                    <p className="text-gray-700 text-base leading-relaxed">{day.description}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -451,32 +515,31 @@ const TripDetails: React.FC = () => {
             {/* Boarding Points */}
             {trip.boardingPoints && trip.boardingPoints.length > 0 && (
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><Bus size={20} className="mr-2 text-primary-500"/> Pontos de Embarque</h3>
-                    <ul className="space-y-2">
-                        {trip.boardingPoints.map((bp, idx) => (
-                            <li key={idx} className="flex items-center text-gray-700 text-sm bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                <Clock size={16} className="mr-2 text-gray-500 flex-shrink-0"/>
-                                <span className="font-bold mr-2">{bp.time}</span>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-5 flex items-center"><Bus size={24} className="mr-3 text-primary-500"/> Pontos de Embarque</h3>
+                    <ul className="space-y-4">
+                        {trip.boardingPoints.map((bp: BoardingPoint, idx: number) => (
+                            <li key={idx} className="flex items-center text-gray-700 text-base bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
+                                <Clock size={20} className="mr-4 text-primary-500 flex-shrink-0"/>
+                                <span className="font-bold mr-3">{bp.time}</span>
                                 <span>{bp.location}</span>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
-
           </div>
         </div>
 
         {/* Right Column: Sticky Booking Card */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 sticky top-28">
+          <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100 sticky top-28 animate-[fadeInUp_0.5s]">
             <div className="flex justify-between items-center mb-4">
-              <p className="text-lg font-bold text-gray-900">Total</p>
-              <p className="text-3xl font-extrabold text-primary-600">R$ {totalPrice.toLocaleString('pt-BR')}</p>
+              <p className="text-lg font-bold text-gray-900">Total <span className="text-sm text-gray-500 font-normal">por pessoa</span></p>
+              <p className="text-4xl font-extrabold text-primary-600">R$ {totalPrice.toLocaleString('pt-BR')}</p>
             </div>
             <div className="mb-6">
-              <label htmlFor="passengers" className="block text-sm font-medium text-gray-700 mb-2">Número de Passageiros</label>
-              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+              <label htmlFor="passengers" className="block text-sm font-bold text-gray-700 mb-2">Número de Passageiros</label>
+              <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                 <button 
                   onClick={() => setPassengers(Math.max(1, passengers - 1))} 
                   className="p-3 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-bold"
@@ -501,7 +564,7 @@ const TripDetails: React.FC = () => {
             </div>
             <button 
                 onClick={() => setIsBookingModalOpen(true)}
-                className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-primary-600 to-primary-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:from-primary-700 hover:to-primary-600 transition-all hover:-translate-y-1 active:translate-y-0 active:shadow flex items-center justify-center gap-2"
             >
                 <ShoppingBag size={18} /> Reservar Agora
             </button>
@@ -510,7 +573,7 @@ const TripDetails: React.FC = () => {
                     href={whatsappLink} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="w-full bg-[#25D366] text-white font-bold py-3 rounded-xl shadow-lg hover:bg-[#128C7E] transition-colors active:scale-95 flex items-center justify-center gap-2 mt-3"
+                    className="w-full bg-[#25D366] text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-[#128C7E] transition-all hover:-translate-y-1 active:translate-y-0 active:shadow flex items-center justify-center gap-2 mt-3"
                 >
                     <MessageCircle size={18} className="fill-white/20"/> Falar no WhatsApp
                 </a>
@@ -522,61 +585,67 @@ const TripDetails: React.FC = () => {
       {/* Booking Modal */}
       {isBookingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setIsBookingModalOpen(false)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative animate-[scaleIn_0.3s] max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative animate-[scaleIn_0.3s] max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
             <button onClick={() => setIsBookingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Confirmar Reserva</h2>
             
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6 flex items-center gap-4">
-                <img src={trip.images[0]} alt={trip.title} className="w-20 h-16 object-cover rounded-lg"/>
+                <img src={firstImage} alt={trip.title} className="w-24 h-16 object-cover rounded-xl border border-gray-200"/>
                 <div>
                     <h3 className="font-bold text-gray-900 text-lg line-clamp-1">{trip.title}</h3>
-                    <p className="text-sm text-gray-500">{trip.destination} • {trip.durationDays} dias</p>
+                    <p className="text-sm text-gray-500 flex items-center gap-2">
+                        <MapPin size={14} className="text-gray-400"/>{trip.destination} • {trip.durationDays} dias
+                    </p>
                 </div>
             </div>
 
             <form onSubmit={handleBookingSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Detalhes dos Passageiros ({passengers})</label>
-                <div className="space-y-3">
+                <label className="block text-sm font-bold text-gray-700 mb-3">Detalhes dos Passageiros ({passengers})</label>
+                <div className="space-y-4">
                   {Array.from({ length: passengers }).map((_, idx) => (
-                    <div key={idx} className="flex flex-col md:flex-row gap-3 bg-gray-100 p-3 rounded-lg border border-gray-200">
-                        <div className="flex-1">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
-                            <PassengerInput 
-                                index={idx} 
-                                field="name" 
-                                value={passengerDetails[idx]?.name || ''} 
-                                onChange={handlePassengerChange} 
-                                placeholder={`Nome Passageiro ${idx + 1}`}
-                                required
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF (apenas 1º passageiro)</label>
-                            {/* Only make CPF required for the first passenger */}
-                            <PassengerInput 
-                                index={idx} 
-                                field="document" 
-                                value={passengerDetails[idx]?.document || ''} 
-                                onChange={handlePassengerChange} 
-                                placeholder={`CPF Passageiro ${idx + 1}`}
-                                required={idx === 0}
-                            />
+                    <div key={idx} className="bg-gray-100 p-4 rounded-xl border border-gray-200">
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-2">Passageiro {idx + 1}</p>
+                        <div className="flex flex-col md:flex-row gap-3">
+                            <div className="flex-1">
+                                <PassengerInput 
+                                    index={idx} 
+                                    field="name" 
+                                    value={passengerDetails[idx]?.name || ''} 
+                                    onChange={handlePassengerChange} 
+                                    placeholder="Nome Completo"
+                                    required
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <PassengerInput 
+                                    index={idx} 
+                                    field="document" 
+                                    value={passengerDetails[idx]?.document || ''} 
+                                    onChange={handlePassengerChange} 
+                                    placeholder={idx === 0 ? "CPF (Obrigatório)" : "CPF (Opcional)"}
+                                    required={idx === 0}
+                                />
+                            </div>
                         </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 text-center">
-                <p className="text-sm text-primary-700 font-bold uppercase mb-1">Valor Total da Reserva</p>
+              {/* Booking Summary */}
+              <div className="bg-primary-50 p-5 rounded-xl border border-primary-100 text-center shadow-md">
+                <p className="text-sm text-primary-700 font-bold uppercase mb-2">Valor Total da Reserva</p>
                 <p className="text-4xl font-extrabold text-primary-900">R$ {totalPrice.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-primary-600 mt-2 flex items-center justify-center gap-1.5">
+                    <Info size={14}/> Pagamento via PIX na confirmação.
+                </p>
               </div>
 
               <button 
                 type="submit" 
                 disabled={isBookingProcessing}
-                className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-green-600 to-green-500 text-white font-bold py-3.5 rounded-xl shadow-lg hover:from-green-700 hover:to-green-600 transition-all active:translate-y-0 active:shadow flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isBookingProcessing ? <Loader size={18} className="animate-spin" /> : <Check size={18} />} Finalizar Reserva
               </button>
