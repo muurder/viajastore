@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Lock, Search, Ticket, ArrowRight, Download, QrCode } from 'lucide-react';
+import { Link, useParams, useLocation } from 'react-router-dom';
+import { AlertTriangle, CheckCircle, Lock, Search, Ticket, ArrowRight, Download, QrCode, Share2, Users } from 'lucide-react';
 
 export const NotFound: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
@@ -31,8 +30,36 @@ export const Unauthorized: React.FC = () => (
 
 export const CheckoutSuccess: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>();
+  const location = useLocation();
+  const state = location.state as { booking?: any; passengers?: {name: string, document: string}[] } | null;
+  
+  const booking = state?.booking;
+  const passengers = state?.passengers || [];
+  
   const linkDashboard = agencySlug ? `/${agencySlug}/client/dashboard` : '/client/dashboard';
   const linkTrips = agencySlug ? `/${agencySlug}/trips` : '/trips';
+
+  // Use booking data if available, else fallback
+  const voucherCode = booking?.voucherCode || `#VS-${Math.floor(Math.random()*10000)}`;
+  const tripDate = booking?.date ? new Date(booking.date).toLocaleDateString() : new Date().toLocaleDateString();
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Minha Viagem ViajaStore',
+          text: `Reservei minha viagem${booking?._trip ? ` para ${booking._trip.title}` : ''}! Voucher: ${voucherCode}`,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.error('Error sharing', error);
+      }
+    } else {
+      // Fallback: Copy to clipboard
+      navigator.clipboard.writeText(`Reservei minha viagem! Voucher: ${voucherCode}`);
+      alert('Informações copiadas para a área de transferência!');
+    }
+  };
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 py-12 bg-gray-50 animate-[fadeIn_0.5s]">
@@ -62,27 +89,52 @@ export const CheckoutSuccess: React.FC = () => {
                   <div className="flex justify-between items-center border-b border-dashed border-gray-200 pb-4">
                       <div className="text-left">
                           <p className="text-xs text-gray-400 uppercase font-bold">Código da Reserva</p>
-                          <p className="text-xl font-mono font-bold text-gray-900">#VS-{Math.floor(Math.random()*10000)}</p>
+                          <p className="text-xl font-mono font-bold text-gray-900">{voucherCode}</p>
                       </div>
                       <div className="text-right">
                           <p className="text-xs text-gray-400 uppercase font-bold">Data</p>
-                          <p className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString()}</p>
+                          <p className="text-sm font-bold text-gray-900">{tripDate}</p>
                       </div>
                   </div>
 
                   <div className="bg-gray-50 p-4 rounded-xl flex items-center gap-4">
-                      <QrCode size={64} className="text-gray-800" />
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(voucherCode)}`} 
+                        alt="QR Code" 
+                        className="w-16 h-16 object-contain mix-blend-multiply opacity-80"
+                      />
                       <div className="text-left">
                           <p className="text-xs text-gray-500 leading-tight mb-1">Apresente este código ou acesse seu voucher digital no painel.</p>
                           <p className="text-xs font-bold text-primary-600 flex items-center"><Ticket size={12} className="mr-1"/> Voucher Digital</p>
                       </div>
                   </div>
 
+                  {passengers.length > 0 && (
+                    <div className="border-t border-dashed border-gray-200 pt-4">
+                        <p className="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center gap-1">
+                            <Users size={12}/> Passageiros ({passengers.length})
+                        </p>
+                        <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar text-left">
+                            {passengers.map((p, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm">
+                                    <span className="font-medium text-gray-700 truncate max-w-[60%]">{p.name}</span>
+                                    <span className="text-xs text-gray-400 font-mono">{p.document || '---'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3 pt-2">
-                      <Link to={linkDashboard} className="block w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex justify-center items-center gap-2 group">
-                          Ver Minhas Viagens <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/>
-                      </Link>
-                      <Link to={linkTrips} className="block w-full text-gray-500 py-3 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
+                      <div className="flex gap-3">
+                        <Link to={linkDashboard} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-black transition-all flex justify-center items-center gap-2 group text-sm">
+                            Minhas Viagens <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform"/>
+                        </Link>
+                        <button onClick={handleShare} className="bg-primary-50 text-primary-600 p-3 rounded-xl hover:bg-primary-100 transition-colors shadow-sm border border-primary-100" title="Compartilhar">
+                            <Share2 size={20} />
+                        </button>
+                      </div>
+                      <Link to={linkTrips} className="block w-full text-gray-500 py-2 rounded-xl font-bold text-xs hover:text-gray-700 transition-colors">
                           Continuar Explorando
                       </Link>
                   </div>

@@ -278,7 +278,14 @@ const TripDetails: React.FC = () => {
         setIsBookingModalOpen(false);
         showToast('Reserva realizada com sucesso!', 'success');
         const successLink = agencySlug ? `/${agencySlug}/checkout/success` : `/checkout/success`;
-        navigate(successLink, { state: { booking: createdBooking } });
+        
+        // Pass extra state: booking details + passenger details for the voucher
+        navigate(successLink, { 
+          state: { 
+            booking: createdBooking, 
+            passengers: passengerDetails 
+          } 
+        });
       } catch (error: any) {
         showToast(`Erro ao criar reserva: ${error.message}`, 'error');
       } finally {
