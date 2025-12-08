@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -249,6 +250,24 @@ const TripDetails: React.FC = () => {
       toggleFavorite(trip!.id, user.id);
   };
 
+  const handleShare = async () => {
+    if (!trip) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: trip.title,
+          text: trip.description,
+          url: window.location.href,
+        });
+      } catch (err) {
+        console.log('Share canceled');
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('Link copiado para a área de transferência!', 'success');
+    }
+  };
+
   const handleBookingSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!user) { showToast('Faça login para reservar.', 'info'); navigate('/#login'); return; }
@@ -331,7 +350,7 @@ const TripDetails: React.FC = () => {
                   <ArrowRight className="rotate-180 mr-2" size={18} /> Voltar
               </button>
               <div className="flex gap-4">
-                  <button className="text-gray-400 hover:text-gray-900 transition-colors"><Share2 size={20}/></button>
+                  <button onClick={handleShare} className="text-gray-400 hover:text-gray-900 transition-colors"><Share2 size={20}/></button>
                   <button onClick={handleFavorite} className={`text-gray-400 transition-colors ${isFavorite ? 'text-red-500 fill-current' : 'hover:text-red-500'}`}>
                       <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
                   </button>
