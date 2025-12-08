@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -59,24 +60,27 @@ const ClientDashboard: React.FC = () => {
   
   const isMicrositeMode = !!agencySlug;
 
-  const dataContextClient = clients.find(c => c.id === user?.id);
-  const currentClient = dataContextClient || (user as any); // Use dataContextClient if available, otherwise fallback to basic user
+  // Ensure user is defined before accessing its id or role
+  const dataContextClient = user ? clients.find(c => c.id === user.id) : undefined;
+  const currentClient = dataContextClient || (user as any); // Fallback to basic user if dataContextClient is undefined
 
+  // Fix: Initialize with empty defaults, will be populated by useEffect
   const [editForm, setEditForm] = useState({
-    name: currentClient?.name || user?.name || '',
-    email: currentClient?.email || user?.email || '',
-    phone: currentClient?.phone || '',
-    c``pf: currentClient?.cpf || ''
+    name: '',
+    email: '',
+    phone: '',
+    cpf: ''
   });
 
+  // Fix: Initialize with empty defaults, will be populated by useEffect
   const [addressForm, setAddressForm] = useState<Address>(() => ({
-     zipCode: currentClient?.address?.zipCode || '',
-     street: currentClient?.address?.street || '',
-     number: currentClient?.address?.number || '',
-     complement: currentClient?.address?.complement || '',
-     district: currentClient?.address?.district || '',
-     city: currentClient?.address?.city || '',
-     state: currentClient?.address?.state || ''
+     zipCode: '',
+     street: '',
+     number: '',
+     complement: '',
+     district: '',
+     city: '',
+     state: ''
   }));
 
   const [passForm, setPassForm] = useState({
@@ -114,6 +118,22 @@ const ClientDashboard: React.FC = () => {
       setGreeting(getRandomGreeting(user.name.split(' ')[0]));
     }
   }, [user?.name]);
+
+  // Effect to update forms when currentClient changes
+  useEffect(() => {
+      if (currentClient) {
+          setEditForm({
+              name: currentClient.name || '',
+              email: currentClient.email || '',
+              phone: currentClient.phone || '',
+              cpf: currentClient.cpf || ''
+          });
+          setAddressForm(currentClient.address || {
+              zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: ''
+          });
+      }
+  }, [currentClient]);
+
 
   useEffect(() => {
     if (!authLoading && user?.role === 'AGENCY' && !window.location.hash.includes('dashboard')) {
@@ -522,7 +542,7 @@ const ClientDashboard: React.FC = () => {
                                   rel="noopener noreferrer"
                                   className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
                                 >
-                                  <MessageCircle size={16} /> Falar com a Agência
+                                  <MessageCircle size={16} className="fill-white/20"/> Falar com a Agência
                                 </a>
                                )}
                            </div>
@@ -612,8 +632,8 @@ const ClientDashboard: React.FC = () => {
                           <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label> <input value={addressForm.number} onChange={e => setAddressForm({...addressForm, number: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
                           <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Comp.</label> <input value={addressForm.complement} onChange={e => setAddressForm({...addressForm, complement: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
                           <div className="md:col-span-2"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Bairro</label> <input value={addressForm.district} onChange={e => setAddressForm({...addressForm, district: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
-                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label> <input value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
-                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label> <input value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" /> </div>
+                          <div className="md:col-span-3"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label> <input value={addressForm.city} onChange={e => setAddressForm({...addressForm.city, city: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" /> </div>
+                          <div className="md:col-span-1"> <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label> <input value={addressForm.state} onChange={e => setAddressForm({...addressForm.state, state: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2" placeholder="UF" /> </div>
                       </div>
                   </div>
                   <button type="submit" disabled={isSaving} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">

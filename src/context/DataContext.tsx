@@ -175,26 +175,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setTrips(mappedTrips);
         }
 
-        // 3. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
-        const { data: clientsData } = await sb.from('profiles').select('*').eq('role', UserRole.CLIENT);
-        if (clientsData) {
-            const mappedClients: Client[] = clientsData.map((c: any) => ({
-                id: c.id, name: c.full_name, email: c.email, role: UserRole.CLIENT, avatar: c.avatar_url, cpf: c.cpf, phone: c.phone, favorites: c.favorites || [], address: c.address || {}, status: c.status, createdAt: c.created_at
+        // 3. Fetch all Favorites
+        const { data: favsData, error: favsError } = await sb.from('favorites').select('*');
+        if (favsError) {
+            console.error("[DataContext] Error fetching favorites:", favsError);
+        }
+        const allFavorites = favsData || [];
+
+        // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
+        const { data: profilesData } = await sb.from('profiles').select('*').eq('role', UserRole.CLIENT);
+        if (profilesData) {
+            const mappedClients: Client[] = profilesData.map((c: any) => ({
+                id: c.id, 
+                name: c.full_name, 
+                email: c.email, 
+                role: UserRole.CLIENT, 
+                avatar: c.avatar_url, 
+                cpf: c.cpf, 
+                phone: c.phone, 
+                // Populate favorites from the separate favorites table
+                favorites: allFavorites.filter((f: any) => f.user_id === c.id).map((f: any) => f.trip_id) || [], 
+                address: c.address || {}, 
+                status: c.status, 
+                createdAt: c.created_at
             }));
             setClients(mappedClients);
         }
 
-        // 4. Fetch Agency Reviews (without immediate client/agency lookup for stability)
+        // 5. Fetch Agency Reviews (without immediate client/agency lookup for stability)
         const { data: reviewsData } = await sb.from('agency_reviews').select('*');
         if (reviewsData) {
             setAgencyReviews(reviewsData.map((r: any) => ({
-                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, 
+                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, trip_id: r.trip_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, 
                 // Client/Agency names will be resolved by getters or in components that consume `agencyReviews`
                 clientName: undefined, agencyName: undefined, tripTitle: undefined,
             })));
         }
         
-        // 5. Fetch Audit Logs
+        // 6. Fetch Audit Logs
         const { data: auditLogsData } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false });
         if (auditLogsData) {
             setAuditLogs(auditLogsData.map((log: any) => ({
@@ -202,14 +220,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             })));
         }
 
-        // 6. Fetch Activity Logs
+        // 7. Fetch Activity Logs
         const { data: activityLogsData } = await sb.from('activity_logs').select('*').order('created_at', { ascending: false });
         if (activityLogsData) {
             setActivityLogs(activityLogsData.map((log: any) => ({
                 id: log.id, userId: log.user_id, actionType: log.action_type, details: log.details, createdAt: log.created_at
             })));
         }
-        console.log("[DataContext] Global data loaded. Agencies:", agenciesData?.length, "Trips:", tripsData?.length, "Clients:", clientsData?.length); // Debug Log
+        console.log("[DataContext] Global data loaded. Agencies:", agenciesData?.length, "Trips:", tripsData?.length, "Clients:", profilesData?.length); // Debug Log
 
     } catch (error: any) {
         console.error("[DataContext] Error fetching global and client profiles data:", error.message); // Debug Log
@@ -314,7 +332,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const subscriptions: any[] = [];
         
         // Subscribe to global data changes, triggering _fetchGlobalAndClientProfiles
-        const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'audit_logs', 'activity_logs', 'trip_images']; // Added trip_images
+        const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'activity_logs', 'trip_images', 'favorites']; // Added trip_images, favorites
         globalTablesToSubscribe.forEach(table => {
             subscriptions.push(sb.channel(`${table}_changes`).on('postgres_changes', { event: '*', schema: 'public', table: table }, payload => {
                 console.log(`[DataContext] Supabase Subscription: ${table} change received!`, payload); // Debug Log
@@ -629,43 +647,79 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const sb = guardSupabase();
       if (!sb) {
           console.warn("[DataContext] Supabase not configured, cannot toggle favorite."); // Debug Log
+          showToast('Erro de conexão. Não foi possível favoritar.', 'error');
+          return;
+      }
+      if (!userId) {
+          showToast('Usuário não autenticado.', 'info');
           return;
       }
       
-      const currentClients = clientsRef.current; // Use ref
-      const client = currentClients.find(c => c.id === userId);
-      if (!client) {
-          showToast('Cliente não encontrado.', 'error');
-          console.error("[DataContext] Client not found for toggleFavorite:", userId); // Debug Log
-          return;
-      }
+      console.log(`[DataContext] Toggling favorite for trip ${tripId} by user ${userId}.`); // Debug Log
 
-      const currentFavorites = client.favorites || [];
-      const isCurrentlyFavorite = currentFavorites.includes(tripId);
-      
-      let newFavorites;
-      let action: ActivityActionType; // Declare action with its type
-      if (isCurrentlyFavorite) {
-          newFavorites = currentFavorites.filter(id => id !== tripId);
-          action = ActivityActionType.FAVORITE_TOGGLED;
-          showToast('Removido dos favoritos.', 'info');
-      } else {
-          newFavorites = [...currentFavorites, tripId];
-          action = ActivityActionType.FAVORITE_TOGGLED;
-          showToast('Adicionado aos favoritos!', 'success');
-      }
-      console.log(`[DataContext] Toggling favorite for trip ${tripId} by user ${userId}. New status: ${!isCurrentlyFavorite}`); // Debug Log
+      // Optimistic UI update
+      setClients(prevClients => prevClients.map(client => {
+          if (client.id === userId) {
+              const currentFavorites = client.favorites || [];
+              const isCurrentlyFavorite = currentFavorites.includes(tripId);
+              const newFavorites = isCurrentlyFavorite
+                  ? currentFavorites.filter(id => id !== tripId)
+                  : [...currentFavorites, tripId];
+              showToast(isCurrentlyFavorite ? 'Removido dos favoritos.' : 'Adicionado aos favoritos!', isCurrentlyFavorite ? 'info' : 'success');
+              return { ...client, favorites: newFavorites };
+          }
+          return client;
+      }));
 
       try {
-          await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
-          logActivity(action, { tripId, userId, isFavorite: !isCurrentlyFavorite });
-          _fetchGlobalAndClientProfiles(); // Update local cache
-          console.log("[DataContext] Favorite toggled successfully."); // Debug Log
+          const { data: existingFav, error: selectError } = await sb
+              .from('favorites')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('trip_id', tripId)
+              .maybeSingle();
+
+          if (selectError) throw selectError;
+
+          if (existingFav) {
+              // Remove from favorites
+              const { error: deleteError } = await sb
+                  .from('favorites')
+                  .delete()
+                  .eq('id', existingFav.id);
+              if (deleteError) throw deleteError;
+              logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: false });
+              console.log(`[DataContext] Favorite removed: user ${userId}, trip ${tripId}`);
+          } else {
+              // Add to favorites
+              const { error: insertError } = await sb
+                  .from('favorites')
+                  .insert({ user_id: userId, trip_id: tripId });
+              if (insertError) throw insertError;
+              logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: true });
+              console.log(`[DataContext] Favorite added: user ${userId}, trip ${tripId}`);
+          }
+          // No need for _fetchGlobalAndClientProfiles() here if optimistic update is in place,
+          // unless external systems need to be aware immediately via subscription.
+          // For consistency, a subscription to 'favorites' table changes would trigger _fetchGlobalAndClientProfiles.
+
       } catch (error: any) {
-          console.error("[DataContext] Error toggling favorite:", error.message); // Debug Log
-          showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
+          console.error("[DataContext] Error toggling favorite in DB:", error.message); // Debug Log
+          // Rollback optimistic update if DB operation fails
+          setClients(prevClients => prevClients.map(client => {
+              if (client.id === userId) {
+                  const currentFavorites = client.favorites || [];
+                  const isCurrentlyFavorite = currentFavorites.includes(tripId); // This is the state *before* the failed DB op
+                  const rolledBackFavorites = isCurrentlyFavorite
+                      ? [...currentFavorites, tripId] // Re-add if it was removed
+                      : currentFavorites.filter(id => id !== tripId); // Re-remove if it was added
+                  return { ...client, favorites: rolledBackFavorites };
+              }
+              return client;
+          }));
+          showToast(`Erro ao atualizar favoritos: ${error.message}.`, 'error');
       }
-  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, clientsRef]); // clientsRef added to dependencies
+  }, [showToast, logActivity, guardSupabase, setClients]);
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
@@ -854,15 +908,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             description: trip.description,
             destination: trip.destination,
             price: trip.price,
-            start_date: trip.startDate,
-            end_date: trip.endDate,
-            duration_days: trip.durationDays,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            durationDays: trip.durationDays,
             category: trip.category,
             tags: trip.tags,
-            traveler_types: trip.travelerTypes,
+            travelerTypes: trip.travelerTypes,
             itinerary: trip.itinerary,
-            boarding_points: trip.boardingPoints,
-            payment_methods: trip.paymentMethods,
+            boardingPoints: trip.boardingPoints,
+            paymentMethods: trip.paymentMethods,
             is_active: trip.is_active,
             included: trip.included,
             notIncluded: trip.notIncluded,
@@ -1051,6 +1105,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               console.log("[DataContext] Deleting associated client data..."); // Debug Log
               await sb.from('bookings').delete().eq('client_id', id);
               await sb.from('agency_reviews').delete().eq('client_id', id);
+              await sb.from('favorites').delete().eq('user_id', id); // Delete favorites
           }
           await sb.from('profiles').delete().eq('id', id);
           
@@ -1085,6 +1140,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         // Delete all associated profiles
         await sb.from('profiles').delete().in('id', ids);
+        await sb.from('favorites').delete().in('user_id', ids); // Delete favorites for multiple users
         // Delete from auth.users (if service_role key is available and policies allow)
         for (const id of ids) {
             const { error: authError } = await sb.auth.admin.deleteUser(id);
