@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +11,7 @@ import {
   Plus, X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, DollarSign, Calendar, Image as ImageIcon,
   BookOpen, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, Trash2, ShieldCheck, Square, Globe, Timer, Home,
+  Upload // Added Upload icon
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 
@@ -18,10 +20,10 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
     'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 },
     'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
+    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 },
     'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
     'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, // 12 embaixo, 48 cima
+    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 },
     'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
 };
 
@@ -31,8 +33,6 @@ const DEFAULT_OPERATIONAL_DATA: OperationalData = {
     manualPassengers: []
 };
 
-// Helper arrays for TripCategory and TravelerType union types
-// FIX: Define explicit arrays for iterating over union types
 const ALL_TRIP_CATEGORIES: TripCategory[] = [
     'PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO',
     'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA',
@@ -47,11 +47,11 @@ const ALL_TRAVELER_TYPES: TravelerType[] = [
 interface CreateTripWizardProps {
   onClose: () => void;
   onSuccess: () => void;
-  initialTripData?: Partial<Trip>; // Optional: for editing existing trip
+  initialTripData?: Partial<Trip>;
 }
 
 const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess, initialTripData }) => {
-  const { user } = useAuth();
+  const { user, uploadImage } = useAuth(); // Import uploadImage
   const { createTrip, updateTrip, agencies } = useData();
   const { showToast } = useToast();
   
@@ -63,7 +63,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const [currentStep, setCurrentStep] = useState(0);
   const [tripData, setTripData] = useState<Partial<Trip>>(() => ({
-    agencyId: currentAgency?.agencyId || '', // Pre-fill agencyId
+    agencyId: currentAgency?.agencyId || '',
     title: '',
     slug: '',
     description: '',
@@ -73,8 +73,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     endDate: '',
     durationDays: 1,
     images: [],
-    // FIX: Ensure 'PRAIA' string literal is used
-    category: 'PRAIA', // Default category
+    category: 'PRAIA',
     tags: [],
     travelerTypes: [],
     itinerary: [],
@@ -85,13 +84,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     featuredInHero: false,
     popularNearSP: false,
     operationalData: initialTripData?.operationalData || DEFAULT_OPERATIONAL_DATA,
-    ...(initialTripData || {}) // Merge initial data if editing
+    ...(initialTripData || {})
   }));
+  
+  // NEW STATE: Files to upload
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Moved state from renderStep2 to top level
-  const [tempImageUrl, setTempImageUrl] = useState(''); // State for immediate preview
 
   // Calculate durationDays automatically
   useEffect(() => {
@@ -100,7 +99,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       const end = new Date(tripData.endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setTripData(prev => ({ ...prev, durationDays: diffDays + 1 })); // +1 to include start day
+      setTripData(prev => ({ ...prev, durationDays: diffDays + 1 }));
     } else {
         setTripData(prev => ({ ...prev, durationDays: 1 }));
     }
@@ -109,7 +108,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   // Set initial data if editing
   useEffect(() => {
       if (isEditing && initialTripData) {
-          // Ensure dates are correctly formatted for input type="date"
           const formattedStartDate = initialTripData.startDate ? new Date(initialTripData.startDate).toISOString().split('T')[0] : '';
           const formattedEndDate = initialTripData.endDate ? new Date(initialTripData.endDate).toISOString().split('T')[0] : '';
 
@@ -142,9 +140,12 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         newErrors.dates = "Data de início não pode ser maior que a data de fim.";
       }
     } else if (currentStep === 1) { // Media & Description
-      if (!tripData.images || tripData.images.length === 0) newErrors.images = "Adicione ao menos uma imagem.";
+      // Check both existing images AND pending uploads
+      const totalImages = (tripData.images?.length || 0) + filesToUpload.length;
+      if (totalImages === 0) newErrors.images = "Adicione ao menos uma imagem.";
+      
       if (!tripData.description || tripData.description.length < 50) newErrors.description = "Descrição precisa ter ao menos 50 caracteres.";
-    } else if (currentStep === 2) { // Logistics (Operational)
+    } else if (currentStep === 2) { // Logistics
       if (!tripData.operationalData?.transport?.vehicleConfig) {
         newErrors.vehicleConfig = "Selecione um layout de veículo.";
       }
@@ -158,7 +159,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [currentStep, tripData]);
+  }, [currentStep, tripData, filesToUpload]);
 
   const handleNext = () => {
     if (validateStep()) {
@@ -183,18 +184,30 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
     setIsLoading(true);
     try {
+      // 1. Upload Pending Files
+      const uploadedUrls: string[] = [];
+      if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+              const url = await uploadImage(file, 'trip-images');
+              if (url) uploadedUrls.push(url);
+          }
+      }
+
+      // 2. Combine with existing URLs
+      const finalImages = [...(tripData.images || []), ...uploadedUrls];
+
       const finalTrip: Trip = {
-        id: tripData.id || crypto.randomUUID(), // For new trips
+        id: tripData.id || crypto.randomUUID(),
         agencyId: currentAgency.agencyId,
         title: tripData.title!,
-        slug: tripData.slug || slugify(tripData.title!), // Generate slug if not provided
+        slug: tripData.slug || slugify(tripData.title!),
         description: tripData.description!,
         destination: tripData.destination!,
         price: tripData.price!,
         startDate: new Date(tripData.startDate!).toISOString(),
         endDate: new Date(tripData.endDate!).toISOString(),
         durationDays: tripData.durationDays!,
-        images: tripData.images!,
+        images: finalImages, // Use consolidated images
         category: tripData.category!,
         tags: tripData.tags!,
         travelerTypes: tripData.travelerTypes!,
@@ -271,12 +284,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-2">Categoria <span className="text-red-500">*</span></label>
           <select
-            // FIX: Use string literal for default value
             value={tripData.category || 'PRAIA'}
             onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
             className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none cursor-pointer"
           >
-            {/* FIX: Use helper array for mapping */}
             {ALL_TRIP_CATEGORIES.map(cat => (
               <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
             ))}
@@ -315,30 +326,29 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     </div>
   );
 
-  // --- Step 2: Mídia & Descrição ---
+  // --- Step 2: Mídia & Descrição (Refactored) ---
   const renderStep2 = () => {
-    // Removed useState declaration for tempImageUrl from here. It's now at the top-level.
-    const isUrlValid = (url: string) => {
-        try {
-            new URL(url);
-            return url.startsWith('http');
-        } catch {
-            return false;
-        }
-    };
-
-    const handleAddImage = () => {
-      if (tempImageUrl && !tripData.images?.includes(tempImageUrl) && isUrlValid(tempImageUrl)) {
-        setTripData(prev => ({ ...prev, images: [...(prev.images || []), tempImageUrl] }));
-        setTempImageUrl('');
-      } else if (!isUrlValid(tempImageUrl)) {
-        showToast("URL de imagem inválida.", "error");
+    // Handler for File Input
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        setFilesToUpload(prev => [...prev, ...Array.from(e.target.files!)]);
       }
     };
-    const handleRemoveImage = (urlToRemove: string) => {
-      setTripData(prev => ({ ...prev, images: (prev.images || []).filter(url => url !== urlToRemove) }));
+
+    // Remove Existing URL
+    const handleRemoveUrl = (urlToRemove: string) => {
+        setTripData(prev => ({ 
+            ...prev, 
+            images: (prev.images || []).filter(url => url !== urlToRemove) 
+        }));
     };
 
+    // Remove Pending File
+    const handleRemoveFile = (indexToRemove: number) => {
+        setFilesToUpload(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    };
+
+    // Tag Logic
     const handleAddTag = (tagText: string) => {
         const cleanedTag = tagText.trim().toLowerCase();
         if (cleanedTag && !tripData.tags?.includes(cleanedTag)) {
@@ -349,6 +359,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         setTripData(prev => ({ ...prev, tags: (prev.tags || []).filter(tag => tag !== tagToRemove) }));
     };
 
+    // Include/Exclude Logic
     const handleAddIncluded = (itemText: string) => {
         const cleanedItem = itemText.trim();
         if (cleanedItem && !tripData.included?.includes(cleanedItem)) {
@@ -382,52 +393,60 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       <div className="space-y-6">
         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
           <label className="block text-sm font-bold text-gray-700 mb-2">Imagens do Pacote <span className="text-red-500">*</span></label>
-          <div className="flex flex-col md:flex-row gap-3 items-start">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="url"
-                  value={tempImageUrl}
-                  onChange={e => setTempImageUrl(e.target.value)}
-                  className={`flex-1 border ${errors.images ? 'border-red-500' : 'border-gray-300'} rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none`}
-                  placeholder="Cole o link direto da imagem (ex: https://site.com/imagem.jpg)"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddImage}
-                  disabled={!isUrlValid(tempImageUrl)}
-                  className="bg-primary-600 text-white px-4 py-2.5 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus size={16} /> Adicionar
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mb-2">Cole o link direto da imagem (JPG/PNG).</p>
-            </div>
-            
-            {isUrlValid(tempImageUrl) && (
-              <div className="w-24 h-16 rounded-lg overflow-hidden border border-gray-300 flex-shrink-0 relative">
-                <img src={tempImageUrl} alt="Preview" className="w-full h-full object-cover"/>
-                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded-sm">Preview</span>
-              </div>
-            )}
+          
+          {/* File Upload Dropzone */}
+          <div className="mb-4">
+            <label 
+              htmlFor="img-upload" 
+              className="flex flex-col items-center justify-center w-full h-32 border-2 border-primary-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-primary-50 transition-colors"
+            >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="w-8 h-8 text-primary-500 mb-2" />
+                    <p className="text-sm text-gray-500"><span className="font-bold text-primary-600">Clique para carregar</span> ou arraste fotos aqui</p>
+                    <p className="text-xs text-gray-400">PNG, JPG ou WEBP</p>
+                </div>
+                <input id="img-upload" type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+            </label>
           </div>
           
           {errors.images && <p className="text-red-500 text-xs mt-1">{errors.images}</p>}
+          
+          {/* Hybrid Preview Grid */}
           <div className="grid grid-cols-3 md:grid-cols-4 gap-3 mt-3">
+            {/* 1. Existing URLs */}
             {tripData.images?.map((url, index) => (
-              <div key={index} className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200">
-                <img src={url} alt={`Imagem ${index + 1}`} className="w-full h-full object-cover" />
+              <div key={`url-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200 group">
+                <img src={url} alt={`Existente ${index}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
-                  onClick={() => handleRemoveImage(url)}
-                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                  onClick={() => handleRemoveUrl(url)}
+                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  title="Remover"
                 >
                   <X size={14} />
                 </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] px-1 py-0.5 text-center truncate">Salvo</div>
+              </div>
+            ))}
+
+            {/* 2. Pending Files */}
+            {filesToUpload.map((file, index) => (
+              <div key={`file-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-amber-200 ring-1 ring-amber-300 group">
+                <img src={URL.createObjectURL(file)} alt={`Novo ${index}`} className="w-full h-full object-cover opacity-90" />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(index)}
+                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                  title="Remover"
+                >
+                  <X size={14} />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-amber-500 text-white text-[9px] px-1 py-0.5 text-center font-bold">Novo Upload</div>
               </div>
             ))}
           </div>
         </div>
+
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa <span className="text-red-500">*</span></label>
           <textarea
@@ -471,7 +490,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Ideal para</label>
                 <div className="flex flex-wrap gap-2">
-                    {/* FIX: Use helper array for mapping */}
                     {ALL_TRAVELER_TYPES.map(type => (
                         <button
                             type="button"
@@ -816,7 +834,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             className="h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"
           />
           <span className="text-sm font-bold text-gray-700">Publicar agora</span>
-          {/* FIX: Removed unsupported 'title' prop from Info icon */}
           <Info size={16} className="text-gray-400" />
         </label>
         <p className="text-xs text-gray-500 mt-1 pl-8">Desmarque para salvar como rascunho e publicar depois.</p>
@@ -831,7 +848,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             className="h-5 w-5 rounded text-amber-600 border-gray-300 focus:ring-amber-500"
           />
           <span className="text-sm font-bold text-gray-700">Destacar na ViajaStore</span>
-          {/* FIX: Removed unsupported 'title' prop from ShieldCheck icon */}
           <ShieldCheck size={16} className="text-amber-500" />
         </label>
         <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá na Home do marketplace (sujeito a aprovação do Admin).</p>
@@ -846,7 +862,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             className="h-5 w-5 rounded text-purple-600 border-gray-300 focus:ring-purple-500"
           />
           <span className="text-sm font-bold text-gray-700">Destacar no meu Microsite</span>
-          {/* FIX: Removed unsupported 'title' prop from Home icon */}
           <Home size={16} className="text-purple-500" />
         </label>
         <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá no carrossel principal da sua página de agência.</p>
@@ -861,7 +876,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             className="h-5 w-5 rounded text-green-600 border-gray-300 focus:ring-green-500"
           />
           <span className="text-sm font-bold text-gray-700">Popular perto de SP</span>
-          {/* FIX: Removed unsupported 'title' prop from Globe icon */}
           <Globe size={16} className="text-green-500" />
         </label>
         <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá como sugestão para usuários da região de São Paulo.</p>
