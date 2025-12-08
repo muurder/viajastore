@@ -50,7 +50,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // 0. Check if Master Admin via Hardcoded Email (Security fallback)
       if (email === 'juannicolas1@gmail.com') {
-          console.log("[AuthContext] User identified as Master Admin"); // Debug Log
+          console.log("[AuthContext] fetchUserData: User identified as Master Admin"); // Debug Log
           const masterUser: Admin = {
              id: authId,
              name: 'Master Admin',
@@ -60,6 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              createdAt: new Date().toISOString()
           };
           setUser(masterUser);
+          console.log("[AuthContext] fetchUserData: Master Admin data set for:", email); // Debug Log
           return;
       }
 
@@ -106,6 +107,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               subscriptionExpiresAt: new Date().toISOString(),
             };
             setUser(tempAgency);
+            console.log("[AuthContext] fetchUserData: Temporary Agency data set for:", email); // Debug Log
             return;
           }
 
@@ -137,6 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             bankInfo: agencyData.bank_info || {}
           };
           setUser(agencyUser);
+          console.log("[AuthContext] fetchUserData: Agency data set for:", email); // Debug Log
           return;
         }
 
@@ -165,12 +168,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } as Client;
 
         setUser(genericUser);
+        console.log("[AuthContext] fetchUserData: Client/Admin data set for:", email); // Debug Log
         return;
       } else {
           console.warn("[AuthContext] No profile found for user:", authId); // Debug Log
       }
       
       setUser(null); 
+      console.log("[AuthContext] fetchUserData: No user data found, setting user to null."); // Debug Log
 
     } catch (error) {
       console.error("[AuthContext] Exception in fetchUserData:", error);
@@ -181,7 +186,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // FIX: Updated `reloadUser` to accept `currentUser` object
   const reloadUser = async (currentUser: User | Client | Agency | Admin | null) => {
     if (currentUser && currentUser.email) {
+        console.log("[AuthContext] reloadUser: Initiating re-fetch for current user:", currentUser.email); // Debug Log
         await fetchUserData(currentUser.id, currentUser.email);
+    } else {
+        console.log("[AuthContext] reloadUser: No current user to reload or email missing."); // Debug Log
     }
   };
 
@@ -194,6 +202,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const userAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
       // Get phone from authUser if available, otherwise null
       const userPhone = authUser.user_metadata?.phone_number || null;
+
+      console.log("[AuthContext] ensureUserRecord: Ensuring DB record for:", userEmail, "Role:", role); // Debug Log
 
       try {
           // ALWAYS create a profile record first
@@ -226,14 +236,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   // Removed 'id' from select, as it's not needed for just checking existence and can sometimes cause issues.
                   const { data: existing } = await supabase.from('agencies').select('user_id').eq('user_id', userId).maybeSingle();
                   if (!existing) {
-                      console.error("RPC ensureUserRecord failed:", agencyError);
+                      console.error("[AuthContext] RPC ensureUserRecord failed:", agencyError); // Debug Log
                       throw agencyError;
                   }
+                  console.log("[AuthContext] ensureUserRecord: Agency already exists, ignoring RPC error."); // Debug Log
               }
           }
+          console.log("[AuthContext] ensureUserRecord: DB record ensured successfully."); // Debug Log
           return true;
       } catch (err: any) {
-          console.error("Error ensuring user record:", err.message);
+          console.error("[AuthContext] Error ensuring user record:", err.message); // Debug Log
           return false;
       }
   };
@@ -241,8 +253,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initializeAuth = async () => {
       setLoading(true);
+      console.log("[AuthContext] Initializing Auth..."); // Debug Log
 
       if (!supabase) {
+        console.warn("[AuthContext] Supabase client not initialized."); // Debug Log
         setUser(null);
         setLoading(false);
         return;
@@ -254,6 +268,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log("[AuthContext] Session found on init", session.user.email); // Debug Log
         const pendingRole = localStorage.getItem('viajastore_pending_role');
         if (pendingRole) {
+            console.log("[AuthContext] Pending role found:", pendingRole); // Debug Log
             await ensureUserRecord(session.user, pendingRole);
             localStorage.removeItem('viajastore_pending_role');
         }
@@ -263,11 +278,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(null);
       }
       setLoading(false);
+      console.log("[AuthContext] Auth initialization finished. User:", user ? user.email : "none"); // Debug Log
 
       const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
         console.log("[AuthContext] Auth State Change:", event, session?.user?.email); // Debug Log
         if (session?.user) {
           if (event === 'SIGNED_IN') {
+             console.log("[AuthContext] Event: SIGNED_IN"); // Debug Log
              const pendingRole = localStorage.getItem('viajastore_pending_role');
              if (pendingRole) {
                  const success = await ensureUserRecord(session.user, pendingRole);
@@ -277,10 +294,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              }
              await fetchUserData(session.user.id, session.user.email!);
           } else if (event === 'USER_UPDATED') {
+             console.log("[AuthContext] Event: USER_UPDATED"); // Debug Log
              await fetchUserData(session.user.id, session.user.email!);
           }
         } else if (event === 'SIGNED_OUT') {
-          console.log("[AuthContext] SIGNED_OUT, clearing user state."); // Debug Log
+          console.log("[AuthContext] Event: SIGNED_OUT, clearing user state."); // Debug Log
           setUser(null);
           localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
         }
@@ -297,6 +315,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
     setLoading(true); // Ensure loading is set at the start of login
+    console.log("[AuthContext] Attempting login for:", email); // Debug Log
     try {
       const { error } = await (supabase.auth as any).signInWithPassword({
         email,
@@ -306,12 +325,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) {
         const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
         setLoading(false); // Reset loading on error
+        console.error("[AuthContext] Login failed:", error.message); // Debug Log
         return { success: false, error: msg };
       }
       setLoading(false); // Reset loading on success
+      console.log("[AuthContext] Login successful for:", email); // Debug Log
       return { success: true };
     } catch (networkError: any) {
-      console.error("Network or unexpected error during login:", networkError);
+      console.error("[AuthContext] Network or unexpected error during login:", networkError); // Debug Log
       setLoading(false); // Reset loading on network error
       return { success: false, error: "Erro de conexão. Verifique sua internet." };
     }
@@ -325,6 +346,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (role) {
         localStorage.setItem('viajastore_pending_role', role);
+        console.log("[AuthContext] Setting pending role for Google login:", role); // Debug Log
     } else {
         localStorage.removeItem('viajastore_pending_role');
     }
@@ -336,18 +358,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         queryParams: { access_type: 'offline', prompt: 'consent' }
       }
     });
-    if (error) console.error("Google login error:", error);
+    if (error) console.error("[AuthContext] Google login error:", error); // Debug Log
   };
 
   const logout = async () => {
     if (supabase) {
-      console.log("[AuthContext] Logout triggered. Clearing all local storage and user state.");
+      console.log("[AuthContext] Logout triggered. Clearing all local storage and user state."); // Debug Log
       // Clear all local storage data immediately
       localStorage.clear(); 
       setUser(null); // Clear user state
       // Attempt to sign out with Supabase, but catch any errors silently
       await (supabase.auth as any).signOut().catch((e: any) => {
-          console.error("Silent Supabase signout failed:", e);
+          console.error("[AuthContext] Silent Supabase signout failed:", e); // Debug Log
       });
     }
   };
@@ -355,6 +377,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (data: any, role: UserRole): Promise<RegisterResult> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     
+    console.log("[AuthContext] Attempting registration for:", data.email, "Role:", role); // Debug Log
+
     // 1. Create Auth User
     const { data: authData, error: authError } = await (supabase.auth as any).signUp({
       email: data.email,
@@ -368,8 +392,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if (authError) {
         if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
+            console.warn("[AuthContext] Registration failed: Email already registered."); // Debug Log
              return { success: false, error: 'Este e-mail já está cadastrado. Por favor, faça login.' };
         }
+        console.error("[AuthContext] Auth registration failed:", authError.message); // Debug Log
         return { success: false, error: authError.message };
     }
     
@@ -377,6 +403,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // If user is created in auth but not immediately signed in (e.g., email confirmation)
     if (!userId) {
+        console.log("[AuthContext] Auth user created, but not signed in (email confirmation likely needed)."); // Debug Log
         return { success: true, message: 'Verifique seu email para confirmar o cadastro.', role: role, email: data.email };
     }
 
@@ -394,7 +421,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }, { onConflict: 'id' });
 
       if (profileError) {
-          console.error("Profile Upsert Error:", profileError);
+          console.error("[AuthContext] Profile Upsert Error:", profileError); // Debug Log
           throw profileError;
       }
 
@@ -414,7 +441,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         
         if (agencyError) {
-            console.error("Supabase Agency RPC Insert Error:", agencyError);
+            console.error("[AuthContext] Supabase Agency RPC Insert Error:", agencyError); // Debug Log
             throw agencyError;
         }
       }
@@ -422,15 +449,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // If we reach here, DB operations succeeded
       // Force fetch the user data so the context updates immediately
       await fetchUserData(userId, data.email);
+      console.log("[AuthContext] Registration successful, DB records created."); // Debug Log
       
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 
     } catch (dbError: any) {
-      console.error("DB Registration Process Failed:", dbError);
+      console.error("[AuthContext] DB Registration Process Failed:", dbError); // Debug Log
       
       // SPECIAL HANDLING: If error is Schema Cache (PGRST204) BUT the user was created in Auth
       if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache') || dbError.message?.includes('user_id')) {
-        console.warn("Recovering from Schema Cache error - treating as success to allow login.");
+        console.warn("[AuthContext] Recovering from Schema Cache error - treating as success to allow login."); // Debug Log
         
         const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
         
@@ -482,6 +510,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!user) return { success: false, error: 'Usuário não logado' };
     
+    console.log("[AuthContext] updateUser: Attempting to update user data for:", user.email, "Updates:", userData); // Debug Log
+
     try {
       // Fix: Normalize emails to avoid unnecessary Auth API calls and 429 errors.
       let shouldUpdateAuthEmail = false;
@@ -491,6 +521,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Only flag for update if they are genuinely different
           if (newEmail !== currentEmail) {
               shouldUpdateAuthEmail = true;
+              console.log("[AuthContext] updateUser: Email change detected, will update Auth email."); // Debug Log
           }
       }
 
@@ -498,6 +529,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (shouldUpdateAuthEmail && userData.email) {
           const { error } = await (supabase.auth as any).updateUser({ email: userData.email });
           if (error) throw error;
+          console.log("[AuthContext] updateUser: Auth email updated successfully."); // Debug Log
       }
 
       if (user.role === UserRole.AGENCY) {
@@ -532,9 +564,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
         if (error) {
              // Fallback: If update fails, maybe the record was never created (rare). Try Upsert.
-             console.warn("Update failed, trying upsert...", error);
+             console.warn("[AuthContext] Agency update failed, trying upsert...", error); // Debug Log
              await supabase.from('agencies').upsert({ user_id: user.id, ...updates }, { onConflict: 'user_id' });
         }
+        console.log("[AuthContext] Agency DB profile updated."); // Debug Log
         
       } else {
         const updates: any = {};
@@ -548,27 +581,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
         if (error) throw error;
+        console.log("[AuthContext] Client DB profile updated."); // Debug Log
       }
 
       // After successful DB update, update the local AuthContext user state
       setUser({ ...user, ...userData } as any);
+      console.log("[AuthContext] Local user state updated after DB save."); // Debug Log
       return { success: true };
 
     } catch (error: any) {
-        console.error("Error updating user", error);
+        console.error("[AuthContext] Error updating user:", error); // Debug Log
         return { success: false, error: error.message };
     }
   };
 
   const updatePassword = async (password: string) => {
       if (!supabase) return { success: false, error: 'Backend não configurado.' };
+      console.log("[AuthContext] Attempting to update password."); // Debug Log
       const { error } = await (supabase.auth as any).updateUser({ password });
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.error("[AuthContext] Password update failed:", error.message); // Debug Log
+        return { success: false, error: error.message };
+      }
+      console.log("[AuthContext] Password updated successfully."); // Debug Log
       return { success: true };
   };
 
   const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
       if (!supabase) return null;
+      if (!user) {
+        console.warn("[AuthContext] Cannot upload image: No user logged in."); // Debug Log
+        return null;
+      }
+      console.log("[AuthContext] Attempting to upload image to bucket:", bucket); // Debug Log
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
@@ -580,9 +625,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (uploadError) throw uploadError;
 
           const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+          console.log("[AuthContext] Image uploaded successfully. URL:", data.publicUrl); // Debug Log
           return data.publicUrl;
       } catch (error) {
-          console.error("Upload error:", error);
+          console.error("[AuthContext] Upload error:", error); // Debug Log
           return null;
       }
   };
@@ -591,24 +637,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!supabase) return { success: false, error: "Backend não configurado." };
     if (!user) return { success: false, error: "Usuário não autenticado" };
 
+    console.log("[AuthContext] Attempting to delete account for:", user.email); // Debug Log
+
     try {
       // First, re-authenticate the user if password is provided (for security)
       // Supabase's deleteUser doesn't take password, but we can do a dummy login to verify.
       if (password) {
+        console.log("[AuthContext] Re-authenticating user for deletion verification."); // Debug Log
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: user.email,
           password: password,
         });
         if (signInError) {
+          console.error("[AuthContext] Re-authentication failed:", signInError.message); // Debug Log
           throw new Error('Credenciais inválidas. Não foi possível verificar a senha para exclusão.');
         }
       }
 
       // Delete associated DB records (profiles, agencies, client-specific data)
+      console.log("[AuthContext] Deleting associated DB records..."); // Debug Log
       if (user.role === UserRole.CLIENT) {
         await supabase.from('bookings').delete().eq('client_id', user.id);
         await supabase.from('agency_reviews').delete().eq('client_id', user.id);
         await supabase.from('profiles').delete().eq('id', user.id);
+        console.log("[AuthContext] Client DB records deleted."); // Debug Log
       } else if (user.role === UserRole.AGENCY) {
         // More complex deletion for agency: trips, reviews, then agency, then profile
         const { data: agencyData } = await supabase.from('agencies').select('id').eq('user_id', user.id).single();
@@ -618,29 +670,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await supabase.from('agencies').delete().eq('id', agencyData.id);
         }
         await supabase.from('profiles').delete().eq('id', user.id);
+        console.log("[AuthContext] Agency DB records deleted."); // Debug Log
       } else if (user.role === UserRole.ADMIN) {
          // Admin deletion should be handled via admin dashboard or a separate protected function.
          // For a client-side delete, we assume an admin wouldn't self-delete this way.
+         console.warn("[AuthContext] Attempted to delete Admin account via client-side function."); // Debug Log
          throw new Error("Admin accounts cannot be deleted via client dashboard.");
       }
 
       // Finally, delete the Auth user (this requires admin privileges or RLS setup correctly for current user)
+      console.log("[AuthContext] Attempting to delete Auth user."); // Debug Log
       const { error: authDeleteError } = await (supabase.auth as any).admin.deleteUser(user.id);
       if (authDeleteError) {
-        console.warn(`Could not delete Auth user ${user.id}: ${authDeleteError.message}`);
+        console.warn(`[AuthContext] Could not delete Auth user ${user.id} using admin API: ${authDeleteError.message}. Attempting self-delete.`); // Debug Log
         // If admin.deleteUser fails (e.g., not service_role key), try client-side self-delete
         const { error: selfDeleteError } = await supabase.auth.signOut(); // Ensure sign out first
-        if (selfDeleteError) console.warn("Error signing out user before self-delete:", selfDeleteError);
+        if (selfDeleteError) console.warn("[AuthContext] Error signing out user before self-delete:", selfDeleteError); // Debug Log
         const { error: finalAuthError } = await (supabase.auth as any).deleteUser(); // This is for the logged-in user
         if (finalAuthError) throw finalAuthError;
+        console.log("[AuthContext] Auth user self-deleted successfully."); // Debug Log
+      } else {
+        console.log("[AuthContext] Auth user deleted successfully via admin API."); // Debug Log
       }
       
       setUser(null);
       localStorage.clear(); // Ensure all local session data is gone
+      console.log("[AuthContext] Account deleted successfully. User state and local storage cleared."); // Debug Log
       return { success: true };
 
     } catch (error: any) {
-      console.error("Erro ao excluir conta:", error);
+      console.error("[AuthContext] Erro ao excluir conta:", error); // Debug Log
       return { success: false, error: error.message || "Erro ao excluir conta" };
     }
   };

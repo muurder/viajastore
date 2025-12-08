@@ -142,9 +142,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const _fetchGlobalAndClientProfiles = useCallback(async () => {
     setLoading(true);
     const sb = guardSupabase();
+    console.log("[DataContext] Fetching GLOBAL data (agencies, trips, clients, reviews, logs)..."); // Debug Log
     
     if (!sb) {
-        console.warn("[DataContext] Supabase not configured. Falling back to mock data for global profiles.");
+        console.warn("[DataContext] Supabase not configured. Falling back to mock data for global profiles."); // Debug Log
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
         setAgencyReviews([]); // MOCK_REVIEWS is for old `Review` interface, so keep empty for `AgencyReview`
@@ -208,10 +209,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 id: log.id, userId: log.user_id, actionType: log.action_type, details: log.details, createdAt: log.created_at
             })));
         }
+        console.log("[DataContext] Global data loaded. Agencies:", agenciesData?.length, "Trips:", tripsData?.length, "Clients:", clientsData?.length); // Debug Log
 
     } catch (error: any) {
-        console.error("Error fetching global and client profiles data:", error.message);
-        console.warn("[DataContext] Entrando em modo Offline/Fallback devido a erro de rede ou Supabase.");
+        console.error("[DataContext] Error fetching global and client profiles data:", error.message); // Debug Log
+        console.warn("[DataContext] Entrando em modo Offline/Fallback devido a erro de rede ou Supabase."); // Debug Log
         showToast(`Erro ao carregar dados: ${error.message}. Carregando dados de exemplo.`, 'error');
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
@@ -228,6 +230,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const _fetchBookingsForCurrentUser = useCallback(async () => {
     // Guard: If no user is logged in, clear bookings and stop loading.
     if (!user?.id) {
+        console.log("[DataContext] _fetchBookingsForCurrentUser: No user ID, clearing bookings."); // Debug Log
         setBookings([]);
         setLoading(false);
         return;
@@ -235,7 +238,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setLoading(true);
     const sb = guardSupabase();
+    console.log("[DataContext] Fetching USER-SPECIFIC data (bookings) for user:", user?.id); // Debug Log
     if (!sb) {
+        console.warn("[DataContext] Supabase not configured. Cannot fetch user-specific data, clearing bookings."); // Debug Log
         setBookings([]); // Clear bookings if no supabase
         setLoading(false);
         return;
@@ -254,12 +259,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // Filter trips by agencyId (which is the agency's PK `id` in the `agencies` table)
             const myAgencyTrips = currentTrips.filter(t => t.agencyId === agencyUser.agencyId);
             const myTripIds = myAgencyTrips.map(t => t.id);
+            console.log("[DataContext] _fetchBookingsForCurrentUser: Agency user, fetching bookings for trip IDs:", myTripIds); // Debug Log
 
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
                 .select('*, trips:trip_id(*, agencies:agency_id(*))') // Deep nesting
                 .in('trip_id', myTripIds)); // FIX: Correctly use .in with trip_id
             
         } else if (user.role === UserRole.CLIENT) {
+            console.log("[DataContext] _fetchBookingsForCurrentUser: Client user, fetching bookings for client ID:", user.id); // Debug Log
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
                 .select('*, trips:trip_id(*, agencies:agency_id(*))')
                 .eq('client_id', user.id)); // Use user.id directly here
@@ -282,21 +289,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 _agency: b.trips?.agencies // Deep nesting: agency is inside trips
             }));
             setBookings(augmentedBookings);
+            console.log("[DataContext] User-specific data loaded. Bookings:", augmentedBookings.length); // Debug Log
         } else {
             setBookings([]);
+            console.log("[DataContext] No user-specific bookings data found."); // Debug Log
         }
 
     } catch (error: any) {
-        console.error("Error fetching user-specific data:", error.message);
+        console.error("[DataContext] Error fetching user-specific data:", error.message); // Debug Log
         showToast(`Erro ao carregar dados do usuário: ${error.message}`, 'error');
         setBookings([]); // Clear bookings on error
     } finally {
         setLoading(false);
     }
-  }, [user, authLoading, showToast, guardSupabase]); // Dependencies for useCallback: trips and agencies removed, using refs inside
+  }, [user, authLoading, showToast, guardSupabase, tripsRef, agenciesRef]); // Dependencies for useCallback: trips and agencies removed, using refs inside
 
   // --- Main Effect Hook for Global Data (runs once on mount + subscribes) ---
   useEffect(() => {
+    console.log("[DataContext] Global data effect triggered."); // Debug Log
     _fetchGlobalAndClientProfiles();
 
     const sb = guardSupabase();
@@ -307,12 +317,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'audit_logs', 'activity_logs', 'trip_images']; // Added trip_images
         globalTablesToSubscribe.forEach(table => {
             subscriptions.push(sb.channel(`${table}_changes`).on('postgres_changes', { event: '*', schema: 'public', table: table }, payload => {
-                console.log(`${table} change received!`, payload);
+                console.log(`[DataContext] Supabase Subscription: ${table} change received!`, payload); // Debug Log
                 _fetchGlobalAndClientProfiles();
             }).subscribe());
         });
 
         return () => {
+            console.log("[DataContext] Unsubscribing from global data channels."); // Debug Log
             subscriptions.forEach(sub => sb.removeChannel(sub));
         };
     }
@@ -320,21 +331,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Second Effect Hook for User-Specific Data (runs when user or authLoading changes) ---
   useEffect(() => {
+    console.log("[DataContext] User-specific data effect triggered. User:", user?.id, "AuthLoading:", authLoading); // Debug Log
     // This effect runs when user.id changes, or after initial auth loading completes and user is available
     if (user?.id && !authLoading) {
         _fetchBookingsForCurrentUser(); // FIX: Call without argument
     } else if (!user && !authLoading) {
         // If user logs out, clear user-specific data (bookings)
+        console.log("[DataContext] User logged out, clearing user-specific data."); // Debug Log
         setBookings([]);
     }
     // Bookings changes should specifically trigger a refresh of user-dependent data
     const sb = guardSupabase();
     if (sb && user?.id) {
+        console.log("[DataContext] Subscribing to user-specific bookings changes for user:", user.id); // Debug Log
         const bookingChannel = sb.channel('bookings_changes_user_specific').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
-            console.log('Booking change received for user-specific data!', payload);
+            console.log('[DataContext] Supabase Subscription: Booking change received for user-specific data!', payload); // Debug Log
             _fetchBookingsForCurrentUser(); // FIX: Call without argument
         }).subscribe();
         return () => {
+            console.log("[DataContext] Unsubscribing from user-specific bookings channel."); // Debug Log
             sb.removeChannel(bookingChannel);
         };
     }
@@ -343,6 +358,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Exported Refresh Function (Full Data Refresh) ---
   const refreshData = useCallback(async () => {
+      console.log("[DataContext] refreshData: Initiating full data refresh."); // Debug Log
       // Ensure global data is fetched first, then user-specific data
       await _fetchGlobalAndClientProfiles(); 
       if (user) {
@@ -350,6 +366,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
           setBookings([]); 
       }
+      console.log("[DataContext] refreshData: Full data refresh complete."); // Debug Log
   }, [_fetchGlobalAndClientProfiles, user, _fetchBookingsForCurrentUser]);
 
 
@@ -431,21 +448,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logActivity = useCallback(async (actionType: ActivityActionType, details: any) => {
     const sb = guardSupabase();
     if (sb && user?.id) {
+        console.log(`[DataContext] Logging activity: ${actionType} by user ${user.id}`, details); // Debug Log
         await sb.from('activity_logs').insert({
             user_id: user.id,
             action_type: actionType,
             details: details,
         });
-        // We trigger global refresh here, which will also fetch latest activity logs.
-        // It's generally better to rely on subscriptions for real-time updates
-        // but an explicit refetch can ensure consistency after a local action.
         _fetchGlobalAndClientProfiles(); 
     }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const addBooking = useCallback(async (booking: Booking): Promise<Booking | undefined> => {
     const sb = guardSupabase();
-    if (!sb) return undefined;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot add booking."); // Debug Log
+        return undefined;
+    }
+    console.log("[DataContext] Adding booking:", booking); // Debug Log
     try {
         const { data, error } = await sb.from('bookings').insert({
             id: booking.id,
@@ -462,9 +481,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Reserva criada com sucesso!', 'success');
         
         // Increment sales count for the trip
-        const { data: tripUpdateData, error: tripUpdateError } = await sb.from('trips')
+        const { error: tripUpdateError } = await sb.from('trips')
             .rpc('increment_sales', { trip_id_param: booking.tripId, increment_value: 1 }); // Call RPC function
-        if (tripUpdateError) console.error("Error incrementing sales:", tripUpdateError);
+        if (tripUpdateError) console.error("[DataContext] Error incrementing sales:", tripUpdateError); // Debug Log
 
         // Augment data before returning (using refs for stability)
         const newBooking = {
@@ -474,12 +493,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
-        // After adding booking, only refresh user-specific data. Global data changes (like sales_count) will be picked up by global subscription.
         if (user) _fetchBookingsForCurrentUser(); 
+        console.log("[DataContext] Booking added successfully:", newBooking.id); // Debug Log
         return newBooking;
 
     } catch (error: any) {
-        console.error("Error adding booking:", error.message);
+        console.error("[DataContext] Error adding booking:", error.message); // Debug Log
         showToast(`Erro ao adicionar reserva: ${error.message}`, 'error');
         throw error;
     }
@@ -487,7 +506,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addReview = useCallback(async (review: Review) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot add review."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Adding review:", review); // Debug Log
     try {
         await sb.from('reviews').insert({
             trip_id: review.tripId,
@@ -500,19 +523,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Avaliação enviada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { reviewId: review.id, tripId: review.tripId, rating: review.rating });
         _fetchGlobalAndClientProfiles(); // Update local cache
+        console.log("[DataContext] Review added successfully for trip:", review.tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error adding review:", error.message);
+        console.error("[DataContext] Error adding review:", error.message); // Debug Log
         showToast(`Erro ao adicionar avaliação: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const addAgencyReview = useCallback(async (review: Partial<AgencyReview>) => {
     const sb = guardSupabase();
-    if (!sb) return;
-    if (!review.agencyId || !review.clientId) {
-        showToast('Dados de agência ou cliente ausentes para avaliação.', 'error');
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot add agency review."); // Debug Log
         return;
     }
+    if (!review.agencyId || !review.clientId) {
+        showToast('Dados de agência ou cliente ausentes para avaliação.', 'error');
+        console.error("[DataContext] Missing agencyId or clientId for agency review."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Adding/updating agency review:", review); // Debug Log
     try {
         await sb.from('agency_reviews').upsert({
             agency_id: review.agencyId,
@@ -527,43 +556,58 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Avaliação enviada/atualizada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency review added/updated successfully for agency:", review.agencyId); // Debug Log
     } catch (error: any) {
-        console.error("Error adding/updating agency review:", error.message);
+        console.error("[DataContext] Error adding/updating agency review:", error.message); // Debug Log
         showToast(`Erro ao enviar avaliação: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot delete review."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Deleting review with ID:", id); // Debug Log
     try {
         await sb.from('reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
         logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Review deleted successfully:", id); // Debug Log
     } catch (error: any) {
-        console.error("Error deleting review:", error.message);
+        console.error("[DataContext] Error deleting review:", error.message); // Debug Log
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteAgencyReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot delete agency review."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Deleting agency review with ID:", id); // Debug Log
     try {
         await sb.from('agency_reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
         logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency review deleted successfully:", id); // Debug Log
     } catch (error: any) {
-        console.error("Error deleting agency review:", error.message);
+        console.error("[DataContext] Error deleting agency review:", error.message); // Debug Log
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateAgencyReview = useCallback(async (id: string, updates: Partial<AgencyReview>) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update agency review."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Updating agency review ID:", id, "with updates:", updates); // Debug Log
     try {
         await sb.from('agency_reviews').update({
             rating: updates.rating,
@@ -574,8 +618,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Avaliação atualizada.', 'success');
         logActivity(ActivityActionType.REVIEW_UPDATED, { reviewId: id, updates });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency review updated successfully:", id); // Debug Log
     } catch (error: any) {
-        console.error("Error updating agency review:", error.message);
+        console.error("[DataContext] Error updating agency review:", error.message); // Debug Log
         showToast(`Erro ao atualizar avaliação: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
@@ -583,12 +628,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const toggleFavorite = useCallback(async (tripId: string, userId: string) => {
       const sb = guardSupabase();
-      if (!sb) return;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot toggle favorite."); // Debug Log
+          return;
+      }
       
       const currentClients = clientsRef.current; // Use ref
       const client = currentClients.find(c => c.id === userId);
       if (!client) {
           showToast('Cliente não encontrado.', 'error');
+          console.error("[DataContext] Client not found for toggleFavorite:", userId); // Debug Log
           return;
       }
 
@@ -606,20 +655,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           action = ActivityActionType.FAVORITE_TOGGLED;
           showToast('Adicionado aos favoritos!', 'success');
       }
+      console.log(`[DataContext] Toggling favorite for trip ${tripId} by user ${userId}. New status: ${!isCurrentlyFavorite}`); // Debug Log
 
       try {
           await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
           logActivity(action, { tripId, userId, isFavorite: !isCurrentlyFavorite });
           _fetchGlobalAndClientProfiles(); // Update local cache
+          console.log("[DataContext] Favorite toggled successfully."); // Debug Log
       } catch (error: any) {
-          console.error("Error toggling favorite:", error.message);
+          console.error("[DataContext] Error toggling favorite:", error.message); // Debug Log
           showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
       }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, clientsRef]); // clientsRef added to dependencies
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update client profile."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Updating client profile ID:", userId, "with data:", data); // Debug Log
     try {
         const updates: any = {};
         if (data.name !== undefined) updates.full_name = data.name;
@@ -634,8 +689,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Perfil do cliente atualizado!', 'success');
         logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userId, updates });
         _fetchGlobalAndClientProfiles(); // Update local cache
+        console.log("[DataContext] Client profile updated successfully:", userId); // Debug Log
     } catch (error: any) {
-        console.error("Error updating client profile:", error.message);
+        console.error("[DataContext] Error updating client profile:", error.message); // Debug Log
         showToast(`Erro ao atualizar perfil do cliente: ${error.message}`, 'error');
         throw error; // Re-throw to allow component to handle loading state
     }
@@ -643,7 +699,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateAgencySubscription = useCallback(async (agencyId: string, status: string, plan: string, expiresAt?: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update agency subscription."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Updating agency subscription ID:", agencyId, "Status:", status, "Plan:", plan, "Expires:", expiresAt); // Debug Log
     try {
         const updates: any = {
             subscription_status: status,
@@ -657,8 +717,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Assinatura da agência atualizada!', 'success');
         logActivity(ActivityActionType.AGENCY_SUBSCRIPTION_UPDATED, { agencyId, updates });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency subscription updated successfully:", agencyId); // Debug Log
     } catch (error: any) {
-        console.error("Error updating agency subscription:", error.message);
+        console.error("[DataContext] Error updating agency subscription:", error.message); // Debug Log
         showToast(`Erro ao atualizar assinatura da agência: ${error.message}`, 'error');
         throw error;
     }
@@ -666,7 +727,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateAgencyProfileByAdmin = useCallback(async (agencyId: string, data: Partial<Agency>) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update agency profile by admin."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Admin updating agency profile ID:", agencyId, "with data:", data); // Debug Log
     try {
         const updates: any = {};
         if (data.name !== undefined) updates.name = data.name;
@@ -683,8 +748,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Perfil da agência atualizado pelo Admin!', 'success');
         logActivity(ActivityActionType.AGENCY_PROFILE_UPDATED, { agencyId, updates });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency profile updated by Admin successfully:", agencyId); // Debug Log
     } catch (error: any) {
-        console.error("Error updating agency profile by admin:", error.message);
+        console.error("[DataContext] Error updating agency profile by admin:", error.message); // Debug Log
         showToast(`Erro ao atualizar perfil da agência: ${error.message}`, 'error');
         throw error;
     }
@@ -692,28 +758,38 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const toggleAgencyStatus = useCallback(async (agencyId: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot toggle agency status."); // Debug Log
+        return;
+    }
     try {
         const currentAgencies = agenciesRef.current; // Use ref
         const agency = currentAgencies.find(a => a.agencyId === agencyId);
         if (!agency) {
             showToast('Agência não encontrada.', 'error');
+            console.error("[DataContext] Agency not found for toggleAgencyStatus:", agencyId); // Debug Log
             return;
         }
         const newStatus = !agency.is_active;
+        console.log(`[DataContext] Toggling status for agency ${agencyId} to ${newStatus}`); // Debug Log
         await sb.from('agencies').update({ is_active: newStatus }).eq('id', agencyId);
         showToast(`Agência ${newStatus ? 'ativada' : 'desativada'} com sucesso!`, 'success');
         logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, newStatus });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Agency status toggled successfully:", agencyId); // Debug Log
     } catch (error: any) {
-        console.error("Error toggling agency status:", error.message);
+        console.error("[DataContext] Error toggling agency status:", error.message); // Debug Log
         showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, agenciesRef]);
 
   const createTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot create trip."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Creating trip:", trip.title); // Debug Log
     try {
         const { data, error } = await sb.from('trips').insert({
             agency_id: trip.agencyId,
@@ -735,8 +811,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             included: trip.included,
             not_included: trip.notIncluded,
             featured: trip.featured,
-            featuredInHero: trip.featuredInHero,
-            popularNearSP: trip.popularNearSP,
+            featured_in_hero: trip.featuredInHero,
+            popular_near_sp: trip.popularNearSP,
             operationalData: trip.operationalData,
         }).select().single();
 
@@ -744,20 +820,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Insert images
         if (trip.images && trip.images.length > 0) {
+            console.log("[DataContext] Inserting trip images..."); // Debug Log
             const imagesPayload = trip.images.map((url, index) => ({
                 trip_id: data.id,
                 image_url: url,
                 position: index
             }));
             const { error: imgError } = await sb.from('trip_images').insert(imagesPayload);
-            if (imgError) console.error("Error inserting trip images:", imgError);
+            if (imgError) console.error("[DataContext] Error inserting trip images:", imgError); // Debug Log
         }
 
         showToast('Pacote criado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_CREATED, { tripId: data.id, title: data.title });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Trip created successfully:", data.id); // Debug Log
     } catch (error: any) {
-        console.error("Error creating trip:", error.message);
+        console.error("[DataContext] Error creating trip:", error.message); // Debug Log
         showToast(`Erro ao criar pacote: ${error.message}`, 'error');
         throw error;
     }
@@ -765,7 +843,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update trip."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Updating trip:", trip.id, trip.title); // Debug Log
     try {
         const { error } = await sb.from('trips').update({
             title: trip.title,
@@ -787,29 +869,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             not_included: trip.notIncluded,
             featured: trip.featured,
             featuredInHero: trip.featuredInHero,
-            popularNearSP: trip.popularNearSP,
+            popular_near_sp: trip.popularNearSP,
             operationalData: trip.operationalData,
         }).eq('id', trip.id);
 
         if (error) throw error;
 
         // Handle images: delete old and insert new
+        console.log("[DataContext] Updating trip images: deleting old..."); // Debug Log
         await sb.from('trip_images').delete().eq('trip_id', trip.id);
         if (trip.images && trip.images.length > 0) {
+            console.log("[DataContext] Updating trip images: inserting new..."); // Debug Log
             const imagesPayload = trip.images.map((url, index) => ({
                 trip_id: trip.id,
                 image_url: url,
                 position: index
             }));
             const { error: imgError } = await sb.from('trip_images').insert(imagesPayload);
-            if (imgError) console.error("Error re-inserting trip images:", imgError);
+            if (imgError) console.error("[DataContext] Error re-inserting trip images:", imgError); // Debug Log
         }
 
         showToast('Pacote atualizado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId: trip.id, title: trip.title });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Trip updated successfully:", trip.id); // Debug Log
     } catch (error: any) {
-        console.error("Error updating trip:", error.message);
+        console.error("[DataContext] Error updating trip:", error.message); // Debug Log
         showToast(`Erro ao atualizar pacote: ${error.message}`, 'error');
         throw error;
     }
@@ -817,7 +902,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteTrip = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot delete trip."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Deleting trip:", tripId); // Debug Log
     try {
         // Delete related images first
         await sb.from('trip_images').delete().eq('trip_id', tripId);
@@ -825,63 +914,81 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast('Pacote excluído com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_DELETED, { tripId });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Trip deleted successfully:", tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error deleting trip:", error.message);
+        console.error("[DataContext] Error deleting trip:", error.message); // Debug Log
         showToast(`Erro ao excluir pacote: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const toggleTripStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot toggle trip status."); // Debug Log
+        return;
+    }
     try {
         const currentTrips = tripsRef.current; // Use ref
         const trip = currentTrips.find(t => t.id === tripId);
         if (!trip) {
             showToast('Viagem não encontrada.', 'error');
+            console.error("[DataContext] Trip not found for toggleTripStatus:", tripId); // Debug Log
             return;
         }
         const newStatus = !trip.is_active;
+        console.log(`[DataContext] Toggling status for trip ${tripId} to ${newStatus}`); // Debug Log
         await sb.from('trips').update({ is_active: newStatus }).eq('id', tripId);
         showToast(`Viagem ${newStatus ? 'publicada' : 'pausada'} com sucesso!`, 'success');
         logActivity(ActivityActionType.TRIP_STATUS_TOGGLED, { tripId, newStatus });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Trip status toggled successfully:", tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error toggling trip status:", error.message);
+        console.error("[DataContext] Error toggling trip status:", error.message); // Debug Log
         showToast(`Erro ao alterar status da viagem: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]);
 
   const toggleTripFeatureStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot toggle trip feature status."); // Debug Log
+        return;
+    }
     try {
         const currentTrips = tripsRef.current; // Use ref
         const trip = currentTrips.find(t => t.id === tripId);
         if (!trip) {
             showToast('Viagem não encontrada.', 'error');
+            console.error("[DataContext] Trip not found for toggleTripFeatureStatus:", tripId); // Debug Log
             return;
         }
         const newFeaturedStatus = !trip.featured;
+        console.log(`[DataContext] Toggling featured status for trip ${tripId} to ${newFeaturedStatus}`); // Debug Log
         await sb.from('trips').update({ featured: newFeaturedStatus }).eq('id', tripId);
         showToast(`Viagem ${newFeaturedStatus ? 'destacada' : 'removida do destaque'} com sucesso!`, 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId, featured: newFeaturedStatus });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Trip feature status toggled successfully:", tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error toggling trip feature status:", error.message);
+        console.error("[DataContext] Error toggling trip feature status:", error.message); // Debug Log
         showToast(`Erro ao alterar destaque da viagem: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]);
 
   const updateTripOperationalData = useCallback(async (tripId: string, data: OperationalData) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update trip operational data."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Updating operational data for trip:", tripId, "Data:", data); // Debug Log
     try {
         await sb.from('trips').update({ operational_data: data }).eq('id', tripId);
         showToast('Dados operacionais atualizados!', 'success');
         _fetchGlobalAndClientProfiles(); // To ensure local cache is up-to-date
+        console.log("[DataContext] Operational data updated successfully:", tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error updating operational data:", error.message);
+        console.error("[DataContext] Error updating operational data:", error.message); // Debug Log
         showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
         throw error;
     }
@@ -889,45 +996,60 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const softDeleteEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
-      if (!sb) return;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot soft delete entity."); // Debug Log
+          return;
+      }
+      console.log(`[DataContext] Soft deleting entity ID: ${id} from table: ${table}`); // Debug Log
       try {
           await sb.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
           showToast('Movido para a lixeira.', 'success');
           logActivity(ActivityActionType.DELETE_USER, { entityId: id, table, softDelete: true }); // Corrected enum usage
           _fetchGlobalAndClientProfiles();
+          console.log("[DataContext] Entity soft deleted successfully:", id); // Debug Log
       } catch (error: any) {
-          console.error("Error soft deleting entity:", error.message);
+          console.error("[DataContext] Error soft deleting entity:", error.message); // Debug Log
           showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
       }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const restoreEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
-      if (!sb) return;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot restore entity."); // Debug Log
+          return;
+      }
+      console.log(`[DataContext] Restoring entity ID: ${id} from table: ${table}`); // Debug Log
       try {
           await sb.from(table).update({ deleted_at: null }).eq('id', id);
           showToast('Restaurado com sucesso.', 'success');
           _fetchGlobalAndClientProfiles();
+          console.log("[DataContext] Entity restored successfully:", id); // Debug Log
       } catch (error: any) {
-          console.error("Error restoring entity:", error.message);
+          console.error("[DataContext] Error restoring entity:", error.message); // Debug Log
           showToast(`Erro ao restaurar: ${error.message}`, 'error');
       }
   }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteUser = useCallback(async (id: string, role: string) => {
       const sb = guardSupabase();
-      if (!sb) return;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot delete user."); // Debug Log
+          return;
+      }
+      console.log(`[DataContext] Deleting user ID: ${id} with role: ${role}`); // Debug Log
       try {
           // Delete associated records first
           if (role === UserRole.AGENCY) {
+              console.log("[DataContext] Deleting associated agency data..."); // Debug Log
               await sb.from('agencies').delete().eq('user_id', id);
-              // Also delete trips and reviews associated with this agency
               const agencyTrips = tripsRef.current.filter(t => t.agencyId === id); // Use ref here
               for (const trip of agencyTrips) {
                   await deleteTrip(trip.id); // Reuses deleteTrip logic
               }
               await sb.from('agency_reviews').delete().eq('agency_id', id); // assuming agency_id in reviews is user_id
           } else if (role === UserRole.CLIENT) {
+              console.log("[DataContext] Deleting associated client data..."); // Debug Log
               await sb.from('bookings').delete().eq('client_id', id);
               await sb.from('agency_reviews').delete().eq('client_id', id);
           }
@@ -939,7 +1061,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // So this might fail if not an admin context.
           const { error: authError } = await sb.auth.admin.deleteUser(id);
           if (authError) {
-            console.warn(`Could not delete Auth user ${id}: ${authError.message}`);
+            console.warn(`[DataContext] Could not delete Auth user ${id}: ${authError.message}`); // Debug Log
             showToast(`Usuário DB excluído, mas conta de autenticação pode persistir: ${authError.message}`, 'warning');
           } else {
             showToast('Usuário excluído permanentemente.', 'success');
@@ -947,35 +1069,45 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true }); // Corrected enum usage
           _fetchGlobalAndClientProfiles();
+          console.log("[DataContext] User deleted successfully:", id); // Debug Log
       } catch (error: any) {
-          console.error("Error deleting user permanently:", error.message);
+          console.error("[DataContext] Error deleting user permanently:", error.message); // Debug Log
           showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
       }
   }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used inside deleteUser, but not as dependency
 
   const deleteMultipleUsers = useCallback(async (ids: string[]) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot delete multiple users."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Deleting multiple users:", ids); // Debug Log
     try {
         // Delete all associated profiles
         await sb.from('profiles').delete().in('id', ids);
         // Delete from auth.users (if service_role key is available and policies allow)
         for (const id of ids) {
             const { error: authError } = await sb.auth.admin.deleteUser(id);
-            if (authError) console.warn(`Could not delete Auth user ${id}: ${authError.message}`);
+            if (authError) console.warn(`[DataContext] Could not delete Auth user ${id}: ${authError.message}`); // Debug Log
         }
         showToast('Usuários selecionados excluídos.', 'success');
         logActivity(ActivityActionType.DELETE_MULTIPLE_USERS, { userIds: ids }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Multiple users deleted successfully."); // Debug Log
     } catch (error: any) {
-        console.error("Error deleting multiple users:", error.message);
+        console.error("[DataContext] Error deleting multiple users:", error.message); // Debug Log
         showToast(`Erro ao excluir múltiplos usuários: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteMultipleAgencies = useCallback(async (agencyPks: string[]) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot delete multiple agencies."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Deleting multiple agencies:", agencyPks); // Debug Log
     try {
         // Find the user_ids associated with these agencyPks
         const { data: agencyData, error: fetchError } = await sb.from('agencies').select('user_id, id').in('id', agencyPks);
@@ -985,6 +1117,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Delete associated trips and reviews for each agency
         for (const agencyId of agencyIdsToDelete) {
+            console.log("[DataContext] Deleting associated trips and reviews for agency:", agencyId); // Debug Log
             const agencyTrips = tripsRef.current.filter(t => t.agencyId === agencyId); // Use ref here
             for (const trip of agencyTrips) {
                 await deleteTrip(trip.id);
@@ -999,21 +1132,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Delete from auth.users
         for (const userId of userIdsToDelete) {
             const { error: authError } = await sb.auth.admin.deleteUser(userId);
-            if (authError) console.warn(`Could not delete Auth user ${userId}: ${authError.message}`);
+            if (authError) console.warn(`[DataContext] Could not delete Auth user ${userId}: ${authError.message}`); // Debug Log
         }
 
         showToast('Agências selecionadas excluídas.', 'success');
         logActivity(ActivityActionType.DELETE_MULTIPLE_AGENCIES, { agencyPks, userIds: userIdsToDelete }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Multiple agencies deleted successfully."); // Debug Log
     } catch (error: any) {
-        console.error("Error deleting multiple agencies:", error.message);
+        console.error("[DataContext] Error deleting multiple agencies:", error.message); // Debug Log
         showToast(`Erro ao excluir múltiplas agências: ${error.message}`, 'error');
     }
   }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used here too
 
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
-    if (!sb) return [];
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot get user stats."); // Debug Log
+        return [];
+    }
+    console.log("[DataContext] Getting user stats for user IDs:", userIds); // Debug Log
     try {
         const statsPromises = userIds.map(async userId => {
             const currentClients = clientsRef.current; // Use ref
@@ -1034,9 +1172,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             };
         });
         const results = await Promise.all(statsPromises);
+        console.log("[DataContext] User stats retrieved successfully."); // Debug Log
         return results.filter(s => s !== null) as UserStats[];
     } catch (error: any) {
-        console.error("Error getting user stats:", error.message);
+        console.error("[DataContext] Error getting user stats:", error.message); // Debug Log
         showToast(`Erro ao buscar estatísticas de usuários: ${error.message}`, 'error');
         return [];
     }
@@ -1044,36 +1183,49 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateMultipleUsersStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update multiple users status."); // Debug Log
+        return;
+    }
+    console.log(`[DataContext] Updating status for multiple users ${ids} to ${status}`); // Debug Log
     try {
         await sb.from('profiles').update({ status: status }).in('id', ids);
         showToast('Status dos usuários atualizado.', 'success');
         logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userIds: ids, status }); // Corrected enum usage
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Multiple users status updated successfully."); // Debug Log
     } catch (error: any) {
-        console.error("Error updating multiple users status:", error.message);
+        console.error("[DataContext] Error updating multiple users status:", error.message); // Debug Log
         showToast(`Erro ao atualizar status de múltiplos usuários: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateMultipleAgenciesStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update multiple agencies status."); // Debug Log
+        return;
+    }
+    console.log(`[DataContext] Updating status for multiple agencies ${ids} to ${status}`); // Debug Log
     try {
         await sb.from('agencies').update({ is_active: status === 'ACTIVE' }).in('id', ids);
         showToast('Status das agências atualizado.', 'success');
         logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, newStatus: status === 'ACTIVE' });
         _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Multiple agencies status updated successfully."); // Debug Log
     } catch (error: any) {
-        console.error("Error updating multiple agencies status:", error.message);
+        console.error("[DataContext] Error updating multiple agencies status:", error.message); // Debug Log
         showToast(`Erro ao atualizar status de múltiplas agências: ${error.message}`, 'error');
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const logAuditAction = useCallback(async (action: string, details: string) => {
       const sb = guardSupabase();
-      if (!sb || !user?.email) return;
-
+      if (!sb || !user?.email) {
+          console.warn("[DataContext] Supabase not configured or user email missing, cannot log audit action."); // Debug Log
+          return;
+      }
+      console.log(`[DataContext] Logging audit action: ${action} by admin ${user.email}`); // Debug Log
       try {
           await sb.from('audit_logs').insert({
               admin_email: user.email,
@@ -1081,29 +1233,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               details: details
           });
           _fetchGlobalAndClientProfiles();
+          console.log("[DataContext] Audit action logged successfully."); // Debug Log
       } catch (error: any) {
-          console.error("Error logging audit action:", error.message);
+          console.error("[DataContext] Error logging audit action:", error.message); // Debug Log
       }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot send password reset."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Sending password reset for email:", email); // Debug Log
     try {
         const { error } = await sb.auth.resetPasswordForEmail(email, {
             redirectTo: `${window.location.origin}/#/forgot-password` // Use hash for react-router-dom HashRouter
         });
         if (error) throw error;
         showToast('Link de reset de senha enviado para o email!', 'success');
+        console.log("[DataContext] Password reset link sent successfully."); // Debug Log
     } catch (error: any) {
-        console.error("Error sending password reset:", error.message);
+        console.error("[DataContext] Error sending password reset:", error.message); // Debug Log
         showToast(`Erro ao enviar link de reset: ${error.message}`, 'error');
     }
   }, [showToast, guardSupabase]);
 
   const updateUserAvatarByAdmin = useCallback(async (userId: string, file: File): Promise<string | null> => {
     const sb = guardSupabase();
-    if (!sb) return null;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update user avatar by admin."); // Debug Log
+        return null;
+    }
+    console.log("[DataContext] Admin updating avatar for user ID:", userId); // Debug Log
     try {
         const fileExt = file.name.split('.').pop();
         const fileName = `${userId}-${Date.now()}.${fileExt}`;
@@ -1120,9 +1282,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', userId);
 
         _fetchGlobalAndClientProfiles(); // Refresh to update UI
+        console.log("[DataContext] User avatar updated by admin successfully. URL:", data.publicUrl); // Debug Log
         return data.publicUrl;
     } catch (error: any) {
-        console.error("Admin avatar upload error:", error.message);
+        console.error("[DataContext] Admin avatar upload error:", error.message); // Debug Log
         showToast(`Erro ao atualizar avatar: ${error.message}`, 'error');
         return null;
     }
@@ -1131,12 +1294,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
     const sb = guardSupabase();
     const zeros = { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
-    if (!sb) return zeros;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, returning zero stats."); // Debug Log
+        return zeros;
+    }
+    console.log("[DataContext] Fetching agency stats for ID:", agencyId); // Debug Log
     
     try {
         const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
         if (error || !data || data.length === 0) throw error;
         const s = data[0];
+        console.log("[DataContext] Agency stats loaded from RPC:", s); // Debug Log
         return {
            totalRevenue: Number(s.total_revenue) || 0,
            totalViews: Number(s.total_views) || 0,
@@ -1146,7 +1314,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
            totalReviews: Number(s.total_reviews) || 0
         };
       } catch (err: any) {
-         console.warn("Stats offline/fallback:", err.message);
+         console.warn("[DataContext] Agency stats RPC failed, calculating locally:", err.message); // Debug Log
          // Mantenha o cálculo local antigo aqui como fallback no catch
          const currentTrips = tripsRef.current; // Use ref
          const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
@@ -1185,27 +1353,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
       const sb = guardSupabase();
-      if (!sb) return null;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot get agency theme."); // Debug Log
+          return null;
+      }
+      console.log("[DataContext] Fetching agency theme for ID:", agencyId); // Debug Log
       try {
           const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).maybeSingle();
           if (error) throw error;
           if (data) {
+              console.log("[DataContext] Agency theme loaded:", data); // Debug Log
               return {
                   agencyId: data.agency_id,
                   colors: data.colors as ThemeColors,
                   updatedAt: data.updated_at,
               };
           }
+          console.log("[DataContext] No agency theme found for ID:", agencyId); // Debug Log
           return null;
       } catch (error: any) {
-          console.error("Error fetching agency theme:", error.message);
+          console.error("[DataContext] Error fetching agency theme:", error.message); // Debug Log
           return null;
       }
   }, [guardSupabase]);
 
   const saveAgencyTheme = useCallback(async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
       const sb = guardSupabase();
-      if (!sb) return false;
+      if (!sb) {
+          console.warn("[DataContext] Supabase not configured, cannot save agency theme."); // Debug Log
+          return false;
+      }
+      console.log("[DataContext] Saving agency theme for ID:", agencyId, "Colors:", colors); // Debug Log
       try {
           const { error } = await sb.from('agency_themes').upsert({
               agency_id: agencyId,
@@ -1214,30 +1392,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (error) throw error;
           _fetchGlobalAndClientProfiles(); // Refresh to ensure theme is picked up if needed elsewhere
+          console.log("[DataContext] Agency theme saved successfully:", agencyId); // Debug Log
           return true;
       } catch (error: any) {
-          console.error("Error saving agency theme:", error.message);
+          console.error("[DataContext] Error saving agency theme:", error.message); // Debug Log
           return false;
       }
   }, [_fetchGlobalAndClientProfiles, guardSupabase]);
 
   const incrementTripViews = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
-    if (!sb) return;
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot increment trip views."); // Debug Log
+        return;
+    }
+    console.log("[DataContext] Incrementing views for trip ID:", tripId); // Debug Log
     try {
         const { error } = await sb.rpc('increment_trip_views', { trip_id_param: tripId, increment_value: 1 });
         if (error) throw error;
-        // No need to _fetchGlobalAndClientProfiles() immediately, let the subscription handle it or next refresh.
+        console.log("[DataContext] Trip views incremented successfully:", tripId); // Debug Log
     } catch (error: any) {
-        console.error("Error incrementing trip views:", error.message);
+        console.error("[DataContext] Error incrementing trip views:", error.message); // Debug Log
     }
   }, [guardSupabase]);
 
   // Unified refresh for user-dependent data
   const refreshUserData = useCallback(async () => {
+    console.log("[DataContext] refreshUserData: Initiating user-specific data refresh."); // Debug Log
     await _fetchBookingsForCurrentUser();
-    // No need to explicitly refetch reviews or client data, they are part of _fetchGlobalAndClientProfiles
-    // which is subscribed to. `reloadUser` in AuthContext will also refresh `user` state.
+    console.log("[DataContext] refreshUserData: User-specific data refresh complete."); // Debug Log
   }, [_fetchBookingsForCurrentUser]);
 
 
@@ -1255,9 +1438,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       searchTrips: async (params) => {
         const sb = guardSupabase();
+        console.log("[DataContext] searchTrips: Initiating search with params:", params); // Debug Log
         // Fallback to mocks if Supabase is not configured or on network error
         if (!sb) {
-          console.warn("Search offline. Using mocks for trips.");
+          console.warn("[DataContext] Search offline. Using mocks for trips."); // Debug Log
           return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
         }
 
@@ -1296,23 +1480,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const { data, error, count } = await query;
         if (error) {
-          console.error("Error searching trips:", error.message);
+          console.error("[DataContext] Error searching trips:", error.message); // Debug Log
           // Fallback to mocks on search error
-          console.warn("Search offline. Using mocks for trips due to API error.");
+          console.warn("[DataContext] Search offline. Using mocks for trips due to API error."); // Debug Log
           return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length, error: error.message };
         }
 
         const mappedTrips: Trip[] = (data || []).map((t: any) => ({
             id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
         }));
+        console.log("[DataContext] Search trips result:", mappedTrips.length, "items, total count:", count); // Debug Log
 
         return { data: mappedTrips, count: count || 0 };
       },
 
       searchAgencies: async (params) => {
         const sb = guardSupabase();
+        console.log("[DataContext] searchAgencies: Initiating search with params:", params); // Debug Log
         if (!sb) {
-          console.warn("Search offline. Using mocks for agencies.");
+          console.warn("[DataContext] Search offline. Using mocks for agencies."); // Debug Log
           return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
         }
 
@@ -1341,15 +1527,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const { data, error, count } = await query;
         if (error) {
-            console.error("Error searching agencies:", error.message);
+            console.error("[DataContext] Error searching agencies:", error.message); // Debug Log
             // Fallback to mocks on search error
-            console.warn("Search offline. Using mocks for agencies due to API error.");
+            console.warn("[DataContext] Search offline. Using mocks for agencies due to API error."); // Debug Log
             return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length, error: error.message };
         }
 
         const mappedAgencies: Agency[] = (data || []).map((a: any) => ({
             id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
         }));
+        console.log("[DataContext] Search agencies result:", mappedAgencies.length, "items, total count:", count); // Debug Log
 
         return { data: mappedAgencies, count: count || 0 };
       },
