@@ -674,7 +674,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           const { data: existingFav, error: selectError } = await sb
               .from('favorites')
-              .select('id')
+              .select('user_id') // Corrected: Select user_id or any column, not 'id'
               .eq('user_id', userId)
               .eq('trip_id', tripId)
               .maybeSingle();
@@ -682,11 +682,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (selectError) throw selectError;
 
           if (existingFav) {
-              // Remove from favorites
+              // Remove from favorites using composite key
               const { error: deleteError } = await sb
                   .from('favorites')
                   .delete()
-                  .eq('id', existingFav.id);
+                  .eq('user_id', userId) // Corrected: Delete using composite key
+                  .eq('trip_id', tripId); // Corrected: Delete using composite key
               if (deleteError) throw deleteError;
               logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: false });
               console.log(`[DataContext] Favorite removed: user ${userId}, trip ${tripId}`);
@@ -694,7 +695,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               // Add to favorites
               const { error: insertError } = await sb
                   .from('favorites')
-                  .insert({ user_id: userId, trip_id: tripId });
+                  .insert({ user_id: userId, trip_id: tripId }); // Correct, no 'id' in insert
               if (insertError) throw insertError;
               logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: true });
               console.log(`[DataContext] Favorite added: user ${userId}, trip ${tripId}`);
