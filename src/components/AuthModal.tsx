@@ -145,39 +145,51 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (formData.password !== formData.confirmPassword) return setError('As senhas não coincidem.');
-        if (formData.password.length < 6) return setError('A senha deve ter no mínimo 6 caracteres.');
+        if (formData.password !== formData.confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+        if (formData.password.length < 6) {
+            setError('A senha deve ter no mínimo 6 caracteres.');
+            return;
+        }
         
         setIsLoading(true);
         const role = activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY;
-        const result = await register(formData, role);
-        
-        if (result.success) {
-            onClose();
-            // Show toast based on message
-            if (result.message) {
-                // If userId is present, it means the user is also signed in.
-                // Otherwise, it's just an info message (e.g., email verification).
-                showToast(result.message, result.userId ? 'success' : 'info'); 
-            } else {
-                showToast('Conta criada com sucesso!', 'success');
-            }
 
-            if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
-                if (result.role === UserRole.AGENCY) {
-                    navigate('/agency/dashboard');
-                } else if (result.role === UserRole.CLIENT) {
-                    navigate('/client/dashboard/PROFILE');
+        try {
+            const result = await register(formData, role);
+            
+            if (result.success) {
+                onClose();
+                // Show toast based on message
+                if (result.message) {
+                    // If userId is present, it means the user is also signed in.
+                    // Otherwise, it's just an info message (e.g., email verification).
+                    showToast(result.message, result.userId ? 'success' : 'info'); 
+                } else {
+                    showToast('Conta criada com sucesso!', 'success');
+                }
+
+                if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
+                    if (result.role === UserRole.AGENCY) {
+                        navigate('/agency/dashboard');
+                    } else if (result.role === UserRole.CLIENT) {
+                        navigate('/client/dashboard/PROFILE');
+                    }
+                } else {
+                    // If not immediately signed in (e.g., email verification needed), navigate to home
+                    navigate('/');
                 }
             } else {
-                // If not immediately signed in (e.g., email verification needed), navigate to home
-                navigate('/');
+                setError(result.error || 'Erro ao criar conta.');
             }
-        } else {
-            setError(result.error || 'Erro ao criar conta.');
-        } finally {
-            setIsLoading(false);
-        }
+        } catch (err: any) {
+            console.error("Signup submission error:", err);
+            setError(err.message || "Um erro inesperado ocorreu. Tente novamente.");
+        } 
+        // Removed finally block entirely and moved setIsLoading to try/catch
+        setIsLoading(false); // Ensure loading is always false after attempt
     };
     
     // Handler for Google Signup: Passes the specific role based on the active tab
