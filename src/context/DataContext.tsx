@@ -216,7 +216,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [guardSupabase, showToast]); // Dependencies for useCallback
 
   // Fetches bookings specific to the currently logged-in user (client or agency)
-  const _fetchBookingsForCurrentUser = useCallback(async (loggedInUser: User) => {
+  // FIX: _fetchBookingsForCurrentUser now relies on the `user` from AuthContext directly
+  const _fetchBookingsForCurrentUser = useCallback(async () => {
+    // Guard: If no user is logged in, clear bookings and stop loading.
+    if (!user?.id) {
+        setBookings([]);
+        setLoading(false);
+        return;
+    }
+
     setLoading(true);
     const sb = guardSupabase();
     if (!sb) {
@@ -229,8 +237,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let bookingsData: any[] | null = null;
         let bookingsError: any = null;
 
-        if (loggedInUser.role === UserRole.AGENCY) {
-            const agencyUser = loggedInUser as Agency;
+        if (user.role === UserRole.AGENCY) {
+            const agencyUser = user as Agency;
             // Filter trips by agencyId (which is the agency's PK `id` in the `agencies` table)
             const myAgencyTrips = trips.filter(t => t.agencyId === agencyUser.agencyId);
             const myTripIds = myAgencyTrips.map(t => t.id);
@@ -239,10 +247,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 .select('*, trips:trip_id(*, agencies:agency_id(*))') // Deep nesting
                 .in('trip_id', myTripIds)); // FIX: Correctly use .in with trip_id
             
-        } else if (loggedInUser.role === UserRole.CLIENT) {
+        } else if (user.role === UserRole.CLIENT) {
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
                 .select('*, trips:trip_id(*, agencies:agency_id(*))')
-                .eq('client_id', loggedInUser.id));
+                .eq('client_id', user.id)); // Use user.id directly here
         }
 
         if (bookingsError) throw bookingsError;
@@ -273,7 +281,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
         setLoading(false);
     }
-  }, [guardSupabase, trips, agencies, showToast]); // Dependencies for useCallback
+  }, [user, guardSupabase, trips, agencies, showToast]); // Dependencies for useCallback: user is now a direct dependency
 
   // --- Main Effect Hook for Global Data (runs once on mount) ---
   useEffect(() => {
@@ -302,7 +310,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     // This effect runs when user.id changes, or after initial auth loading completes and user is available
     if (user?.id && !authLoading) {
-        _fetchBookingsForCurrentUser(user);
+        _fetchBookingsForCurrentUser(); // FIX: Call without argument
     } else if (!user && !authLoading) {
         // If user logs out, clear user-specific data (bookings)
         setBookings([]);
@@ -312,7 +320,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (sb && user?.id) {
         const bookingChannel = sb.channel('bookings_changes_user_specific').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
             console.log('Booking change received for user-specific data!', payload);
-            _fetchBookingsForCurrentUser(user);
+            _fetchBookingsForCurrentUser(); // FIX: Call without argument
         }).subscribe();
         return () => {
             sb.removeChannel(bookingChannel);
@@ -325,7 +333,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshData = useCallback(async () => {
       await _fetchGlobalAndClientProfiles(); // Refresh global data first
       if (user) {
-          await _fetchBookingsForCurrentUser(user); // Then refresh user-specific data
+          await _fetchBookingsForCurrentUser(); // FIX: Call without argument
       } else {
           setBookings([]); // Clear bookings if no user is logged in
       }
@@ -412,7 +420,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
         // After adding booking, only refresh user-specific data. Global data changes (like sales_count) will be picked up by global subscription.
-        if (user) _fetchBookingsForCurrentUser(user); 
+        if (user) _fetchBookingsForCurrentUser(); // FIX: Call without argument
         return newBooking;
 
     } catch (error: any) {
