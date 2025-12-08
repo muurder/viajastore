@@ -781,4 +781,155 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição das Atividades</label>
                     <textarea
                       value={day.description}
-                      onChange={e => handleUpdateItineraryDay(day.day, 'description', e.target
+                      onChange={e => handleUpdateItineraryDay(day.day, 'description', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                      rows={4}
+                      placeholder="Descreva as atividades deste dia."
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleAddItineraryDay}
+              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
+            >
+              <Plus size={16} /> Adicionar Dia ao Roteiro
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Step 5: Final Settings ---
+  const renderStep5 = () => (
+    <div className="space-y-6">
+      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={tripData.is_active || false}
+            onChange={e => setTripData({ ...tripData, is_active: e.target.checked })}
+            className="h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"
+          />
+          <span className="text-sm font-bold text-gray-700">Publicar agora</span>
+          {/* FIX: Removed unsupported 'title' prop from Info icon */}
+          <Info size={16} className="text-gray-400" />
+        </label>
+        <p className="text-xs text-gray-500 mt-1 pl-8">Desmarque para salvar como rascunho e publicar depois.</p>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={tripData.featured || false}
+            onChange={e => setTripData({ ...tripData, featured: e.target.checked })}
+            className="h-5 w-5 rounded text-amber-600 border-gray-300 focus:ring-amber-500"
+          />
+          <span className="text-sm font-bold text-gray-700">Destacar na ViajaStore</span>
+          {/* FIX: Removed unsupported 'title' prop from ShieldCheck icon */}
+          <ShieldCheck size={16} className="text-amber-500" />
+        </label>
+        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá na Home do marketplace (sujeito a aprovação do Admin).</p>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={tripData.featuredInHero || false}
+            onChange={e => setTripData({ ...tripData, featuredInHero: e.target.checked })}
+            className="h-5 w-5 rounded text-purple-600 border-gray-300 focus:ring-purple-500"
+          />
+          <span className="text-sm font-bold text-gray-700">Destacar no meu Microsite</span>
+          {/* FIX: Removed unsupported 'title' prop from Home icon */}
+          <Home size={16} className="text-purple-500" />
+        </label>
+        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá no carrossel principal da sua página de agência.</p>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={tripData.popularNearSP || false}
+            onChange={e => setTripData({ ...tripData, popularNearSP: e.target.checked })}
+            className="h-5 w-5 rounded text-green-600 border-gray-300 focus:ring-green-500"
+          />
+          <span className="text-sm font-bold text-gray-700">Popular perto de SP</span>
+          {/* FIX: Removed unsupported 'title' prop from Globe icon */}
+          <Globe size={16} className="text-green-500" />
+        </label>
+        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá como sugestão para usuários da região de São Paulo.</p>
+      </div>
+    </div>
+  );
+
+  const steps = [
+    { title: "Detalhes Básicos", icon: Plane, content: renderStep1() },
+    { title: "Mídia & Descrição", icon: ImageIcon, content: renderStep2() },
+    { title: "Logística Operacional", icon: Bus, content: renderStep3() },
+    { title: "Roteiro Dia a Dia", icon: BookOpen, content: renderStep4() },
+    { title: "Publicação & Destaques", icon: ListChecks, content: renderStep5() },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+      <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full" aria-label="Fechar Wizard"><X size={20}/></button>
+        
+        <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
+                <Plane size={24}/>
+            </div>
+            <div>
+                <h2 className="text-2xl font-bold text-gray-900">{isEditing ? `Editar Pacote: ${tripData.title}` : 'Criar Novo Pacote'}</h2>
+                <p className="text-sm text-gray-500">Passo {currentStep + 1} de {steps.length}: {steps[currentStep].title}</p>
+            </div>
+        </div>
+
+        <div className="mb-8 h-2 bg-gray-100 rounded-full">
+            <div className="bg-primary-600 h-full rounded-full transition-all duration-300" style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}></div>
+        </div>
+
+        {steps[currentStep].content}
+
+        <div className="mt-8 flex justify-between gap-4 pt-6 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={currentStep === 0 || isLoading}
+            className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <ChevronLeft size={18} /> Voltar
+          </button>
+          {currentStep < steps.length - 1 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={isLoading}
+              className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              Próximo <ChevronRight size={18} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={isLoading}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {isLoading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} {isEditing ? 'Atualizar Pacote' : 'Publicar Pacote'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CreateTripWizard;

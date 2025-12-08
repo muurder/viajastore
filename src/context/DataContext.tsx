@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, ActivityActionType } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -57,7 +57,7 @@ interface DataContextType {
   getPublicTrips: () => Trip[];
   
   // Actions
-  refreshData: () => Promise<void>;
+  refreshData: () => Promise<void>; // Full refresh
   addBooking: (booking: Booking) => Promise<Booking | undefined>;
   addReview: (review: Review) => Promise<void>;
   addAgencyReview: (review: Partial<AgencyReview>) => Promise<void>;
@@ -94,7 +94,7 @@ interface DataContextType {
   getAgencyStats: (agencyId: string) => Promise<DashboardStats>;
   getAgencyTheme: (agencyId: string) => Promise<AgencyTheme | null>;
   saveAgencyTheme: (agencyId: string, colors: ThemeColors) => Promise<boolean>;
-  refreshUserData: () => Promise<void>;
+  refreshUserData: () => Promise<void>; // Alias for _fetchBookingsForCurrentUser or specific user data refresh
   incrementTripViews: (tripId: string) => Promise<void>;
 }
 
@@ -109,28 +109,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [trips, setTrips] = useState<Trip[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [agencyReviews, setAgencyReviews] = useState<AgencyReview[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<Client[]>([]); // Now holds all client profiles
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const guardSupabase = () => {
+  const guardSupabase = useCallback(() => {
     if (!supabase) return null;
     return supabase;
-  };
+  }, []);
 
-  const fetchGlobalData = async () => {
+  // --- Internal Data Fetching Functions ---
+
+  // Fetches all global data and client profiles (for admin/global context)
+  const _fetchGlobalAndClientProfiles = useCallback(async () => {
     setLoading(true);
     const sb = guardSupabase();
     
     if (!sb) {
-        // Fallback to Mocks if offline/no Supabase
         setAgencies(MOCK_AGENCIES);
         setTrips(MOCK_TRIPS);
-        setBookings(MOCK_BOOKINGS);
-        setAgencyReviews([]); // or MOCK_REVIEWS adapted
+        setAgencyReviews([]); 
         setClients(MOCK_CLIENTS);
-        setLoading(false);
+        setAuditLogs([]);
+        setActivityLogs([]);
         return;
     }
 
@@ -139,29 +141,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: agenciesData } = await sb.from('agencies').select('*');
         if (agenciesData) {
             const mappedAgencies: Agency[] = agenciesData.map((a: any) => ({
-                id: a.user_id,
-                agencyId: a.id,
-                name: a.name,
-                email: a.email || '',
-                role: UserRole.AGENCY,
-                slug: a.slug || '',
-                whatsapp: a.whatsapp,
-                cnpj: a.cnpj,
-                description: a.description || '',
-                logo: a.logo_url || '',
-                is_active: a.is_active,
-                heroMode: a.hero_mode || 'TRIPS',
-                heroBannerUrl: a.hero_banner_url,
-                heroTitle: a.hero_title,
-                heroSubtitle: a.hero_subtitle,
-                customSettings: a.custom_settings || {},
-                subscriptionStatus: a.subscription_status || 'ACTIVE',
-                subscriptionPlan: a.subscription_plan || 'BASIC',
-                subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(),
-                website: a.website,
-                phone: a.phone,
-                address: a.address || {},
-                bankInfo: a.bank_info || {}
+                id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
             }));
             setAgencies(mappedAgencies);
         }
@@ -170,34 +150,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: tripsData } = await sb.from('trips').select('*, trip_images(*)');
         if (tripsData) {
             const mappedTrips: Trip[] = tripsData.map((t: any) => ({
-                id: t.id,
-                agencyId: t.agency_id,
-                title: t.title,
-                slug: t.slug,
-                description: t.description,
-                destination: t.destination,
-                price: t.price,
-                startDate: t.start_date,
-                endDate: t.end_date,
-                durationDays: t.duration_days,
-                images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [],
-                category: t.category,
-                tags: t.tags || [],
-                travelerTypes: t.traveler_types || [],
-                itinerary: t.itinerary,
-                boardingPoints: t.boarding_points,
-                paymentMethods: t.payment_methods,
-                is_active: t.is_active,
-                tripRating: t.trip_rating || 0,
-                tripTotalReviews: t.trip_total_reviews || 0,
-                included: t.included || [],
-                notIncluded: t.not_included || [],
-                views: t.views_count,
-                sales: t.sales_count,
-                featured: t.featured,
-                featuredInHero: t.featured_in_hero,
-                popularNearSP: t.popular_near_sp,
-                operationalData: t.operational_data || {}
+                id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
             }));
             setTrips(mappedTrips);
         }
@@ -205,45 +158,84 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // 3. Fetch Agency Reviews
         const { data: reviewsData } = await sb.from('agency_reviews').select('*');
         if (reviewsData) {
-            // We need to join client info manually or via query if not joined
-            // For now mapping raw
             setAgencyReviews(reviewsData.map((r: any) => ({
-                id: r.id,
-                agencyId: r.agency_id,
-                clientId: r.client_id,
-                bookingId: r.booking_id,
-                rating: r.rating,
-                comment: r.comment,
-                tags: r.tags,
-                createdAt: r.created_at,
-                response: r.response,
-                clientName: 'Viajante', // Placeholder until joined
-                agencyName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', // Placeholder until joined
-                tripTitle: tripsData?.find((t: any) => t.id === r.trip_id)?.title || undefined, // Placeholder until joined
+                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, clientName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', // clientName is dynamic from join
+                agencyName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', tripTitle: tripsData?.find((t: any) => t.id === r.trip_id)?.title || undefined,
             })));
         }
 
-        // 4. Fetch Clients (Profiles with CLIENT role)
+        // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
         const { data: clientsData } = await sb.from('profiles').select('*').eq('role', UserRole.CLIENT);
         if (clientsData) {
             const mappedClients: Client[] = clientsData.map((c: any) => ({
-                id: c.id,
-                name: c.full_name,
-                email: c.email,
-                role: UserRole.CLIENT,
-                avatar: c.avatar_url,
-                cpf: c.cpf,
-                phone: c.phone,
-                favorites: c.favorites || [],
-                address: c.address || {},
-                status: c.status,
-                createdAt: c.created_at
+                id: c.id, name: c.full_name, email: c.email, role: UserRole.CLIENT, avatar: c.avatar_url, cpf: c.cpf, phone: c.phone, favorites: c.favorites || [], address: c.address || {}, status: c.status, createdAt: c.created_at
             }));
             setClients(mappedClients);
         }
 
-        // 5. Fetch Bookings (and augment with trip/agency data)
-        const { data: bookingsData } = await sb.from('bookings').select('*');
+        // 5. Fetch Audit Logs
+        const { data: auditLogsData } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false });
+        if (auditLogsData) {
+            setAuditLogs(auditLogsData.map((log: any) => ({
+                id: log.id, adminEmail: log.admin_email, action: log.action, details: log.details, createdAt: log.created_at
+            })));
+        }
+
+        // 6. Fetch Activity Logs
+        const { data: activityLogsData } = await sb.from('activity_logs').select('*').order('created_at', { ascending: false });
+        if (activityLogsData) {
+            setActivityLogs(activityLogsData.map((log: any) => ({
+                id: log.id, userId: log.user_id, actionType: log.action_type, details: log.details, createdAt: log.created_at
+            })));
+        }
+
+    } catch (error: any) {
+        console.error("Error fetching global and client profiles data:", error.message);
+        showToast(`Erro ao carregar dados: ${error.message}`, 'error');
+        setAgencies(MOCK_AGENCIES);
+        setTrips(MOCK_TRIPS);
+        setAgencyReviews([]);
+        setClients(MOCK_CLIENTS);
+        setAuditLogs([]);
+        setActivityLogs([]);
+    } finally {
+        setLoading(false);
+    }
+  }, [guardSupabase, showToast]); // Dependencies for useCallback
+
+  // Fetches bookings specific to the currently logged-in user (client or agency)
+  const _fetchBookingsForCurrentUser = useCallback(async (loggedInUser: User) => {
+    setLoading(true);
+    const sb = guardSupabase();
+    if (!sb) {
+        setBookings([]); // Clear bookings if no supabase
+        await reloadUser(); // Still try to refresh auth user data
+        setLoading(false);
+        return;
+    }
+
+    try {
+        let bookingsData: any[] | null = null;
+        let bookingsError: any = null;
+
+        if (loggedInUser.role === UserRole.AGENCY) {
+            const agencyUser = loggedInUser as Agency;
+            // Filter trips by agencyId (which is the agency's PK `id` in the `agencies` table)
+            const myAgencyTrips = trips.filter(t => t.agencyId === agencyUser.agencyId);
+            const myTripIds = myAgencyTrips.map(t => t.id);
+
+            ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
+                .select('*, trips:trip_id(*, agencies:agency_id(*))') // Deep nesting
+                .in('trip_id', myTripIds)); // FIX: Correctly use .in with trip_id
+            
+        } else if (loggedInUser.role === UserRole.CLIENT) {
+            ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
+                .select('*, trips:trip_id(*, agencies:agency_id(*))')
+                .eq('client_id', loggedInUser.id));
+        }
+
+        if (bookingsError) throw bookingsError;
+
         if (bookingsData) {
             const augmentedBookings: Booking[] = bookingsData.map((b: any) => ({
                 id: b.id,
@@ -255,112 +247,77 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 passengers: b.passengers,
                 voucherCode: b.voucher_code,
                 paymentMethod: b.payment_method,
-                _trip: tripsData?.find((t: any) => t.id === b.trip_id),
-                _agency: agenciesData?.find((a: any) => a.id === tripsData?.find((t: any) => t.id === b.trip_id)?.agency_id)
+                _trip: b.trips, // Deep nesting: trips is already augmented
+                _agency: b.trips?.agencies // Deep nesting: agency is inside trips
             }));
             setBookings(augmentedBookings);
+        } else {
+            setBookings([]);
         }
 
-        // 6. Fetch Audit Logs
-        const { data: auditLogsData } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false });
-        if (auditLogsData) {
-            setAuditLogs(auditLogsData.map((log: any) => ({
-                id: log.id,
-                adminEmail: log.admin_email,
-                action: log.action,
-                details: log.details,
-                createdAt: log.created_at
-            })));
-        }
-
-        // 7. Fetch Activity Logs
-        const { data: activityLogsData } = await sb.from('activity_logs').select('*').order('created_at', { ascending: false });
-        if (activityLogsData) {
-            setActivityLogs(activityLogsData.map((log: any) => ({
-                id: log.id,
-                userId: log.user_id,
-                actionType: log.action_type,
-                details: log.details,
-                createdAt: log.created_at
-            })));
-        }
+        await reloadUser(); // Always refresh the AuthContext user to get latest profile, favorites etc.
 
     } catch (error: any) {
-        console.error("Error fetching global data:", error.message);
-        showToast(`Erro ao carregar dados: ${error.message}`, 'error');
-        // Fallback to Mocks on error too
-        setAgencies(MOCK_AGENCIES);
-        setTrips(MOCK_TRIPS);
-        setBookings(MOCK_BOOKINGS);
-        setAgencyReviews([]);
-        setClients(MOCK_CLIENTS);
+        console.error("Error fetching user-specific data:", error.message);
+        showToast(`Erro ao carregar dados do usuário: ${error.message}`, 'error');
+        setBookings([]); // Clear bookings on error
     } finally {
         setLoading(false);
     }
-  };
+  }, [guardSupabase, trips, agencies, reloadUser, showToast]); // Dependencies for useCallback
 
-  // Initial data fetch and real-time subscriptions
+  // --- Main Effect Hook for Global Data (runs once on mount) ---
   useEffect(() => {
-    fetchGlobalData();
+    _fetchGlobalAndClientProfiles();
 
     const sb = guardSupabase();
     if (sb) {
         const subscriptions: any[] = [];
         
-        // Listen for changes in 'agencies'
-        subscriptions.push(sb.channel('agencies_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'agencies' }, payload => {
-            console.log('Agency change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
+        // Subscribe to global data changes, triggering _fetchGlobalAndClientProfiles
+        const globalTablesToSubscribe = ['agencies', 'trips', 'agency_reviews', 'profiles', 'audit_logs', 'activity_logs'];
+        globalTablesToSubscribe.forEach(table => {
+            subscriptions.push(sb.channel(`${table}_changes`).on('postgres_changes', { event: '*', schema: 'public', table: table }, payload => {
+                console.log(`${table} change received!`, payload);
+                _fetchGlobalAndClientProfiles();
+            }).subscribe());
+        });
 
-        // Listen for changes in 'trips'
-        subscriptions.push(sb.channel('trips_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, payload => {
-            console.log('Trip change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
-        
-        // Listen for changes in 'bookings'
+        // Bookings changes should specifically trigger a refresh of user-dependent data
         subscriptions.push(sb.channel('bookings_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
             console.log('Booking change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
-
-        // Listen for changes in 'agency_reviews'
-        subscriptions.push(sb.channel('agency_reviews_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'agency_reviews' }, payload => {
-            console.log('Agency review change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
-
-        // Listen for changes in 'profiles'
-        subscriptions.push(sb.channel('profiles_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, payload => {
-            console.log('Profile change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
-
-        // Listen for changes in 'audit_logs'
-        subscriptions.push(sb.channel('audit_logs_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, payload => {
-            console.log('Audit Log change received!', payload);
-            fetchGlobalData();
-        }).subscribe());
-
-        // Listen for changes in 'activity_logs'
-        subscriptions.push(sb.channel('activity_logs_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, payload => {
-            console.log('Activity Log change received!', payload);
-            fetchGlobalData();
+            if (user?.id) _fetchBookingsForCurrentUser(user); // Trigger user-specific refresh
+            else _fetchGlobalAndClientProfiles(); // Fallback if no user, e.g., for general stats updates
         }).subscribe());
 
         return () => {
             subscriptions.forEach(sub => sb.removeChannel(sub));
         };
     }
-  }, []);
+  }, [_fetchGlobalAndClientProfiles, _fetchBookingsForCurrentUser, guardSupabase, user]); // user is here for booking changes logic
 
+  // --- Second Effect Hook for User-Specific Data (runs when user changes) ---
+  useEffect(() => {
+    // This effect runs when user.id changes, or after initial auth loading completes and user is available
+    if (user?.id && !authLoading) {
+        _fetchBookingsForCurrentUser(user);
+    } else if (!user && !authLoading) {
+        // If user logs out, clear user-specific data (bookings)
+        setBookings([]);
+    }
+  }, [user, authLoading, _fetchBookingsForCurrentUser]);
+
+
+  // --- Exported Refresh Function (Full Data Refresh) ---
   const refreshData = useCallback(async () => {
-      await fetchGlobalData();
+      await _fetchGlobalAndClientProfiles(); // Refresh global data first
       if (user) {
-        await reloadUser(); // Ensure AuthContext user state is also refreshed
+          await _fetchBookingsForCurrentUser(user); // Then refresh user-specific data
+      } else {
+          setBookings([]); // Clear bookings if no user is logged in
       }
-  }, [fetchGlobalData, user, reloadUser]); // Added user and reloadUser to dependencies
+  }, [_fetchGlobalAndClientProfiles, user, _fetchBookingsForCurrentUser]);
+
 
   // Data Getters
   const getTripBySlug = useCallback((slugToFind: string) => {
@@ -405,9 +362,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             action_type: actionType,
             details: details,
         });
-        fetchGlobalData(); // Refresh activity logs
+        _fetchGlobalAndClientProfiles(); // Refresh activity logs, which are global
     }
-  }, [user, fetchGlobalData]);
+  }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const addBooking = useCallback(async (booking: Booking): Promise<Booking | undefined> => {
     const sb = guardSupabase();
@@ -440,7 +397,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
-        fetchGlobalData(); // To update local cache
+        if (user) _fetchBookingsForCurrentUser(user); // To update local cache for current user
+        else _fetchGlobalAndClientProfiles(); // If no user (e.g., admin booked for someone), refresh global
         return newBooking;
 
     } catch (error: any) {
@@ -448,7 +406,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao adicionar reserva: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, trips, agencies, logActivity, fetchGlobalData]);
+  }, [showToast, trips, agencies, logActivity, _fetchBookingsForCurrentUser, user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const addReview = useCallback(async (review: Review) => {
     const sb = guardSupabase();
@@ -464,12 +422,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         showToast('Avaliação enviada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { reviewId: review.id, tripId: review.tripId, rating: review.rating });
-        fetchGlobalData(); // Update local cache
+        _fetchGlobalAndClientProfiles(); // Update local cache
     } catch (error: any) {
         console.error("Error adding review:", error.message);
         showToast(`Erro ao adicionar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const addAgencyReview = useCallback(async (review: Partial<AgencyReview>) => {
     const sb = guardSupabase();
@@ -491,12 +449,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }, { onConflict: ['agency_id', 'client_id'] }); // Allow client to update their review
         showToast('Avaliação enviada/atualizada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error adding/updating agency review:", error.message);
         showToast(`Erro ao enviar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
@@ -505,12 +463,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
         logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting review:", error.message);
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteAgencyReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
@@ -519,12 +477,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('agency_reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
         logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting agency review:", error.message);
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateAgencyReview = useCallback(async (id: string, updates: Partial<AgencyReview>) => {
     const sb = guardSupabase();
@@ -538,12 +496,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }).eq('id', id);
         showToast('Avaliação atualizada.', 'success');
         logActivity(ActivityActionType.REVIEW_UPDATED, { reviewId: id, updates });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating agency review:", error.message);
         showToast(`Erro ao atualizar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
 
   const toggleFavorite = useCallback(async (tripId: string, userId: string) => {
@@ -560,7 +518,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const isCurrentlyFavorite = currentFavorites.includes(tripId);
       
       let newFavorites;
-      let action: ActivityActionType;
+      let action: ActivityActionType; // Declare action with its type
       if (isCurrentlyFavorite) {
           newFavorites = currentFavorites.filter(id => id !== tripId);
           action = ActivityActionType.FAVORITE_TOGGLED;
@@ -574,12 +532,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
           logActivity(action, { tripId, userId, isFavorite: !isCurrentlyFavorite });
-          fetchGlobalData(); // Update local cache including clients
+          _fetchGlobalAndClientProfiles(); // Update local cache including clients
+          reloadUser(); // Update user in AuthContext
       } catch (error: any) {
           console.error("Error toggling favorite:", error.message);
           showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
       }
-  }, [showToast, clients, logActivity, fetchGlobalData]);
+  }, [showToast, clients, logActivity, _fetchGlobalAndClientProfiles, reloadUser, guardSupabase]);
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
@@ -597,13 +556,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('profiles').update(updates).eq('id', userId);
         showToast('Perfil do cliente atualizado!', 'success');
         logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userId, updates });
-        fetchGlobalData(); // Update local cache
+        _fetchGlobalAndClientProfiles(); // Update local cache
+        reloadUser(); // Update user in AuthContext
     } catch (error: any) {
         console.error("Error updating client profile:", error.message);
         showToast(`Erro ao atualizar perfil do cliente: ${error.message}`, 'error');
         throw error; // Re-throw to allow component to handle loading state
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, reloadUser, guardSupabase]);
 
   const updateAgencySubscription = useCallback(async (agencyId: string, status: string, plan: string, expiresAt?: string) => {
     const sb = guardSupabase();
@@ -620,13 +580,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('agencies').update(updates).eq('id', agencyId);
         showToast('Assinatura da agência atualizada!', 'success');
         logActivity(ActivityActionType.AGENCY_SUBSCRIPTION_UPDATED, { agencyId, updates });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating agency subscription:", error.message);
         showToast(`Erro ao atualizar assinatura da agência: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateAgencyProfileByAdmin = useCallback(async (agencyId: string, data: Partial<Agency>) => {
     const sb = guardSupabase();
@@ -646,13 +606,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('agencies').update(updates).eq('id', agencyId);
         showToast('Perfil da agência atualizado pelo Admin!', 'success');
         logActivity(ActivityActionType.AGENCY_PROFILE_UPDATED, { agencyId, updates });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating agency profile by admin:", error.message);
         showToast(`Erro ao atualizar perfil da agência: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const toggleAgencyStatus = useCallback(async (agencyId: string) => {
     const sb = guardSupabase();
@@ -667,12 +627,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('agencies').update({ is_active: newStatus }).eq('id', agencyId);
         showToast(`Agência ${newStatus ? 'ativada' : 'desativada'} com sucesso!`, 'success');
         logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, newStatus });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error toggling agency status:", error.message);
         showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
     }
-  }, [showToast, agencies, logActivity, fetchGlobalData]);
+  }, [showToast, agencies, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const createTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
@@ -718,13 +678,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         showToast('Pacote criado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_CREATED, { tripId: data.id, title: data.title });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error creating trip:", error.message);
         showToast(`Erro ao criar pacote: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
@@ -770,13 +730,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         showToast('Pacote atualizado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId: trip.id, title: trip.title });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating trip:", error.message);
         showToast(`Erro ao atualizar pacote: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteTrip = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -787,12 +747,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trips').delete().eq('id', tripId);
         showToast('Pacote excluído com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_DELETED, { tripId });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting trip:", error.message);
         showToast(`Erro ao excluir pacote: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const toggleTripStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -807,12 +767,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trips').update({ is_active: newStatus }).eq('id', tripId);
         showToast(`Viagem ${newStatus ? 'publicada' : 'pausada'} com sucesso!`, 'success');
         logActivity(ActivityActionType.TRIP_STATUS_TOGGLED, { tripId, newStatus });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error toggling trip status:", error.message);
         showToast(`Erro ao alterar status da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity, fetchGlobalData]);
+  }, [showToast, trips, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const toggleTripFeatureStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -827,12 +787,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trips').update({ featured: newFeaturedStatus }).eq('id', tripId);
         showToast(`Viagem ${newFeaturedStatus ? 'destacada' : 'removida do destaque'} com sucesso!`, 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId, featured: newFeaturedStatus });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error toggling trip feature status:", error.message);
         showToast(`Erro ao alterar destaque da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity, fetchGlobalData]);
+  }, [showToast, trips, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateTripOperationalData = useCallback(async (tripId: string, data: OperationalData) => {
     const sb = guardSupabase();
@@ -840,13 +800,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('trips').update({ operational_data: data }).eq('id', tripId);
         showToast('Dados operacionais atualizados!', 'success');
-        fetchGlobalData(); // To ensure local cache is up-to-date
+        _fetchGlobalAndClientProfiles(); // To ensure local cache is up-to-date
     } catch (error: any) {
         console.error("Error updating operational data:", error.message);
         showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, fetchGlobalData]);
+  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const softDeleteEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
@@ -855,12 +815,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await sb.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
           showToast('Movido para a lixeira.', 'success');
           logActivity(ActivityActionType.DELETE_USER, { entityId: id, table, softDelete: true });
-          fetchGlobalData();
+          _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error soft deleting entity:", error.message);
           showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
       }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const restoreEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
@@ -868,12 +828,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await sb.from(table).update({ deleted_at: null }).eq('id', id);
           showToast('Restaurado com sucesso.', 'success');
-          fetchGlobalData();
+          _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error restoring entity:", error.message);
           showToast(`Erro ao restaurar: ${error.message}`, 'error');
       }
-  }, [showToast, fetchGlobalData]);
+  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteUser = useCallback(async (id: string, role: string) => {
       const sb = guardSupabase();
@@ -907,12 +867,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
 
           logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true });
-          fetchGlobalData();
+          _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error deleting user permanently:", error.message);
           showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
       }
-  }, [showToast, trips, deleteTrip, logActivity, fetchGlobalData]);
+  }, [showToast, trips, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteMultipleUsers = useCallback(async (ids: string[]) => {
     const sb = guardSupabase();
@@ -927,12 +887,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         showToast('Usuários selecionados excluídos.', 'success');
         logActivity(ActivityActionType.DELETE_MULTIPLE_USERS, { userIds: ids });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting multiple users:", error.message);
         showToast(`Erro ao excluir múltiplos usuários: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const deleteMultipleAgencies = useCallback(async (agencyPks: string[]) => {
     const sb = guardSupabase();
@@ -965,12 +925,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         showToast('Agências selecionadas excluídas.', 'success');
         logActivity(ActivityActionType.DELETE_MULTIPLE_AGENCIES, { agencyPks, userIds: userIdsToDelete });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error deleting multiple agencies:", error.message);
         showToast(`Erro ao excluir múltiplas agências: ${error.message}`, 'error');
     }
-  }, [showToast, trips, deleteTrip, logActivity, fetchGlobalData]);
+  }, [showToast, trips, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
@@ -1000,7 +960,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao buscar estatísticas de usuários: ${error.message}`, 'error');
         return [];
     }
-  }, [clients, bookings, agencyReviews, showToast]);
+  }, [clients, bookings, agencyReviews, showToast, guardSupabase]);
 
   const updateMultipleUsersStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
@@ -1009,12 +969,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('profiles').update({ status: status }).in('id', ids);
         showToast('Status dos usuários atualizado.', 'success');
         logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userIds: ids, status });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple users status:", error.message);
         showToast(`Erro ao atualizar status dos usuários: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const updateMultipleAgenciesStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
@@ -1023,12 +983,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('agencies').update({ is_active: status === 'ACTIVE' }).in('id', ids);
         showToast('Status das agências atualizado.', 'success');
         logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, status });
-        fetchGlobalData();
+        _fetchGlobalAndClientProfiles();
     } catch (error: any) {
         console.error("Error updating multiple agencies status:", error.message);
         showToast(`Erro ao atualizar status das agências: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity, fetchGlobalData]);
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const logAuditAction = useCallback(async (action: string, details: string) => {
       const sb = guardSupabase();
@@ -1039,11 +999,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               action: action,
               details: details,
           });
-          fetchGlobalData();
+          _fetchGlobalAndClientProfiles();
       } catch (error: any) {
           console.error("Error logging audit action:", error.message);
       }
-  }, [user, fetchGlobalData]);
+  }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
       const sb = guardSupabase();
@@ -1059,7 +1019,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error sending password reset:", error.message);
           showToast(`Erro ao enviar link de recuperação: ${error.message}`, 'error');
       }
-  }, [showToast, logAuditAction]);
+  }, [showToast, logAuditAction, guardSupabase]);
 
   const updateUserAvatarByAdmin = useCallback(async (userId: string, file: File): Promise<string | null> => {
     const sb = guardSupabase();
@@ -1082,7 +1042,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         showToast('Avatar atualizado por Admin.', 'success');
         logAuditAction('USER_AVATAR_UPDATED_BY_ADMIN', `User ${userId} avatar updated to ${publicUrl}`);
-        fetchGlobalData(); // Refresh clients data
+        _fetchGlobalAndClientProfiles(); // Refresh clients data
 
         return publicUrl;
     } catch (error: any) {
@@ -1090,32 +1050,36 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao atualizar avatar: ${error.message}`, 'error');
         return null;
     }
-  }, [showToast, logAuditAction, fetchGlobalData]);
+  }, [showToast, logAuditAction, _fetchGlobalAndClientProfiles, guardSupabase]);
 
+  // FIX: Implement RPC call for getAgencyStats
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
-    // For now, calculate locally from loaded data
-    const myTrips = trips.filter(t => t.agencyId === agencyId);
-    const myBookings = bookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
-    const myReviews = agencyReviews.filter(r => r.agencyId === agencyId);
+    const sb = guardSupabase();
+    if (!sb) {
+        // Fallback or default stats if Supabase not available
+        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    }
+    try {
+        const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
+        if (error) throw error;
 
-    const totalRevenue = myBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-    const totalSales = myBookings.length;
-    const totalViews = myTrips.reduce((sum, t) => sum + (t.views || 0), 0);
-    const totalReviews = myReviews.length;
-    const averageRating = totalReviews > 0 ? myReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews : 0;
-    
-    // Simple conversion rate: total sales / total views (prevent div by zero)
-    const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+        // Data from RPC is likely snake_case and needs mapping
+        const stats: DashboardStats = {
+            totalRevenue: data.total_revenue || 0,
+            totalViews: data.total_views || 0,
+            totalSales: data.total_sales || 0,
+            conversionRate: data.conversion_rate || 0,
+            averageRating: data.average_rating || 0,
+            totalReviews: data.total_reviews || 0,
+        };
+        return stats;
+    } catch (error: any) {
+        console.error("Error fetching agency stats via RPC:", error.message);
+        showToast(`Erro ao buscar estatísticas da agência: ${error.message}`, 'error');
+        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    }
+  }, [guardSupabase, showToast]);
 
-    return {
-        totalRevenue,
-        totalSales,
-        totalViews,
-        totalReviews,
-        averageRating,
-        conversionRate,
-    };
-  }, [trips, bookings, agencyReviews]);
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
       const sb = guardSupabase();
@@ -1135,7 +1099,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error fetching agency theme:", error.message);
           return null;
       }
-  }, []);
+  }, [guardSupabase]);
 
   const saveAgencyTheme = useCallback(async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
       const sb = guardSupabase();
@@ -1157,7 +1121,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           showToast(`Erro ao salvar tema da agência: ${error.message}`, 'error');
           return false;
       }
-  }, [showToast]);
+  }, [showToast, guardSupabase]);
 
   const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
       const sb = guardSupabase();
@@ -1236,7 +1200,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           showToast(`Erro ao buscar viagens: ${error.message}`, 'error');
           return { data: [], count: 0, error: error.message };
       }
-  }, [showToast]);
+  }, [showToast, guardSupabase]);
 
   const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
       const sb = guardSupabase();
@@ -1295,7 +1259,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               heroSubtitle: a.hero_subtitle,
               customSettings: a.custom_settings || {},
               subscriptionStatus: a.subscription_status || 'ACTIVE',
-              subscriptionPlan: a.subscription_plan || 'BASIC',
+              subscriptionPlan: 'BASIC',
               subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(),
               website: a.website,
               phone: a.phone,
@@ -1309,7 +1273,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           showToast(`Erro ao buscar agências: ${error.message}`, 'error');
           return { data: [], count: 0, error: error.message };
       }
-  }, [showToast]);
+  }, [showToast, guardSupabase]);
 
   const incrementTripViews = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -1320,7 +1284,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error: any) {
         console.error("Error incrementing trip views:", error.message);
     }
-  }, []);
+  }, [guardSupabase]);
 
   return (
     <DataContext.Provider
@@ -1341,7 +1305,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         getTripById,
         getAgencyPublicTrips,
         getPublicTrips,
-        refreshData,
+        refreshData, // Full data refresh (global + user-specific)
         addBooking,
         addReview,
         addAgencyReview,
@@ -1376,7 +1340,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         getAgencyStats,
         getAgencyTheme,
         saveAgencyTheme,
-        refreshUserData: refreshData, // Expose refreshData as refreshUserData
+        refreshUserData: useCallback(async () => { // Expose a dedicated user-data refresh
+            if (user) await _fetchBookingsForCurrentUser(user);
+        }, [user, _fetchBookingsForCurrentUser]),
         incrementTripViews,
       }}
     >
