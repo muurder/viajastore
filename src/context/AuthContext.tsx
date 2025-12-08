@@ -288,8 +288,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeAuth();
-  }, []); // THIS DEPENDENCY ARRAY IS ALREADY EMPTY. The bug must be in DataContext's useEffect
-
+  }, []); // THIS DEPENDENCY ARRAY IS ALREADY EMPTY.
+  
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!password) return { success: false, error: 'Senha obrigatória' };
