@@ -88,9 +88,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       
       if (!isNaN(diffTime)) {
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          // Only auto-update if it looks like a calculation (simple logic)
-          // or if the user hasn't set a custom duration yet.
-          // For this simplified version, we just update it, but user can overwrite.
           setTripData(prev => ({ ...prev, durationDays: diffDays >= 0 ? diffDays + 1 : 1 }));
       }
     }
@@ -154,7 +151,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
     setIsLoading(true);
     try {
-      // 1. Upload Loop (Only happens on Publish click)
+      // 1. Upload Loop (With internal try/catch to not block publish on single image error)
       const uploadedUrls: string[] = [];
       if (filesToUpload.length > 0) {
           for (const file of filesToUpload) {
@@ -162,7 +159,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                   const url = await uploadImage(file, 'trip-images');
                   if (url) uploadedUrls.push(url);
               } catch (err) {
-                  console.error("Falha no upload de arquivo individual", err);
+                  console.error("Falha no upload de arquivo individual:", err);
+                  showToast(`Falha no upload de ${file.name}`, 'warning');
               }
           }
       }
@@ -170,7 +168,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       // 2. Merge Images
       const finalImages = [...(tripData.images || []), ...uploadedUrls];
 
-      // 3. Construct Final Object
+      // 3. Construct Final Object (Sanitizing arrays)
       const finalTrip: Trip = {
         id: tripData.id || crypto.randomUUID(),
         agencyId: currentAgency.agencyId,
@@ -186,13 +184,12 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         category: tripData.category!,
         tags: tripData.tags || [],
         
-        // Default/Minimal Data for removed steps
         travelerTypes: tripData.travelerTypes || [],
         paymentMethods: tripData.paymentMethods || ['PIX'],
-        boardingPoints: tripData.boardingPoints || [],
-        itinerary: tripData.itinerary || [],
-        included: tripData.included || [],
-        notIncluded: tripData.notIncluded || [],
+        boardingPoints: Array.isArray(tripData.boardingPoints) ? tripData.boardingPoints : [],
+        itinerary: Array.isArray(tripData.itinerary) ? tripData.itinerary : [],
+        included: Array.isArray(tripData.included) ? tripData.included : [],
+        notIncluded: Array.isArray(tripData.notIncluded) ? tripData.notIncluded : [],
         
         is_active: tripData.is_active!,
         featured: tripData.featured || false,
@@ -213,7 +210,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       onClose();
 
     } catch (error: any) {
-      showToast(`Erro ao salvar: ${error.message}`, "error");
+      console.error("CreateTripWizard Error:", error);
+      showToast(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`, "error");
     } finally {
       setIsLoading(false);
     }

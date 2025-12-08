@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
 const TripDetails: React.FC = () => {
@@ -155,7 +156,19 @@ const TripDetails: React.FC = () => {
 
               {/* Header Info */}
               <div>
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4 leading-tight">{trip.title}</h1>
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2 leading-tight">{trip.title}</h1>
+                  
+                  {/* Tags Pills */}
+                  {trip.tags && trip.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                          {trip.tags.map(tag => (
+                              <span key={tag} className="text-xs font-medium text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full border border-gray-200 flex items-center gap-1">
+                                  <Tag size={10} className="text-gray-400"/> {tag}
+                              </span>
+                          ))}
+                      </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600 mb-6">
                       <div className="flex items-center"><MapPin size={18} className="mr-2 text-primary-500"/> {trip.destination}</div>
                       <div className="flex items-center"><Clock size={18} className="mr-2 text-primary-500"/> {trip.durationDays} dias</div>
@@ -214,6 +227,27 @@ const TripDetails: React.FC = () => {
                   </div>
               )}
 
+              {/* Boarding Points */}
+              {trip.boardingPoints && trip.boardingPoints.length > 0 && (
+                  <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                          <Bus size={24} className="text-gray-400"/> Locais de Embarque
+                      </h3>
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
+                          {trip.boardingPoints.map((bp) => (
+                              <div key={bp.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
+                                  <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-bold text-gray-900 shadow-sm w-fit flex items-center gap-2">
+                                      <Clock size={14} className="text-primary-600"/> {bp.time}
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-700">
+                                      <MapPin size={16} className="text-gray-400 mr-2 flex-shrink-0"/> {bp.location}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              )}
+
               {/* Agency Info */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6">
                   <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-gray-50 shadow-sm" />
@@ -243,7 +277,8 @@ const TripDetails: React.FC = () => {
               <div className="sticky top-24 bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-6 z-30">
                   <div className="mb-6">
                       <div className="flex items-baseline gap-1">
-                          <span className="text-sm font-bold text-gray-900">R$</span>
+                          <span className="text-sm font-bold text-gray-900">Por:</span>
+                          <span className="text-xs font-semibold text-gray-500 self-start mt-2">R$</span>
                           <span className="text-4xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
                           <span className="text-sm text-gray-500 font-normal">/ pessoa</span>
                       </div>

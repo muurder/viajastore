@@ -497,9 +497,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     };
 
     const bookingPassengers = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
-        // Try to get name from client join or fallback
         const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
-        
         return Array.from({ length: b.passengers }).map((_, i) => ({
             id: `${b.id}-${i}`,
             bookingId: b.id,
@@ -1261,7 +1259,16 @@ const AgencyDashboard: React.FC = () => {
       if (!showConfirmSubscription || !currentAgency) return; 
       setActivatingPlanId(showConfirmSubscription.id); 
       try { 
-          await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); 
+          // FIX: Add 30 days instead of 1 year for subscription validity
+          const newExpiry = new Date();
+          newExpiry.setDate(newExpiry.getDate() + 30);
+          
+          await updateAgencySubscription(
+            currentAgency.agencyId, 
+            'ACTIVE', 
+            showConfirmSubscription.id as 'BASIC' | 'PREMIUM', 
+            newExpiry.toISOString()
+          ); 
           showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); 
           window.location.reload(); 
       } catch (error: any) { 
@@ -1274,7 +1281,7 @@ const AgencyDashboard: React.FC = () => {
 
   // Reusable Action Menu Generator
   const getTripActions = (trip: Trip) => [
-    { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
+    { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug || slugify(currentAgency?.name || '')}/viagem/${trip.slug || trip.id}`, '_blank') },
     { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
     { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
     { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
@@ -1778,28 +1785,38 @@ const AgencyDashboard: React.FC = () => {
 
                               <div className="mt-4 pt-4 border-t border-gray-100">
                                   {review.response ? (
-                                      <div className="bg-white p-3 rounded-lg border border-gray-200">
-                                          <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Sua Resposta:</h4>
-                                          <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                      <div className="bg-white p-3 rounded-lg border border-gray-200 relative">
+                                          <div className="absolute top-3 right-3 flex gap-2">
+                                               <button onClick={() => { setActiveReplyId(review.id); setReplyText(review.response || ''); }} className="text-xs text-gray-400 hover:text-primary-600 font-bold"><Edit size={12}/></button>
+                                          </div>
+                                          <div className="flex items-center gap-2 mb-2">
+                                              <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} className="w-6 h-6 rounded-full border border-gray-200" alt=""/>
+                                              <span className="text-xs font-bold text-gray-900">Você respondeu:</span>
+                                          </div>
+                                          <p className="text-sm text-gray-700 italic pl-8">"{review.response}"</p>
                                       </div>
                                   ) : activeReplyId === review.id ? (
-                                      <div className="bg-white p-3 rounded-lg border border-gray-200 animate-[fadeIn_0.2s]">
-                                          <textarea 
-                                              value={replyText} 
-                                              onChange={e => setReplyText(e.target.value)} 
-                                              placeholder="Escreva sua resposta..." 
-                                              className="w-full text-sm p-2 border border-gray-300 rounded mb-2 outline-none focus:border-primary-500"
-                                              rows={3}
-                                          />
-                                          <div className="flex justify-end gap-2">
-                                              <button onClick={() => { setActiveReplyId(null); setReplyText(''); }} className="text-xs text-gray-500 hover:text-gray-700 font-bold px-3 py-1.5">Cancelar</button>
-                                              <button onClick={() => handleReplySubmit(review.id)} disabled={loading} className="text-xs bg-primary-600 text-white font-bold px-3 py-1.5 rounded hover:bg-primary-700 disabled:opacity-50">
-                                                  {loading ? 'Enviando...' : 'Enviar Resposta'}
-                                              </button>
-                                          </div>
+                                      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-[fadeIn_0.2s] flex gap-3 items-start">
+                                           <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} className="w-8 h-8 rounded-full border border-gray-200 mt-1" alt=""/>
+                                           <div className="flex-1">
+                                                <textarea 
+                                                    value={replyText} 
+                                                    onChange={e => setReplyText(e.target.value)} 
+                                                    placeholder="Escreva sua resposta..." 
+                                                    className="w-full text-sm p-3 border border-gray-300 rounded-lg mb-2 outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                                                    rows={3}
+                                                    autoFocus
+                                                />
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => { setActiveReplyId(null); setReplyText(''); }} className="text-xs text-gray-500 hover:text-gray-700 font-bold px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+                                                    <button onClick={() => handleReplySubmit(review.id)} disabled={loading} className="text-xs bg-primary-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 shadow-sm flex items-center gap-1 transition-colors">
+                                                        {loading ? <Loader size={12} className="animate-spin"/> : <MessageCircle size={12}/>} Enviar
+                                                    </button>
+                                                </div>
+                                           </div>
                                       </div>
                                   ) : (
-                                      <button onClick={() => setActiveReplyId(review.id)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-2 transition-colors">
+                                      <button onClick={() => setActiveReplyId(review.id)} className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 hover:text-primary-600 flex items-center gap-2 transition-all shadow-sm">
                                           <MessageCircle size={16}/> Responder Avaliação
                                       </button>
                                   )}

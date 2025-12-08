@@ -281,8 +281,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Use refs to access latest trips and agencies without making them dependencies of useCallback
     const currentTrips = tripsRef.current;
-    const currentAgencies = agenciesRef.current;
-
+    
     try {
         let bookingsData: any[] | null = null;
         let bookingsError: any = null;
@@ -1400,17 +1399,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let totalReviews = 0;
  
         agencyTrips.forEach(trip => {
-            totalViews += trip.views || 0;
-            totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
-            totalReviews += trip.tripTotalReviews || 0;
+            totalViews += Number(trip.views || 0);
+            totalRatingSum += (Number(trip.tripRating) || 0) * (Number(trip.tripTotalReviews) || 0); // Use trip-specific rating/reviews
+            totalReviews += Number(trip.tripTotalReviews || 0);
         });
 
         // REFACTOR: Calculate Total Passengers (Sales) from Bookings
         const relevantBookings = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
-        const totalSales = relevantBookings.reduce((sum, b) => sum + (b.passengers || 1), 0); // Sum passengers
+        const totalSales = relevantBookings.reduce((sum, b) => sum + Number(b.passengers || 1), 0); // Sum passengers
 
         const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
-        const totalRevenue = relevantBookings.reduce((sum, b) => sum + b.totalPrice, 0); 
+        const totalRevenue = relevantBookings.reduce((sum, b) => sum + Number(b.totalPrice), 0); 
  
         const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
  
@@ -1494,173 +1493,107 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [guardSupabase]);
 
-  // Unified refresh for user-dependent data
   const refreshUserData = useCallback(async () => {
-    console.log("[DataContext] refreshUserData: Initiating user-specific data refresh."); // Debug Log
-    await _fetchBookingsForCurrentUser();
-    console.log("[DataContext] refreshUserData: User-specific data refresh complete."); // Debug Log
-  }, [_fetchBookingsForCurrentUser]);
+      console.log("[DataContext] refreshUserData triggered");
+      if (user) {
+          await _fetchGlobalAndClientProfiles(); // To update favorites/profile
+          await _fetchBookingsForCurrentUser();
+      }
+  }, [user, _fetchGlobalAndClientProfiles, _fetchBookingsForCurrentUser]);
 
+  // Server-side Search Mocks (Local Filtering)
+  const searchTrips = useCallback(async (params: SearchTripsParams): Promise<PaginatedResult<Trip>> => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    let result = tripsRef.current.filter(t => t.is_active); 
+    
+    if (params.featured !== undefined) {
+        result = result.filter(t => t.featured === params.featured);
+    }
+
+    if (params.query) {
+        const q = normalizeText(params.query);
+        result = result.filter(t => 
+            normalizeText(t.title).includes(q) || 
+            normalizeText(t.destination).includes(q) || 
+            t.tags.some(tag => normalizeText(tag).includes(q))
+        );
+    }
+    
+    if (params.category) result = result.filter(t => t.category === params.category);
+    if (params.agencyId) result = result.filter(t => t.agencyId === params.agencyId);
+    if (params.minPrice) result = result.filter(t => t.price >= params.minPrice!);
+    if (params.maxPrice) result = result.filter(t => t.price <= params.maxPrice!);
+
+    if (params.sort) {
+        switch (params.sort) {
+            case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
+            case 'HIGH_PRICE': result.sort((a, b) => b.price - a.price); break;
+            case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
+            case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
+            case 'RELEVANCE': 
+            default:
+                result.sort((a, b) => ((b.views || 0) + (b.sales || 0) * 10) - ((a.views || 0) + (a.sales || 0) * 10));
+        }
+    }
+
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const start = (page - 1) * limit;
+    const paginated = result.slice(start, start + limit);
+
+    return { data: paginated, count: result.length };
+  }, [tripsRef]);
+
+  const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      let result = agenciesRef.current.filter(a => a.is_active);
+
+      if (params.query) {
+          const q = normalizeText(params.query);
+          result = result.filter(a => normalizeText(a.name).includes(q) || normalizeText(a.description).includes(q));
+      }
+      
+      if (params.specialty) {
+           const q = normalizeText(params.specialty);
+           result = result.filter(a => 
+               (a.customSettings?.tags && a.customSettings.tags.some(t => normalizeText(t).includes(q))) ||
+               normalizeText(a.description).includes(q)
+           );
+      }
+
+      if (params.sort) {
+          switch(params.sort) {
+              case 'NAME': result.sort((a, b) => a.name.localeCompare(b.name)); break;
+              case 'RATING': 
+                  result.sort((a, b) => a.name.localeCompare(b.name)); 
+                  break;
+              case 'RELEVANCE':
+              default:
+                  result.sort((a, b) => (b.subscriptionPlan === 'PREMIUM' ? 1 : 0) - (a.subscriptionPlan === 'PREMIUM' ? 1 : 0));
+          }
+      }
+
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const start = (page - 1) * limit;
+      const paginated = result.slice(start, start + limit);
+
+      return { data: paginated, count: result.length };
+  }, [agenciesRef]);
 
   return (
     <DataContext.Provider value={{
-      agencies,
-      trips,
-      bookings,
-      reviews: [], // Old reviews not used
-      agencyReviews,
-      clients,
-      auditLogs,
-      activityLogs,
-      loading,
-
-      searchTrips: async (params) => {
-        const sb = guardSupabase();
-        console.log("[DataContext] searchTrips: Initiating search with params:", params); // Debug Log
-        // Fallback to mocks if Supabase is not configured or on network error
-        if (!sb) {
-          console.warn("[DataContext] Search offline. Using mocks for trips."); // Debug Log
-          return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
-        }
-
-        let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
-
-        if (params.agencyId) {
-          query = query.eq('agency_id', params.agencyId);
-        } else {
-          // Only show active trips globally
-          query = query.eq('is_active', true);
-        }
-
-        if (params.query) {
-          const cleanQuery = normalizeText(params.query);
-          query = query.or(`title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,destination.ilike.%${cleanQuery}%,tags.cs.{${cleanQuery}}`);
-        }
-        if (params.category) query = query.eq('category', params.category);
-        if (params.tags && params.tags.length > 0) query = query.contains('tags', params.tags);
-        if (params.featured) query = query.eq('featured', true);
-        if (params.minPrice) query = query.gte('price', params.minPrice);
-        if (params.maxPrice) query = query.lte('price', params.maxPrice);
-
-        switch (params.sort) {
-          case 'LOW_PRICE': query = query.order('price', { ascending: true }); break;
-          case 'HIGH_PRICE': query = query.order('price', { ascending: false }); break;
-          case 'DATE_ASC': query = query.order('start_date', { ascending: true }); break;
-          case 'RATING': query = query.order('trip_rating', { ascending: false }).order('trip_total_reviews', { ascending: false }); break;
-          case 'RELEVANCE': 
-          default:
-            query = query.order('featured', { ascending: false }).order('views_count', { ascending: false }).order('sales_count', { ascending: false });
-            break;
-        }
-
-        const offset = ((params.page || 1) - 1) * (params.limit || 10);
-        query = query.range(offset, offset + (params.limit || 10) - 1);
-
-        const { data, error, count } = await query;
-        if (error) {
-          console.error("[DataContext] Error searching trips:", error.message); // Debug Log
-          // Fallback to mocks on search error
-          console.warn("[DataContext] Search offline. Using mocks for trips due to API error."); // Debug Log
-          return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length, error: error.message };
-        }
-
-        const mappedTrips: Trip[] = (data || []).map((t: any) => ({
-            id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
-        }));
-        console.log("[DataContext] Search trips result:", mappedTrips.length, "items, total count:", count); // Debug Log
-
-        return { data: mappedTrips, count: count || 0 };
-      },
-
-      searchAgencies: async (params) => {
-        const sb = guardSupabase();
-        console.log("[DataContext] searchAgencies: Initiating search with params:", params); // Debug Log
-        if (!sb) {
-          console.warn("[DataContext] Search offline. Using mocks for agencies."); // Debug Log
-          return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length };
-        }
-
-        let query = sb.from('agencies').select('*', { count: 'exact' }).eq('is_active', true).is('deleted_at', null); // Only active and not soft-deleted agencies
-
-        if (params.query) {
-            const cleanQuery = normalizeText(params.query);
-            query = query.or(`name.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%`);
-        }
-        if (params.specialty) {
-            const cleanSpecialty = normalizeText(params.specialty);
-            query = query.or(`description.ilike.%${cleanSpecialty}%,custom_settings->>tags.ilike.%${cleanSpecialty}%`);
-        }
-        
-        switch (params.sort) {
-            case 'NAME': query = query.order('name', { ascending: true }); break;
-            case 'RATING': query = query.order('average_rating', { ascending: false }); break; // Assuming an average_rating column
-            case 'RELEVANCE': 
-            default:
-                query = query.order('is_active', { ascending: false }).order('created_at', { ascending: false }); // Latest active first
-                break;
-        }
-
-        const offset = ((params.page || 1) - 1) * (params.limit || 10);
-        query = query.range(offset, offset + (params.limit || 10) - 1);
-
-        const { data, error, count } = await query;
-        if (error) {
-            console.error("[DataContext] Error searching agencies:", error.message); // Debug Log
-            // Fallback to mocks on search error
-            console.warn("[DataContext] Search offline. Using mocks for agencies due to API error."); // Debug Log
-            return { data: MOCK_AGENCIES.slice(0, params.limit || 10), count: MOCK_AGENCIES.length, error: error.message };
-        }
-
-        const mappedAgencies: Agency[] = (data || []).map((a: any) => ({
-            id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
-        }));
-        console.log("[DataContext] Search agencies result:", mappedAgencies.length, "items, total count:", count); // Debug Log
-
-        return { data: mappedAgencies, count: count || 0 };
-      },
-
-      getTripBySlug,
-      getAgencyBySlug,
-      getTripById,
-      getAgencyPublicTrips,
-      getPublicTrips,
-      refreshData,
-      addBooking,
-      addReview,
-      addAgencyReview,
-      deleteReview,
-      deleteAgencyReview,
-      updateAgencyReview,
-      toggleFavorite,
-      updateClientProfile,
-      updateAgencySubscription,
-      updateAgencyProfileByAdmin,
-      toggleAgencyStatus,
-      createTrip,
-      updateTrip,
-      deleteTrip,
-      toggleTripStatus,
-      toggleTripFeatureStatus,
-      updateTripOperationalData,
-      softDeleteEntity,
-      restoreEntity,
-      deleteUser,
-      deleteMultipleUsers,
-      deleteMultipleAgencies,
-      getUsersStats,
-      updateMultipleUsersStatus,
-      updateMultipleAgenciesStatus,
-      logAuditAction,
-      sendPasswordReset,
-      updateUserAvatarByAdmin,
-      getReviewsByTripId,
-      getReviewsByAgencyId,
-      getReviewsByClientId,
-      getAgencyStats,
-      getAgencyTheme,
-      saveAgencyTheme,
-      refreshUserData,
-      incrementTripViews,
+      agencies, trips, bookings, reviews: [], agencyReviews, clients, auditLogs, activityLogs, loading,
+      searchTrips, searchAgencies,
+      getTripBySlug, getAgencyBySlug, getTripById, getAgencyPublicTrips, getPublicTrips,
+      refreshData, addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview,
+      toggleFavorite, updateClientProfile, updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus,
+      createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus, updateTripOperationalData,
+      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
+      updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction, sendPasswordReset, updateUserAvatarByAdmin,
+      getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, getAgencyStats, getAgencyTheme, saveAgencyTheme,
+      refreshUserData, incrementTripViews
     }}>
       {children}
     </DataContext.Provider>
@@ -1669,6 +1602,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useData = () => {
   const context = useContext(DataContext);
-  if (!context) throw new Error('useData must be used within a DataProvider');
+  if (!context) {
+    throw new Error('useData must be used within a DataProvider');
+  }
   return context;
 };
