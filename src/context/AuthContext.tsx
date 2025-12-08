@@ -23,9 +23,10 @@ interface AuthContextType {
   register: (data: any, role: UserRole) => Promise<RegisterResult>;
   updateUser: (userData: Partial<Client | Agency>) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (password: string) => Promise<{ success: boolean; error?: string }>;
-  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: (password: string) => Promise<{ success: boolean; error?: string }>;
   uploadImage: (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images') => Promise<string | null>;
-  reloadUser: () => Promise<void>;
+  // FIX: Updated `reloadUser` signature to accept `User`
+  reloadUser: (currentUser: User | Client | Agency | Admin | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -177,9 +178,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const reloadUser = async () => {
-    if (user && user.email) {
-        await fetchUserData(user.id, user.email);
+  // FIX: Updated `reloadUser` to accept `currentUser` object
+  const reloadUser = async (currentUser: User | Client | Agency | Admin | null) => {
+    if (currentUser && currentUser.email) {
+        await fetchUserData(currentUser.id, currentUser.email);
     }
   };
 
@@ -585,16 +587,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   };
 
-  const deleteAccount = async (): Promise<{ success: boolean; error?: string }> => {
+  const deleteAccount = async (password: string): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: "Backend não configurado." };
     if (!user) return { success: false, error: "Usuário não autenticado" };
 
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', user.id);
-      if (error) throw error;
+      // First, re-authenticate the user if password is provided (for security)
+      // Supabase's deleteUser doesn't take password, but we can do a dummy login to verify.
+      if (password) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: password,
+        });
+        if (signInError) {
+          throw new Error('Credenciais inválidas. Não foi possível verificar a senha para exclusão.');
+        }
+      }
+
+      // Delete associated DB records (profiles, agencies, client-specific data)
+      if (user.role === UserRole.CLIENT) {
+        await supabase.from('bookings').delete().eq('client_id', user.id);
+        await supabase.from('agency_reviews').delete().eq('client_id', user.id);
+        await supabase.from('profiles').delete().eq('id', user.id);
+      } else if (user.role === UserRole.AGENCY) {
+        // More complex deletion for agency: trips, reviews, then agency, then profile
+        const { data: agencyData } = await supabase.from('agencies').select('id').eq('user_id', user.id).single();
+        if (agencyData) {
+          await supabase.from('trips').delete().eq('agency_id', agencyData.id);
+          await supabase.from('agency_reviews').delete().eq('agency_id', agencyData.id);
+          await supabase.from('agencies').delete().eq('id', agencyData.id);
+        }
+        await supabase.from('profiles').delete().eq('id', user.id);
+      } else if (user.role === UserRole.ADMIN) {
+         // Admin deletion should be handled via admin dashboard or a separate protected function.
+         // For a client-side delete, we assume an admin wouldn't self-delete this way.
+         throw new Error("Admin accounts cannot be deleted via client dashboard.");
+      }
+
+      // Finally, delete the Auth user (this requires admin privileges or RLS setup correctly for current user)
+      const { error: authDeleteError } = await (supabase.auth as any).admin.deleteUser(user.id);
+      if (authDeleteError) {
+        console.warn(`Could not delete Auth user ${user.id}: ${authDeleteError.message}`);
+        // If admin.deleteUser fails (e.g., not service_role key), try client-side self-delete
+        const { error: selfDeleteError } = await supabase.auth.signOut(); // Ensure sign out first
+        if (selfDeleteError) console.warn("Error signing out user before self-delete:", selfDeleteError);
+        const { error: finalAuthError } = await (supabase.auth as any).deleteUser(); // This is for the logged-in user
+        if (finalAuthError) throw finalAuthError;
+      }
       
-      await (supabase.auth as any).signOut();
       setUser(null);
+      localStorage.clear(); // Ensure all local session data is gone
       return { success: true };
 
     } catch (error: any) {

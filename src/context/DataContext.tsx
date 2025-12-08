@@ -735,9 +735,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             included: trip.included,
             not_included: trip.notIncluded,
             featured: trip.featured,
-            featured_in_hero: trip.featuredInHero,
-            popular_near_sp: trip.popularNearSP,
-            operational_data: trip.operationalData,
+            featuredInHero: trip.featuredInHero,
+            popularNearSP: trip.popularNearSP,
+            operationalData: trip.operationalData,
         }).select().single();
 
         if (error) throw error;
@@ -786,9 +786,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             included: trip.included,
             not_included: trip.notIncluded,
             featured: trip.featured,
-            featured_in_hero: trip.featuredInHero,
-            popular_near_sp: trip.popularNearSP,
-            operational_data: trip.operationalData,
+            featuredInHero: trip.featuredInHero,
+            popularNearSP: trip.popularNearSP,
+            operationalData: trip.operationalData,
         }).eq('id', trip.id);
 
         if (error) throw error;
@@ -1130,61 +1130,58 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
     const sb = guardSupabase();
-    if (!sb) return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    const zeros = { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+    if (!sb) return zeros;
     
     try {
         const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
-        if (error) throw error;
-        if (data && data.length > 0) {
-            const s = data[0];
-            return {
-                totalRevenue: Number(s.total_revenue) || 0,
-                totalViews: Number(s.total_views) || 0,
-                totalSales: Number(s.total_sales) || 0,
-                conversionRate: Number(s.conversion_rate) || 0,
-                averageRating: Number(s.average_rating) || 0,
-                totalReviews: Number(s.total_reviews) || 0
-            };
-        }
-        return { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
-    } catch (error: any) {
-        console.error("Error fetching agency stats from RPC, calculating locally:", error.message);
-        showToast(`Erro ao buscar estatísticas da agência: ${error.message}. Calculando localmente.`, 'warning');
-        
-        const currentTrips = tripsRef.current; // Use ref
-        const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
-        const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
-
-        // Fallback: calculate locally using available data
-        const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
-
-        let totalViews = 0;
-        let totalSales = 0;
-        let totalRatingSum = 0;
-        let totalReviews = 0;
-
-        agencyTrips.forEach(trip => {
-            totalViews += trip.views || 0;
-            totalSales += trip.sales || 0;
-            totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
-            totalReviews += trip.tripTotalReviews || 0;
-        });
-
-        const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
-        const totalRevenue = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED').reduce((sum, b) => sum + b.totalPrice, 0); // Filter myBookings by the current agency's trips
-
-        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
-
+        if (error || !data || data.length === 0) throw error;
+        const s = data[0];
         return {
-            totalRevenue,
-            totalViews,
-            totalSales,
-            conversionRate,
-            averageRating,
-            totalReviews: currentAgencyReviews.length, // Use actual review count for the agency
+           totalRevenue: Number(s.total_revenue) || 0,
+           totalViews: Number(s.total_views) || 0,
+           totalSales: Number(s.total_sales) || 0,
+           conversionRate: Number(s.conversion_rate) || 0,
+           averageRating: Number(s.average_rating) || 0,
+           totalReviews: Number(s.total_reviews) || 0
         };
-    }
-  }, [showToast, guardSupabase, tripsRef, bookings, agencyReviews]);
+      } catch (err: any) {
+         console.warn("Stats offline/fallback:", err.message);
+         // Mantenha o cálculo local antigo aqui como fallback no catch
+         const currentTrips = tripsRef.current; // Use ref
+         const currentBookings = bookings; // Bookings are already filtered for current user (agency owner)
+         const currentAgencyReviews = agencyReviews.filter(r => r.agencyId === agencyId);
+ 
+         // Fallback: calculate locally using available data
+         const agencyTrips = currentTrips.filter(t => t.agencyId === agencyId);
+ 
+         let totalViews = 0;
+         let totalSales = 0;
+         let totalRatingSum = 0;
+         let totalReviews = 0;
+ 
+         agencyTrips.forEach(trip => {
+             totalViews += trip.views || 0;
+             totalSales += trip.sales || 0;
+             totalRatingSum += (trip.tripRating || 0) * (trip.tripTotalReviews || 0); // Use trip-specific rating/reviews
+             totalReviews += trip.tripTotalReviews || 0;
+         });
+ 
+         const averageRating = totalReviews > 0 ? totalRatingSum / totalReviews : 0;
+         const totalRevenue = currentBookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED').reduce((sum, b) => sum + b.totalPrice, 0); // Filter myBookings by the current agency's trips
+ 
+         const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
+ 
+         return {
+             totalRevenue,
+             totalViews,
+             totalSales,
+             conversionRate,
+             averageRating,
+             totalReviews: currentAgencyReviews.length, // Use actual review count for the agency
+         };
+      }
+   }, [guardSupabase, tripsRef, bookings, agencyReviews]);
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {
       const sb = guardSupabase();
@@ -1258,15 +1255,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       searchTrips: async (params) => {
         const sb = guardSupabase();
+        // Fallback to mocks if Supabase is not configured or on network error
         if (!sb) {
           console.warn("Search offline. Using mocks for trips.");
-          const mockData = MOCK_TRIPS.filter(t => {
-              const matchCategory = !params.category || t.category === params.category;
-              const matchQuery = !params.query || normalizeText(t.title).includes(normalizeText(params.query)) || normalizeText(t.destination).includes(normalizeText(params.query));
-              const matchFeatured = !params.featured || t.featured === true;
-              return matchCategory && matchQuery && matchFeatured;
-          }).slice(0, params.limit || 10);
-          return { data: mockData, count: mockData.length };
+          return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length };
         }
 
         let query = sb.from('trips').select('*, trip_images(*)', { count: 'exact' });
@@ -1307,13 +1299,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error searching trips:", error.message);
           // Fallback to mocks on search error
           console.warn("Search offline. Using mocks for trips due to API error.");
-          const mockData = MOCK_TRIPS.filter(t => {
-              const matchCategory = !params.category || t.category === params.category;
-              const matchQuery = !params.query || normalizeText(t.title).includes(normalizeText(params.query)) || normalizeText(t.destination).includes(normalizeText(params.query));
-              const matchFeatured = !params.featured || t.featured === true;
-              return matchCategory && matchQuery && matchFeatured;
-          }).slice(0, params.limit || 10);
-          return { data: mockData, count: mockData.length, error: error.message };
+          return { data: MOCK_TRIPS.slice(0, params.limit || 10), count: MOCK_TRIPS.length, error: error.message };
         }
 
         const mappedTrips: Trip[] = (data || []).map((t: any) => ({
