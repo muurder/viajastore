@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -12,7 +13,7 @@ import AgencyList from './pages/AgencyList';
 import AgencyProfile from './pages/AgencyProfile';
 // Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
-import AgencyDashboard from './pages/AgencyDashboard';
+import { AgencyDashboard } from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';

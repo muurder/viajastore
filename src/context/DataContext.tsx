@@ -407,7 +407,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         fetchGlobalData(); // Refresh activity logs
     }
-  }, [user]);
+  }, [user, fetchGlobalData]);
 
   const addBooking = useCallback(async (booking: Booking): Promise<Booking | undefined> => {
     const sb = guardSupabase();
@@ -439,7 +439,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             _agency: agencies.find(a => a.agencyId === trips.find(t => t.id === booking.tripId)?.agencyId)
         };
 
-        logActivity('BOOKING_CREATED', { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
+        logActivity(ActivityActionType.BOOKING_CREATED, { bookingId: newBooking.id, tripId: newBooking.tripId, totalPrice: newBooking.totalPrice });
         fetchGlobalData(); // To update local cache
         return newBooking;
 
@@ -448,7 +448,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao adicionar reserva: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, trips, agencies, logActivity]);
+  }, [showToast, trips, agencies, logActivity, fetchGlobalData]);
 
   const addReview = useCallback(async (review: Review) => {
     const sb = guardSupabase();
@@ -463,13 +463,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             client_name: review.clientName,
         });
         showToast('Avaliação enviada com sucesso!', 'success');
-        logActivity('REVIEW_SUBMITTED', { reviewId: review.id, tripId: review.tripId, rating: review.rating });
+        logActivity(ActivityActionType.REVIEW_SUBMITTED, { reviewId: review.id, tripId: review.tripId, rating: review.rating });
         fetchGlobalData(); // Update local cache
     } catch (error: any) {
         console.error("Error adding review:", error.message);
         showToast(`Erro ao adicionar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const addAgencyReview = useCallback(async (review: Partial<AgencyReview>) => {
     const sb = guardSupabase();
@@ -490,13 +490,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // created_at is automatically handled by Supabase default
         }, { onConflict: ['agency_id', 'client_id'] }); // Allow client to update their review
         showToast('Avaliação enviada/atualizada com sucesso!', 'success');
-        logActivity('REVIEW_SUBMITTED', { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
+        logActivity(ActivityActionType.REVIEW_SUBMITTED, { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error adding/updating agency review:", error.message);
         showToast(`Erro ao enviar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const deleteReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
@@ -504,13 +504,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
-        logActivity('REVIEW_DELETED', { reviewId: id });
+        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error deleting review:", error.message);
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const deleteAgencyReview = useCallback(async (id: string) => {
     const sb = guardSupabase();
@@ -518,13 +518,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('agency_reviews').delete().eq('id', id);
         showToast('Avaliação excluída.', 'success');
-        logActivity('REVIEW_DELETED', { reviewId: id });
+        logActivity(ActivityActionType.REVIEW_DELETED, { reviewId: id });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error deleting agency review:", error.message);
         showToast(`Erro ao excluir avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const updateAgencyReview = useCallback(async (id: string, updates: Partial<AgencyReview>) => {
     const sb = guardSupabase();
@@ -537,13 +537,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             response: updates.response
         }).eq('id', id);
         showToast('Avaliação atualizada.', 'success');
-        logActivity('REVIEW_UPDATED', { reviewId: id, updates });
+        logActivity(ActivityActionType.REVIEW_UPDATED, { reviewId: id, updates });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating agency review:", error.message);
         showToast(`Erro ao atualizar avaliação: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
 
   const toggleFavorite = useCallback(async (tripId: string, userId: string) => {
@@ -563,11 +563,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let action: ActivityActionType;
       if (isCurrentlyFavorite) {
           newFavorites = currentFavorites.filter(id => id !== tripId);
-          action = 'FAVORITE_TOGGLED';
+          action = ActivityActionType.FAVORITE_TOGGLED;
           showToast('Removido dos favoritos.', 'info');
       } else {
           newFavorites = [...currentFavorites, tripId];
-          action = 'FAVORITE_TOGGLED';
+          action = ActivityActionType.FAVORITE_TOGGLED;
           showToast('Adicionado aos favoritos!', 'success');
       }
 
@@ -579,7 +579,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error toggling favorite:", error.message);
           showToast(`Erro ao atualizar favoritos: ${error.message}`, 'error');
       }
-  }, [showToast, clients, logActivity]);
+  }, [showToast, clients, logActivity, fetchGlobalData]);
 
   const updateClientProfile = useCallback(async (userId: string, data: Partial<Client>) => {
     const sb = guardSupabase();
@@ -596,14 +596,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         await sb.from('profiles').update(updates).eq('id', userId);
         showToast('Perfil do cliente atualizado!', 'success');
-        logActivity('CLIENT_PROFILE_UPDATED', { userId, updates });
+        logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userId, updates });
         fetchGlobalData(); // Update local cache
     } catch (error: any) {
         console.error("Error updating client profile:", error.message);
         showToast(`Erro ao atualizar perfil do cliente: ${error.message}`, 'error');
         throw error; // Re-throw to allow component to handle loading state
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const updateAgencySubscription = useCallback(async (agencyId: string, status: string, plan: string, expiresAt?: string) => {
     const sb = guardSupabase();
@@ -619,14 +619,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         await sb.from('agencies').update(updates).eq('id', agencyId);
         showToast('Assinatura da agência atualizada!', 'success');
-        logActivity('AGENCY_SUBSCRIPTION_UPDATED', { agencyId, updates });
+        logActivity(ActivityActionType.AGENCY_SUBSCRIPTION_UPDATED, { agencyId, updates });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating agency subscription:", error.message);
         showToast(`Erro ao atualizar assinatura da agência: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const updateAgencyProfileByAdmin = useCallback(async (agencyId: string, data: Partial<Agency>) => {
     const sb = guardSupabase();
@@ -645,14 +645,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         await sb.from('agencies').update(updates).eq('id', agencyId);
         showToast('Perfil da agência atualizado pelo Admin!', 'success');
-        logActivity('AGENCY_PROFILE_UPDATED', { agencyId, updates });
+        logActivity(ActivityActionType.AGENCY_PROFILE_UPDATED, { agencyId, updates });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating agency profile by admin:", error.message);
         showToast(`Erro ao atualizar perfil da agência: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const toggleAgencyStatus = useCallback(async (agencyId: string) => {
     const sb = guardSupabase();
@@ -666,13 +666,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newStatus = !agency.is_active;
         await sb.from('agencies').update({ is_active: newStatus }).eq('id', agencyId);
         showToast(`Agência ${newStatus ? 'ativada' : 'desativada'} com sucesso!`, 'success');
-        logActivity('AGENCY_STATUS_TOGGLED', { agencyId, newStatus });
+        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, newStatus });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error toggling agency status:", error.message);
         showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
     }
-  }, [showToast, agencies, logActivity]);
+  }, [showToast, agencies, logActivity, fetchGlobalData]);
 
   const createTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
@@ -717,14 +717,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         showToast('Pacote criado com sucesso!', 'success');
-        logActivity('TRIP_CREATED', { tripId: data.id, title: data.title });
+        logActivity(ActivityActionType.TRIP_CREATED, { tripId: data.id, title: data.title });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error creating trip:", error.message);
         showToast(`Erro ao criar pacote: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const updateTrip = useCallback(async (trip: Trip) => {
     const sb = guardSupabase();
@@ -769,14 +769,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         showToast('Pacote atualizado com sucesso!', 'success');
-        logActivity('TRIP_UPDATED', { tripId: trip.id, title: trip.title });
+        logActivity(ActivityActionType.TRIP_UPDATED, { tripId: trip.id, title: trip.title });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating trip:", error.message);
         showToast(`Erro ao atualizar pacote: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const deleteTrip = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -786,13 +786,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sb.from('trip_images').delete().eq('trip_id', tripId);
         await sb.from('trips').delete().eq('id', tripId);
         showToast('Pacote excluído com sucesso!', 'success');
-        logActivity('TRIP_DELETED', { tripId });
+        logActivity(ActivityActionType.TRIP_DELETED, { tripId });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error deleting trip:", error.message);
         showToast(`Erro ao excluir pacote: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const toggleTripStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -806,13 +806,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newStatus = !trip.is_active;
         await sb.from('trips').update({ is_active: newStatus }).eq('id', tripId);
         showToast(`Viagem ${newStatus ? 'publicada' : 'pausada'} com sucesso!`, 'success');
-        logActivity('TRIP_STATUS_TOGGLED', { tripId, newStatus });
+        logActivity(ActivityActionType.TRIP_STATUS_TOGGLED, { tripId, newStatus });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error toggling trip status:", error.message);
         showToast(`Erro ao alterar status da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity]);
+  }, [showToast, trips, logActivity, fetchGlobalData]);
 
   const toggleTripFeatureStatus = useCallback(async (tripId: string) => {
     const sb = guardSupabase();
@@ -826,13 +826,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const newFeaturedStatus = !trip.featured;
         await sb.from('trips').update({ featured: newFeaturedStatus }).eq('id', tripId);
         showToast(`Viagem ${newFeaturedStatus ? 'destacada' : 'removida do destaque'} com sucesso!`, 'success');
-        logActivity('TRIP_UPDATED', { tripId, featured: newFeaturedStatus });
+        logActivity(ActivityActionType.TRIP_UPDATED, { tripId, featured: newFeaturedStatus });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error toggling trip feature status:", error.message);
         showToast(`Erro ao alterar destaque da viagem: ${error.message}`, 'error');
     }
-  }, [showToast, trips, logActivity]);
+  }, [showToast, trips, logActivity, fetchGlobalData]);
 
   const updateTripOperationalData = useCallback(async (tripId: string, data: OperationalData) => {
     const sb = guardSupabase();
@@ -846,7 +846,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
         throw error;
     }
-  }, [showToast]);
+  }, [showToast, fetchGlobalData]);
 
   const softDeleteEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
@@ -854,13 +854,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await sb.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
           showToast('Movido para a lixeira.', 'success');
-          logActivity('DELETE_USER', { entityId: id, table, softDelete: true });
+          logActivity(ActivityActionType.DELETE_USER, { entityId: id, table, softDelete: true });
           fetchGlobalData();
       } catch (error: any) {
           console.error("Error soft deleting entity:", error.message);
           showToast(`Erro ao mover para a lixeira: ${error.message}`, 'error');
       }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const restoreEntity = useCallback(async (id: string, table: string) => {
       const sb = guardSupabase();
@@ -873,7 +873,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error("Error restoring entity:", error.message);
           showToast(`Erro ao restaurar: ${error.message}`, 'error');
       }
-  }, [showToast]);
+  }, [showToast, fetchGlobalData]);
 
   const deleteUser = useCallback(async (id: string, role: string) => {
       const sb = guardSupabase();
@@ -906,13 +906,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             showToast('Usuário excluído permanentemente.', 'success');
           }
 
-          logActivity('DELETE_USER', { userId: id, role, permanent: true });
+          logActivity(ActivityActionType.DELETE_USER, { userId: id, role, permanent: true });
           fetchGlobalData();
       } catch (error: any) {
           console.error("Error deleting user permanently:", error.message);
           showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
       }
-  }, [showToast, trips, deleteTrip, logActivity]);
+  }, [showToast, trips, deleteTrip, logActivity, fetchGlobalData]);
 
   const deleteMultipleUsers = useCallback(async (ids: string[]) => {
     const sb = guardSupabase();
@@ -926,13 +926,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (authError) console.warn(`Could not delete Auth user ${id}: ${authError.message}`);
         }
         showToast('Usuários selecionados excluídos.', 'success');
-        logActivity('DELETE_MULTIPLE_USERS', { userIds: ids });
+        logActivity(ActivityActionType.DELETE_MULTIPLE_USERS, { userIds: ids });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error deleting multiple users:", error.message);
         showToast(`Erro ao excluir múltiplos usuários: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const deleteMultipleAgencies = useCallback(async (agencyPks: string[]) => {
     const sb = guardSupabase();
@@ -964,13 +964,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         showToast('Agências selecionadas excluídas.', 'success');
-        logActivity('DELETE_MULTIPLE_AGENCIES', { agencyPks, userIds: userIdsToDelete });
+        logActivity(ActivityActionType.DELETE_MULTIPLE_AGENCIES, { agencyPks, userIds: userIdsToDelete });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error deleting multiple agencies:", error.message);
         showToast(`Erro ao excluir múltiplas agências: ${error.message}`, 'error');
     }
-  }, [showToast, trips, deleteTrip, logActivity]);
+  }, [showToast, trips, deleteTrip, logActivity, fetchGlobalData]);
 
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
@@ -1008,13 +1008,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('profiles').update({ status: status }).in('id', ids);
         showToast('Status dos usuários atualizado.', 'success');
-        logActivity('CLIENT_PROFILE_UPDATED', { userIds: ids, status });
+        logActivity(ActivityActionType.CLIENT_PROFILE_UPDATED, { userIds: ids, status });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating multiple users status:", error.message);
         showToast(`Erro ao atualizar status dos usuários: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const updateMultipleAgenciesStatus = useCallback(async (ids: string[], status: string) => {
     const sb = guardSupabase();
@@ -1022,13 +1022,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
         await sb.from('agencies').update({ is_active: status === 'ACTIVE' }).in('id', ids);
         showToast('Status das agências atualizado.', 'success');
-        logActivity('AGENCY_STATUS_TOGGLED', { agencyIds: ids, status });
+        logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyIds: ids, status });
         fetchGlobalData();
     } catch (error: any) {
         console.error("Error updating multiple agencies status:", error.message);
         showToast(`Erro ao atualizar status das agências: ${error.message}`, 'error');
     }
-  }, [showToast, logActivity]);
+  }, [showToast, logActivity, fetchGlobalData]);
 
   const logAuditAction = useCallback(async (action: string, details: string) => {
       const sb = guardSupabase();
@@ -1043,7 +1043,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (error: any) {
           console.error("Error logging audit action:", error.message);
       }
-  }, [user]);
+  }, [user, fetchGlobalData]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
       const sb = guardSupabase();
@@ -1090,7 +1090,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         showToast(`Erro ao atualizar avatar: ${error.message}`, 'error');
         return null;
     }
-  }, [showToast, logAuditAction]);
+  }, [showToast, logAuditAction, fetchGlobalData]);
 
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
     // For now, calculate locally from loaded data

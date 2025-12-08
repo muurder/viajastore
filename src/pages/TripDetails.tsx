@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Booking, Agency, Trip, UserRole } from '../types';
-import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight } from 'lucide-react';
+import { MapPin, Calendar, Clock, Star, Share2, Heart, Check, X, ChevronDown, ChevronUp, User, ShoppingBag, ShieldCheck, Info, MessageCircle, ArrowRight, BookOpen, Bus, Loader } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
@@ -361,3 +360,232 @@ const TripDetails: React.FC = () => {
                     onClick={() => setActiveImageIndex(idx)}
                     className={`flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
                   >
+                    <img 
+                      src={img || 'https://placehold.co/80x60?text=Imagem'} 
+                      alt={`Thumbnail ${idx + 1}`} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Trip Details */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">{trip.title}</h1>
+            <div className="flex items-center gap-4 text-gray-500 text-sm mb-6">
+              <span className="flex items-center"><MapPin size={16} className="mr-2"/> {trip.destination}</span>
+              <span className="flex items-center"><Calendar size={16} className="mr-2"/> {new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}</span>
+              <span className="flex items-center"><Clock size={16} className="mr-2"/> {trip.durationDays} dias</span>
+            </div>
+
+            {/* Price on mobile/tablet */}
+            <div className="lg:hidden flex justify-between items-center bg-primary-50 p-4 rounded-xl mb-6 border border-primary-100">
+                <div>
+                    <p className="text-sm text-primary-700 font-bold uppercase">Preço a partir de</p>
+                    <p className="text-3xl font-extrabold text-primary-900">R$ {trip.price.toLocaleString('pt-BR')}</p>
+                </div>
+                <button 
+                    onClick={() => setIsBookingModalOpen(true)}
+                    className="bg-primary-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center gap-2"
+                >
+                    <ShoppingBag size={18} /> Reservar
+                </button>
+            </div>
+
+            <p className="text-gray-600 leading-relaxed text-lg mb-6">{trip.description}</p>
+            
+            {/* Agency Info */}
+            {agency && (
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4 mb-6">
+                    <img src={agency.logo} alt={agency.name} className="w-12 h-12 rounded-full object-cover border border-gray-200"/>
+                    <div>
+                        <p className="text-xs text-gray-500 uppercase font-bold">Organizado por</p>
+                        <Link to={`/${agency.slug}`} className="text-lg font-bold text-gray-900 hover:text-primary-600 transition-colors">{agency.name}</Link>
+                    </div>
+                </div>
+            )}
+
+            {/* Included */}
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><Check size={20} className="mr-2 text-green-500"/> O que está incluso</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {trip.included.map((item, idx) => (
+                  <div key={idx} className="flex items-center text-gray-600 text-sm">
+                    <Check size={16} className="mr-2 text-green-400 flex-shrink-0"/> {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Not Included */}
+            {trip.notIncluded && trip.notIncluded.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><X size={20} className="mr-2 text-red-500"/> Não está incluso</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {trip.notIncluded.map((item, idx) => (
+                    <div key={idx} className="flex items-center text-gray-600 text-sm">
+                      <X size={16} className="mr-2 text-red-400 flex-shrink-0"/> {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Itinerary */}
+            {trip.itinerary && trip.itinerary.length > 0 && (
+                <div className="mb-6">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><BookOpen size={20} className="mr-2 text-primary-500"/> Roteiro Detalhado</h3>
+                    <div className="space-y-4">
+                        {trip.itinerary.map((day, idx) => (
+                            <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <h4 className="font-bold text-gray-900 text-lg mb-2">Dia {day.day}: {day.title}</h4>
+                                <p className="text-gray-700 text-sm">{day.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Boarding Points */}
+            {trip.boardingPoints && trip.boardingPoints.length > 0 && (
+                <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center"><Bus size={20} className="mr-2 text-primary-500"/> Pontos de Embarque</h3>
+                    <ul className="space-y-2">
+                        {trip.boardingPoints.map((bp, idx) => (
+                            <li key={idx} className="flex items-center text-gray-700 text-sm bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <Clock size={16} className="mr-2 text-gray-500 flex-shrink-0"/>
+                                <span className="font-bold mr-2">{bp.time}</span>
+                                <span>{bp.location}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* Right Column: Sticky Booking Card */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 sticky top-28">
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-lg font-bold text-gray-900">Total</p>
+              <p className="text-3xl font-extrabold text-primary-600">R$ {totalPrice.toLocaleString('pt-BR')}</p>
+            </div>
+            <div className="mb-6">
+              <label htmlFor="passengers" className="block text-sm font-medium text-gray-700 mb-2">Número de Passageiros</label>
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                <button 
+                  onClick={() => setPassengers(Math.max(1, passengers - 1))} 
+                  className="p-3 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-bold"
+                >
+                  <ChevronDown size={20}/>
+                </button>
+                <input 
+                  type="number" 
+                  id="passengers" 
+                  value={passengers} 
+                  onChange={(e) => setPassengers(Math.max(1, parseInt(e.target.value) || 1))} 
+                  min="1"
+                  className="flex-1 text-center font-bold text-lg border-none focus:ring-0 outline-none"
+                />
+                <button 
+                  onClick={() => setPassengers(passengers + 1)} 
+                  className="p-3 bg-gray-100 hover:bg-gray-200 transition-colors text-gray-700 font-bold"
+                >
+                  <ChevronUp size={20}/>
+                </button>
+              </div>
+            </div>
+            <button 
+                onClick={() => setIsBookingModalOpen(true)}
+                className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center justify-center gap-2"
+            >
+                <ShoppingBag size={18} /> Reservar Agora
+            </button>
+            {whatsappLink && (
+                <a 
+                    href={whatsappLink} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="w-full bg-[#25D366] text-white font-bold py-3 rounded-xl shadow-lg hover:bg-[#128C7E] transition-colors active:scale-95 flex items-center justify-center gap-2 mt-3"
+                >
+                    <MessageCircle size={18} className="fill-white/20"/> Falar no WhatsApp
+                </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Booking Modal */}
+      {isBookingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setIsBookingModalOpen(false)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative animate-[scaleIn_0.3s] max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsBookingModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Confirmar Reserva</h2>
+            
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6 flex items-center gap-4">
+                <img src={trip.images[0]} alt={trip.title} className="w-20 h-16 object-cover rounded-lg"/>
+                <div>
+                    <h3 className="font-bold text-gray-900 text-lg line-clamp-1">{trip.title}</h3>
+                    <p className="text-sm text-gray-500">{trip.destination} • {trip.durationDays} dias</p>
+                </div>
+            </div>
+
+            <form onSubmit={handleBookingSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Detalhes dos Passageiros ({passengers})</label>
+                <div className="space-y-3">
+                  {Array.from({ length: passengers }).map((_, idx) => (
+                    <div key={idx} className="flex flex-col md:flex-row gap-3 bg-gray-100 p-3 rounded-lg border border-gray-200">
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
+                            <PassengerInput 
+                                index={idx} 
+                                field="name" 
+                                value={passengerDetails[idx]?.name || ''} 
+                                onChange={handlePassengerChange} 
+                                placeholder={`Nome Passageiro ${idx + 1}`}
+                                required
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF (apenas 1º passageiro)</label>
+                            {/* Only make CPF required for the first passenger */}
+                            <PassengerInput 
+                                index={idx} 
+                                field="document" 
+                                value={passengerDetails[idx]?.document || ''} 
+                                onChange={handlePassengerChange} 
+                                placeholder={`CPF Passageiro ${idx + 1}`}
+                                required={idx === 0}
+                            />
+                        </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 text-center">
+                <p className="text-sm text-primary-700 font-bold uppercase mb-1">Valor Total da Reserva</p>
+                <p className="text-4xl font-extrabold text-primary-900">R$ {totalPrice.toLocaleString('pt-BR')}</p>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isBookingProcessing}
+                className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-primary-700 transition-colors active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isBookingProcessing ? <Loader size={18} className="animate-spin" /> : <Check size={18} />} Finalizar Reserva
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TripDetails;

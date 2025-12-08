@@ -6,7 +6,7 @@ import { Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, Transpo
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 // FIX: Add Search and Palette icons to the import from 'lucide-react'
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, ListChecks, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, Check, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, Image as ImageIcon, FileText, Download, Settings2, Car, Clock, Activity, Search, Palette, LucideProps } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, ListChecks, CheckCircle, UserPlus, Armchair, User, Rocket, LogOut, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Settings2, Car, Clock, Activity, Search, Palette, LucideProps } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -96,7 +96,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
 interface RecentBookingsTableProps {
     bookings: Booking[];
     clients: any[]; // Assuming Client interface or similar
-    onViewBooking?: (booking: Booking) => void;
+    // onViewBooking?: (booking: Booking) => void; // Unused prop
 }
 
 const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
@@ -298,7 +298,7 @@ const AddRoomModal: React.FC<{
     );
 };
 
-const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentType<any>; activeTab: string; onClick: (tabId: string) => void; hasNotification?: boolean; }> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
+const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentType<LucideProps>; activeTab: string; onClick: (tabId: string) => void; hasNotification?: boolean; }> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
   <button onClick={() => onClick(tabId)} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
     <Icon size={16} /> {label} {hasNotification && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} 
   </button>
@@ -368,14 +368,16 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
 // --- DYNAMIC SEAT MAP LOGIC ---
 
 const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]; onSave: (data: OperationalData) => void }> = ({ trip, bookings, clients, onSave }) => {
-    const vehicleConfig = trip.operationalData?.transport?.vehicleConfig;
+    const currentVehicleConfig = trip.operationalData?.transport?.vehicleConfig;
+    const currentSeats = trip.operationalData?.transport?.seats || [];
+    const currentManualPassengers = trip.operationalData?.manualPassengers || [];
     
     const [config, setConfig] = useState<{ vehicleConfig: VehicleLayoutConfig | null; seats: PassengerSeat[] }>({ 
-        vehicleConfig: vehicleConfig || null,
-        seats: trip.operationalData?.transport?.seats || [] 
+        vehicleConfig: currentVehicleConfig || null,
+        seats: currentSeats
     });
     
-    const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(trip.operationalData?.manualPassengers || []);
+    const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(currentManualPassengers);
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     
@@ -395,14 +397,14 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         }
 
         const newConfig = VEHICLE_TYPES[type];
-        const newTransportState = {
+        const newTransportState: TransportConfig = {
             vehicleConfig: newConfig,
             seats: []
         };
         setConfig(newTransportState);
         onSave({ 
             ...trip.operationalData, 
-            transport: newTransportState as TransportConfig 
+            transport: newTransportState
         });
     };
 
@@ -416,14 +418,14 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
             aisleAfterCol: Math.floor(customVehicleData.cols / 2)
         };
         
-        const newTransportState = {
+        const newTransportState: TransportConfig = {
             vehicleConfig: newConfig,
             seats: []
         };
         setConfig(newTransportState);
         onSave({ 
             ...trip.operationalData, 
-            transport: newTransportState as TransportConfig 
+            transport: newTransportState
         });
         setShowCustomVehicleForm(false);
     };
@@ -457,8 +459,8 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                 status: 'occupied'
             };
             const newConfig = { ...config, seats: [...config.seats, newSeat] };
-            setConfig(newConfig as any);
-            onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
+            setConfig(newConfig);
+            onSave({ ...trip.operationalData, transport: newConfig });
             setSelectedPassenger(null);
         }
     };
@@ -467,8 +469,8 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
         if (!seatToDelete) return;
         const newSeats = config.seats.filter(s => s.seatNumber !== seatToDelete.seatNum);
         const newConfig = { ...config, seats: newSeats };
-        setConfig(newConfig as any);
-        onSave({ ...trip.operationalData, transport: newConfig as TransportConfig });
+        setConfig(newConfig);
+        onSave({ ...trip.operationalData, transport: newConfig });
         setSeatToDelete(null);
     };
 
@@ -523,12 +525,12 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                         </button>
                     );
                 } else {
-                    rowSeats.push(<div key={`empty-${c}`} className="w-10 h-10 md:w-12 md:h-12"></div>);
+                    rowSeats.push(<div key={`empty-${seatNum}`} className="w-10 h-10 md:w-12 md:h-12"></div>);
                 }
             }
 
             grid.push(
-                <div key={r} className="flex justify-center items-center gap-2 mb-3">
+                <div key={`row-${r}`} className="flex justify-center items-center gap-2 mb-3">
                     {rowSeats}
                 </div>
             );
@@ -667,7 +669,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
 
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-gray-200 text-xs font-bold text-gray-600 z-20 flex items-center gap-2">
-                    <Truck size={14} /> {config.vehicleConfig.label}
+                    <Truck size={14} /> {config.vehicleConfig?.label}
                     <span className="w-px h-4 bg-gray-300 mx-1"></span>
                     <span className={occupancyRate >= 80 ? 'text-green-600' : 'text-gray-500'}>{occupancyRate.toFixed(0)}% Ocupado</span>
                     <button 
@@ -690,7 +692,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                             <div className="absolute top-0 left-0 right-0 h-28 border-b-2 border-slate-200 rounded-t-[34px] bg-gradient-to-b from-slate-50 to-white flex justify-between px-8 pt-6">
                                 <div className="flex flex-col items-center">
                                     <div className="w-10 h-10 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner"><User size={20} /></div>
-                                }
+                                </div>
                                 <div className="flex flex-col items-center justify-center opacity-50"><span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Frente</span></div>
                                 <div className="w-10"></div>
                             </div>
@@ -728,7 +730,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
     ];
 
     const getAssignedPassengers = () => {
-        const assignedIds = new Set();
+        const assignedIds = new Set<string>();
         rooms.forEach(r => r.guests.forEach(g => assignedIds.add(g.name + g.bookingId)));
         return assignedIds;
     };
@@ -862,7 +864,7 @@ const RoomingManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any[]
                                                 <div className="flex flex-col gap-1" onClick={e => e.stopPropagation()}>
                                                     <input defaultValue={room.name} className="text-sm border rounded p-1 w-28" id={`name-${room.id}`} />
                                                     <input type="number" defaultValue={room.capacity} className="text-xs border rounded p-1 w-16" id={`cap-${room.id}`} />
-                                                    <button onClick={() => { const name = (document.getElementById(`name-${room.id}`) as HTMLInputElement).value; const cap = parseInt((document.getElementById(`cap-${room.id}`) as HTMLInputElement).value); updateRoomDetails(room.id, name, cap); }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
+                                                    <button onClick={() => { const nameInput = document.getElementById(`name-${room.id}`) as HTMLInputElement; const capInput = document.getElementById(`cap-${room.id}`) as HTMLInputElement; const name = nameInput.value; const cap = parseInt(capInput.value); updateRoomDetails(room.id, name, cap); }} className="text-xs bg-primary-600 text-white rounded px-2 py-1 mt-1">Salvar</button>
                                                 </div>
                                             ) : (
                                                 <>
@@ -945,12 +947,12 @@ const OperationsModule: React.FC<{
             doc.setFontSize(10);
             doc.text(`Data: ${dateStr}`, 14, 36);
             
-            const paxData: any[] = [];
+            const paxData: (string|number)[][] = [];
             const tripBookings = myBookings.filter(b => b.tripId === selectedTrip.id && b.status === 'CONFIRMED');
             tripBookings.forEach(b => {
                 const client = clients.find(c => c.id === b.clientId);
                 paxData.push([client?.name || 'Cliente', client?.cpf || '---', client?.phone || '---']);
-                for(let i=1; i<b.passengers; i++) paxData.push([`Convidado de ${client?.name || '...'}`, '---', '---']);
+                for(let i=1; i<b.passengers; i++) paxData.push([`Acompanhante de ${client?.name || '...'}`, '---', '---']);
             });
             opData.manualPassengers?.forEach(p => paxData.push([p.name, p.document || '---', '---']));
 
@@ -1078,7 +1080,7 @@ const AgencyDashboard: React.FC = () => {
   const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients } = useData();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
+  const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
   const { setAgencyTheme: setGlobalAgencyTheme } = useTheme();
 
   const currentAgency = agencies.find(a => a.id === user?.id);
@@ -1098,14 +1100,14 @@ const AgencyDashboard: React.FC = () => {
       operationalData: DEFAULT_OPERATIONAL_DATA
   }));
 
-  const [profileForm, setProfileForm] = useState<Partial<Agency>>({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' });
-  const [themeForm, setThemeForm] = useState<ThemeColors>({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
-  const [heroForm, setHeroForm] = useState({ heroMode: 'TRIPS', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' });
+  const [profileForm, setProfileForm] = useState<Partial<Agency>>(() => ({ name: '', description: '', whatsapp: '', phone: '', website: '', address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, logo: '' }));
+  const [themeForm, setThemeForm] = useState<ThemeColors>(() => ({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' }));
+  const [heroForm, setHeroForm] = useState(() => ({ heroMode: 'TRIPS', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' }));
 
   const [loading, setLoading] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
-  const [stats, setStats] = useState<DashboardStats>({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 });
+  const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
 
   useEffect(() => {
       const loadStats = async () => {
@@ -1129,8 +1131,38 @@ const AgencyDashboard: React.FC = () => {
       return matchesSearch && matchesStatus;
   });
 
-  useEffect(() => { if (currentAgency) { setProfileForm({ name: currentAgency.name, description: currentAgency.description, whatsapp: currentAgency.whatsapp || '', phone: currentAgency.phone || '', website: currentAgency.website || '', address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, logo: currentAgency.logo }); setHeroForm({ heroMode: currentAgency.heroMode || 'TRIPS', heroBannerUrl: currentAgency.heroBannerUrl || '', heroTitle: currentAgency.heroTitle || '', heroSubtitle: currentAgency.heroSubtitle || '' }); } }, [currentAgency]);
-  useEffect(() => { const fetchTheme = async () => { if (currentAgency) { const savedTheme = await getAgencyTheme(currentAgency.agencyId); if (savedTheme) { setThemeForm(savedTheme.colors); } } }; fetchTheme(); }, [currentAgency, getAgencyTheme]);
+  useEffect(() => { 
+    if (currentAgency) { 
+        setProfileForm({ 
+            name: currentAgency.name, 
+            description: currentAgency.description, 
+            whatsapp: currentAgency.whatsapp || '', 
+            phone: currentAgency.phone || '', 
+            website: currentAgency.website || '', 
+            address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
+            bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, 
+            logo: currentAgency.logo 
+        }); 
+        setHeroForm({ 
+            heroMode: currentAgency.heroMode || 'TRIPS', 
+            heroBannerUrl: currentAgency.heroBannerUrl || '', 
+            heroTitle: currentAgency.heroTitle || '', 
+            heroSubtitle: currentAgency.heroSubtitle || '' 
+        }); 
+    } 
+  }, [currentAgency]);
+
+  useEffect(() => { 
+    const fetchTheme = async () => { 
+        if (currentAgency?.agencyId) { // Ensure agencyId exists before fetching theme
+            const savedTheme = await getAgencyTheme(currentAgency.agencyId); 
+            if (savedTheme) { 
+                setThemeForm(savedTheme.colors); 
+            } 
+        } 
+    }; 
+    fetchTheme(); 
+  }, [currentAgency?.agencyId, getAgencyTheme]);
 
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
   
@@ -1142,13 +1174,13 @@ const AgencyDashboard: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
   const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
-  const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
+  const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await updateUser(profileForm); await updateUser({ heroMode: heroForm.heroMode as 'TRIPS' | 'STATIC', heroBannerUrl: heroForm.heroBannerUrl, heroTitle: heroForm.heroTitle, heroSubtitle: heroForm.heroSubtitle }); showToast('Perfil atualizado!', 'success'); } catch (err) { showToast('Erro ao atualizar perfil.', 'error'); } finally { setLoading(false); } };
-  const handleSaveTheme = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await saveAgencyTheme(currentAgency.agencyId, themeForm); setGlobalAgencyTheme(themeForm); showToast('Tema da agência atualizado!', 'success'); } catch (err) { showToast('Erro ao salvar tema.', 'error'); } finally { setLoading(false); } };
+  const handleSaveTheme = async (e: React.FormEvent) => { e.preventDefault(); setLoading(true); try { await saveAgencyTheme(currentAgency!.agencyId, themeForm); setGlobalAgencyTheme(themeForm); showToast('Tema da agência atualizado!', 'success'); } catch (err) { showToast('Erro ao salvar tema.', 'error'); } finally { setLoading(false); } };
   const handleLogout = async () => { await logout(); navigate('/'); };
   
   const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
-  const confirmSubscription = async () => { if (!showConfirmSubscription) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
+  const confirmSubscription = async () => { if (!showConfirmSubscription || !currentAgency) return; setActivatingPlanId(showConfirmSubscription.id); try { await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()); showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); window.location.reload(); } catch (error) { showToast('Erro ao ativar plano.', 'error'); } finally { setActivatingPlanId(null); setShowConfirmSubscription(null); } };
 
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
@@ -1239,7 +1271,7 @@ const AgencyDashboard: React.FC = () => {
                                 </div>
                                 <select 
                                     value={tripStatusFilter}
-                                    onChange={e => setTripStatusFilter(e.target.value as any)}
+                                    onChange={e => setTripStatusFilter(e.target.value as 'ALL' | 'ACTIVE' | 'DRAFT')}
                                     className="border border-gray-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none bg-white cursor-pointer"
                                 >
                                     <option value="ALL">Todos os Status</option>
@@ -1302,7 +1334,7 @@ const AgencyDashboard: React.FC = () => {
                                                         <div className="flex justify-between items-end mb-3">
                                                             <span className="font-bold text-primary-600 text-lg">R$ {trip.price.toLocaleString()}</span>
                                                             <button 
-                                                                onClick={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }}
+                                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }}
                                                                 className="text-xs font-bold text-white bg-primary-600 px-4 py-1.5 rounded-lg hover:bg-primary-700 flex items-center gap-1.5 transition-colors shadow-sm shadow-primary-500/30 active:scale-95"
                                                             >
                                                                 <Bus size={14}/> Gerenciar
@@ -1310,15 +1342,15 @@ const AgencyDashboard: React.FC = () => {
                                                         </div>
                                                         <div className="flex items-center justify-between gap-1 text-gray-400">
                                                             <div className="flex gap-1">
-                                                                <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-2 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={18}/></button>
-                                                                <button title="Editar" onClick={() => handleEditTrip(trip)} className="p-2 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"><Edit size={18}/></button>
-                                                                <button title="Duplicar" onClick={() => handleDuplicateTrip(trip)} className="p-2 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><Copy size={18}/></button>
-                                                                <button title={trip.is_active ? "Pausar" : "Ativar"} onClick={() => toggleTripStatus(trip.id)} className={`p-2 rounded-lg transition-colors ${trip.is_active ? 'hover:text-amber-600 hover:bg-amber-50' : 'text-green-600 bg-green-50 hover:bg-green-100'}`}>
+                                                                <button title="Ver Online" onClick={(e) => {e.preventDefault(); e.stopPropagation(); window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}} className="p-2 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={18}/></button>
+                                                                <button title="Editar" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleEditTrip(trip)}} className="p-2 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"><Edit size={18}/></button>
+                                                                <button title="Duplicar" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleDuplicateTrip(trip)}} className="p-2 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"><Copy size={18}/></button>
+                                                                <button title={trip.is_active ? "Pausar" : "Ativar"} onClick={(e) => {e.preventDefault(); e.stopPropagation(); toggleTripStatus(trip.id)}} className={`p-2 rounded-lg transition-colors ${trip.is_active ? 'hover:text-amber-600 hover:bg-amber-50' : 'text-green-600 bg-green-50 hover:bg-green-100'}`}>
                                                                     {trip.is_active ? <PauseCircle size={18}/> : <PlayCircle size={18}/>}
                                                                 </button>
                                                             </div>
                                                             <div className="h-4 w-px bg-gray-200 mx-1"></div>
-                                                            <button title="Excluir" onClick={() => handleDeleteTrip(trip.id)} className="p-2 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                                                            <button title="Excluir" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleDeleteTrip(trip.id)}} className="p-2 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1369,15 +1401,15 @@ const AgencyDashboard: React.FC = () => {
                                                         <td className="px-6 py-4 font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
                                                         <td className="px-6 py-4 text-right">
                                                             <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button title="Gerenciar" onClick={() => { setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} className="p-1.5 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded mr-2"><Bus size={16}/></button>
-                                                                <button title="Ver Online" onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"><Eye size={16}/></button>
-                                                                <button title="Editar" onClick={() => handleEditTrip(trip)} className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded"><Edit size={16}/></button>
-                                                                <button title="Duplicar" onClick={() => handleDuplicateTrip(trip)} className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded"><Copy size={16}/></button>
-                                                                <button title="Ativar/Pausar" onClick={() => toggleTripStatus(trip.id)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded">
+                                                                <button title="Gerenciar" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedOperationalTripId(trip.id); handleTabChange('OPERATIONS'); }} className="p-1.5 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded mr-2"><Bus size={16}/></button>
+                                                                <button title="Ver Online" onClick={(e) => {e.preventDefault(); e.stopPropagation(); window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"><Eye size={16}/></button>
+                                                                <button title="Editar" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleEditTrip(trip)}} className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded"><Edit size={16}/></button>
+                                                                <button title="Duplicar" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleDuplicateTrip(trip)}} className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded"><Copy size={16}/></button>
+                                                                <button title="Ativar/Pausar" onClick={(e) => {e.preventDefault(); e.stopPropagation(); toggleTripStatus(trip.id)}} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded">
                                                                     {trip.is_active ? <PauseCircle size={16}/> : <PlayCircle size={16}/>}
                                                                 </button>
                                                                 <div className="h-4 w-px bg-gray-200 mx-1"></div>
-                                                                <button title="Excluir" onClick={() => handleDeleteTrip(trip.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                                                <button title="Excluir" onClick={(e) => {e.preventDefault(); e.stopPropagation(); handleDeleteTrip(trip.id)}} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1531,17 +1563,17 @@ const AgencyDashboard: React.FC = () => {
                      <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center"><User size={20} className="mr-2"/> Dados da Agência</h3>
                      <form onSubmit={handleSaveProfile} className="space-y-6">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Fantasia</label><input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
-                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone / WhatsApp</label><input value={profileForm.whatsapp} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
-                             <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={profileForm.description} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
-                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Site</label><input value={profileForm.website} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
-                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Logo URL</label><input value={profileForm.logo} onChange={e => setProfileForm({...profileForm, logo: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Fantasia</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone / WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Site</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
+                             <div><label className="block text-sm font-bold text-gray-700 mb-1">Logo URL</label><input value={profileForm.logo || ''} onChange={e => setProfileForm({...profileForm, logo: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
                          </div>
                          
                          <div className="pt-6 border-t border-gray-100">
                              <h4 className="text-sm font-bold text-gray-900 mb-4">Configuração do Microsite</h4>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div><label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label><select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"><option value="TRIPS">Carrossel de Viagens</option><option value="STATIC">Banner Estático</option></select></div>
+                                <div><label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label><select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"><option value="TRIPS">Carrossel de Viagens</option><option value="STATIC">Banner Estático</option></select></div>
                                 {heroForm.heroMode === 'STATIC' && (
                                     <>
                                         <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Banner URL</label><input value={heroForm.heroBannerUrl} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-primary-500"/></div>
