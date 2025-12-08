@@ -811,7 +811,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             included: trip.included,
             not_included: trip.notIncluded,
             featured: trip.featured,
-            featured_in_hero: trip.featuredInHero,
+            featuredInHero: trip.featuredInHero,
             popular_near_sp: trip.popularNearSP,
             operationalData: trip.operationalData,
         }).select().single();
@@ -866,10 +866,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             payment_methods: trip.paymentMethods,
             is_active: trip.is_active,
             included: trip.included,
-            not_included: trip.notIncluded,
+            notIncluded: trip.notIncluded,
             featured: trip.featured,
             featuredInHero: trip.featuredInHero,
-            popular_near_sp: trip.popularNearSP,
+            popularNearSP: trip.popularNearSP,
             operationalData: trip.operationalData,
         }).eq('id', trip.id);
 

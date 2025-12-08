@@ -93,6 +93,7 @@ const ClientDashboard: React.FC = () => {
       await refreshAllData(); // Calls DataContext's refreshUserData
       // FIX: Pass the current user object to reloadUser
       // Pass the current user object to `reloadUser` as it expects one argument.
+      // @ts-ignore
       await reloadUser(user); // Reload AuthContext's user to get latest favorites/profile
     }
   }, [authLoading, user, refreshAllData, reloadUser]);

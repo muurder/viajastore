@@ -46,9 +46,24 @@ const Home: React.FC = () => {
   useEffect(() => {
     const loadHero = async () => {
         setHeroLoading(true);
-        // Using 'featured' filter or random sort if possible. For performance, fetching 5 latest featured.
-        const { data } = await searchTrips({ limit: 5, featured: true, sort: 'DATE_ASC' });
-        setHeroTrips(data);
+        let tripsData: Trip[] = [];
+        
+        // Try to fetch a larger pool of featured trips
+        const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
+        if (featuredData && featuredData.length > 0) {
+            tripsData = featuredData;
+        } else {
+            // Fallback: If no featured trips, get general active trips
+            const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
+            tripsData = generalData;
+        }
+
+        // Shuffle the results to randomize the hero
+        if (tripsData.length > 0) {
+            tripsData.sort(() => 0.5 - Math.random());
+        }
+        
+        setHeroTrips(tripsData);
         setHeroLoading(false);
     };
     loadHero();
