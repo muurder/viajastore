@@ -690,7 +690,7 @@ const TransportManager: React.FC<{ trip: Trip; bookings: Booking[]; clients: any
                             <div className="absolute top-0 left-0 right-0 h-28 border-b-2 border-slate-200 rounded-t-[34px] bg-gradient-to-b from-slate-50 to-white flex justify-between px-8 pt-6">
                                 <div className="flex flex-col items-center">
                                     <div className="w-10 h-10 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner"><User size={20} /></div>
-                                </div>
+                                }
                                 <div className="flex flex-col items-center justify-center opacity-50"><span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Frente</span></div>
                                 <div className="w-10"></div>
                             </div>
