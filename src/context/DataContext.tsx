@@ -170,7 +170,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: reviewsData } = await sb.from('agency_reviews').select('*');
         if (reviewsData) {
             setAgencyReviews(reviewsData.map((r: any) => ({
-                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, clientName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', // clientName is dynamic from join
+                id: r.id, agencyId: r.agency_id, clientId: r.client_id, bookingId: r.booking_id, rating: r.rating, comment: r.comment, tags: r.tags, createdAt: r.created_at, response: r.response, clientName: clients.find(c => c.id === r.client_id)?.name || 'Cliente Desconhecido', // clientName is dynamic from join
                 agencyName: agenciesData?.find((a: any) => a.id === r.agency_id)?.name || 'Agência Desconhecida', tripTitle: tripsData?.find((t: any) => t.id === r.trip_id)?.title || undefined,
             })));
         }
@@ -221,7 +221,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) {
         setBookings([]); // Clear bookings if no supabase
-        // Removed: await reloadUser(); // Removed this line to prevent infinite loop
         setLoading(false);
         return;
     }
@@ -266,8 +265,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else {
             setBookings([]);
         }
-
-        // Removed: await reloadUser(); // Removed this line to prevent infinite loop
 
     } catch (error: any) {
         console.error("Error fetching user-specific data:", error.message);
@@ -549,7 +546,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
           await sb.from('profiles').update({ favorites: newFavorites }).eq('id', userId);
           logActivity(action, { tripId, userId, isFavorite: !isCurrentlyFavorite });
-          _fetchGlobalAndClientProfiles(); // Update local cache including clients
+          _fetchGlobalAndClientProfiles(); // Update local cache
           reloadUser(); // Update user in AuthContext
       } catch (error: any) {
           console.error("Error toggling favorite:", error.message);
@@ -1069,44 +1066,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [showToast, logAuditAction, _fetchGlobalAndClientProfiles, guardSupabase]);
 
-  // FIX: Implement local calculation fallback for getAgencyStats
   const getAgencyStats = useCallback(async (agencyId: string): Promise<DashboardStats> => {
-    const sb = guardSupabase();
-    try {
-        if (!sb) throw new Error("Supabase não configurado."); // Force error for fallback if no SB
-        const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
-        if (error) throw error;
-
-        // Data from RPC is likely snake_case and needs mapping
-        const stats: DashboardStats = {
-            totalRevenue: data.total_revenue || 0,
-            totalViews: data.total_views || 0,
-            totalSales: data.total_sales || 0,
-            conversionRate: data.conversion_rate || 0,
-            averageRating: data.average_rating || 0,
-            totalReviews: data.total_reviews || 0,
-        };
-        return stats;
-    } catch (error: any) {
-        console.error("Error fetching agency stats via RPC, calculating locally:", error.message);
-        // Fallback: Calculate stats locally using existing state data
-        const agencyTrips = trips.filter(t => t.agencyId === agencyId);
-        const agencyBookings = bookings.filter(b => b._trip?.agencyId === agencyId && b.status === 'CONFIRMED');
-        const agencyReviewsForStats = agencyReviews.filter(r => r.agencyId === agencyId);
-
-        const totalRevenue = agencyBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-        const totalViews = agencyTrips.reduce((sum, t) => sum + (t.views || 0), 0);
-        const totalSales = agencyTrips.reduce((sum, t) => sum + (t.sales || 0), 0);
-        const totalReviews = agencyReviewsForStats.length;
-        const averageRating = totalReviews > 0 
-            ? agencyReviewsForStats.reduce((sum, r) => sum + r.rating, 0) / totalReviews 
-            : 0;
-        const conversionRate = totalViews > 0 ? (totalSales / totalViews) * 100 : 0;
-
-        showToast(`Erro ao buscar estatísticas da agência: ${error.message}. Dados calculados localmente podem ser imprecisos.`, 'warning');
-        return { totalRevenue, totalViews, totalSales, conversionRate, averageRating, totalReviews };
-    }
-  }, [guardSupabase, showToast, trips, bookings, agencyReviews]);
+      const sb = guardSupabase();
+      const zeros = { totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 };
+      if (!sb) return zeros;
+      try {
+          const { data, error } = await sb.rpc('get_agency_dashboard_stats', { agency_uuid: agencyId });
+          if (error) throw error;
+          if (data && data.length > 0) {
+              const s = data[0]; // Assuming RPC returns an array with a single object
+              return {
+                  totalRevenue: Number(s.total_revenue) || 0,
+                  totalViews: Number(s.total_views) || 0,
+                  totalSales: Number(s.total_sales) || 0,
+                  conversionRate: Number(s.conversion_rate) || 0,
+                  averageRating: Number(s.average_rating) || 0,
+                  totalReviews: Number(s.total_reviews) || 0
+              };
+          }
+          return zeros;
+      } catch (err: any) { 
+        console.error("Error fetching agency stats via RPC:", err.message);
+        showToast(`Erro ao buscar estatísticas da agência: ${err.message}.`, 'error');
+        return zeros; 
+      }
+  }, [guardSupabase, showToast]);
 
 
   const getAgencyTheme = useCallback(async (agencyId: string): Promise<AgencyTheme | null> => {

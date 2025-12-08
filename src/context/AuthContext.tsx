@@ -288,12 +288,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeAuth();
-  }, []); // THIS DEPENDENCY ARRAY IS ALREADY EMPTY.
+  }, []); 
   
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     if (!supabase) return { success: false, error: 'Backend não configurado.' };
     if (!password) return { success: false, error: 'Senha obrigatória' };
     
+    setLoading(true); // Ensure loading is set at the start of login
     try {
       const { error } = await (supabase.auth as any).signInWithPassword({
         email,
@@ -302,11 +303,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) {
         const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
+        setLoading(false); // Reset loading on error
         return { success: false, error: msg };
       }
+      setLoading(false); // Reset loading on success
       return { success: true };
     } catch (networkError: any) {
       console.error("Network or unexpected error during login:", networkError);
+      setLoading(false); // Reset loading on network error
       return { success: false, error: "Erro de conexão. Verifique sua internet." };
     }
   };
@@ -501,7 +505,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
         // Only allow slug update if it's currently empty, or if an explicit (and rare) admin action is intended.
         // For general user updates, slug should be read-only derived from name or immutable after creation.
-        // Assuming userData.slug is provided only if an update is intended.
+        // Assuming userData.slug is provided only if an is intended.
         if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
           updates.slug = (userData as Agency).slug;
         }
