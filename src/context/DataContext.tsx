@@ -646,7 +646,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const toggleFavorite = useCallback(async (tripId: string, userId: string) => {
       const sb = guardSupabase();
       if (!sb) {
-          console.warn("[DataContext] Supabase not configured, cannot toggle favorite."); // Debug Log
+          console.warn("[DataContext] Supabase not configured, cannot toggle favorite.");
           showToast('Erro de conexão. Não foi possível favoritar.', 'error');
           return;
       }
@@ -655,9 +655,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return;
       }
       
-      console.log(`[DataContext] Toggling favorite for trip ${tripId} by user ${userId}.`); // Debug Log
+      console.log(`[DataContext] Toggling favorite for trip ${tripId} by user ${userId}.`);
 
-      // Optimistic UI update
+      // 1. Optimistic UI update on 'clients' state
       setClients(prevClients => prevClients.map(client => {
           if (client.id === userId) {
               const currentFavorites = client.favorites || [];
@@ -665,16 +665,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               const newFavorites = isCurrentlyFavorite
                   ? currentFavorites.filter(id => id !== tripId)
                   : [...currentFavorites, tripId];
-              showToast(isCurrentlyFavorite ? 'Removido dos favoritos.' : 'Adicionado aos favoritos!', isCurrentlyFavorite ? 'info' : 'success');
+              
+              // Only show toast if state changed
+              if (isCurrentlyFavorite !== newFavorites.includes(tripId)) {
+                  showToast(isCurrentlyFavorite ? 'Removido dos favoritos.' : 'Adicionado aos favoritos!', isCurrentlyFavorite ? 'info' : 'success');
+              }
               return { ...client, favorites: newFavorites };
           }
           return client;
       }));
 
       try {
+          // 2. DB Operations - Check existence first
           const { data: existingFav, error: selectError } = await sb
               .from('favorites')
-              .select('user_id') // Corrected: Select user_id or any column, not 'id'
+              .select('user_id')
               .eq('user_id', userId)
               .eq('trip_id', tripId)
               .maybeSingle();
@@ -682,38 +687,43 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (selectError) throw selectError;
 
           if (existingFav) {
-              // Remove from favorites using composite key
+              // Remove
               const { error: deleteError } = await sb
                   .from('favorites')
                   .delete()
-                  .eq('user_id', userId) // Corrected: Delete using composite key
-                  .eq('trip_id', tripId); // Corrected: Delete using composite key
+                  .eq('user_id', userId)
+                  .eq('trip_id', tripId);
               if (deleteError) throw deleteError;
               logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: false });
-              console.log(`[DataContext] Favorite removed: user ${userId}, trip ${tripId}`);
           } else {
-              // Add to favorites
+              // Add
               const { error: insertError } = await sb
                   .from('favorites')
-                  .insert({ user_id: userId, trip_id: tripId }); // Correct, no 'id' in insert
+                  .insert({ user_id: userId, trip_id: tripId });
               if (insertError) throw insertError;
               logActivity(ActivityActionType.FAVORITE_TOGGLED, { tripId, userId, isFavorite: true });
-              console.log(`[DataContext] Favorite added: user ${userId}, trip ${tripId}`);
           }
-          // No need for _fetchGlobalAndClientProfiles() here if optimistic update is in place,
-          // unless external systems need to be aware immediately via subscription.
-          // For consistency, a subscription to 'favorites' table changes would trigger _fetchGlobalAndClientProfiles.
+          
+          // CRITICAL: Do NOT call _fetchGlobalAndClientProfiles() here. 
+          // The optimistic update handles the UI, and background subscriptions will eventually sync if needed.
+          // Calling fetchGlobal causes a full re-render/flash of the app.
 
       } catch (error: any) {
-          console.error("[DataContext] Error toggling favorite in DB:", error.message); // Debug Log
-          // Rollback optimistic update if DB operation fails
+          console.error("[DataContext] Error toggling favorite in DB:", error.message);
+          
+          // Rollback Optimistic Update
           setClients(prevClients => prevClients.map(client => {
               if (client.id === userId) {
                   const currentFavorites = client.favorites || [];
-                  const isCurrentlyFavorite = currentFavorites.includes(tripId); // This is the state *before* the failed DB op
+                  const isCurrentlyFavorite = currentFavorites.includes(tripId); 
+                  // If currently has it (meaning we optimistically added it), remove it. 
+                  // If currently doesn't have it (meaning we optimistically removed it), add it back.
+                  // Wait, 'currentFavorites' is the *new* state from optimistic update.
+                  // We need to revert to the *old* state.
+                  // Actually, simply checking if it's there and toggling again works as rollback logic:
                   const rolledBackFavorites = isCurrentlyFavorite
-                      ? [...currentFavorites, tripId] // Re-add if it was removed
-                      : currentFavorites.filter(id => id !== tripId); // Re-remove if it was added
+                      ? currentFavorites.filter(id => id !== tripId) // It was added, so remove
+                      : [...currentFavorites, tripId]; // It was removed, so add back
                   return { ...client, favorites: rolledBackFavorites };
               }
               return client;

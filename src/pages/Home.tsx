@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
@@ -80,14 +79,17 @@ const Home: React.FC = () => {
 
         // Map UI labels to API enum if needed, or rely on fuzzy search
         const { data } = await searchTrips({ 
-            limit: 9, 
+            limit: 20, // Fetch more to allow for random shuffling
             // If mapping fails, the search might return empty, so ideally we map correctly or use tags
             // For now, simpler implementation:
             category: category === 'VIAGEM_BARATA' ? 'VIAGEM_BARATA' : undefined,
             // Fallback for tags if category not strict
             query: !category ? undefined : undefined 
         });
-        setGridTrips(data);
+
+        // Shuffle the results for the grid as well
+        const shuffled = data.sort(() => 0.5 - Math.random()).slice(0, 9);
+        setGridTrips(shuffled);
         setGridLoading(false);
     };
     loadGrid();
