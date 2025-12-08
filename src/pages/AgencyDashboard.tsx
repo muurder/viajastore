@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,8 +9,19 @@ import {
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 // FIX: Add Search and Palette icons to the import from 'lucide-react'
-import { Plus, Edit, Trash2, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Globe, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, Trash2, ShieldCheck, Square, Globe, Timer, Home,
-  Palette, Search, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, LucideProps } from 'lucide-react';
+import { 
+  Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
+  LogOut, // Added missing import
+  Globe, // Added missing import
+  Trash2, // Added missing import
+  CheckCircle, // Added missing import
+  ChevronDown, // Added missing import
+  MessageCircle, // Added missing import
+  Info, // Added missing import
+  Palette, // Added missing import
+  Search, // Added missing import
+  LucideProps // Added missing import for icon type
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -48,22 +60,24 @@ const safeDate = (dateStr: string | undefined) => {
 
 // --- CUSTOM COMPONENTS FOR DASHBOARD ---
 
+// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
-    const colors = {
-      green: 'bg-green-50 text-green-700 border-green-200',
-      red: 'bg-red-50 text-red-700 border-red-200',
-      blue: 'bg-blue-50 text-blue-700 border-blue-200',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      gray: 'bg-gray-50 text-gray-600 border-gray-200',
-      amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    };
-    return (
-      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
-        {children}
-      </span>
-    );
+  const colors = {
+    green: 'bg-green-50 text-green-700 border-green-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    gray: 'bg-gray-50 text-gray-600 border-gray-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
   };
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+      {children}
+    </span>
+  );
+};
 
+// Fix: Define StatCard component locally
 interface StatCardProps { 
     title: string; 
     value: string | number; 
@@ -92,6 +106,44 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
             <p className="text-sm text-gray-500 font-medium">{title}</p>
             <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{value}</h3>
             <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
+        </div>
+    );
+};
+
+// Fix: Define ActionMenu component locally
+interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
+const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={menuRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                <MoreHorizontal size={18} />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
+                    <div className="py-1">
+                        {actions.map((action, idx) => (
+                            <button 
+                                key={idx} 
+                                onClick={() => { action.onClick(); setIsOpen(false); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                                <action.icon size={16} /> {action.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -524,7 +576,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             `}
                             title={occupant ? occupant.passengerName : `Poltrona ${seatNum}`}
                         >
-                            <Armchair size={16} className={`mb-0.5 ${occupant ? 'fill-current' : ''}`}/>
+                            <User size={16} className={`mb-0.5 ${occupant ? 'fill-current' : ''}`}/>
                             <span className="text-[10px]">{seatNum}</span>
                             {occupant && (
                                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
@@ -650,7 +702,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <div className="w-full lg:w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-10">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Lista de Passageiros</h4>
-                    <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors" title="Adicionar Manual"><UserPlus size={18}/></button>
+                    <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors" title="Adicionar Manual"><Plus size={18}/></button>
                 </div>
                 
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
@@ -855,7 +907,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 <div className="w-full lg:w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-10">
                     <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                         <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Hóspedes ({unassignedPassengers.length})</h4>
-                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"><UserPlus size={18}/></button>
+                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:text-primary-700 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"><Plus size={18}/></button>
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
@@ -1262,4 +1314,457 @@ const AgencyDashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
          <div className="flex items-center gap-4">
             <div className="relative"><img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" /><span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span></div>
-            <div><h1 className="text-2xl font-bold text-gray-900">{currentAgency?.name}</h1><div className="flex items-center gap-3 text-sm text-gray-500"><span className="flex items-center"><Globe size={14} className="mr-1"/> {currentAgency?.slug}.viajastore.com</span><a href={`/#/${currentAgency?.slug}`} target="_
+            <div><h1 className="text-2xl font-bold text-gray-900">{currentAgency?.name}</h1><div className="flex items-center gap-3 text-sm text-gray-500"><span className="flex items-center"><Globe size={14} className="mr-1"/> {currentAgency?.slug}.viajastore.com</span><a href={`/#/${currentAgency?.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center">Ver site <ExternalLink size={10} className="ml-1"/></a></div></div>
+         </div>
+         <div className="flex flex-wrap gap-3">
+            <button onClick={() => handleTabChange('PROFILE')} className="bg-white text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100 transition-colors shadow-sm border border-gray-200">
+                <Settings size={18} className="mr-2"/> Gerenciar Perfil
+            </button>
+            <button onClick={handleLogout} className="bg-red-50 text-red-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-red-100 transition-colors shadow-sm border border-red-100">
+                <LogOut size={18} className="mr-2"/> Sair
+            </button>
+         </div>
+      </div>
+      
+      {isEditingTrip && (
+          <CreateTripWizard 
+              onClose={() => { setIsEditingTrip(false); setEditingTripId(null); setTripForm({}); }} 
+              onSuccess={() => { setIsEditingTrip(false); setEditingTripId(null); setTripForm({}); handleTabChange('TRIPS'); }} 
+              initialTripData={editingTripId ? myTrips.find(t => t.id === editingTripId) : undefined}
+          />
+      )}
+
+      {selectedOperationalTripId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-7xl w-full h-[95vh] shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => setSelectedOperationalTripId(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-50"><X size={20}/></button>
+                  <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center"><Truck size={20}/></div>
+                      <h2 className="text-xl font-bold text-gray-900">Gerenciar Operacional: {myTrips.find(t => t.id === selectedOperationalTripId)?.title}</h2>
+                  </div>
+                  <OperationsModule 
+                      myTrips={myTrips} 
+                      myBookings={myBookings} 
+                      clients={clients} 
+                      selectedTripId={selectedOperationalTripId} 
+                      onSelectTrip={setSelectedOperationalTripId}
+                      onSaveTripData={updateTripOperationalData}
+                  />
+              </div>
+          </div>
+      )}
+
+      {showConfirmSubscription && (
+        <SubscriptionConfirmationModal 
+          plan={showConfirmSubscription} 
+          onClose={() => setShowConfirmSubscription(null)} 
+          onConfirm={confirmSubscription} 
+          isSubmitting={!!activatingPlanId}
+        />
+      )}
+
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="PROFILE" label="Meu Perfil" icon={User} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="THEME" label="Meu Tema" icon={Palette} activeTab={activeTab} onClick={handleTabChange} />
+      </div>
+
+      {/* Content based on activeTab */}
+      {activeTab === 'OVERVIEW' && (
+        <div className="space-y-8 animate-[fadeIn_0.3s]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard 
+                    title="Receita Total" 
+                    value={`R$ ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
+                    subtitle="Total acumulado em vendas" 
+                    icon={DollarSign} 
+                    color="green"
+                    onClick={() => handleTabChange('BOOKINGS')}
+                />
+                <StatCard 
+                    title="Pacotes Ativos" 
+                    value={myTrips.filter(t => t.is_active).length} 
+                    subtitle={`${myTrips.filter(t => !t.is_active).length} rascunhos`} 
+                    icon={Plane} 
+                    color="blue"
+                    onClick={() => handleTabChange('TRIPS')}
+                />
+                <StatCard 
+                    title="Reservas Confirmadas" 
+                    value={myBookings.filter(b => b.status === 'CONFIRMED').length} 
+                    subtitle={`${myBookings.filter(b => b.status === 'PENDING').length} pendentes`} 
+                    icon={ShoppingBag} 
+                    color="purple"
+                    onClick={() => handleTabChange('BOOKINGS')}
+                />
+                <StatCard 
+                    title="Avaliação Média" 
+                    value={stats.averageRating ? stats.averageRating.toFixed(1) : '-'} 
+                    subtitle={`${stats.totalReviews || 0} avaliações no total`} 
+                    icon={Star} 
+                    color="amber"
+                    onClick={() => handleTabChange('REVIEWS')}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Últimas Vendas */}
+                <RecentBookingsTable bookings={myBookings} clients={clients} />
+
+                {/* Top Pacotes */}
+                <TopTripsCard trips={myTrips} />
+            </div>
+        </div>
+      )}
+
+      {activeTab === 'TRIPS' && (
+        <div className="space-y-6 animate-[fadeIn_0.3s]">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2>
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou destino..."
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all text-sm"
+                            value={tripSearch}
+                            onChange={(e) => setTripSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="relative w-full sm:w-40">
+                        <ListChecks className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                        <select
+                            value={tripStatusFilter}
+                            onChange={(e) => setTripStatusFilter(e.target.value as any)}
+                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm appearance-none cursor-pointer text-gray-700 font-medium text-sm"
+                        >
+                            <option value="ALL">Todos os Status</option>
+                            <option value="ACTIVE">Ativos</option>
+                            <option value="DRAFT">Rascunhos</option>
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    </div>
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 flex-shrink-0">
+                        <button onClick={() => setTripViewMode('GRID')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><LayoutGrid size={18} /></button>
+                        <button onClick={() => setTripViewMode('TABLE')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><List size={18} /></button>
+                    </div>
+                </div>
+            </div>
+            
+            <button 
+                onClick={() => { setIsEditingTrip(true); setEditingTripId(null); setTripForm({ agencyId: currentAgency!.agencyId, images: [], itinerary: [{ day: 1, title: '', description: '' }], boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }], included: [], notIncluded: [], paymentMethods: [], tags: [], travelerTypes: [], is_active: true, operationalData: DEFAULT_OPERATIONAL_DATA, category: 'PRAIA', description: '', destination: '', durationDays: 1, endDate: '', price: 0, startDate: '', slug: '', title: '' }); }} 
+                className="bg-primary-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2 mb-6"
+            >
+                <Plus size={18}/> Novo Pacote
+            </button>
+
+            {myTrips.length === 0 ? (
+                <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
+                    <Plane size={32} className="text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum pacote criado ainda</h3>
+                    <p className="text-gray-500 mt-1 mb-6">Crie seu primeiro pacote de viagem para começar a vender na ViajaStore!</p>
+                    <button onClick={() => { setIsEditingTrip(true); setEditingTripId(null); setTripForm({ agencyId: currentAgency!.agencyId, images: [], itinerary: [{ day: 1, title: '', description: '' }], boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }], included: [], notIncluded: [], paymentMethods: [], tags: [], travelerTypes: [], is_active: true, operationalData: DEFAULT_OPERATIONAL_DATA, category: 'PRAIA', description: '', destination: '', durationDays: 1, endDate: '', price: 0, startDate: '', slug: '', title: '' }); }} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
+                        <Plus size={16}/> Criar Pacote
+                    </button>
+                </div>
+            ) : tripViewMode === 'GRID' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {myTrips.map(trip => (
+                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group">
+                            <div className="relative h-48 w-full">
+                                <img src={trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/>
+                                <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
+                            </div>
+                            <div className="p-5 flex-1 flex flex-col">
+                                <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-2">{trip.title}</h3>
+                                <p className="text-sm text-gray-500 mb-3 flex items-center"><MapPin size={14} className="mr-2"/>{trip.destination}</p>
+                                <div className="flex items-center gap-4 text-xs font-medium text-gray-500 mb-4">
+                                    <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
+                                    <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
+                                    <div className="flex items-center" title="Avaliação Média"><Star size={14} className="mr-1.5 text-amber-400"/> {trip.tripRating?.toFixed(1) || '0.0'}</div>
+                                </div>
+                                <div className="mt-auto pt-4 border-t border-gray-100 flex gap-2">
+                                    <button onClick={() => handleEditTrip(trip)} className="flex-1 bg-primary-50 text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-100 transition-colors flex items-center justify-center gap-2">
+                                        <Edit size={16}/> Editar
+                                    </button>
+                                    <ActionMenu 
+                                        actions={[
+                                            { label: 'Duplicar Pacote', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
+                                            { label: trip.is_active ? 'Pausar Pacote' : 'Publicar Pacote', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+                                            { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
+                                            { label: 'Excluir Pacote', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' }
+                                        ]}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : ( // TABLE VIEW
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gray-50/50">
+                            <tr>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Destino</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th>
+                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                            {myTrips.map(trip => (
+                                <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                                <img src={trip.images[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
+                                            </div>
+                                            <div className="truncate">
+                                                <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
+                                                <p className="text-xs text-gray-500">{trip.category.replace('_', ' ')}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-700">{trip.destination}</td>
+                                    <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
+                                    <td className="px-6 py-4">
+                                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                                            <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
+                                            <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <ActionMenu
+                                            actions={[
+                                                { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
+                                                { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
+                                                { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+                                                { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
+                                                { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' }
+                                            ]}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+      )}
+
+      {activeTab === 'BOOKINGS' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Minhas Reservas ({myBookings.length})</h2>
+              {myBookings.length > 0 ? (
+                  <div className="overflow-x-auto custom-scrollbar">
+                      <table className="min-w-full divide-y divide-gray-100">
+                          <thead className="bg-gray-50/50">
+                              <tr>
+                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider"># Reserva</th>
+                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
+                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
+                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th>
+                                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Valor Total</th>
+                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 bg-white">
+                              {myBookings.map(booking => {
+                                  const client = clients.find(c => c.id === booking.clientId);
+                                  return (
+                                      <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                          <td className="px-6 py-4 font-mono text-xs text-gray-700">{booking.voucherCode}</td>
+                                          <td className="px-6 py-4 text-sm font-bold text-gray-900">{booking._trip?.title || 'N/A'}</td>
+                                          <td className="px-6 py-4 text-sm text-gray-700">{client?.name || 'Cliente Desconhecido'}</td>
+                                          <td className="px-6 py-4 text-sm text-gray-500">{new Date(booking.date).toLocaleDateString()}</td>
+                                          <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
+                                          <td className="px-6 py-4">
+                                              <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>{booking.status}</Badge>
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
+                          </tbody>
+                      </table>
+                  </div>
+              ) : (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                      <ShoppingBag size={32} className="mx-auto mb-3" />
+                      <p>Nenhuma reserva encontrada. Comece a vender!</p>
+                  </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'OPERATIONS' && (
+          <div className="animate-[fadeIn_0.3s]">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2"><Bus size={24}/> Gerenciar Operacional</h2>
+                  <p className="text-gray-600 mb-4">Organize seus passageiros em assentos e quartos para cada viagem.</p>
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-xl flex items-start gap-3">
+                    <Info size={20} className="flex-shrink-0 mt-0.5"/>
+                    <p className="text-sm">
+                        Selecione uma viagem na barra lateral para começar a configurar o layout do transporte e a lista de quartos.
+                        As alterações são salvas automaticamente.
+                    </p>
+                  </div>
+              </div>
+              <OperationsModule 
+                  myTrips={myTrips} 
+                  myBookings={myBookings} 
+                  clients={clients} 
+                  selectedTripId={selectedOperationalTripId} 
+                  onSelectTrip={setSelectedOperationalTripId}
+                  onSaveTripData={updateTripOperationalData}
+              />
+          </div>
+      )}
+
+      {activeTab === 'REVIEWS' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Avaliações da Minha Agência ({agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).length})</h2>
+              {agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).length > 0 ? (
+                  <div className="space-y-4">
+                      {agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).map(review => (
+                          <div key={review.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                              <div className="flex justify-between items-start mb-3">
+                                  <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{review.clientName?.charAt(0)}</div>
+                                      <div>
+                                          <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Cliente ViajaStore'}</p>
+                                          <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex text-amber-400">{[...Array(5)].map((_, i) => (<Star key={i} size={14} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />))}</div>
+                              </div>
+                              <p className="text-gray-700 text-sm italic mb-3">"{review.comment}"</p>
+                              {review.tags && review.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mb-3">
+                                      {review.tags.map(tag => (
+                                          <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
+                                      ))}
+                                  </div>
+                              )}
+                              {review.tripTitle && (
+                                  <p className="text-xs text-gray-500 mb-3">Avaliação do pacote: <span className="font-bold">{review.tripTitle}</span></p>
+                              )}
+
+                              <div className="mt-4 pt-4 border-t border-gray-100">
+                                  {review.response ? (
+                                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                          <h4 className="text-xs font-bold text-gray-500 uppercase mb-2">Sua Resposta:</h4>
+                                          <p className="text-sm text-gray-700 italic">"{review.response}"</p>
+                                      </div>
+                                  ) : (
+                                      <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 flex items-center gap-2">
+                                          <MessageCircle size={16}/> Responder Avaliação
+                                      </button>
+                                  )}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              ) : (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                      <Star size={32} className="mx-auto mb-3" />
+                      <p>Nenhuma avaliação ainda. Mantenha a qualidade para receber feedback!</p>
+                  </div>
+              )}
+          </div>
+      )}
+
+      {activeTab === 'PROFILE' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Meu Perfil</h2>
+              <form onSubmit={handleSaveProfile} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://suaagencia.com.br" /></div>
+                      <div className="md:col-span-2">
+                          <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Curta</label>
+                          <textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Fale um pouco sobre sua agência..." />
+                      </div>
+                  </div>
+                  <div className="border-t pt-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Configurações do Microsite (Página de Agência)</h3>
+                      <div className="space-y-4">
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label>
+                              <select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer">
+                                  <option value="TRIPS">Carrossel de Viagens</option>
+                                  <option value="STATIC">Imagem Estática</option>
+                              </select>
+                              <p className="text-xs text-gray-500 mt-1">Define o que aparece no topo da sua página pública.</p>
+                          </div>
+                          {heroForm.heroMode === 'STATIC' && (
+                              <div className="space-y-4 animate-[fadeIn_0.3s]">
+                                  <div>
+                                      <label className="block text-sm font-bold text-gray-700 mb-1">URL da Imagem do Hero</label>
+                                      <input value={heroForm.heroBannerUrl || ''} onChange={e => setHeroForm({...heroForm, heroBannerUrl: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://suaagencia.com/banner.jpg" />
+                                      {heroForm.heroBannerUrl && <img src={heroForm.heroBannerUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg mt-3 border border-gray-200" />}
+                                  </div>
+                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Hero</label><input value={heroForm.heroTitle || ''} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Bem-vindo à Sua Agência" /></div>
+                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Hero</label><textarea value={heroForm.heroSubtitle || ''} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={2} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="As melhores experiências esperam por você!" /></div>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                      {loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
+                  </button>
+              </form>
+          </div>
+      )}
+
+      {activeTab === 'THEME' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Personalizar Tema do Meu Microsite</h2>
+              <form onSubmit={handleSaveTheme} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
+                          <div className="flex items-center gap-2">
+                              <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                              <input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500" />
+                          </div>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
+                          <div className="flex items-center gap-2">
+                              <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-8 h-8 rounded-full border" />
+                              <input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500" />
+                          </div>
+                      </div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-blue-700 flex items-start gap-3">
+                      <Info size={20} className="flex-shrink-0 mt-0.5"/>
+                      <p className="text-sm">
+                          Estas cores serão aplicadas apenas na sua página de agência (microsite). O tema padrão da ViajaStore permanecerá o mesmo no marketplace principal.
+                      </p>
+                  </div>
+                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
+                      {loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Tema
+                  </button>
+              </form>
+          </div>
+      )}
+    </div>
+  );
+};
+
+export { AgencyDashboard };
