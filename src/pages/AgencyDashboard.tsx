@@ -1111,7 +1111,7 @@ const AgencyDashboard: React.FC = () => {
     { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
     { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
     { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
-    { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+    { label: 'Pausar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
     { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
   ];
 
