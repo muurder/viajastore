@@ -18,10 +18,10 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
     'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 },
     'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 },
+    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
     'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
     'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 },
+    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, // 12 embaixo, 48 cima
     'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
 };
 
@@ -89,6 +89,9 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   }));
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Moved state from renderStep2 to top level
+  const [tempImageUrl, setTempImageUrl] = useState(''); // State for immediate preview
 
   // Calculate durationDays automatically
   useEffect(() => {
@@ -314,7 +317,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   // --- Step 2: Mídia & Descrição ---
   const renderStep2 = () => {
-    const [tempImageUrl, setTempImageUrl] = useState(''); // State for immediate preview
+    // Removed useState declaration for tempImageUrl from here. It's now at the top-level.
     const isUrlValid = (url: string) => {
         try {
             new URL(url);
@@ -623,7 +626,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                         value={tripData.operationalData.transport.vehicleConfig.label}
                         onChange={e => handleCustomVehicleChange('label', e.target.value)}
                         className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                        placeholder="Ex: Doblo Prata, Carro do Guia"
+                        placeholder="Ex: Doblo Prata, Carro do Guia, Van Alugada"
                         required
                     />
                 </div>

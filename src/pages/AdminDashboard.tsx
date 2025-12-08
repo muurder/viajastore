@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, OperationalData, RoomConfig, ManualPassenger } from '../types';
 import { 
   Trash2, MessageCircle, Users, Briefcase, 
   BarChart, AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
@@ -12,7 +12,7 @@ import {
   DollarSign, ShoppingBag, Edit3, 
   CreditCard, CheckCircle, XCircle, Ban, Star, UserX, UserCheck, Key,
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
-  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps, ShieldCheck
+  LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -1042,7 +1042,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
-                    <input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                    <input value={editFormData.website || ''} onChange={e => setEditFormData({...editFormData, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
                 </div>
                 <div className="border-t pt-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
