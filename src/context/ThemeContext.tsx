@@ -1,6 +1,6 @@
 
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -198,7 +198,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   // Agency Theme Functions
-  const setAgencyTheme = (colors: ThemeColors) => {
+  const setAgencyTheme = useCallback((colors: ThemeColors) => {
       setOverrideTheme({
           id: 'agency-override',
           name: 'Agency Theme',
@@ -206,11 +206,11 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           isActive: true,
           isDefault: false
       });
-  };
+  }, []);
 
-  const resetAgencyTheme = () => {
+  const resetAgencyTheme = useCallback(() => {
       setOverrideTheme(null);
-  };
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ 
