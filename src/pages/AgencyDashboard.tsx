@@ -5,22 +5,21 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { 
   Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig 
-} from '../types'; // FIX: Import necessary types
+} from '../types'; 
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-// FIX: Add Search and Palette icons to the import from 'lucide-react'
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, // Added missing import
-  Globe, // Added missing import
-  Trash2, // Added missing import
-  CheckCircle, // Added missing import
-  ChevronDown, // Added missing import
-  MessageCircle, // Added missing import
-  Info, // Added missing import
-  Palette, // Added missing import
-  Search, // Added missing import
-  LucideProps // Added missing import for icon type
+  LogOut, 
+  Globe, 
+  Trash2, 
+  CheckCircle, 
+  ChevronDown, 
+  MessageCircle, 
+  Info, 
+  Palette, 
+  Search, 
+  LucideProps 
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { jsPDF } from 'jspdf';
@@ -31,17 +30,17 @@ import CreateTripWizard from '../components/agency/CreateTripWizard';
 
 const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
     'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
-    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, // 1 esq, corredor, 2 dir
+    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, 
     'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, // Alguns micros são 2+2, outros 1+2
+    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, 
     'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
     'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, // 12 embaixo, 48 cima
+    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, 
     'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
 };
 
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
-    transport: undefined, // Force user setup
+    transport: undefined, 
     rooming: [],
     manualPassengers: []
 };
@@ -60,7 +59,6 @@ const safeDate = (dateStr: string | undefined) => {
 
 // --- CUSTOM COMPONENTS FOR DASHBOARD ---
 
-// Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
@@ -77,7 +75,6 @@ const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blu
   );
 };
 
-// Fix: Define StatCard component locally
 interface StatCardProps { 
     title: string; 
     value: string | number; 
@@ -110,7 +107,6 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon,
     );
 };
 
-// Fix: Define ActionMenu component locally
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
 const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -150,12 +146,10 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
 
 interface RecentBookingsTableProps {
     bookings: Booking[];
-    clients: any[]; // Assuming Client interface or similar
-    // onViewBooking?: (booking: Booking) => void; // Unused prop
+    clients: any[]; 
 }
 
 const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
-    // Sort bookings by date descending and take top 5
     const recentBookings = [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
     return (
@@ -213,7 +207,6 @@ interface TopTripsCardProps {
 }
 
 const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
-    // Sort trips by views descending and take top 3
     const topTrips = [...trips].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 3);
 
     return (
@@ -425,8 +418,8 @@ const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClo
 interface TransportManagerProps {
     trip: Trip; 
     bookings: Booking[]; 
-    clients: any[]; // Consider defining a Client type
-    onSave: (data: OperationalData) => void; // FIX: `onSave` should accept `OperationalData`
+    clients: any[]; 
+    onSave: (data: OperationalData) => void; 
 }
 
 const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, clients, onSave }) => {
@@ -496,7 +489,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return Array.from({ length: b.passengers }).map((_, i) => ({
             id: `${b.id}-${i}`,
             bookingId: b.id,
-            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, // FIX: Use i+1 for companion numbering
+            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, 
         }));
     });
 
@@ -546,16 +539,16 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
         const { totalSeats, cols, aisleAfterCol } = config.vehicleConfig;
         const rows = Math.ceil(totalSeats / cols);
-        const grid: React.ReactElement[] = []; // FIX: Explicitly type grid as React.ReactElement[]
+        const grid: React.ReactElement[] = []; 
 
         for (let r = 1; r <= rows; r++) {
-            const rowSeats: React.ReactElement[] = []; // FIX: Explicitly type rowSeats as React.ReactElement[]
+            const rowSeats: React.ReactElement[] = []; 
             
             for (let c = 1; c <= cols; c++) {
                 const seatNum = ((r - 1) * cols) + c;
                 
                 if (c === aisleAfterCol + 1) {
-                    rowSeats.push(<div key={`aisle-${r}-${c}`} className="w-8 flex justify-center items-center text-xs text-slate-300 font-mono select-none">{r}</div>); // FIX: Added unique key
+                    rowSeats.push(<div key={`aisle-${r}-${c}`} className="w-8 flex justify-center items-center text-xs text-slate-300 font-mono select-none">{r}</div>); 
                 }
 
                 if (seatNum <= totalSeats) {
@@ -750,13 +743,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
                     <div className="w-full max-w-lg pb-20">
                         <div className="bg-white px-6 md:px-12 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative transition-all duration-500 min-h-[600px]">
-                            {/* FIX: Removed extra '}' and moved User icon inside the 'Frente' label */}
                             <div className="absolute top-0 left-0 right-0 h-28 border-b-2 border-slate-200 rounded-t-[34px] bg-gradient-to-b from-slate-50 to-white flex justify-between px-8 pt-6">
                                 <div className="flex flex-col items-center justify-center opacity-50">
                                     <div className="w-10 h-10 rounded-full border-4 border-slate-300 flex items-center justify-center text-slate-300 bg-slate-50 shadow-inner mb-1"><User size={20} /></div>
                                     <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Frente</span>
                                 </div>
-                                <div className="w-10"></div> {/* Placeholder for right side, or maybe a driver icon */}
+                                <div className="w-10"></div> 
                             </div>
                             <div className="mt-16 space-y-2">{renderBusLayout()}</div>
                             <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
@@ -789,7 +781,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         return Array.from({ length: b.passengers }).map((_, i) => ({
             id: `${b.id}-${i}`,
             bookingId: b.id,
-            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, // FIX: Use i+1 for companion numbering
+            name: i === 0 ? (client?.name || 'Passageiro') : `Acompanhante ${i + 1} (${client?.name || ''})`, 
         }));
     });
 
@@ -969,179 +961,66 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     );
 };
 
-interface OperationsModuleProps { 
-    myTrips: Trip[]; 
-    myBookings: Booking[]; 
-    clients: any[]; 
-    selectedTripId: string | null; 
+// NEW: OperationsModule
+interface OperationsModuleProps {
+    myTrips: Trip[];
+    myBookings: Booking[];
+    clients: any[];
+    selectedTripId: string | null;
     onSelectTrip: (id: string | null) => void;
-    onSaveTripData: (tripId: string, data: OperationalData) => Promise<void>;
+    onSaveTripData: (tripId: string, data: OperationalData) => void;
 }
 
 const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData }) => {
-    const activeTrips = myTrips.filter(t => t.is_active);
-    const selectedTrip = myTrips.find(t => t.id === selectedTripId);
+    const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
     
-    const [viewMode, setViewMode] = useState<'MAP' | 'ROOMING'>('MAP');
-    const [isSaving, setIsSaving] = useState(false);
-    const { showToast } = useToast();
+    // Using React.useMemo since useMemo might not be imported in destructured list
+    const selectedTrip = React.useMemo(() => myTrips.find(t => t.id === selectedTripId), [myTrips, selectedTripId]);
+    
+    const tripBookings = React.useMemo(() => 
+        selectedTripId ? myBookings.filter(b => b.tripId === selectedTripId && b.status === 'CONFIRMED') : [], 
+    [myBookings, selectedTripId]);
 
-    // Optimistic Save with timeout safety
-    const handleSave = async (data: OperationalData) => { // FIX: `data` is passed to onSave prop
-        if (!selectedTripId) return;
-        setIsSaving(true);
-        
-        // Safety timeout to prevent infinite spinner
-        const timer = setTimeout(() => setIsSaving(false), 5000);
-
-        try {
-            await onSaveTripData(selectedTripId, data);
-        } catch (error) {
-            showToast('Erro ao salvar.', 'error');
-        } finally {
-            clearTimeout(timer);
-            setIsSaving(false);
-        }
-    };
-
-    const handleExportPDF = () => {
-        if (!selectedTrip) return;
-        
-        try {
-            const doc = new jsPDF();
-            const dateStr = safeDate(selectedTrip.startDate);
-            const opData = selectedTrip.operationalData || DEFAULT_OPERATIONAL_DATA; // FIX: Use DEFAULT_OPERATIONAL_DATA
-            
-            doc.setFontSize(22);
-            doc.text('Manifesto de Viagem', 14, 20);
-            doc.setFontSize(12);
-            doc.text(`${selectedTrip.title}`, 14, 30);
-            doc.setFontSize(10);
-            doc.text(`Data: ${dateStr}`, 14, 36);
-            
-            const paxData: (string|number)[][] = [];
-            const tripBookings = myBookings.filter(b => b.tripId === selectedTrip.id && b.status === 'CONFIRMED');
-            tripBookings.forEach(booking => { // FIX: Renamed 'b' to 'booking' for clarity, though 'b' is fine
-                const client = clients.find(c => c.id === booking.clientId); // FIX: Used 'booking.clientId'
-                paxData.push([client?.name || 'Cliente', client?.cpf || '---', client?.phone || '---']);
-                for(let i=1; i<booking.passengers; i++) paxData.push([`Acompanhante ${i + 1} (${client?.name || ''})`, '---', '---']); // FIX: Use i+1 for companion numbering
-            });
-            opData.manualPassengers?.forEach(p => paxData.push([p.name, p.document || '---', '---']));
-
-            (doc as any).autoTable({ startY: 45, head: [['Nome Completo', 'Documento', 'Telefone']], body: paxData, theme: 'striped' });
-
-            let finalY = (doc as any).lastAutoTable.finalY + 15;
-            doc.setFontSize(14);
-            doc.text('Rooming List (Hospedagem)', 14, finalY);
-            
-            const roomData = opData.rooming?.map(r => [r.name, r.type, `${r.guests.length}/${r.capacity}`, r.guests.map(g => g.name).join(', ')]) || [];
-            (doc as any).autoTable({ startY: finalY + 5, head: [['Quarto', 'Tipo', 'Ocupação', 'Hóspedes']], body: roomData, theme: 'grid' });
-
-            finalY = (doc as any).lastAutoTable.finalY + 15;
-            doc.setFontSize(14);
-            doc.text('Mapa de Assentos', 14, finalY);
-
-            const seatData = opData.transport?.seats?.sort((a,b) => parseInt(a.seatNumber) - parseInt(b.seatNumber)).map(s => [s.seatNumber, s.passengerName]) || [];
-            (doc as any).autoTable({ startY: finalY + 5, head: [['Poltrona', 'Passageiro']], body: seatData, theme: 'plain' });
-
-            doc.save(`manifesto_${selectedTrip.slug}.pdf`);
-            showToast('PDF gerado com sucesso!', 'success');
-
-        } catch (e: any) {
-            console.error(e);
-            showToast('Erro ao gerar PDF: ' + e.message, 'error');
-        }
-    };
-
-    return (
-        <div className="flex h-[calc(100vh-220px)] min-h-[600px] border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-            <div className="w-1/3 min-w-[300px] border-r border-gray-200 bg-white flex flex-col">
-                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                    <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider flex items-center gap-2"><Bus size={16} /> Viagens Ativas</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
-                    {activeTrips.length === 0 && (
-                        <div className="p-8 text-center text-gray-400 text-sm">
-                            Nenhuma viagem ativa encontrada.
-                        </div>
-                    )}
-                    {activeTrips.map(trip => {
-                        const tripBookings = myBookings.filter(b => b.tripId === trip.id && b.status === 'CONFIRMED');
-                        const paxCount = (trip.operationalData?.manualPassengers?.length || 0) + tripBookings.reduce((sum, b) => sum + b.passengers, 0); // FIX: Account for manual passengers
-                        const totalSeats = trip.operationalData?.transport?.vehicleConfig?.totalSeats || 0; 
-                        const occupancy = totalSeats > 0 ? Math.round((paxCount / totalSeats) * 100) : 0;
-                        const isSelected = selectedTripId === trip.id;
-
-                        return (
-                            <div 
-                                key={trip.id} 
-                                onClick={() => onSelectTrip(trip.id)}
-                                className={`p-4 rounded-xl cursor-pointer transition-all border ${isSelected ? 'bg-primary-50 border-primary-500 ring-1 ring-primary-500 shadow-sm' : 'bg-white border-gray-100 hover:border-primary-200 hover:shadow-sm'}`}
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <h4 className={`font-bold text-sm line-clamp-1 ${isSelected ? 'text-primary-900' : 'text-gray-800'}`}>{trip.title}</h4>
-                                    <span className="text-[10px] font-mono text-gray-400">{safeDate(trip.startDate)}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <div className="flex items-center gap-1.5 text-gray-500">
-                                        <Users size={14} />
-                                        <span>{paxCount}/{totalSeats || '-'}</span>
-                                    </div>
-                                    <div className={`px-2 py-0.5 rounded-full font-bold ${occupancy > 80 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                        {occupancy}%
-                                    </div>
-                                </div>
-                                <div className="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                                    <div className={`h-full rounded-full transition-all duration-500 ${occupancy > 80 ? 'bg-green-500' : 'bg-primary-500'}`} style={{ width: `${occupancy}%` }}></div>
-                                </div>
+    if (!selectedTripId) {
+        return (
+            <div className="flex h-full min-h-[500px]">
+                <div className="w-80 border-r border-gray-200 bg-white overflow-y-auto">
+                    <div className="p-4 border-b border-gray-100 font-bold text-gray-700">Selecione uma Viagem</div>
+                    {myTrips.filter(t => t.is_active).map(trip => (
+                        <div 
+                            key={trip.id} 
+                            onClick={() => onSelectTrip(trip.id)}
+                            className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                            <div className="font-bold text-gray-900 text-sm mb-1 line-clamp-1">{trip.title}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-2">
+                                <Calendar size={12}/> {new Date(trip.startDate).toLocaleDateString()}
                             </div>
-                        );
-                    })}
+                        </div>
+                    ))}
+                    {myTrips.filter(t => t.is_active).length === 0 && (
+                        <div className="p-8 text-center text-gray-400 text-sm">Nenhuma viagem ativa encontrada.</div>
+                    )}
+                </div>
+                <div className="flex-1 bg-gray-50 flex items-center justify-center text-gray-400 flex-col">
+                    <Bus size={48} className="mb-4 opacity-50"/>
+                    <p>Selecione uma viagem para gerenciar o operacional.</p>
                 </div>
             </div>
+        );
+    }
 
-            <div className="flex-1 flex flex-col bg-gray-50 relative">
-                {selectedTrip ? (
-                    <>
-                        <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-20">
-                            <div className="flex items-center gap-6">
-                                <button onClick={() => setViewMode('MAP')} className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'MAP' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Grip size={18}/> Mapa de Assentos</button>
-                                <button onClick={() => setViewMode('ROOMING')} className={`flex items-center gap-2 pb-2 border-b-2 text-sm font-bold transition-all ${viewMode === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Rooming List</button>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button onClick={handleExportPDF} className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-all active:scale-95"><FileText size={14}/> Exportar Manifesto</button>
-                                <div className="h-6 w-px bg-gray-200 mx-1"></div>
-                                {isSaving ? <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-1.5 rounded-full"><Loader size={12} className="animate-spin mr-1.5"/> Salvando...</span> : <span className="text-xs font-bold text-green-600 flex items-center bg-green-50 px-3 py-1.5 rounded-full"><CheckCircle size={12} className="mr-1.5"/> Salvo</span>}
-                            </div>
-                        </div>
+    if (!selectedTrip) return null;
 
-                        <div className="flex-1 overflow-hidden relative">
-                            {viewMode === 'MAP' ? (
-                                <TransportManager 
-                                    key={selectedTrip.id} 
-                                    trip={selectedTrip} 
-                                    bookings={myBookings.filter(b => b.tripId === selectedTrip.id)} 
-                                    clients={clients} 
-                                    onSave={handleSave} 
-                                />
-                            ) : (
-                                <RoomingManager 
-                                    key={selectedTrip.id} 
-                                    trip={selectedTrip} 
-                                    bookings={myBookings.filter(b => b.tripId === selectedTrip.id)} 
-                                    clients={clients} 
-                                    onSave={handleSave} 
-                                />
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-slate-50">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100"><Truck size={32} className="text-gray-300" /></div>
-                        <p className="font-medium text-lg text-gray-500">Selecione uma viagem ao lado</p>
-                        <p className="text-sm max-w-xs text-center mt-2">Gerencie assentos e quartos selecionando um pacote ativo na lista.</p>
-                    </div>
-                )}
+    return (
+        <div className="flex flex-col h-full min-h-[600px]">
+            <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
+                <button onClick={() => setActiveView('TRANSPORT')} className={`py-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><Bus size={18}/> Transporte</button>
+                <button onClick={() => setActiveView('ROOMING')} className={`py-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}><BedDouble size={18}/> Rooming List</button>
+                <div className="ml-auto flex items-center gap-2 text-sm text-gray-500"><span className="font-bold text-gray-900">{tripBookings.reduce((acc, b) => acc + b.passengers, 0)}</span> Passageiros Confirmados</div>
+            </div>
+            <div className="flex-1 overflow-hidden relative">
+                {activeView === 'TRANSPORT' ? <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)}/> : <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)}/>}
             </div>
         </div>
     );
@@ -1306,6 +1185,16 @@ const AgencyDashboard: React.FC = () => {
           setShowConfirmSubscription(null); 
       } 
   };
+
+  // Reusable Action Menu Generator
+  const getTripActions = (trip: Trip) => [
+    { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
+    { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
+    { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
+    { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
+    { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+    { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
+  ];
 
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
@@ -1476,38 +1365,42 @@ const AgencyDashboard: React.FC = () => {
             ) : tripViewMode === 'GRID' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {myTrips.map(trip => (
-                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group">
+                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
+                            {/* Trip Image & Actions */}
                             <div className="relative h-48 w-full">
                                 <img src={trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/>
-                                <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
+                                <div className="absolute top-3 left-3">
+                                    <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
+                                </div>
+                                
+                                {/* New Top Action Menu */}
+                                <div className="absolute top-3 right-3 z-10 bg-white/90 hover:bg-white rounded-full shadow-sm backdrop-blur-sm transition-all p-0.5">
+                                   <ActionMenu actions={getTripActions(trip)} />
+                                </div>
                             </div>
+
                             <div className="p-5 flex-1 flex flex-col">
-                                <h3 className="font-bold text-lg text-gray-900 mb-1 line-clamp-2">{trip.title}</h3>
+                                {/* Clickable Title */}
+                                <h3 
+                                    onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
+                                    className="font-bold text-lg text-gray-900 mb-1 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors"
+                                >
+                                    {trip.title}
+                                </h3>
+                                
                                 <p className="text-sm text-gray-500 mb-3 flex items-center"><MapPin size={14} className="mr-2"/>{trip.destination}</p>
-                                <div className="flex items-center gap-4 text-xs font-medium text-gray-500 mb-4">
+                                
+                                <div className="flex items-center gap-4 text-xs font-medium text-gray-500 mt-auto pt-4 border-t border-gray-100">
                                     <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
                                     <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
-                                    <div className="flex items-center" title="Avaliação Média"><Star size={14} className="mr-1.5 text-amber-400"/> {trip.tripRating?.toFixed(1) || '0.0'}</div>
-                                </div>
-                                <div className="mt-auto pt-4 border-t border-gray-100 flex gap-2">
-                                    <button onClick={() => handleEditTrip(trip)} className="flex-1 bg-primary-50 text-primary-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-100 transition-colors flex items-center justify-center gap-2">
-                                        <Edit size={16}/> Editar
-                                    </button>
-                                    <ActionMenu 
-                                        actions={[
-                                            { label: 'Duplicar Pacote', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
-                                            { label: trip.is_active ? 'Pausar Pacote' : 'Publicar Pacote', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
-                                            { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
-                                            { label: 'Excluir Pacote', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' }
-                                        ]}
-                                    />
+                                    <div className="flex items-center ml-auto font-bold text-gray-900 text-base">R$ {trip.price.toLocaleString()}</div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
             ) : ( // TABLE VIEW
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
                     <table className="min-w-full divide-y divide-gray-100">
                         <thead className="bg-gray-50/50">
                             <tr>
@@ -1528,7 +1421,13 @@ const AgencyDashboard: React.FC = () => {
                                                 <img src={trip.images[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
                                             </div>
                                             <div className="truncate">
-                                                <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
+                                                {/* Clickable Title in List */}
+                                                <p 
+                                                    onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
+                                                    className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px] hover:text-primary-600 hover:underline cursor-pointer transition-colors"
+                                                >
+                                                    {trip.title}
+                                                </p>
                                                 <p className="text-xs text-gray-500">{trip.category.replace('_', ' ')}</p>
                                             </div>
                                         </div>
@@ -1545,15 +1444,7 @@ const AgencyDashboard: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <ActionMenu
-                                            actions={[
-                                                { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
-                                                { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
-                                                { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
-                                                { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
-                                                { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' }
-                                            ]}
-                                        />
+                                        <ActionMenu actions={getTripActions(trip)} />
                                     </td>
                                 </tr>
                             ))}
