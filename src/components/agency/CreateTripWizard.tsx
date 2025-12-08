@@ -1,31 +1,16 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { Trip, TripCategory, OperationalData, Agency } from '../../types';
 import { 
-  Trip, TripCategory, TravelerType, ItineraryDay, BoardingPoint,
-  VehicleType, VehicleLayoutConfig, OperationalData, Agency 
-} from '../../types';
-import { 
-  Plus, X, ChevronLeft, ChevronRight, Save, Loader, Info,
-  Plane, MapPin, DollarSign, Calendar, Image as ImageIcon,
-  BookOpen, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, Trash2, ShieldCheck, Square, Globe, Timer, Home,
-  Upload
+  X, ChevronLeft, ChevronRight, Save, Loader, Info,
+  Plane, MapPin, Image as ImageIcon,
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 
-const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
-    'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
-    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 },
-    'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 },
-    'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
-    'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 },
-    'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
-};
-
+// Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
     transport: undefined, 
     rooming: [],
@@ -37,12 +22,6 @@ const ALL_TRIP_CATEGORIES: TripCategory[] = [
     'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA',
     'VIAGEM_BARATA', 'ARTE'
 ];
-
-const ALL_TRAVELER_TYPES: TravelerType[] = [
-    'SOZINHO', 'CASAL', 'FAMILIA', 'AMIGOS', 'MOCHILAO', 'MELHOR_IDADE'
-];
-
-const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
 
 interface CreateTripWizardProps {
   onClose: () => void;
@@ -61,9 +40,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const isEditing = useMemo(() => !!initialTripData?.id, [initialTripData]);
 
+  // Simplified to 2 steps: 0 (Details) and 1 (Media/Content)
   const [currentStep, setCurrentStep] = useState(0);
   
-  // State for raw files before upload
+  // Local state for raw files - strictly used only in handlePublish
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   
   const [tripData, setTripData] = useState<Partial<Trip>>(() => ({
@@ -79,35 +59,41 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     images: [],
     category: 'PRAIA',
     tags: [],
-    travelerTypes: [],
-    itinerary: [],
-    boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }],
-    paymentMethods: [],
+    travelerTypes: [], // Default empty
+    itinerary: [], // Default empty
+    boardingPoints: [{ id: crypto.randomUUID(), time: '08:00', location: 'A definir' }], // Minimal default
+    paymentMethods: ['PIX', 'CREDIT_CARD'], // Sensible default
     is_active: true,
     featured: false,
     featuredInHero: false,
     popularNearSP: false,
-    operationalData: initialTripData?.operationalData || DEFAULT_OPERATIONAL_DATA,
+    included: [],
+    notIncluded: [],
+    operationalData: DEFAULT_OPERATIONAL_DATA,
     ...(initialTripData || {})
   }));
   
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Calculate durationDays automatically
+  // Auto-calculate duration, but respect user edits
   useEffect(() => {
     if (tripData.startDate && tripData.endDate) {
       const start = new Date(tripData.startDate);
       const end = new Date(tripData.endDate);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setTripData(prev => ({ ...prev, durationDays: diffDays + 1 }));
-    } else {
-        setTripData(prev => ({ ...prev, durationDays: 1 }));
+      const diffTime = end.getTime() - start.getTime();
+      
+      if (!isNaN(diffTime)) {
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          // Only auto-update if it looks like a calculation (simple logic)
+          // or if the user hasn't set a custom duration yet.
+          // For this simplified version, we just update it, but user can overwrite.
+          setTripData(prev => ({ ...prev, durationDays: diffDays >= 0 ? diffDays + 1 : 1 }));
+      }
     }
   }, [tripData.startDate, tripData.endDate]);
 
-  // Set initial data if editing
+  // Initialize data for editing
   useEffect(() => {
       if (isEditing && initialTripData) {
           const formattedStartDate = initialTripData.startDate ? new Date(initialTripData.startDate).toISOString().split('T')[0] : '';
@@ -117,62 +103,41 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               ...initialTripData,
               startDate: formattedStartDate,
               endDate: formattedEndDate,
-              boardingPoints: initialTripData.boardingPoints && initialTripData.boardingPoints.length > 0
-                ? initialTripData.boardingPoints
-                : [{ id: crypto.randomUUID(), time: '', location: '' }],
-              itinerary: initialTripData.itinerary && initialTripData.itinerary.length > 0
-                ? initialTripData.itinerary
-                : [{ day: 1, title: '', description: '' }],
               operationalData: initialTripData.operationalData || DEFAULT_OPERATIONAL_DATA,
           });
       }
   }, [isEditing, initialTripData]);
 
-
-  // Validation for each step
   const validateStep = useCallback(() => {
     const newErrors: Record<string, string> = {};
-    if (currentStep === 0) { // Basic Details
+    
+    if (currentStep === 0) { // Details
       if (!tripData.title) newErrors.title = "Título é obrigatório.";
       if (!tripData.destination) newErrors.destination = "Destino é obrigatório.";
-      if (!tripData.price || tripData.price <= 0) newErrors.price = "Preço deve ser maior que zero.";
-      if (!tripData.startDate) newErrors.startDate = "Data de Início é obrigatória.";
-      if (!tripData.endDate) newErrors.endDate = "Data de Fim é obrigatória.";
+      if (!tripData.price || tripData.price <= 0) newErrors.price = "Preço inválido.";
+      if (!tripData.startDate) newErrors.startDate = "Data de Início obrigatória.";
+      if (!tripData.endDate) newErrors.endDate = "Data de Fim obrigatória.";
       if (tripData.startDate && tripData.endDate && new Date(tripData.startDate) > new Date(tripData.endDate)) {
-        newErrors.dates = "Data de início não pode ser maior que a data de fim.";
+        newErrors.dates = "A data final deve ser depois da inicial.";
       }
-    } else if (currentStep === 1) { // Media & Description
-      // Validation Logic: Count existing images + new files to upload
+    } else if (currentStep === 1) { // Media
       const totalImages = (tripData.images?.length || 0) + filesToUpload.length;
-      if (totalImages === 0) newErrors.images = "Adicione ao menos uma imagem.";
-      
-      if (!tripData.description || tripData.description.length < 50) newErrors.description = "Descrição precisa ter ao menos 50 caracteres.";
-    } else if (currentStep === 2) { // Logistics
-      if (!tripData.operationalData?.transport?.vehicleConfig) {
-        newErrors.vehicleConfig = "Selecione um layout de veículo.";
-      }
-      if (!tripData.boardingPoints || tripData.boardingPoints.length === 0 || tripData.boardingPoints.some(bp => !bp.time || !bp.location)) {
-        newErrors.boardingPoints = "Adicione ao menos um ponto de embarque completo.";
-      }
-    } else if (currentStep === 3) { // Itinerary
-      if (!tripData.itinerary || tripData.itinerary.length === 0 || tripData.itinerary.some(day => !day.title || !day.description)) {
-        newErrors.itinerary = "Adicione ao menos um dia de roteiro completo.";
-      }
+      if (totalImages === 0) newErrors.images = "Adicione pelo menos uma imagem.";
+      if (!tripData.description || tripData.description.length < 20) newErrors.description = "Escreva uma descrição (min 20 caracteres).";
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [currentStep, tripData, filesToUpload]);
+  }, [currentStep, tripData, filesToUpload.length]);
 
   const handleNext = () => {
-    if (validateStep()) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      showToast("Preencha todos os campos obrigatórios.", "error");
-    }
+    if (validateStep()) setCurrentStep(prev => prev + 1);
+    else showToast("Verifique os campos obrigatórios.", "error");
   };
 
   const handleBack = () => setCurrentStep(prev => prev - 1);
 
+  // --- CRITICAL: UPLOAD LOGIC ISOLATED HERE ---
   const handlePublish = async () => {
     if (!validateStep()) {
       showToast("Preencha todos os campos obrigatórios.", "error");
@@ -180,24 +145,29 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     }
 
     if (!currentAgency?.agencyId) {
-        showToast("Erro: ID da agência não encontrado.", "error");
+        showToast("Erro de sessão: Agência não identificada.", "error");
         return;
     }
 
     setIsLoading(true);
     try {
-      // 1. Upload Pending Files to Storage
+      // 1. Upload Loop (Only happens on Publish click)
       const uploadedUrls: string[] = [];
       if (filesToUpload.length > 0) {
           for (const file of filesToUpload) {
-              const url = await uploadImage(file, 'trip-images'); // Upload to 'trip-images' bucket
-              if (url) uploadedUrls.push(url);
+              try {
+                  const url = await uploadImage(file, 'trip-images');
+                  if (url) uploadedUrls.push(url);
+              } catch (err) {
+                  console.error("Falha no upload de arquivo individual", err);
+              }
           }
       }
 
-      // 2. Combine existing URLs with newly uploaded URLs
+      // 2. Merge Images
       const finalImages = [...(tripData.images || []), ...uploadedUrls];
 
+      // 3. Construct Final Object
       const finalTrip: Trip = {
         id: tripData.id || crypto.randomUUID(),
         agencyId: currentAgency.agencyId,
@@ -208,728 +178,285 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         price: tripData.price!,
         startDate: new Date(tripData.startDate!).toISOString(),
         endDate: new Date(tripData.endDate!).toISOString(),
-        durationDays: tripData.durationDays!,
-        images: finalImages, // Use the complete list
+        durationDays: tripData.durationDays || 1,
+        images: finalImages,
         category: tripData.category!,
-        tags: tripData.tags!,
-        travelerTypes: tripData.travelerTypes!,
-        itinerary: tripData.itinerary,
-        boardingPoints: tripData.boardingPoints,
-        paymentMethods: tripData.paymentMethods,
+        tags: tripData.tags || [],
+        
+        // Default/Minimal Data for removed steps
+        travelerTypes: tripData.travelerTypes || [],
+        paymentMethods: tripData.paymentMethods || ['PIX'],
+        boardingPoints: tripData.boardingPoints || [],
+        itinerary: tripData.itinerary || [],
+        included: tripData.included || [],
+        notIncluded: tripData.notIncluded || [],
+        
         is_active: tripData.is_active!,
-        included: tripData.included!,
-        notIncluded: tripData.notIncluded,
-        featured: tripData.featured!,
-        featuredInHero: tripData.featuredInHero!,
-        popularNearSP: tripData.popularNearSP!,
-        operationalData: tripData.operationalData,
+        featured: tripData.featured || false,
+        featuredInHero: tripData.featuredInHero || false,
+        popularNearSP: tripData.popularNearSP || false,
+        operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
       };
 
+      // 4. Save to DB
       if (isEditing) {
         await updateTrip(finalTrip);
         showToast("Pacote atualizado com sucesso!", "success");
       } else {
         await createTrip(finalTrip);
-        showToast("Novo pacote criado com sucesso!", "success");
+        showToast("Pacote criado com sucesso!", "success");
       }
       onSuccess();
       onClose();
+
     } catch (error: any) {
-      showToast(`Erro ao salvar pacote: ${error.message}`, "error");
-      console.error(error);
+      showToast(`Erro ao salvar: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- Step 1: Basic Details ---
+  // --- UI RENDERERS ---
+
   const renderStep1 = () => (
-    <div className="space-y-6">
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Título do Pacote <span className="text-red-500">*</span></label>
-        <input
-          type="text"
-          value={tripData.title || ''}
-          onChange={e => setTripData({ ...tripData, title: e.target.value, slug: slugify(e.target.value) })}
-          className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-          placeholder="Ex: Fim de Semana em Campos do Jordão"
-          required
-        />
-        {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-      </div>
-      <div>
-        <label className="block text-sm font-bold text-gray-700 mb-2">Destino <span className="text-red-500">*</span></label>
-        <input
-          type="text"
-          value={tripData.destination || ''}
-          onChange={e => setTripData({ ...tripData, destination: e.target.value })}
-          className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-          placeholder="Cidade, UF"
-          required
-        />
-        {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
-      </div>
+    <div className="space-y-6 animate-[fadeIn_0.3s]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Preço (R$) <span className="text-red-500">*</span></label>
-          <input
-            type="number"
-            value={tripData.price || ''}
-            onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
-            className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-            required
-            min="0"
-            step="0.01"
-          />
-          {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+        <div className="md:col-span-2">
+            <label className="block text-sm font-bold text-gray-700 mb-2">Título da Viagem <span className="text-red-500">*</span></label>
+            <input
+                type="text"
+                value={tripData.title}
+                onChange={e => setTripData({ ...tripData, title: e.target.value, slug: slugify(e.target.value) })}
+                className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
+                placeholder="Ex: Fim de Semana em Capitólio"
+                autoFocus
+            />
+            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
         </div>
+
         <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Categoria <span className="text-red-500">*</span></label>
-          <select
-            value={tripData.category || 'PRAIA'}
-            onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
-            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none cursor-pointer"
-          >
-            {ALL_TRIP_CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
-            ))}
-          </select>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Destino <span className="text-red-500">*</span></label>
+            <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="text"
+                    value={tripData.destination}
+                    onChange={e => setTripData({ ...tripData, destination: e.target.value })}
+                    className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
+                    placeholder="Cidade, UF"
+                />
+            </div>
+            {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+        </div>
+
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
+            <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="number"
+                    value={tripData.price || ''}
+                    onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
+                    className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
+                    placeholder="0.00"
+                    min="0"
+                />
+            </div>
+            {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
+        </div>
+
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Início <span className="text-red-500">*</span></label>
+            <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="date"
+                    value={tripData.startDate}
+                    onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
+                    className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
+                />
+            </div>
+        </div>
+
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Fim <span className="text-red-500">*</span></label>
+            <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="date"
+                    value={tripData.endDate}
+                    onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
+                    className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
+                />
+            </div>
+        </div>
+
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+            <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="number"
+                    value={tripData.durationDays}
+                    onChange={e => setTripData({ ...tripData, durationDays: parseInt(e.target.value) || 1 })}
+                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none bg-white"
+                    min="1"
+                />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Calculado automaticamente, mas você pode ajustar.</p>
+        </div>
+
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+            <select
+                value={tripData.category}
+                onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
+                className="w-full border border-gray-300 rounded-lg p-3 outline-none bg-white"
+            >
+                {ALL_TRIP_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+                ))}
+            </select>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início <span className="text-red-500">*</span></label>
-          <input
-            type="date"
-            value={tripData.startDate || ''}
-            onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
-            className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-            required
-          />
-          {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Data de Fim <span className="text-red-500">*</span></label>
-          <input
-            type="date"
-            value={tripData.endDate || ''}
-            onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
-            className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-            required
-          />
-          {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
-        </div>
-        {errors.dates && <p className="text-red-500 text-xs mt-1 md:col-span-2">{errors.dates}</p>}
-      </div>
-      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-sm text-blue-700 flex items-center gap-2">
-        <Info size={16} />
-        A duração da viagem será calculada automaticamente: {tripData.durationDays} dia(s).
-      </div>
+      {errors.dates && <p className="text-red-500 text-sm font-bold bg-red-50 p-2 rounded">{errors.dates}</p>}
     </div>
   );
 
-  // --- Step 2: Mídia & Descrição (Refatorado) ---
   const renderStep2 = () => {
-    // File Selection Handler
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
         setFilesToUpload(prev => [...prev, ...Array.from(e.target.files!)]);
       }
     };
 
-    // Removal Handlers
-    const handleRemoveUrl = (urlToRemove: string) => {
-        setTripData(prev => ({ 
-            ...prev, 
-            images: (prev.images || []).filter(url => url !== urlToRemove) 
-        }));
+    const removeExisting = (url: string) => {
+        setTripData(prev => ({ ...prev, images: (prev.images || []).filter(u => u !== url) }));
     };
 
-    const handleRemoveFile = (indexToRemove: number) => {
-        setFilesToUpload(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    const removeNew = (index: number) => {
+        setFilesToUpload(prev => prev.filter((_, i) => i !== index));
     };
 
-    // Tags Logic
-    const handleAddTag = (tagText: string) => {
-        const cleanedTag = tagText.trim();
-        if (cleanedTag && !tripData.tags?.includes(cleanedTag)) {
-            setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), cleanedTag] }));
+    const addTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = e.currentTarget.value.trim();
+            if (val && !tripData.tags?.includes(val)) {
+                setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), val] }));
+                e.currentTarget.value = '';
+            }
         }
-    };
-    const handleRemoveTag = (tagToRemove: string) => {
-        setTripData(prev => ({ ...prev, tags: (prev.tags || []).filter(tag => tag !== tagToRemove) }));
-    };
-
-    // Traveler Types
-    const handleAddTravelerType = (type: TravelerType) => {
-        if (!tripData.travelerTypes?.includes(type)) {
-            setTripData(prev => ({ ...prev, travelerTypes: [...(prev.travelerTypes || []), type] }));
-        }
-    };
-    const handleRemoveTravelerType = (typeToRemove: TravelerType) => {
-        setTripData(prev => ({ ...prev, travelerTypes: (prev.travelerTypes || []).filter(type => type !== typeToRemove) }));
-    };
-
-    // Included/Excluded Logic
-    const handleAddIncluded = (itemText: string) => {
-        const cleanedItem = itemText.trim();
-        if (cleanedItem && !tripData.included?.includes(cleanedItem)) {
-            setTripData(prev => ({ ...prev, included: [...(prev.included || []), cleanedItem] }));
-        }
-    };
-    const handleRemoveIncluded = (itemToRemove: string) => {
-        setTripData(prev => ({ ...prev, included: (prev.included || []).filter(item => item !== itemToRemove) }));
-    };
-    
-    const handleAddNotIncluded = (itemText: string) => {
-        const cleanedItem = itemText.trim();
-        if (cleanedItem && !tripData.notIncluded?.includes(cleanedItem)) {
-            setTripData(prev => ({ ...prev, notIncluded: [...(prev.notIncluded || []), cleanedItem] }));
-        }
-    };
-    const handleRemoveNotIncluded = (itemToRemove: string) => {
-        setTripData(prev => ({ ...prev, notIncluded: (prev.notIncluded || []).filter(item => item !== itemToRemove) }));
     };
 
     return (
-      <div className="space-y-6">
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <label className="block text-sm font-bold text-gray-700 mb-2">Imagens do Pacote <span className="text-red-500">*</span></label>
-          
-          {/* File Input Dropzone */}
-          <div className="mb-4">
-            <label 
-              htmlFor="img-upload" 
-              className="flex flex-col items-center justify-center w-full h-32 border-2 border-primary-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-primary-50 transition-colors"
-            >
+      <div className="space-y-6 animate-[fadeIn_0.3s]">
+        {/* Image Upload Area */}
+        <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
+            <label className="block text-sm font-bold text-gray-700 mb-3">Fotos da Viagem <span className="text-red-500">*</span></label>
+            
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-primary-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-primary-50 transition-colors">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     <Upload className="w-8 h-8 text-primary-500 mb-2" />
-                    <p className="text-sm text-gray-500"><span className="font-bold text-primary-600">Clique para carregar</span> ou arraste fotos aqui</p>
-                    <p className="text-xs text-gray-400">PNG, JPG ou WEBP</p>
+                    <p className="text-sm text-gray-600 font-medium">Clique para selecionar ou arraste aqui</p>
                 </div>
-                <input id="img-upload" type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
+                <input type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
             </label>
-          </div>
-          
-          {errors.images && <p className="text-red-500 text-xs mt-1">{errors.images}</p>}
-          
-          {/* Hybrid Preview Grid */}
-          <div className="grid grid-cols-3 md:grid-cols-4 gap-3 mt-3">
-            {/* Existing Images */}
-            {tripData.images?.map((url, index) => (
-              <div key={`url-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200 group">
-                <img src={url} alt={`Existente ${index}`} className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveUrl(url)}
-                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                  title="Remover"
-                >
-                  <X size={14} />
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] px-1 py-0.5 text-center truncate">Salvo</div>
-              </div>
-            ))}
 
-            {/* Pending Files */}
-            {filesToUpload.map((file, index) => (
-              <div key={`file-${index}`} className="relative w-full aspect-video rounded-lg overflow-hidden border border-amber-200 ring-1 ring-amber-300 group">
-                <img src={URL.createObjectURL(file)} alt={`Novo ${index}`} className="w-full h-full object-cover opacity-90" />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveFile(index)}
-                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                  title="Remover"
-                >
-                  <X size={14} />
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 bg-amber-500 text-white text-[9px] px-1 py-0.5 text-center font-bold">Novo Upload</div>
-              </div>
-            ))}
-          </div>
+            {/* Previews */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
+                {tripData.images?.map((url, idx) => (
+                    <div key={`old-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
+                        <img src={url} className="w-full h-full object-cover" alt="Preview"/>
+                        <button onClick={() => removeExisting(url)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                    </div>
+                ))}
+                {filesToUpload.map((file, idx) => (
+                    <div key={`new-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border-2 border-amber-300 group">
+                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover opacity-80" alt="Preview"/>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white text-xs font-bold">Novo</div>
+                        <button onClick={() => removeNew(idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                    </div>
+                ))}
+            </div>
+            {errors.images && <p className="text-red-500 text-xs mt-2">{errors.images}</p>}
         </div>
 
+        {/* Description */}
         <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa <span className="text-red-500">*</span></label>
-          <textarea
-            value={tripData.description || ''}
-            onChange={e => setTripData({ ...tripData, description: e.target.value })}
-            className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-            rows={5}
-            placeholder="Detalhes do roteiro, o que levar, etc."
-            required
-          />
-          {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
+            <label className="block text-sm font-bold text-gray-700 mb-2">Descrição Completa <span className="text-red-500">*</span></label>
+            <textarea
+                value={tripData.description}
+                onChange={e => setTripData({ ...tripData, description: e.target.value })}
+                className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none h-32`}
+                placeholder="Descreva o roteiro, o que está incluso e os diferenciais..."
+            />
+            {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
         </div>
 
-        {/* Tags Section */}
-        <div className="space-y-4">
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Tags / Palavras-chave</label>
-                
-                {/* Suggestions Pills */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                    {SUGGESTED_TAGS.map(tag => {
-                        const isSelected = tripData.tags?.includes(tag);
-                        return (
-                            <button
-                                key={tag}
-                                type="button"
-                                onClick={() => isSelected ? handleRemoveTag(tag) : handleAddTag(tag)}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
-                                    ${isSelected ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'}`}
-                            >
-                                {tag} {isSelected ? <Check size={12}/> : <Plus size={12}/>}
-                            </button>
-                        );
-                    })}
-                </div>
-
+        {/* Tags */}
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Tags (Pressione Enter)</label>
+            <div className="relative">
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                 <input
                     type="text"
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value) {
-                            e.preventDefault();
-                            handleAddTag(e.currentTarget.value);
-                            e.currentTarget.value = '';
-                        }
-                    }}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Ou digite uma tag personalizada e aperte Enter..."
+                    onKeyDown={addTag}
+                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none"
+                    placeholder="Ex: Família, Trilha, Cachoeira..."
                 />
-                
-                <div className="flex flex-wrap gap-2 mt-3">
-                    {tripData.tags?.map((tag, index) => (
-                        <span key={index} className="flex items-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full text-xs font-medium">
-                            {String(tag)}
-                            <button type="button" onClick={() => handleRemoveTag(String(tag))} className="ml-2 text-gray-500 hover:text-gray-900"><X size={12}/></button>
-                        </span>
-                    ))}
-                </div>
             </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+                {tripData.tags?.map(tag => (
+                    <span key={tag} className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1">
+                        {tag}
+                        <button onClick={() => setTripData(prev => ({ ...prev, tags: prev.tags?.filter(t => t !== tag) }))} className="hover:text-red-500"><X size={12}/></button>
+                    </span>
+                ))}
+            </div>
+        </div>
 
-            {/* Traveler Types */}
+        {/* Visibility Toggle */}
+        <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <input 
+                type="checkbox" 
+                checked={tripData.is_active} 
+                onChange={e => setTripData({ ...tripData, is_active: e.target.checked })}
+                className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+            />
             <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Ideal para</label>
-                <div className="flex flex-wrap gap-2">
-                    {ALL_TRAVELER_TYPES.map(type => (
-                        <button
-                            type="button"
-                            key={type}
-                            onClick={() => tripData.travelerTypes?.includes(type) ? handleRemoveTravelerType(type) : handleAddTravelerType(type)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all border
-                                ${tripData.travelerTypes?.includes(type) ? 'bg-primary-600 text-white border-primary-600' : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'}`}
-                        >
-                            {tripData.travelerTypes?.includes(type) && <Check size={14} />} {type.replace('_', ' ')}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            
-            {/* Included */}
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">O que está incluso</label>
-                <input
-                    type="text"
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value) {
-                            e.preventDefault();
-                            handleAddIncluded(e.currentTarget.value);
-                            e.currentTarget.value = '';
-                        }
-                    }}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Pressione Enter para adicionar um item"
-                />
-                <div className="space-y-1 mt-3">
-                    {tripData.included?.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between bg-green-50 text-green-800 px-3 py-2 rounded-lg text-sm">
-                            <span><Check size={16} className="inline mr-2"/>{item}</span>
-                            <button type="button" onClick={() => handleRemoveIncluded(item)} className="ml-2 text-green-600 hover:text-green-900"><X size={14}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Not Included */}
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">O que NÃO está incluso (Opcional)</label>
-                <input
-                    type="text"
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.currentTarget.value) {
-                            e.preventDefault();
-                            handleAddNotIncluded(e.currentTarget.value);
-                            e.currentTarget.value = '';
-                        }
-                    }}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Pressione Enter para adicionar um item"
-                />
-                <div className="space-y-1 mt-3">
-                    {tripData.notIncluded?.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between bg-red-50 text-red-800 px-3 py-2 rounded-lg text-sm">
-                            <span><X size={16} className="inline mr-2"/>{item}</span>
-                            <button type="button" onClick={() => handleRemoveNotIncluded(item)} className="ml-2 text-red-600 hover:text-red-900"><X size={14}/></button>
-                        </div>
-                    ))}
-                </div>
+                <span className="block text-sm font-bold text-gray-900">Publicar Imediatamente</span>
+                <span className="text-xs text-gray-500">Se desmarcado, ficará salvo como rascunho.</span>
             </div>
         </div>
       </div>
     );
   };
-
-  // --- Step 3: Logística (Operacional) ---
-  const renderStep3 = () => {
-    const handleVehicleChange = (type: VehicleType) => {
-      const newConfig = VEHICLE_TYPES[type];
-      setTripData(prev => ({
-        ...prev,
-        operationalData: {
-          ...(prev.operationalData || DEFAULT_OPERATIONAL_DATA),
-          transport: {
-            vehicleConfig: newConfig,
-            seats: [] // Reset seats when layout changes
-          }
-        }
-      }));
-    };
-
-    const handleCustomVehicleChange = (field: string, value: any) => {
-        setTripData(prev => ({
-            ...prev,
-            operationalData: {
-                ...(prev.operationalData || DEFAULT_OPERATIONAL_DATA),
-                transport: {
-                    ...(prev.operationalData?.transport || { vehicleConfig: VEHICLE_TYPES.CUSTOM, seats: [] }),
-                    vehicleConfig: {
-                        ...(prev.operationalData?.transport?.vehicleConfig || VEHICLE_TYPES.CUSTOM),
-                        [field]: value,
-                        // Update aisleAfterCol if cols changes dynamically
-                        ...(field === 'cols' && { aisleAfterCol: Math.floor(value / 2) })
-                    } as VehicleLayoutConfig
-                }
-            }
-        }));
-    };
-
-    const handleAddBoardingPoint = () => {
-      setTripData(prev => ({
-        ...prev,
-        boardingPoints: [...(prev.boardingPoints || []), { id: crypto.randomUUID(), time: '', location: '' }]
-      }));
-    };
-
-    const handleUpdateBoardingPoint = (id: string, field: 'time' | 'location', value: string) => {
-      setTripData(prev => ({
-        ...prev,
-        boardingPoints: (prev.boardingPoints || []).map(bp =>
-          bp.id === id ? { ...bp, [field]: value } : bp
-        )
-      }));
-    };
-
-    const handleRemoveBoardingPoint = (id: string) => {
-      setTripData(prev => ({
-        ...prev,
-        boardingPoints: (prev.boardingPoints || []).filter(bp => bp.id !== id)
-      }));
-    };
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Layout do Veículo <span className="text-red-500">*</span></label>
-          <select
-            value={tripData.operationalData?.transport?.vehicleConfig?.type || ''}
-            onChange={e => handleVehicleChange(e.target.value as VehicleType)}
-            className={`w-full border ${errors.vehicleConfig ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none cursor-pointer`}
-            required
-          >
-            <option value="">Selecione um layout</option>
-            {Object.values(VEHICLE_TYPES).map(v => (
-              <option key={v.type} value={v.type}>{v.label}</option>
-            ))}
-          </select>
-          {errors.vehicleConfig && <p className="text-red-500 text-xs mt-1">{errors.vehicleConfig}</p>}
-        </div>
-
-        {/* Custom Vehicle Configuration */}
-        {tripData.operationalData?.transport?.vehicleConfig?.type === 'CUSTOM' && (
-            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-4 animate-[fadeIn_0.3s]">
-                <h4 className="text-sm font-bold text-gray-700 uppercase flex items-center gap-2"><Settings2 size={16}/> Configurar Veículo Personalizado</h4>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Veículo</label>
-                    <input
-                        type="text"
-                        value={tripData.operationalData.transport.vehicleConfig.label}
-                        onChange={e => handleCustomVehicleChange('label', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                        placeholder="Ex: Doblo Prata, Carro do Guia, Van Alugada"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Total de Lugares</label>
-                    <input
-                        type="number"
-                        value={tripData.operationalData.transport.vehicleConfig.totalSeats}
-                        onChange={e => handleCustomVehicleChange('totalSeats', parseInt(e.target.value) || 0)}
-                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                        min="1" max="100"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Colunas no Mapa</label>
-                    <select
-                        value={tripData.operationalData.transport.vehicleConfig.cols}
-                        onChange={e => handleCustomVehicleChange('cols', parseInt(e.target.value) || 0)}
-                        className="w-full border border-gray-300 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                        <option value={2}>2 Colunas (Carro)</option>
-                        <option value={3}>3 Colunas (Van)</option>
-                        <option value={4}>4 Colunas (Ônibus)</option>
-                    </select>
-                </div>
-            </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Pontos de Embarque <span className="text-red-500">*</span></label>
-          {errors.boardingPoints && <p className="text-red-500 text-xs mt-1 mb-2">{errors.boardingPoints}</p>}
-          <div className="space-y-4">
-            {tripData.boardingPoints?.map((bp, index) => (
-              <div key={bp.id} className="flex flex-col md:flex-row gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200 animate-[fadeIn_0.3s]">
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário</label>
-                  <input
-                    type="time"
-                    value={bp.time}
-                    onChange={e => handleUpdateBoardingPoint(bp.id, 'time', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                    required
-                  />
-                </div>
-                <div className="flex-1 md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Local</label>
-                  <input
-                    type="text"
-                    value={bp.location}
-                    onChange={e => handleUpdateBoardingPoint(bp.id, 'location', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="Ex: Metrô Tietê, Terminal Rodoviário"
-                    required
-                  />
-                </div>
-                {tripData.boardingPoints!.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveBoardingPoint(bp.id)}
-                    className="md:self-end flex-shrink-0 bg-red-50 text-red-600 p-2.5 rounded-lg hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={handleAddBoardingPoint}
-              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
-            >
-              <Plus size={16} /> Adicionar Ponto de Embarque
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // --- Step 4: Roteiro ---
-  const renderStep4 = () => {
-    const handleAddItineraryDay = () => {
-      setTripData(prev => ({
-        ...prev,
-        itinerary: [...(prev.itinerary || []), { day: (prev.itinerary?.length || 0) + 1, title: '', description: '' }]
-      }));
-    };
-
-    const handleUpdateItineraryDay = (dayNum: number, field: 'title' | 'description', value: string) => {
-      setTripData(prev => ({
-        ...prev,
-        itinerary: (prev.itinerary || []).map(day =>
-          day.day === dayNum ? { ...day, [field]: value } : day
-        )
-      }));
-    };
-
-    const handleRemoveItineraryDay = (dayNum: number) => {
-      setTripData(prev => ({
-        ...prev,
-        itinerary: (prev.itinerary || [])
-          .filter(day => day.day !== dayNum)
-          .map((day, index) => ({ ...day, day: index + 1 })) // Re-number days
-      }));
-    };
-
-    // Ensure there's always at least one day
-    useEffect(() => {
-        if (!tripData.itinerary || tripData.itinerary.length === 0) {
-            setTripData(prev => ({
-                ...prev,
-                itinerary: [{ day: 1, title: '', description: '' }]
-            }));
-        }
-    }, [tripData.itinerary]);
-
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-2">Roteiro Dia a Dia <span className="text-red-500">*</span></label>
-          {errors.itinerary && <p className="text-red-500 text-xs mt-1 mb-2">{errors.itinerary}</p>}
-          <div className="space-y-6">
-            {tripData.itinerary?.map((day, index) => (
-              <div key={day.day} className="bg-gray-50 p-4 rounded-xl border border-gray-200 animate-[fadeIn_0.3s]">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-bold text-gray-900 text-lg">Dia {day.day}</h4>
-                  {tripData.itinerary!.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItineraryDay(day.day)}
-                      className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Título do Dia</label>
-                    <input
-                      type="text"
-                      value={day.title}
-                      onChange={e => handleUpdateItineraryDay(day.day, 'title', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                      placeholder="Ex: Chegada em Foz, Passeio de Barco"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Descrição das Atividades</label>
-                    <textarea
-                      value={day.description}
-                      onChange={e => handleUpdateItineraryDay(day.day, 'description', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                      rows={4}
-                      placeholder="Descreva as atividades deste dia."
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={handleAddItineraryDay}
-              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
-            >
-              <Plus size={16} /> Adicionar Dia ao Roteiro
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // --- Step 5: Final Settings ---
-  const renderStep5 = () => (
-    <div className="space-y-6">
-      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={tripData.is_active || false}
-            onChange={e => setTripData({ ...tripData, is_active: e.target.checked })}
-            className="h-5 w-5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"
-          />
-          <span className="text-sm font-bold text-gray-700">Publicar agora</span>
-          <Info size={16} className="text-gray-400" />
-        </label>
-        <p className="text-xs text-gray-500 mt-1 pl-8">Desmarque para salvar como rascunho e publicar depois.</p>
-      </div>
-
-      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={tripData.featured || false}
-            onChange={e => setTripData({ ...tripData, featured: e.target.checked })}
-            className="h-5 w-5 rounded text-amber-600 border-gray-300 focus:ring-amber-500"
-          />
-          <span className="text-sm font-bold text-gray-700">Destacar na ViajaStore</span>
-          <ShieldCheck size={16} className="text-amber-500" />
-        </label>
-        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá na Home do marketplace (sujeito a aprovação do Admin).</p>
-      </div>
-
-      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={tripData.featuredInHero || false}
-            onChange={e => setTripData({ ...tripData, featuredInHero: e.target.checked })}
-            className="h-5 w-5 rounded text-purple-600 border-gray-300 focus:ring-purple-500"
-          />
-          <span className="text-sm font-bold text-gray-700">Destacar no meu Microsite</span>
-          <Home size={16} className="text-purple-500" />
-        </label>
-        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá no carrossel principal da sua página de agência.</p>
-      </div>
-
-      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={tripData.popularNearSP || false}
-            onChange={e => setTripData({ ...tripData, popularNearSP: e.target.checked })}
-            className="h-5 w-5 rounded text-green-600 border-gray-300 focus:ring-green-500"
-          />
-          <span className="text-sm font-bold text-gray-700">Popular perto de SP</span>
-          <Globe size={16} className="text-green-500" />
-        </label>
-        <p className="text-xs text-gray-500 mt-1 pl-8">Aparecerá como sugestão para usuários da região de São Paulo.</p>
-      </div>
-    </div>
-  );
 
   const steps = [
-    { title: "Detalhes Básicos", icon: Plane, content: renderStep1() },
-    { title: "Mídia & Descrição", icon: ImageIcon, content: renderStep2() },
-    { title: "Logística Operacional", icon: Bus, content: renderStep3() },
-    { title: "Roteiro Dia a Dia", icon: BookOpen, content: renderStep4() },
-    { title: "Publicação & Destaques", icon: ListChecks, content: renderStep5() },
+    { title: "Detalhes Principais", icon: Plane, content: renderStep1() },
+    { title: "Mídia & Conteúdo", icon: ImageIcon, content: renderStep2() },
   ];
+
+  const StepIcon = steps[currentStep].icon;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-      <div className="bg-white rounded-2xl max-w-4xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full" aria-label="Fechar Wizard"><X size={20}/></button>
+      <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
         
         <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
-                <Plane size={24}/>
+                {StepIcon && <StepIcon size={24}/>}
             </div>
             <div>
-                <h2 className="text-2xl font-bold text-gray-900">{isEditing ? `Editar Pacote: ${tripData.title}` : 'Criar Novo Pacote'}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{isEditing ? 'Editar Pacote' : 'Criar Novo Pacote'}</h2>
                 <p className="text-sm text-gray-500">Passo {currentStep + 1} de {steps.length}: {steps[currentStep].title}</p>
             </div>
         </div>
 
-        <div className="mb-8 h-2 bg-gray-100 rounded-full">
-            <div className="bg-primary-600 h-full rounded-full transition-all duration-300" style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}></div>
+        <div className="mb-8 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="bg-primary-600 h-full transition-all duration-300" style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}></div>
         </div>
 
         {steps[currentStep].content}
@@ -943,12 +470,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           >
             <ChevronLeft size={18} /> Voltar
           </button>
+          
           {currentStep < steps.length - 1 ? (
             <button
               type="button"
               onClick={handleNext}
               disabled={isLoading}
-              className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50 ml-auto"
             >
               Próximo <ChevronRight size={18} />
             </button>
@@ -957,9 +485,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               type="button"
               onClick={handlePublish}
               disabled={isLoading}
-              className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 ml-auto shadow-lg shadow-green-200"
             >
-              {isLoading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} {isEditing ? 'Atualizar Pacote' : 'Publicar Pacote'}
+              {isLoading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} 
+              {isEditing ? 'Salvar Alterações' : 'Publicar Pacote'}
             </button>
           )}
         </div>
