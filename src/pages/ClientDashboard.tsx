@@ -338,7 +338,7 @@ const ClientDashboard: React.FC = () => {
       }
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
       if (!selectedBooking) return;
       const trip = selectedBooking._trip;
       const agency = selectedBooking._agency; 
@@ -349,6 +349,25 @@ const ClientDashboard: React.FC = () => {
       }
 
       try {
+        // Fetch passenger data from database
+        let passengersData: any[] = [];
+        try {
+          const { supabase } = await import('../services/supabase');
+          if (supabase) {
+            const { data, error } = await supabase
+              .from('booking_passengers')
+              .select('*')
+              .eq('booking_id', selectedBooking.id)
+              .order('passenger_index', { ascending: true });
+            
+            if (!error && data) {
+              passengersData = data;
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching passengers:', err);
+        }
+
         const doc = new jsPDF();
         doc.setFillColor(59, 130, 246);
         doc.rect(0, 0, 210, 40, 'F');
@@ -361,8 +380,6 @@ const ClientDashboard: React.FC = () => {
         let y = 60;
         const addField = (label: string, value: string) => { doc.setFont('helvetica', 'bold'); doc.text(label, 20, y); doc.setFont('helvetica', 'normal'); doc.text(value, 70, y); y += 10; };
         addField('Código da Reserva:', selectedBooking.voucherCode);
-        addField('Passageiro Principal:', user.name);
-        addField('CPF:', currentClient?.cpf || 'Não informado');
         y += 5;
         addField('Pacote:', trip.title || '---');
         addField('Destino:', trip.destination || '---');
@@ -374,9 +391,70 @@ const ClientDashboard: React.FC = () => {
         addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
         if (agency?.phone) addField('Contato Agência:', agency.phone);
         y += 10;
+        
+        // Passenger section
         doc.setDrawColor(200, 200, 200);
         doc.line(20, y, 190, y);
-        y += 20;
+        y += 15;
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Passageiros', 20, y);
+        y += 10;
+        
+        // If we have passenger data, use it; otherwise use booking info
+        if (passengersData.length > 0) {
+          passengersData.forEach((passenger, index) => {
+            if (y > 250) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
+            doc.setFont('helvetica', 'normal');
+            y += 7;
+            doc.setFontSize(10);
+            doc.text(`Nome: ${passenger.full_name}`, 25, y);
+            y += 6;
+            if (passenger.cpf) {
+              doc.text(`CPF: ${passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`, 25, y);
+              y += 6;
+            }
+            if (passenger.birth_date) {
+              doc.text(`Data de Nascimento: ${new Date(passenger.birth_date).toLocaleDateString('pt-BR')}`, 25, y);
+              y += 6;
+            }
+            if (passenger.whatsapp) {
+              doc.text(`WhatsApp: ${passenger.whatsapp}`, 25, y);
+              y += 6;
+            }
+            y += 5;
+          });
+        } else {
+          // Fallback to main passenger info
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Passageiro Principal: ${user.name}`, 25, y);
+          y += 6;
+          if (currentClient?.cpf) {
+            doc.text(`CPF: ${currentClient.cpf}`, 25, y);
+            y += 6;
+          }
+          if (selectedBooking.passengers > 1) {
+            doc.text(`Total de passageiros: ${selectedBooking.passengers}`, 25, y);
+            y += 6;
+            doc.setFontSize(9);
+            doc.setTextColor(100, 100, 100);
+            doc.text('* Dados dos acompanhantes não disponíveis', 25, y);
+            doc.setTextColor(0, 0, 0);
+            y += 6;
+          }
+        }
+        
+        y += 10;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(20, y, 190, y);
+        y += 15;
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Instruções', 20, y);

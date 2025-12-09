@@ -453,7 +453,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // If we reach here, DB operations succeeded
       // Force fetch the user data so the context updates immediately
-      await fetchUserData(userId, data.email);
+      // Use a timeout to avoid blocking the response
+      setTimeout(async () => {
+        try {
+          await fetchUserData(userId, data.email);
+        } catch (fetchError) {
+          console.error("[AuthContext] Error fetching user data after registration:", fetchError);
+          // Don't fail registration if fetch fails - user can refresh
+        }
+      }, 100);
+      
       console.log("[AuthContext] Registration successful, DB records created."); // Debug Log
       
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };

@@ -159,6 +159,7 @@ export interface PassengerDetail {
     document?: string;
     phone?: string;
     birthDate?: string; // Data de nascimento
+    whatsapp?: string; // WhatsApp (pode ser diferente do phone)
 }
 
 export interface Guest {
@@ -232,6 +233,7 @@ export interface Booking {
   passengers: number;
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
+  passengerDetails?: PassengerDetail[]; // Dados dos passageiros
   _trip?: Trip; 
   _agency?: Agency;
 }

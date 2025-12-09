@@ -4,9 +4,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip } from '../types';
+import { Trip, PassengerDetail } from '../types';
 import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
+import { PassengerDataModal } from '../components/PassengerDataModal';
 
 const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
@@ -53,6 +54,8 @@ const TripDetails: React.FC = () => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [passengers, setPassengers] = useState(1);
+  const [showPassengerModal, setShowPassengerModal] = useState(false);
+  const [passengerData, setPassengerData] = useState<PassengerDetail[]>([]);
 
   // Favorites logic
   const currentUserData = user ? clients.find(c => c.id === user.id) : undefined;
@@ -100,18 +103,30 @@ const TripDetails: React.FC = () => {
         return;
     }
 
+    // If more than 1 passenger, show modal to collect passenger data
+    if (passengers > 1) {
+        setShowPassengerModal(true);
+        return;
+    }
+
+    // Single passenger - proceed directly
+    await processBooking([]);
+  };
+
+  const processBooking = async (passengersData: PassengerDetail[]) => {
     setIsProcessing(true);
     try {
         const bookingData = {
             id: crypto.randomUUID(),
             tripId: trip.id,
-            clientId: user.id,
+            clientId: user!.id,
             date: new Date().toISOString(),
-            status: 'CONFIRMED' as const, // Auto-confirm for demo
+            status: 'CONFIRMED' as const,
             totalPrice: trip.price * passengers,
             passengers: passengers,
             voucherCode: `VS-${trip.id.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 10000)}`,
-            paymentMethod: 'CREDIT_CARD' as const
+            paymentMethod: 'CREDIT_CARD' as const,
+            passengerDetails: passengersData.length > 0 ? passengersData : undefined
         };
 
         const newBooking = await addBooking(bookingData);
@@ -126,6 +141,12 @@ const TripDetails: React.FC = () => {
     } finally {
         setIsProcessing(false);
     }
+  };
+
+  const handlePassengerDataConfirm = async (passengersData: PassengerDetail[]) => {
+    setShowPassengerModal(false);
+    setPassengerData(passengersData);
+    await processBooking(passengersData);
   };
 
   const handleFavorite = () => {
@@ -379,6 +400,20 @@ const TripDetails: React.FC = () => {
           </div>
 
       </div>
+
+      {/* Passenger Data Modal */}
+      {user && (
+        <PassengerDataModal
+          isOpen={showPassengerModal}
+          onClose={() => setShowPassengerModal(false)}
+          onConfirm={handlePassengerDataConfirm}
+          passengerCount={passengers}
+          mainPassengerName={user.name || ''}
+          mainPassengerCpf={currentUserData?.cpf}
+          mainPassengerPhone={currentUserData?.phone}
+          mainPassengerBirthDate={currentUserData?.birthDate}
+        />
+      )}
     </div>
   );
 };

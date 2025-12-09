@@ -535,6 +535,30 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }).select().single();
 
         if (error) throw error;
+
+        // Save passenger details if provided
+        if (booking.passengerDetails && booking.passengerDetails.length > 0) {
+            const passengerRecords = booking.passengerDetails.map((passenger, index) => ({
+                booking_id: booking.id,
+                passenger_index: index,
+                full_name: passenger.name,
+                cpf: passenger.document?.replace(/\D/g, '') || null,
+                birth_date: passenger.birthDate || null,
+                whatsapp: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null
+            }));
+
+            const { error: passengerError } = await sb
+                .from('booking_passengers')
+                .insert(passengerRecords);
+
+            if (passengerError) {
+                console.error("[DataContext] Error saving passenger details:", passengerError);
+                // Don't fail the booking if passenger details fail - log and continue
+            } else {
+                console.log("[DataContext] Passenger details saved successfully");
+            }
+        }
+        
         showToast('Reserva criada com sucesso!', 'success');
         
         // Increment sales count for the trip
