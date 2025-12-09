@@ -771,28 +771,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const uploadImage = async (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images'): Promise<string | null> => {
-      if (!supabase) return null;
+      if (!supabase) {
+        console.warn("[AuthContext] Cannot upload image: Supabase not configured."); // Debug Log
+        throw new Error('Backend não configurado');
+      }
       if (!user) {
         console.warn("[AuthContext] Cannot upload image: No user logged in."); // Debug Log
-        return null;
+        throw new Error('Usuário não autenticado');
       }
-      console.log("[AuthContext] Attempting to upload image to bucket:", bucket); // Debug Log
+      
+      // Validate file size (max 20MB)
+      const fileSizeMB = file.size / (1024 * 1024);
+      if (fileSizeMB > 20) {
+        throw new Error(`Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). Tamanho máximo: 20MB`);
+      }
+      
+      console.log("[AuthContext] Attempting to upload image to bucket:", bucket, `Size: ${fileSizeMB.toFixed(2)}MB`); // Debug Log
+      
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
           
+          // Upload with progress tracking (Supabase doesn't provide progress, but we can at least log)
           const { error: uploadError } = await supabase.storage
               .from(bucket)
-              .upload(fileName, file, { upsert: true });
+              .upload(fileName, file, { 
+                upsert: true,
+                cacheControl: '3600',
+                contentType: file.type || 'image/jpeg'
+              });
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error("[AuthContext] Upload error from Supabase:", uploadError); // Debug Log
+            throw new Error(uploadError.message || 'Erro ao fazer upload da imagem');
+          }
 
           const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
           console.log("[AuthContext] Image uploaded successfully. URL:", data.publicUrl); // Debug Log
           return data.publicUrl;
-      } catch (error) {
+      } catch (error: any) {
           console.error("[AuthContext] Upload error:", error); // Debug Log
-          return null;
+          // Re-throw to allow CreateTripWizard to handle it properly
+          throw error;
       }
   };
 

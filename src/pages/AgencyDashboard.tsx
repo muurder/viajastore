@@ -1587,6 +1587,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
     // Handlers for New Vehicle
     const handleSelectVehicleType = (type: VehicleType) => {
+        console.log('[TransportManager] handleSelectVehicleType called with type:', type);
+        
         if (type === 'CUSTOM') { 
             setEditingVehicleId(null);
             setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
@@ -1597,24 +1599,33 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         const config = VEHICLE_TYPES[type];
         if (!config) {
+            console.error('[TransportManager] Invalid vehicle type:', type);
             showToast('Tipo de veículo inválido', 'error');
             return;
         }
         
-        const vehicleNumber = vehicles.length + 1;
+        // Count existing vehicles of this type to generate proper name
+        const existingOfType = vehicles.filter(v => v.type === type).length;
+        const vehicleNumber = existingOfType + 1;
         const vehicleName = config.label.split('(')[0].trim();
+        const newVehicleName = vehicleNumber > 1 ? `${vehicleName} ${vehicleNumber}` : vehicleName;
+        
         const newVehicle: VehicleInstance = {
-            id: `v-${Date.now()}`,
-            name: `${vehicleName} ${vehicleNumber}`,
+            id: `v-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: newVehicleName,
             type,
             config,
             seats: []
         };
         
+        console.log('[TransportManager] Creating new vehicle:', newVehicle);
+        
         const updatedVehicles = [...vehicles, newVehicle];
         
         // Save vehicles (updates local state AND saves to database)
         saveVehicles(updatedVehicles);
+        
+        // CRITICAL: Set active vehicle ID immediately
         setActiveVehicleId(newVehicle.id);
         
         // Marcar como inicializado para evitar que o useEffect sobrescreva
@@ -1625,6 +1636,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         // Fechar menu
         setIsVehicleMenuOpen(false);
+        
+        console.log('[TransportManager] Vehicle created and set as active:', newVehicle.id);
     };
 
     const handleSaveCustomVehicle = (e: React.FormEvent) => {
@@ -2212,7 +2225,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
                 
                 {/* Vehicle Tabs Header */}
-                <header className="flex items-center bg-white border-b border-gray-200 px-4 py-2 gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
+                <header className="relative flex items-center bg-white border-b border-gray-200 px-4 py-2 gap-2 overflow-x-auto scrollbar-hide flex-shrink-0" style={{ overflowY: 'visible' }}>
                     {vehicles.map(vehicle => (
                         <div 
                             key={vehicle.id} 
@@ -2244,67 +2257,79 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         </div>
                     ))}
                     
-                    {/* Add Vehicle Button - Mostra menu se há veículos, senão mostra tela completa */}
-                    {vehicles.length > 0 ? (
-                        <div className="relative z-30">
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsVehicleMenuOpen(!isVehicleMenuOpen);
-                                }}
-                                className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
-                            >
-                                <Plus size={14}/> Add Veículo
-                            </button>
-                            
-                            {isVehicleMenuOpen && (
-                                <>
-                                    <div 
-                                        className="fixed inset-0 z-40" 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsVehicleMenuOpen(false);
-                                        }}
-                                    ></div>
-                                    <div 
-                                        className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50 animate-[scaleIn_0.1s]"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-2">Selecione o Tipo</p>
-                                        {Object.values(VEHICLE_TYPES).slice(0, 5).map(v => (
-                                            <button 
-                                                key={v.type} 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleSelectVehicleType(v.type);
-                                                }} 
-                                                className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-gray-700 rounded-lg flex items-center gap-2"
-                                            >
-                                                <Truck size={12} className="text-gray-400"/> {v.label.split('(')[0]}
-                                            </button>
-                                        ))}
-                                        <div className="border-t my-1"></div>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSelectVehicleType('CUSTOM');
-                                            }} 
-                                            className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-primary-600 font-bold rounded-lg"
-                                        >
-                                            Personalizado...
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    ) : (
+                    {/* Add Vehicle Button - Always show dropdown menu */}
+                    <div className="relative">
                         <button 
-                            onClick={() => setIsVehicleMenuOpen(true)}
-                            className="flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg text-primary-600 hover:bg-primary-50"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('[TransportManager] Add Vehicle button clicked. Current state:', isVehicleMenuOpen);
+                                setIsVehicleMenuOpen(!isVehicleMenuOpen);
+                            }}
+                            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
                         >
                             <Plus size={14}/> Add Veículo
                         </button>
-                    )}
+                        
+                        {isVehicleMenuOpen && (
+                            <>
+                                {/* Backdrop */}
+                                <div 
+                                    className="fixed inset-0 bg-black/20 z-[99]" 
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setIsVehicleMenuOpen(false);
+                                    }}
+                                />
+                                {/* Dropdown Menu */}
+                                <div 
+                                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 p-3 animate-[scaleIn_0.15s]"
+                                    style={{ zIndex: 1000 }}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                    }}
+                                >
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-3 tracking-wider">Selecione o Tipo de Veículo</p>
+                                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
+                                        {Object.values(VEHICLE_TYPES)
+                                            .filter(v => v.type !== 'CUSTOM')
+                                            .map(v => (
+                                                <button 
+                                                    key={v.type} 
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        console.log('[TransportManager] Vehicle type selected:', v.type);
+                                                        handleSelectVehicleType(v.type);
+                                                    }} 
+                                                    className="w-full text-left px-3 py-2.5 hover:bg-primary-50 text-sm text-gray-700 rounded-lg flex items-center gap-3 transition-colors group"
+                                                >
+                                                    <Truck size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors flex-shrink-0"/> 
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="font-bold block truncate">{v.label.split('(')[0].trim()}</span>
+                                                        <span className="text-xs text-gray-500">{v.totalSeats} lugares</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        <div className="border-t border-gray-200 my-2"></div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleSelectVehicleType('CUSTOM');
+                                            }} 
+                                            className="w-full text-left px-3 py-2.5 hover:bg-primary-50 text-sm text-primary-600 font-bold rounded-lg flex items-center gap-3 transition-colors"
+                                        >
+                                            <Settings2 size={16} className="text-primary-500"/> 
+                                            <span>Personalizado...</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </header>
 
                 {/* Action Buttons Bar */}

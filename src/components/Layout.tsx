@@ -1,11 +1,11 @@
 
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
@@ -19,6 +19,10 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   
+  // User dropdown state
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  
   // Close menu logic removed as hamburger menu is gone
   
   // Scroll to top on route change
@@ -29,6 +33,23 @@ const Layout: React.FC = () => {
       behavior: 'auto'
     });
   }, [location.pathname]);
+
+  // Click outside handler for user dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+
+    if (isUserDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserDropdownOpen]);
 
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const potentialSlug = pathSegments[0];
@@ -119,7 +140,7 @@ const Layout: React.FC = () => {
   // Logic for the "User Pill" link in header
   const getUserProfileLink = () => {
       if (!user) return '#';
-      if (user.role === 'AGENCY') return '/agency/dashboard?tab=SETTINGS';
+      if (user.role === 'AGENCY') return '/agency/dashboard?tab=PROFILE';
       if (user.role === 'ADMIN') return '/admin/dashboard';
       // Client
       if (isAgencyMode && activeSlug) return `/${activeSlug}/client/PROFILE`;
@@ -127,6 +148,15 @@ const Layout: React.FC = () => {
   };
 
   const userProfileLink = getUserProfileLink();
+  
+  // Get theme link for dropdown
+  const getThemeLink = () => {
+      if (!user) return '#';
+      if (user.role === 'AGENCY') return '/agency/dashboard?tab=THEME';
+      return '#';
+  };
+  
+  const themeLink = getThemeLink();
 
   // Centralized Dashboard Route Logic
   const getDashboardRoute = () => {
@@ -255,32 +285,82 @@ const Layout: React.FC = () => {
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
                 {user ? (
-                  <div className="ml-4 flex items-center md:ml-6">
+                  <div className="ml-4 flex items-center md:ml-6 gap-3">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}
                     {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
                         <Link 
                             to={getDashboardRoute()}
-                            className={`mr-4 flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-full transition-colors ${location.pathname.includes('/dashboard') ? 'bg-primary-50 text-primary-600' : 'text-gray-500 hover:bg-gray-50 hover:text-primary-600'}`}
+                            className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${location.pathname.includes('/dashboard') ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'}`}
                         >
                             <LayoutDashboard size={16}/> {user.role === 'ADMIN' ? 'Painel Master' : 'Meu Painel'}
                         </Link>
                     )}
                     
-                    <div className="relative flex items-center gap-3 bg-gray-50 py-1.5 px-3 rounded-full border border-gray-100 group hover:bg-white hover:shadow-sm transition-all">
-                      <Link to={userProfileLink} className="flex items-center text-sm font-medium text-gray-700 hover:text-primary-600">
+                    {/* User Dropdown */}
+                    <div className="relative" ref={userDropdownRef}>
+                      <button
+                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                        className="flex items-center gap-2 bg-gray-50 py-1.5 px-3 rounded-full border border-gray-100 hover:bg-white hover:shadow-sm transition-all group"
+                      >
                         {user.avatar ? (
-                            <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full object-cover mr-2 border border-gray-200" />
+                            <img src={user.avatar} alt={user.name} className="w-7 h-7 rounded-full object-cover border border-gray-200" />
                         ) : (
-                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-bold mr-2">
+                            <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-bold">
                                 {user.name.charAt(0).toUpperCase()}
                             </div>
                         )}
-                        <span className="max-w-[100px] truncate">{user.name}</span>
-                      </Link>
-                      <div className="h-4 w-px bg-gray-300 mx-1"></div>
-                      <button onClick={handleLogout} className="flex items-center text-xs font-bold text-gray-400 hover:text-red-500 transition-colors" title="Sair">
-                        <LogOut size={16} className="mr-1" />
+                        <span className="max-w-[120px] truncate text-sm font-medium text-gray-700">{user.name}</span>
+                        <ChevronDown 
+                          size={16} 
+                          className={`text-gray-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`}
+                        />
                       </button>
+                      
+                      {/* Dropdown Menu */}
+                      {isUserDropdownOpen && (
+                        <>
+                          {/* Backdrop */}
+                          <div 
+                            className="fixed inset-0 bg-black/10 z-[98]" 
+                            onClick={() => setIsUserDropdownOpen(false)}
+                          />
+                          {/* Menu */}
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 p-2 z-[99] animate-[scaleIn_0.15s]">
+                            <Link
+                              to={userProfileLink}
+                              onClick={() => setIsUserDropdownOpen(false)}
+                              className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                            >
+                              <User size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                              <span className="font-medium">Meu Perfil</span>
+                            </Link>
+                            
+                            {user.role === 'AGENCY' && (
+                              <Link
+                                to={themeLink}
+                                onClick={() => setIsUserDropdownOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                              >
+                                <Palette size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                <span className="font-medium">Aparência</span>
+                              </Link>
+                            )}
+                            
+                            <div className="border-t border-gray-100 my-1"></div>
+                            
+                            <button
+                              onClick={() => {
+                                setIsUserDropdownOpen(false);
+                                handleLogout();
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
+                            >
+                              <LogOut size={16} className="text-red-500 group-hover:text-red-600 transition-colors"/>
+                              <span className="font-medium">Sair</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (

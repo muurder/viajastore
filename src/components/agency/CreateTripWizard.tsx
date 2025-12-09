@@ -26,6 +26,7 @@ const ALL_TRIP_CATEGORIES: TripCategory[] = [
 ];
 
 const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
+const MAX_IMAGES = 8; // Maximum number of images allowed
 
 interface CreateTripWizardProps {
   onClose: () => void;
@@ -246,6 +247,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     } else if (currentStep === 1) { // Media
       const totalImages = (tripData.images?.length || 0) + filesToUpload.length;
       if (totalImages === 0) newErrors.images = "Adicione pelo menos uma imagem.";
+      if (totalImages > MAX_IMAGES) newErrors.images = `Máximo de ${MAX_IMAGES} imagens permitidas. Você tem ${totalImages}.`;
       if (!tripData.description || tripData.description.length < 20) newErrors.description = "Escreva uma descrição (min 20 caracteres).";
     }
 
@@ -288,18 +290,32 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             setUploadProgress({ current: i + 1, total: filesToUpload.length, fileName: file.name });
             
             try {
-              // Individual upload timeout (30 seconds per file)
+              // Check file size and warn if too large
+              const fileSizeMB = file.size / (1024 * 1024);
+              if (fileSizeMB > 10) {
+                showToast(`Atenção: ${file.name} é muito grande (${fileSizeMB.toFixed(1)}MB). O upload pode demorar.`, 'warning');
+              }
+              
+              // Individual upload timeout (90 seconds per file - increased for large images and slow connections)
               const uploadPromise = uploadImage(file, 'trip-images');
-              const timeoutPromise = new Promise<null>((_, reject) => 
-                setTimeout(() => reject(new Error('Upload timeout')), 30000)
+              const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error(`Upload timeout: ${file.name} demorou mais de 90 segundos. Tente uma imagem menor ou verifique sua conexão.`)), 90000)
               );
               
               const url = await Promise.race([uploadPromise, timeoutPromise]);
-              if (url) uploadedUrls.push(url);
+              if (url) {
+                uploadedUrls.push(url);
+                console.log(`[CreateTripWizard] Successfully uploaded: ${file.name}`);
+              } else {
+                // This shouldn't happen now since uploadImage throws, but keeping as safety
+                failedUploads.push(file.name);
+                showToast(`Falha no upload de ${file.name}. Verifique o tamanho da imagem e sua conexão.`, 'warning');
+              }
             } catch (err: any) {
               console.error("Falha no upload de arquivo individual:", err);
               failedUploads.push(file.name);
-              showToast(`Falha no upload de ${file.name}`, 'warning');
+              const errorMsg = err.message || `Falha no upload de ${file.name}`;
+              showToast(errorMsg, 'warning');
             }
           }
         }
@@ -311,6 +327,11 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         
         if (finalImages.length === 0 && !isEditing) {
           throw new Error('É necessário pelo menos uma imagem para publicar.');
+        }
+        
+        // Validate max images limit
+        if (finalImages.length > MAX_IMAGES) {
+          throw new Error(`Máximo de ${MAX_IMAGES} imagens permitidas. Você tem ${finalImages.length}. Remova algumas imagens antes de publicar.`);
         }
 
         // 3. Generate and validate slug
@@ -588,7 +609,24 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const renderStep2 = () => {
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
-        setFilesToUpload(prev => [...prev, ...Array.from(e.target.files!)]);
+        const currentTotal = (tripData.images?.length || 0) + filesToUpload.length;
+        const newFiles = Array.from(e.target.files);
+        const availableSlots = MAX_IMAGES - currentTotal;
+        
+        if (availableSlots <= 0) {
+          showToast(`Limite de ${MAX_IMAGES} imagens atingido. Remova algumas imagens antes de adicionar novas.`, 'warning');
+          e.target.value = ''; // Clear input
+          return;
+        }
+        
+        if (newFiles.length > availableSlots) {
+          showToast(`Você pode adicionar apenas mais ${availableSlots} imagem(ns). ${newFiles.length - availableSlots} imagem(ns) foram ignoradas.`, 'warning');
+          setFilesToUpload(prev => [...prev, ...newFiles.slice(0, availableSlots)]);
+        } else {
+          setFilesToUpload(prev => [...prev, ...newFiles]);
+        }
+        
+        e.target.value = ''; // Clear input after selection
       }
     };
 
@@ -623,15 +661,38 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       <div className="space-y-6 animate-[fadeIn_0.3s]">
         {/* Image Upload Area */}
         <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-            <label className="block text-sm font-bold text-gray-700 mb-3">Fotos da Viagem <span className="text-red-500">*</span></label>
+            <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-bold text-gray-700">Fotos da Viagem <span className="text-red-500">*</span></label>
+                <span className="text-xs text-gray-500 font-medium">
+                    {(tripData.images?.length || 0) + filesToUpload.length} / {MAX_IMAGES} imagens
+                </span>
+            </div>
             
-            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-primary-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-primary-50 transition-colors">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-8 h-8 text-primary-500 mb-2" />
-                    <p className="text-sm text-gray-600 font-medium">Clique para selecionar ou arraste aqui</p>
+            {(tripData.images?.length || 0) + filesToUpload.length >= MAX_IMAGES ? (
+                <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-amber-300 border-dashed rounded-xl bg-amber-50">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 text-amber-500 mb-2" />
+                        <p className="text-sm text-amber-700 font-medium">Limite de {MAX_IMAGES} imagens atingido</p>
+                        <p className="text-xs text-amber-600 mt-1">Remova algumas imagens para adicionar novas</p>
+                    </div>
                 </div>
-                <input type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
-            </label>
+            ) : (
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-primary-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-primary-50 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 text-primary-500 mb-2" />
+                        <p className="text-sm text-gray-600 font-medium">Clique para selecionar ou arraste aqui</p>
+                        <p className="text-xs text-gray-500 mt-1">Máximo de {MAX_IMAGES} imagens</p>
+                    </div>
+                    <input 
+                        type="file" 
+                        multiple 
+                        accept="image/*" 
+                        onChange={handleFileSelect} 
+                        className="hidden"
+                        disabled={(tripData.images?.length || 0) + filesToUpload.length >= MAX_IMAGES}
+                    />
+                </label>
+            )}
 
             {/* Previews */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
