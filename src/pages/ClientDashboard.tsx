@@ -40,7 +40,7 @@ const getRandomGreeting = (userName: string) => {
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading, reloadUser } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData, getPublicTrips, trips } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -95,6 +95,9 @@ const ClientDashboard: React.FC = () => {
   
   // State for password change loading
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  
+  // State for suggested trips
+  const [suggestedTrips, setSuggestedTrips] = useState<Trip[]>([]);
 
   const [greeting, setGreeting] = useState('');
 
@@ -143,6 +146,19 @@ const ClientDashboard: React.FC = () => {
       setGreeting(getRandomGreeting(user.name.split(' ')[0]));
     }
   }, [user?.name]);
+
+  // Load and shuffle suggested trips
+  useEffect(() => {
+    const allTrips = getPublicTrips();
+    if (allTrips.length > 0) {
+      // Fisher-Yates shuffle for better randomness
+      const shuffled = [...allTrips].sort(() => Math.random() - 0.5);
+      // Select first 3 trips
+      setSuggestedTrips(shuffled.slice(0, 3));
+    } else {
+      setSuggestedTrips([]);
+    }
+  }, [trips, getPublicTrips]); // Re-shuffle when trips data changes
 
   // Effect to update forms when currentClient changes
   useEffect(() => {
@@ -670,6 +686,21 @@ const ClientDashboard: React.FC = () => {
                     <div className="bg-gray-50 p-4 rounded-xl md:col-span-2"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Endereço</label> <p className="text-gray-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p> </div>
                  )}
                </div>
+
+               {/* Suggested Trips Section */}
+               {suggestedTrips.length > 0 && (
+                 <div className="mt-12 pt-8 border-t border-gray-100">
+                   <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                     <Compass size={24} className="text-primary-600" />
+                     🌎 Inspire-se para sua próxima aventura
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     {suggestedTrips.map((trip) => (
+                       <TripCard key={trip.id} trip={trip} />
+                     ))}
+                   </div>
+                 </div>
+               )}
              </div>
            )}
 
