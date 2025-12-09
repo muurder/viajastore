@@ -898,7 +898,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     
     // Passenger Edit Modal
     const [passengerEditId, setPassengerEditId] = useState<string | null>(null);
-    const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '', birthDate: '' });
+    const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '', birthDate: '', rg: '', rgOrg: '' });
+    const [passengerToDelete, setPassengerToDelete] = useState<string | null>(null);
 
     // Config Mode
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
@@ -1448,7 +1449,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             name: passengerName,
             document: dbPassenger?.cpf || details?.document || '',
             phone: dbPassenger?.whatsapp || details?.phone || '',
-            birthDate: dbPassenger?.birth_date || details?.birthDate || ''
+            birthDate: dbPassenger?.birth_date || details?.birthDate || '',
+            rg: details?.rg || '',
+            rgOrg: details?.rgOrg || ''
         });
     };
 
@@ -1462,7 +1465,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 name: passengerEditForm.name,
                 document: passengerEditForm.document,
                 phone: passengerEditForm.phone,
-                birthDate: passengerEditForm.birthDate
+                birthDate: passengerEditForm.birthDate,
+                rg: passengerEditForm.rg,
+                rgOrg: passengerEditForm.rgOrg
             }
         };
 
@@ -1479,6 +1484,47 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         });
         setPassengerEditId(null);
         showToast('Dados do passageiro salvos.', 'success');
+    };
+
+    const handleDeletePassenger = () => {
+        if (!passengerToDelete) return;
+        
+        // Remove from manual passengers if it's a manual passenger
+        if (passengerToDelete.startsWith('manual-')) {
+            const updatedManual = manualPassengers.filter(p => p.id !== passengerToDelete);
+            setManualPassengers(updatedManual);
+            // Remove from operational data
+            const newPassengerDetails = { ...passengerDetails };
+            delete newPassengerDetails[passengerToDelete];
+            const newNameOverrides = { ...nameOverrides };
+            delete newNameOverrides[passengerToDelete];
+            onSave({ 
+                ...trip.operationalData, 
+                passengerDetails: newPassengerDetails,
+                passengerNameOverrides: newNameOverrides
+            });
+        } else {
+            // For booked passengers, we can't delete them from the booking, but we can remove them from operational data
+            const newPassengerDetails = { ...passengerDetails };
+            delete newPassengerDetails[passengerToDelete];
+            const newNameOverrides = { ...nameOverrides };
+            delete newNameOverrides[passengerToDelete];
+            onSave({ 
+                ...trip.operationalData, 
+                passengerDetails: newPassengerDetails,
+                passengerNameOverrides: newNameOverrides
+            });
+        }
+        
+        // Remove from any assigned seats
+        const updatedVehicles = vehicles.map(v => ({
+            ...v,
+            seats: v.seats.filter(s => s.bookingId !== passengerToDelete)
+        }));
+        saveVehicles(updatedVehicles);
+        
+        setPassengerToDelete(null);
+        showToast('Passageiro removido.', 'success');
     };
 
     // Render Logic
@@ -1576,6 +1622,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name} do assento ${seatToDelete?.seatNum}?`} variant="warning" />
             <ConfirmationModal isOpen={showClearSeatsModal} onClose={() => setShowClearSeatsModal(false)} onConfirm={confirmClearSeats} title="Limpar Todos os Assentos" message="Tem certeza que deseja limpar todos os assentos deste veículo? Esta ação não pode ser desfeita." variant="warning" confirmText="Limpar" />
             <ConfirmationModal isOpen={!!vehicleToDelete} onClose={() => setVehicleToDelete(null)} onConfirm={confirmDeleteVehicle} title="Remover Veículo" message="Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados." variant="danger" confirmText="Remover" />
+            <ConfirmationModal isOpen={!!passengerToDelete} onClose={() => setPassengerToDelete(null)} onConfirm={handleDeletePassenger} title="Remover Passageiro" message="Tem certeza que deseja remover este passageiro da lista? Ele será desvinculado de qualquer assento atribuído." variant="danger" confirmText="Remover" />
             
             {/* Passenger Edit Modal */}
             {passengerEditId && (
@@ -1588,8 +1635,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 <input value={passengerEditForm.name} onChange={e => setPassengerEditForm({...passengerEditForm, name: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">RG ou CPF</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF</label>
                                 <input value={passengerEditForm.document} onChange={e => setPassengerEditForm({...passengerEditForm, document: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="000.000.000-00" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">RG</label>
+                                    <input value={passengerEditForm.rg} onChange={e => setPassengerEditForm({...passengerEditForm, rg: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="00.000.000-0" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Órgão Emissor</label>
+                                    <input value={passengerEditForm.rgOrg} onChange={e => setPassengerEditForm({...passengerEditForm, rgOrg: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="SSP" />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</label>
@@ -1769,14 +1826,23 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 </div>
                                 {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap truncate max-w-[80px]">{assignedInfo}</span>}
                                 
-                                {/* Edit Button - Always visible */}
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
-                                    className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-blue-500 hover:bg-blue-50 bg-blue-50/50'}`}
-                                    title="Editar dados do passageiro"
-                                >
-                                    <Edit3 size={14}/>
-                                </button>
+                                {/* Action Buttons - Always visible */}
+                                <div className="flex items-center gap-1">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
+                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-blue-500 hover:bg-blue-50 bg-blue-50/50'}`}
+                                        title="Editar dados do passageiro"
+                                    >
+                                        <Edit3 size={14}/>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setPassengerToDelete(p.id); }}
+                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-red-500 hover:bg-red-50 bg-red-50/50'}`}
+                                        title="Remover passageiro"
+                                    >
+                                        <Trash2 size={14}/>
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}
@@ -2495,8 +2561,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
                                                      
                                                      {/* Always show full name on top, type below */}
-                                                     <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
-                                                         <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                                                     <div className={`min-w-0 flex flex-col`}>
+                                                         <span className={`font-bold text-sm truncate leading-tight`} style={{ color: isSelected ? '#ffffff' : '#111827' }}>
                                                              {displayName}
                                                          </span>
                                                          <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
