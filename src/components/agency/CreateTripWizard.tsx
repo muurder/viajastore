@@ -12,6 +12,7 @@ import {
 import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import imageCompression from 'browser-image-compression';
 
 // Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
@@ -28,6 +29,38 @@ const ALL_TRIP_CATEGORIES: TripCategory[] = [
 
 const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
 const MAX_IMAGES = 8; // Maximum number of images allowed
+
+/**
+ * Compress image before upload to reduce file size while maintaining visual quality
+ * @param file - Original image file
+ * @returns Compressed image file as Blob
+ */
+const compressImage = async (file: File): Promise<File> => {
+  try {
+    const options = {
+      maxSizeMB: 0.8, // Target size: 800KB
+      maxWidthOrHeight: 1920, // Full HD resolution
+      useWebWorker: true, // Non-blocking compression
+      fileType: 'image/webp' as const, // Modern format with better compression
+      initialQuality: 0.8, // High quality balance
+    };
+
+    const compressedFile = await imageCompression(file, options);
+    
+    // Log compression results for debugging
+    const originalSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    const compressedSizeMB = (compressedFile.size / (1024 * 1024)).toFixed(2);
+    const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+    
+    console.log(`[ImageCompression] ${file.name}: ${originalSizeMB}MB → ${compressedSizeMB}MB (${reduction}% reduction)`);
+    
+    return compressedFile;
+  } catch (error) {
+    console.error('[ImageCompression] Error compressing image:', error);
+    // If compression fails, return original file
+    return file;
+  }
+};
 
 interface CreateTripWizardProps {
   onClose: () => void;
@@ -89,7 +122,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     
     // Check for draft in localStorage
     try {
-      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      const draftKey = getDraftStorageKey(undefined);
+      const draft = localStorage.getItem(draftKey);
       if (draft) {
         const parsedDraft = JSON.parse(draft);
         // Only restore if draft is recent (less than 7 days old)
@@ -307,17 +341,26 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         if (filesToUpload.length > 0) {
           for (let i = 0; i < filesToUpload.length; i++) {
             const file = filesToUpload[i];
-            setUploadProgress({ current: i + 1, total: filesToUpload.length, fileName: file.name });
             
             try {
-              // Check file size and warn if too large
-              const fileSizeMB = file.size / (1024 * 1024);
-              if (fileSizeMB > 10) {
-                showToast(`Atenção: ${file.name} é muito grande (${fileSizeMB.toFixed(1)}MB). O upload pode demorar.`, 'warning');
-              }
+              // Step 1: Compress image before upload
+              setUploadProgress({ 
+                current: i + 1, 
+                total: filesToUpload.length, 
+                fileName: `Otimizando ${file.name}...` 
+              });
+              
+              const compressedFile = await compressImage(file);
+              
+              // Step 2: Upload compressed file
+              setUploadProgress({ 
+                current: i + 1, 
+                total: filesToUpload.length, 
+                fileName: `Enviando ${file.name}...` 
+              });
               
               // Individual upload timeout (90 seconds per file - increased for large images and slow connections)
-              const uploadPromise = uploadImage(file, 'trip-images');
+              const uploadPromise = uploadImage(compressedFile, 'trip-images');
               const timeoutPromise = new Promise<never>((_, reject) => 
                 setTimeout(() => reject(new Error(`Upload timeout: ${file.name} demorou mais de 90 segundos. Tente uma imagem menor ou verifique sua conexão.`)), 90000)
               );

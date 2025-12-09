@@ -92,6 +92,9 @@ const ClientDashboard: React.FC = () => {
 
   // State for account deletion password
   const [passwordToDelete, setPasswordToDelete] = useState('');
+  
+  // State for password change loading
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const [greeting, setGreeting] = useState('');
 
@@ -331,6 +334,11 @@ const ClientDashboard: React.FC = () => {
 
   const handleChangePassword = async (e: React.FormEvent) => {
       e.preventDefault();
+      
+      // Prevent multiple submissions
+      if (isChangingPassword) return;
+      
+      // Validations
       if (passForm.newPassword !== passForm.confirmPassword) {
           showToast('As senhas não coincidem.', 'error');
           return;
@@ -339,12 +347,25 @@ const ClientDashboard: React.FC = () => {
           showToast('A senha deve ter no mínimo 6 caracteres.', 'error');
           return;
       }
-      const res = await updatePassword(passForm.newPassword);
-      if (res.success) {
-          showToast('Senha alterada com sucesso!', 'success');
-          setPassForm({ newPassword: '', confirmPassword: '' });
-      } else {
-          showToast('Erro: ' + res.error, 'error');
+      
+      setIsChangingPassword(true);
+      
+      try {
+          const res = await updatePassword(passForm.newPassword);
+          if (res.success) {
+              // Success feedback
+              showToast('Senha alterada com sucesso!', 'success');
+              // Clear form fields
+              setPassForm({ newPassword: '', confirmPassword: '' });
+          } else {
+              // Error feedback
+              showToast('Erro: ' + (res.error || 'Não foi possível alterar a senha. Tente novamente.'), 'error');
+          }
+      } catch (error: any) {
+          console.error('Error changing password:', error);
+          showToast('Erro ao alterar senha. Tente novamente.', 'error');
+      } finally {
+          setIsChangingPassword(false);
       }
   };
 
@@ -804,32 +825,104 @@ const ClientDashboard: React.FC = () => {
            )}
 
            {activeTab === 'SECURITY' && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Segurança</h2>
-                  <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
-                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.newPassword} onChange={e => setPassForm({...passForm, newPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
-                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label> <div className="relative"> <Lock className="absolute left-3 top-3 text-gray-400" size={18} /> <input type="password" value={passForm.confirmPassword} onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none" required minLength={6}/> </div> </div>
-                      <button type="submit" className="bg-gray-900 text-white px-6 py-3 rounded-lg font-bold hover:bg-black">Alterar Senha</button>
-                  </form>
-                  <div className="mt-12 pt-8 border-t border-gray-100">
-                    <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center"><AlertTriangle size={20} className="mr-2" /> Zona de Perigo</h3>
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-4"> 
-                        <p className="text-sm text-red-800 mb-4">Ao excluir sua conta, todos os seus dados serão removidos permanentemente. Esta ação não pode ser desfeita.</p> 
-                        <div className="mb-4">
-                            <label htmlFor="delete-password" className="block text-sm font-bold text-red-700 mb-2">Digite sua senha para confirmar</label>
-                            <input
-                                id="delete-password"
-                                type="password"
-                                value={passwordToDelete}
-                                onChange={(e) => setPasswordToDelete(e.target.value)}
-                                className="w-full border border-red-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-red-500 outline-none bg-white text-red-800"
-                                placeholder="Sua senha atual"
-                            />
-                        </div>
-                        <button onClick={handleDeleteAccount} className="flex items-center bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white transition-colors" disabled={!passwordToDelete}>
-                            <Trash2 size={16} className="mr-2" /> Excluir minha conta
-                        </button> 
-                    </div>
+              <div className="space-y-6 animate-[fadeIn_0.3s]">
+                  {/* Password Change Card */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                      <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                              <Lock className="text-primary-600" size={20} />
+                          </div>
+                          <h2 className="text-2xl font-bold text-gray-900">Alterar Senha</h2>
+                      </div>
+                      <form onSubmit={handleChangePassword} className="max-w-md space-y-6">
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label>
+                              <div className="relative">
+                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                  <input 
+                                      type="password" 
+                                      value={passForm.newPassword} 
+                                      onChange={e => setPassForm({...passForm, newPassword: e.target.value})} 
+                                      className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all" 
+                                      required 
+                                      minLength={6}
+                                      placeholder="Mínimo 6 caracteres"
+                                      disabled={isChangingPassword}
+                                  />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label>
+                              <div className="relative">
+                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                  <input 
+                                      type="password" 
+                                      value={passForm.confirmPassword} 
+                                      onChange={e => setPassForm({...passForm, confirmPassword: e.target.value})} 
+                                      className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all" 
+                                      required 
+                                      minLength={6}
+                                      placeholder="Digite a senha novamente"
+                                      disabled={isChangingPassword}
+                                  />
+                              </div>
+                          </div>
+                          <button 
+                              type="submit" 
+                              disabled={isChangingPassword}
+                              className="w-full bg-primary-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                          >
+                              {isChangingPassword ? (
+                                  <>
+                                      <Loader size={18} className="animate-spin" />
+                                      Alterando...
+                                  </>
+                              ) : (
+                                  <>
+                                      <Lock size={18} />
+                                      Alterar Senha
+                                  </>
+                              )}
+                          </button>
+                      </form>
+                  </div>
+
+                  {/* Danger Zone */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                      <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center gap-2">
+                          <AlertTriangle size={20} />
+                          Zona de Perigo
+                      </h3>
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-6"> 
+                          <p className="text-sm text-red-800 mb-4 leading-relaxed">
+                              Ao excluir sua conta, todos os seus dados serão removidos permanentemente. 
+                              Esta ação não pode ser desfeita.
+                          </p> 
+                          <div className="mb-4">
+                              <label htmlFor="delete-password" className="block text-sm font-bold text-red-700 mb-2">
+                                  Digite sua senha para confirmar
+                              </label>
+                              <div className="relative">
+                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400" size={18} />
+                                  <input
+                                      id="delete-password"
+                                      type="password"
+                                      value={passwordToDelete}
+                                      onChange={(e) => setPasswordToDelete(e.target.value)}
+                                      className="w-full border border-red-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none bg-white text-gray-900 transition-all"
+                                      placeholder="Sua senha atual"
+                                  />
+                              </div>
+                          </div>
+                          <button 
+                              onClick={handleDeleteAccount} 
+                              disabled={!passwordToDelete}
+                              className="flex items-center justify-center gap-2 bg-white border-2 border-red-300 text-red-600 px-6 py-3 rounded-lg text-sm font-bold hover:bg-red-600 hover:text-white hover:border-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-red-600 disabled:hover:border-red-300"
+                          >
+                              <Trash2 size={16} /> 
+                              Excluir minha conta
+                          </button> 
+                      </div>
                   </div>
               </div>
            )}
