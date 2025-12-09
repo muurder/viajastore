@@ -155,9 +155,8 @@ export interface ManualPassenger {
 
 export interface PassengerDetail {
     name: string;
-    doc: string;
-    phone: string;
-    email: string;
+    document?: string;
+    phone?: string;
 }
 
 export interface Guest {
@@ -184,8 +183,8 @@ export interface OperationalData {
     rooming?: RoomConfig[]; // Deprecated (single list)
     hotels?: HotelInstance[]; // New (multiple hotels)
     manualPassengers?: ManualPassenger[];
-    passengerDetails?: Record<string, PassengerDetail>;
     passengerNameOverrides?: Record<string, string>;
+    passengerDetails?: Record<string, PassengerDetail>; // New detailed info
 }
 
 export interface Trip {
