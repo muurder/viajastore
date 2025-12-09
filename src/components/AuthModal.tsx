@@ -160,7 +160,6 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             const result = await register(formData, role);
             
             if (result.success) {
-                onClose();
                 // Show toast based on message
                 if (result.message) {
                     // If userId is present, it means the user is also signed in.
@@ -170,23 +169,30 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                     showToast('Conta criada com sucesso!', 'success');
                 }
 
-                if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
-                    if (result.role === UserRole.AGENCY) {
-                        navigate('/agency/dashboard');
-                    } else if (result.role === UserRole.CLIENT) {
-                        navigate('/client/dashboard/PROFILE');
+                // Close modal first
+                setIsLoading(false);
+                onClose();
+
+                // Then navigate after a small delay to ensure modal closes
+                setTimeout(() => {
+                    if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
+                        if (result.role === UserRole.AGENCY) {
+                            navigate('/agency/dashboard');
+                        } else if (result.role === UserRole.CLIENT) {
+                            navigate('/client/dashboard/PROFILE');
+                        }
+                    } else {
+                        // If not immediately signed in (e.g., email verification needed), navigate to home
+                        navigate('/');
                     }
-                } else {
-                    // If not immediately signed in (e.g., email verification needed), navigate to home
-                    navigate('/');
-                }
+                }, 100);
             } else {
                 setError(result.error || 'Erro ao criar conta.');
+                setIsLoading(false);
             }
         } catch (err: any) {
             console.error("Signup submission error:", err);
             setError(err.message || "Um erro inesperado ocorreu. Tente novamente.");
-        } finally { // FIX: Ensure loading state is reset in both success and error paths
             setIsLoading(false);
         }
     };

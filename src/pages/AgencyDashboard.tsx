@@ -131,21 +131,83 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     );
 };
 
-const ConfirmationModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: () => void; title: string; message: string; confirmText?: string; variant?: 'danger' | 'warning' | 'info' }> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirmar', variant = 'danger' }) => {
+const ConfirmationModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: () => void; 
+    title: string; 
+    message: string; 
+    confirmText?: string; 
+    cancelText?: string;
+    variant?: 'danger' | 'warning' | 'info' 
+}> = ({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    title, 
+    message, 
+    confirmText = 'Confirmar', 
+    cancelText = 'Cancelar',
+    variant = 'danger' 
+}) => {
     if (!isOpen) return null;
+    
+    const iconConfig = {
+        danger: { icon: AlertTriangle, bg: 'bg-red-50', iconColor: 'text-red-600', border: 'border-red-200' },
+        warning: { icon: AlertTriangle, bg: 'bg-amber-50', iconColor: 'text-amber-600', border: 'border-amber-200' },
+        info: { icon: Info, bg: 'bg-blue-50', iconColor: 'text-blue-600', border: 'border-blue-200' }
+    };
+    
+    const buttonConfig = {
+        danger: 'bg-red-600 hover:bg-red-700 active:bg-red-800',
+        warning: 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700',
+        info: 'bg-primary-600 hover:bg-primary-700 active:bg-primary-800'
+    };
+    
+    const config = iconConfig[variant];
+    const Icon = config.icon;
+    
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto ${variant === 'danger' ? 'bg-red-100 text-red-600' : variant === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                    <AlertTriangle size={24}/>
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" 
+            onClick={onClose}
+        >
+            <div 
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-[scaleIn_0.2s] transform transition-all" 
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header com gradiente */}
+                <div className={`${config.bg} ${config.border} border-b p-6`}>
+                    <div className={`w-16 h-16 ${config.bg} rounded-full flex items-center justify-center mx-auto border-2 ${config.border}`}>
+                        <Icon size={28} className={config.iconColor}/>
+                    </div>
                 </div>
-                <div className="text-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-                    <p className="text-sm text-gray-600">{message}</p>
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
-                    <button onClick={onConfirm} className={`flex-1 px-4 py-2.5 text-white rounded-lg font-bold transition-colors ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}>{confirmText}</button>
+                
+                {/* Content */}
+                <div className="p-6">
+                    <div className="text-center mb-6">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">{title}</h3>
+                        <p className="text-sm text-gray-600 leading-relaxed">{message}</p>
+                    </div>
+                    
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={onClose} 
+                            className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 active:bg-gray-300 transition-all duration-200 shadow-sm"
+                        >
+                            {cancelText}
+                        </button>
+                        <button 
+                            onClick={() => {
+                                onConfirm();
+                                onClose();
+                            }} 
+                            className={`flex-1 px-4 py-3 text-white rounded-xl font-bold transition-all duration-200 shadow-lg ${buttonConfig[variant]}`}
+                        >
+                            {confirmText}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -603,16 +665,19 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     };
 
     // Limpar todos os assentos
+    const [showClearSeatsModal, setShowClearSeatsModal] = useState(false);
+    
     const handleClearAllSeats = () => {
         if (!activeVehicle) {
             showToast('Selecione um veículo primeiro', 'warning');
             return;
         }
+        setShowClearSeatsModal(true);
+    };
 
-        if (!window.confirm('Tem certeza que deseja limpar todos os assentos deste veículo?')) {
-            return;
-        }
-
+    const confirmClearSeats = () => {
+        if (!activeVehicle) return;
+        
         const updatedVehicles = vehicles.map(v => {
             if (v.id === activeVehicle.id) {
                 return { ...v, seats: [] };
@@ -622,16 +687,24 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
         saveVehicles(updatedVehicles);
         showToast('Todos os assentos foram limpos', 'success');
+        setShowClearSeatsModal(false);
     };
 
+    const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
+    
     const handleDeleteVehicle = (vehicleId: string) => {
-        if(window.confirm('Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados.')) {
-            const updatedVehicles = vehicles.filter(v => v.id !== vehicleId);
-            saveVehicles(updatedVehicles);
-            if (activeVehicleId === vehicleId) {
-                setActiveVehicleId(updatedVehicles[0]?.id || null);
-            }
+        setVehicleToDelete(vehicleId);
+    };
+
+    const confirmDeleteVehicle = () => {
+        if (!vehicleToDelete) return;
+        
+        const updatedVehicles = vehicles.filter(v => v.id !== vehicleToDelete);
+        saveVehicles(updatedVehicles);
+        if (activeVehicleId === vehicleToDelete) {
+            setActiveVehicleId(updatedVehicles[0]?.id || null);
         }
+        setVehicleToDelete(null);
     };
 
     const handleEditVehicle = (vehicle: VehicleInstance) => {
@@ -661,9 +734,10 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         }
         
         const vehicleNumber = vehicles.length + 1;
+        const vehicleName = config.label.split('(')[0].trim();
         const newVehicle: VehicleInstance = {
             id: `v-${Date.now()}`,
-            name: `${config.label.split(' ')[0]} ${vehicleNumber}`,
+            name: `${vehicleName} ${vehicleNumber}`,
             type,
             config,
             seats: []
@@ -911,7 +985,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
     return (
         <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
-            <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name}?`} variant="warning" />
+            <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name} do assento ${seatToDelete?.seatNum}?`} variant="warning" />
+            <ConfirmationModal isOpen={showClearSeatsModal} onClose={() => setShowClearSeatsModal(false)} onConfirm={confirmClearSeats} title="Limpar Todos os Assentos" message="Tem certeza que deseja limpar todos os assentos deste veículo? Esta ação não pode ser desfeita." variant="warning" confirmText="Limpar" />
+            <ConfirmationModal isOpen={!!vehicleToDelete} onClose={() => setVehicleToDelete(null)} onConfirm={confirmDeleteVehicle} title="Remover Veículo" message="Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados." variant="danger" confirmText="Remover" />
             
             {/* Passenger Edit Modal */}
             {passengerEditId && (
@@ -1239,6 +1315,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // Delete/Remove States
     const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
     const [guestToRemove, setGuestToRemove] = useState<{roomId: string, guestId: string, guestName: string} | null>(null);
+    const [hotelToDelete, setHotelToDelete] = useState<string | null>(null);
 
     // Initialization & Migration
     useEffect(() => {
@@ -1350,7 +1427,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 saveHotels(cleanedHotels);
                 if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
             } else {
-                alert('Quarto lotado!');
+                showToast('Quarto lotado! Não há mais vagas disponíveis.', 'warning');
             }
         }
     };
@@ -1401,15 +1478,20 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     };
 
     const handleDeleteHotel = (hotelId: string) => {
-        if (window.confirm('Tem certeza que deseja remover este hotel? Todos os quartos e alocações serão perdidos.')) {
-            const updated = hotels.filter(h => h.id !== hotelId);
-            // Ensure at least one hotel remains
-            if (updated.length === 0) {
-                updated.push({ id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] });
-            }
-            saveHotels(updated);
-            if (activeHotelId === hotelId) setActiveHotelId(updated[0].id);
+        setHotelToDelete(hotelId);
+    };
+
+    const confirmDeleteHotel = () => {
+        if (!hotelToDelete) return;
+        
+        const updated = hotels.filter(h => h.id !== hotelToDelete);
+        // Ensure at least one hotel remains
+        if (updated.length === 0) {
+            updated.push({ id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] });
         }
+        saveHotels(updated);
+        if (activeHotelId === hotelToDelete) setActiveHotelId(updated[0].id);
+        setHotelToDelete(null);
     };
 
     const startRenameHotel = (hotelId: string, currentName: string) => {
@@ -1466,6 +1548,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         <div className="flex flex-col h-full overflow-hidden bg-white">
             <ConfirmationModal isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os passageiros voltarão para a lista." variant="danger" />
             <ConfirmationModal isOpen={!!guestToRemove} onClose={() => setGuestToRemove(null)} onConfirm={confirmRemoveGuest} title="Remover Passageiro" message={`Remover ${guestToRemove?.guestName} deste quarto?`} variant="warning" confirmText="Remover" />
+            <ConfirmationModal isOpen={!!hotelToDelete} onClose={() => setHotelToDelete(null)} onConfirm={confirmDeleteHotel} title="Remover Hotel" message="Tem certeza que deseja remover este hotel? Todos os quartos e alocações serão perdidos." variant="danger" confirmText="Remover" />
 
             {/* Header Config */}
             <div className="bg-slate-50 border-b p-4 flex flex-col gap-4 flex-shrink-0">
@@ -2185,6 +2268,15 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
 
     return (
         <div className="flex h-full overflow-hidden bg-white relative">
+            <ConfirmationModal 
+                isOpen={!!tripToDelete} 
+                onClose={() => setTripToDelete(null)} 
+                onConfirm={confirmDeleteTrip} 
+                title="Excluir Pacote" 
+                message="Tem certeza que deseja excluir este pacote? Esta ação não pode ser desfeita." 
+                variant="danger" 
+                confirmText="Excluir" 
+            />
             {/* LEFT SIDEBAR: TRIP LIST */}
             <div className={`
                 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out overflow-hidden
@@ -2492,7 +2584,18 @@ const AgencyDashboard: React.FC = () => {
       setIsEditingTrip(true); 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
-  const handleDeleteTrip = async (id: string) => { if (window.confirm('Tem certeza? Esta ação não pode ser desfeita.')) { await deleteTrip(id); showToast('Pacote excluído.', 'success'); } };
+  const [tripToDelete, setTripToDelete] = useState<string | null>(null);
+  
+  const handleDeleteTrip = async (id: string) => { 
+    setTripToDelete(id);
+  };
+  
+  const confirmDeleteTrip = async () => {
+    if (!tripToDelete) return;
+    await deleteTrip(tripToDelete); 
+    showToast('Pacote excluído.', 'success');
+    setTripToDelete(null);
+  };
   const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { 
       e.preventDefault(); 

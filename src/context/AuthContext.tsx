@@ -160,8 +160,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: email,
           role: mappedRole,
           avatar: profileData.avatar_url, 
-          cpf: profileData.cpf,
-          phone: profileData.phone,
+          cpf: profileData.cpf || null,
+          phone: profileData.phone || null,
+          birthDate: profileData.birth_date || null,
           favorites: profileData.favorites || [], // Ensure favorites are loaded here
           createdAt: profileData.created_at,
           address: profileData.address || {},
@@ -603,6 +604,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (userData.name) updates.full_name = userData.name;
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
+        if ((userData as Client).birthDate) updates.birth_date = (userData as Client).birthDate;
         if (userData.avatar) updates.avatar_url = userData.avatar;
         if (userData.address) updates.address = (userData as Client).address;
         if ((userData as Client).favorites) updates.favorites = (userData as Client).favorites;

@@ -184,7 +184,16 @@ export const TripList: React.FC = () => {
         case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
         case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
         default: // RELEVANCE
-           result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
+           // Shuffle for random order when no filters are applied
+           if (!q && !categoryParam && selectedTags.length === 0 && selectedTravelerTypes.length === 0 && !durationParam && !priceParam) {
+               // Fisher-Yates shuffle
+               for (let i = result.length - 1; i > 0; i--) {
+                   const j = Math.floor(Math.random() * (i + 1));
+                   [result[i], result[j]] = [result[j], result[i]];
+               }
+           } else {
+               result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
+           }
     }
 
     setFilteredTrips(result);

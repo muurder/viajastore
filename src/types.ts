@@ -38,6 +38,7 @@ export interface Client extends User {
   role: UserRole.CLIENT;
   cpf?: string;
   phone?: string;
+  birthDate?: string;
   favorites: string[];
   notificationsEnabled?: boolean;
   address?: Address;

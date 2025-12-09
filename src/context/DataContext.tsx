@@ -195,8 +195,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 email: c.email, 
                 role: UserRole.CLIENT, 
                 avatar: c.avatar_url, 
-                cpf: c.cpf, 
-                phone: c.phone, 
+                cpf: c.cpf || null, 
+                phone: c.phone || null, 
+                birthDate: c.birth_date || null,
                 // Populate favorites from the separate favorites table
                 favorites: allFavorites.filter((f: any) => f.user_id === c.id).map((f: any) => f.trip_id) || [], 
                 address: c.address || {}, 
@@ -783,6 +784,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data.email !== undefined) updates.email = data.email;
         if (data.phone !== undefined) updates.phone = data.phone;
         if (data.cpf !== undefined) updates.cpf = data.cpf;
+        if (data.birthDate !== undefined) updates.birth_date = data.birthDate;
         if (data.avatar !== undefined) updates.avatar_url = data.avatar;
         if (data.address !== undefined) updates.address = data.address;
         if (data.status !== undefined) updates.status = data.status;

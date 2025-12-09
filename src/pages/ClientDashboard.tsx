@@ -69,7 +69,8 @@ const ClientDashboard: React.FC = () => {
     name: '',
     email: '',
     phone: '',
-    cpf: ''
+    cpf: '',
+    birthDate: ''
   });
 
   // Fix: Initialize with empty defaults, will be populated by useEffect
@@ -126,7 +127,8 @@ const ClientDashboard: React.FC = () => {
               name: currentClient.name || '',
               email: currentClient.email || '',
               phone: currentClient.phone || '',
-              cpf: currentClient.cpf || ''
+              cpf: currentClient.cpf || '',
+              birthDate: currentClient.birthDate || ''
           });
           setAddressForm(currentClient.address || {
               zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: ''
@@ -240,6 +242,7 @@ const ClientDashboard: React.FC = () => {
         email: editForm.email,
         phone: editForm.phone,
         cpf: editForm.cpf,
+        birthDate: editForm.birthDate,
         address: addressForm
     });
     
@@ -623,6 +626,7 @@ const ClientDashboard: React.FC = () => {
                       <div> <label className="block text-sm font-bold text-gray-700 mb-2">Email</label> <input type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
                       <div> <label className="block text-sm font-bold text-gray-700 mb-2">CPF</label> <input value={editForm.cpf} onChange={(e) => setEditForm({...editForm, cpf: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" placeholder="000.000.000-00" /> </div>
                       <div> <label className="block text-sm font-bold text-gray-700 mb-2">Telefone</label> <input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
+                      <div> <label className="block text-sm font-bold text-gray-700 mb-2">Data de Nascimento</label> <input type="date" value={editForm.birthDate} onChange={(e) => setEditForm({...editForm, birthDate: e.target.value})} className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none" /> </div>
                   </div>
                   <div className="border-t pt-6">
                       <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
