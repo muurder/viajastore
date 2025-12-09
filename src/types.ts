@@ -166,9 +166,16 @@ export interface RoomConfig {
     guests: Guest[];
 }
 
+export interface HotelInstance {
+    id: string;
+    name: string;
+    rooms: RoomConfig[];
+}
+
 export interface OperationalData {
     transport?: TransportConfig;
-    rooming?: RoomConfig[];
+    rooming?: RoomConfig[]; // Deprecated (single list)
+    hotels?: HotelInstance[]; // New (multiple hotels)
     manualPassengers?: ManualPassenger[];
 }
 

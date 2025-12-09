@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { 
-  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance 
+  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance, HotelInstance
 } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
@@ -772,7 +772,12 @@ interface RoomingManagerProps {
 }
 
 const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients, onSave }) => {
-    const [rooms, setRooms] = useState<RoomConfig[]>(trip.operationalData?.rooming || []);
+    // State for Hotels
+    const [hotels, setHotels] = useState<HotelInstance[]>([]);
+    const [activeHotelId, setActiveHotelId] = useState<string | null>(null);
+    const [editHotelNameId, setEditHotelNameId] = useState<string | null>(null); // ID of hotel being renamed
+    const [tempHotelName, setTempHotelName] = useState('');
+
     const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(trip.operationalData?.manualPassengers || []);
     const [nameOverrides, setNameOverrides] = useState<Record<string, string>>((trip.operationalData as any)?.passengerNameOverrides || {});
     
@@ -785,11 +790,35 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // Batch Config
     const [invQty, setInvQty] = useState(1);
     const [invType, setInvType] = useState<'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE'>('DOUBLE');
-    const [invCustomCap, setInvCustomCap] = useState<number | ''>(''); // New state for custom capacity
+    const [invCustomCap, setInvCustomCap] = useState<number | ''>(''); 
 
     // Delete/Remove States
     const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
     const [guestToRemove, setGuestToRemove] = useState<{roomId: string, guestId: string, guestName: string} | null>(null);
+
+    // Initialization & Migration
+    useEffect(() => {
+        if (trip.operationalData?.hotels && trip.operationalData.hotels.length > 0) {
+            setHotels(trip.operationalData.hotels);
+            if (!activeHotelId) setActiveHotelId(trip.operationalData.hotels[0].id);
+        } else if (trip.operationalData?.rooming && trip.operationalData.rooming.length > 0) {
+            // Migrate legacy rooms
+            const legacyHotel: HotelInstance = {
+                id: 'h-legacy',
+                name: 'Hotel Principal',
+                rooms: trip.operationalData.rooming
+            };
+            setHotels([legacyHotel]);
+            setActiveHotelId(legacyHotel.id);
+        } else {
+            // Default empty state
+            const defaultHotel: HotelInstance = { id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] };
+            setHotels([defaultHotel]);
+            setActiveHotelId(defaultHotel.id);
+        }
+    }, [trip.operationalData]);
+
+    const activeHotel = useMemo(() => hotels.find(h => h.id === activeHotelId), [hotels, activeHotelId]);
 
     const allPassengers = useMemo(() => {
         const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
@@ -803,11 +832,16 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         return [...booked, ...manual];
     }, [bookings, clients, manualPassengers, nameOverrides]);
 
+    // Global Assignment Map across all hotels
     const assignedMap = useMemo(() => {
         const map = new Map<string, string>();
-        rooms.forEach(r => r.guests.forEach(g => map.set(g.bookingId, r.name)));
+        hotels.forEach(h => {
+            h.rooms.forEach(r => {
+                r.guests.forEach(g => map.set(g.bookingId, `${h.name} - ${r.name}`));
+            });
+        });
         return map;
-    }, [rooms]);
+    }, [hotels]);
 
     const filteredPassengers = useMemo(() => {
         if (!filterText) return allPassengers;
@@ -815,66 +849,137 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     }, [allPassengers, filterText]);
 
     // Actions
+    const saveHotels = (updatedHotels: HotelInstance[]) => {
+        setHotels(updatedHotels);
+        onSave({ ...trip.operationalData, hotels: updatedHotels });
+    };
+
     const handleBatchCreate = () => {
+        if (!activeHotelId) return;
         const newRooms: RoomConfig[] = [];
         const capMap = { 'DOUBLE': 2, 'TRIPLE': 3, 'QUAD': 4, 'COLLECTIVE': 6 };
         
-        // Determine capacity: custom input takes precedence if type is COLLECTIVE, otherwise use map
         let capacity = capMap[invType];
         if (invType === 'COLLECTIVE' && invCustomCap !== '' && Number(invCustomCap) > 0) {
             capacity = Number(invCustomCap);
         }
 
-        const startIdx = rooms.length + 1;
+        // Calculate start index based on active hotel's rooms
+        const currentRooms = activeHotel?.rooms || [];
+        const startIdx = currentRooms.length + 1;
+        
         for(let i=0; i<invQty; i++) {
             newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capacity, guests: [] });
         }
-        const updated = [...rooms, ...newRooms];
-        setRooms(updated);
-        onSave({ ...trip.operationalData, rooming: updated });
+
+        const updatedHotels = hotels.map(h => {
+            if (h.id === activeHotelId) {
+                return { ...h, rooms: [...h.rooms, ...newRooms] };
+            }
+            return h;
+        });
+        
+        saveHotels(updatedHotels);
     };
 
     const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
-        const target = rooms.find(r => r.id === roomId);
-        // Check if passenger already assigned elsewhere
-        if (assignedMap.has(passenger.id)) {
-             // Optional: Allow re-assignment? For now, assume sidebar controls availability or user removes first.
-             // But if dragging from sidebar, sidebar filters availability.
-        }
+        // Remove from ANY existing hotel/room first
+        const cleanedHotels = hotels.map(h => ({
+            ...h,
+            rooms: h.rooms.map(r => ({
+                ...r,
+                guests: r.guests.filter(g => g.bookingId !== passenger.id)
+            }))
+        }));
 
-        if (target && target.guests.length < target.capacity) {
-            // Remove from old room if exists
-            const prevRoomName = assignedMap.get(passenger.id);
-            let tempRooms = rooms;
-            if (prevRoomName) {
-                tempRooms = rooms.map(r => r.name === prevRoomName ? { ...r, guests: r.guests.filter(g => g.bookingId !== passenger.id) } : r);
+        // Find target hotel and room
+        const targetHotelIndex = cleanedHotels.findIndex(h => h.id === activeHotelId);
+        if (targetHotelIndex === -1) return;
+
+        const targetHotel = cleanedHotels[targetHotelIndex];
+        const targetRoomIndex = targetHotel.rooms.findIndex(r => r.id === roomId);
+        
+        if (targetRoomIndex !== -1) {
+            const room = targetHotel.rooms[targetRoomIndex];
+            if (room.guests.length < room.capacity) {
+                room.guests.push({ name: passenger.name, bookingId: passenger.id });
+                saveHotels(cleanedHotels);
+                if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
+            } else {
+                alert('Quarto lotado!');
             }
-
-            const updated = tempRooms.map(r => r.id === roomId ? { ...r, guests: [...r.guests, { name: passenger.name, bookingId: passenger.id }] } : r);
-            setRooms(updated);
-            onSave({ ...trip.operationalData, rooming: updated });
-            if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
-        } else {
-            alert('Quarto lotado!');
         }
     };
 
     const confirmRemoveGuest = () => {
-        if (!guestToRemove) return;
-        const updated = rooms.map(r => r.id === guestToRemove.roomId ? { ...r, guests: r.guests.filter(g => g.bookingId !== guestToRemove.guestId) } : r);
-        setRooms(updated);
-        onSave({ ...trip.operationalData, rooming: updated });
+        if (!guestToRemove || !activeHotelId) return;
+        
+        const updatedHotels = hotels.map(h => {
+            // Only search in the current hotel context logic, but since IDs are unique, we map all
+            // To be safe, we iterate rooms
+            return {
+                ...h,
+                rooms: h.rooms.map(r => {
+                    if (r.id === guestToRemove.roomId) {
+                        return { ...r, guests: r.guests.filter(g => g.bookingId !== guestToRemove.guestId) };
+                    }
+                    return r;
+                })
+            };
+        });
+        
+        saveHotels(updatedHotels);
         setGuestToRemove(null);
     };
     
     const confirmDeleteRoom = () => {
         if (!roomToDelete) return;
-        const updated = rooms.filter(r => r.id !== roomToDelete);
-        setRooms(updated);
-        onSave({ ...trip.operationalData, rooming: updated });
+        
+        const updatedHotels = hotels.map(h => ({
+            ...h,
+            rooms: h.rooms.filter(r => r.id !== roomToDelete)
+        }));
+        
+        saveHotels(updatedHotels);
         setRoomToDelete(null);
     };
     
+    // Hotel Management Actions
+    const handleAddHotel = () => {
+        const newHotel: HotelInstance = {
+            id: `h-${Date.now()}`,
+            name: `Hotel ${hotels.length + 1}`,
+            rooms: []
+        };
+        const updated = [...hotels, newHotel];
+        saveHotels(updated);
+        setActiveHotelId(newHotel.id);
+    };
+
+    const handleDeleteHotel = (hotelId: string) => {
+        if (window.confirm('Tem certeza que deseja remover este hotel? Todos os quartos e alocações serão perdidos.')) {
+            const updated = hotels.filter(h => h.id !== hotelId);
+            // Ensure at least one hotel remains
+            if (updated.length === 0) {
+                updated.push({ id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] });
+            }
+            saveHotels(updated);
+            if (activeHotelId === hotelId) setActiveHotelId(updated[0].id);
+        }
+    };
+
+    const startRenameHotel = (hotelId: string, currentName: string) => {
+        setEditHotelNameId(hotelId);
+        setTempHotelName(currentName);
+    };
+
+    const saveRenameHotel = () => {
+        if (!editHotelNameId) return;
+        const updated = hotels.map(h => h.id === editHotelNameId ? { ...h, name: tempHotelName } : h);
+        saveHotels(updated);
+        setEditHotelNameId(null);
+    };
+
     const handleAddManual = (p: ManualPassenger) => {
         const newManuals = [...manualPassengers, p];
         setManualPassengers(newManuals);
@@ -898,8 +1003,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     };
 
     // Stats
-    const totalCap = rooms.reduce((sum, r) => sum + r.capacity, 0);
-    const occupied = rooms.reduce((sum, r) => sum + r.guests.length, 0);
+    const totalCap = activeHotel?.rooms.reduce((sum, r) => sum + r.capacity, 0) || 0;
+    const occupied = activeHotel?.rooms.reduce((sum, r) => sum + r.guests.length, 0) || 0;
     const assignedCount = assignedMap.size;
     const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
 
@@ -919,45 +1024,86 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
             <ConfirmationModal isOpen={!!guestToRemove} onClose={() => setGuestToRemove(null)} onConfirm={confirmRemoveGuest} title="Remover Passageiro" message={`Remover ${guestToRemove?.guestName} deste quarto?`} variant="warning" confirmText="Remover" />
 
             {/* Header Config */}
-            <div className="bg-slate-50 border-b p-4 flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-gray-500 uppercase flex items-center mr-2"><Building size={14} className="mr-1"/> Config:</span>
-                    
-                    <div className="flex gap-2 mr-2">
-                        <QuickSelector type="DOUBLE" label="Single/Duplo" active={invType === 'DOUBLE'} />
-                        <QuickSelector type="TRIPLE" label="Triplo" active={invType === 'TRIPLE'} />
-                        <QuickSelector type="QUAD" label="Quádruplo" active={invType === 'QUAD'} />
-                        <QuickSelector type="COLLECTIVE" label="Personalizado" active={invType === 'COLLECTIVE'} />
-                    </div>
-
-                    {invType === 'COLLECTIVE' && (
-                        <div className="relative animate-[fadeIn_0.2s]">
-                            <input 
-                                type="number" 
-                                min="1" 
-                                placeholder="Cap." 
-                                value={invCustomCap} 
-                                onChange={e => setInvCustomCap(e.target.value === '' ? '' : parseInt(e.target.value))} 
-                                className="w-16 border rounded-lg p-1.5 text-center text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
-                            />
+            <div className="bg-slate-50 border-b p-4 flex flex-col gap-4 flex-shrink-0">
+                {/* Hotel Tabs Row */}
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                    {hotels.map(hotel => (
+                        <div 
+                            key={hotel.id}
+                            onClick={() => setActiveHotelId(hotel.id)}
+                            className={`
+                                flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border transition-all min-w-[140px] justify-between group
+                                ${activeHotelId === hotel.id ? 'bg-white border-primary-500 text-primary-700 shadow-sm ring-1 ring-primary-100' : 'bg-white/50 border-transparent hover:bg-white text-gray-600'}
+                            `}
+                        >
+                            {editHotelNameId === hotel.id ? (
+                                <input 
+                                    value={tempHotelName}
+                                    onChange={e => setTempHotelName(e.target.value)}
+                                    onBlur={saveRenameHotel}
+                                    onKeyDown={e => e.key === 'Enter' && saveRenameHotel()}
+                                    autoFocus
+                                    className="w-full text-xs font-bold bg-transparent outline-none border-b border-primary-300"
+                                />
+                            ) : (
+                                <div className="flex items-center gap-2 w-full">
+                                    <Building size={14} className={activeHotelId === hotel.id ? "text-primary-500" : "text-gray-400"} />
+                                    <span className="text-xs font-bold truncate">{hotel.name}</span>
+                                    {activeHotelId === hotel.id && (
+                                        <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={(e) => { e.stopPropagation(); startRenameHotel(hotel.id, hotel.name); }} className="text-gray-400 hover:text-blue-500"><Edit size={10}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteHotel(hotel.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={10}/></button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
-
-                    <div className="h-6 w-px bg-gray-300 mx-2"></div>
-
-                    <div className="flex items-center bg-white rounded-lg border border-gray-200 p-0.5">
-                        <button onClick={() => setInvQty(Math.max(1, invQty-1))} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-l-md font-bold">-</button>
-                        <span className="px-2 text-xs font-bold min-w-[20px] text-center">{invQty}</span>
-                        <button onClick={() => setInvQty(invQty+1)} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r-md font-bold">+</button>
-                    </div>
-
-                    <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-1 shadow-sm ml-2">
-                        <Plus size={14}/> Adicionar Quartos
+                    ))}
+                    <button onClick={handleAddHotel} className="p-2 rounded-lg bg-white border border-dashed border-gray-300 text-gray-400 hover:text-primary-600 hover:border-primary-300 transition-colors">
+                        <Plus size={16}/>
                     </button>
                 </div>
-                
-                <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
-                    <span>Vagas: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
+
+                {/* Room Config Row */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-gray-500 uppercase mr-2">Adicionar:</span>
+                        <div className="flex gap-2 mr-2">
+                            <QuickSelector type="DOUBLE" label="Single/Duplo" active={invType === 'DOUBLE'} />
+                            <QuickSelector type="TRIPLE" label="Triplo" active={invType === 'TRIPLE'} />
+                            <QuickSelector type="QUAD" label="Quádruplo" active={invType === 'QUAD'} />
+                            <QuickSelector type="COLLECTIVE" label="Personalizado" active={invType === 'COLLECTIVE'} />
+                        </div>
+
+                        {invType === 'COLLECTIVE' && (
+                            <div className="relative animate-[fadeIn_0.2s]">
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    placeholder="Cap." 
+                                    value={invCustomCap} 
+                                    onChange={e => setInvCustomCap(e.target.value === '' ? '' : parseInt(e.target.value))} 
+                                    className="w-16 border rounded-lg p-1.5 text-center text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
+                                />
+                            </div>
+                        )}
+
+                        <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+                        <div className="flex items-center bg-white rounded-lg border border-gray-200 p-0.5">
+                            <button onClick={() => setInvQty(Math.max(1, invQty-1))} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-l-md font-bold">-</button>
+                            <span className="px-2 text-xs font-bold min-w-[20px] text-center">{invQty}</span>
+                            <button onClick={() => setInvQty(invQty+1)} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r-md font-bold">+</button>
+                        </div>
+
+                        <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-1 shadow-sm ml-2">
+                            <Plus size={14}/> Criar
+                        </button>
+                    </div>
+                    
+                    <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
+                        <span>Total: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
+                    </div>
                 </div>
             </div>
 
@@ -987,24 +1133,24 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                     <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                          {filteredPassengers.map(p => {
-                             const assignedRoom = assignedMap.get(p.id);
+                             const assignedInfo = assignedMap.get(p.id); // "Hotel Name - Room Name"
                              const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
 
                              return (
                                  <div 
                                     key={p.id} 
-                                    draggable={!assignedRoom} 
+                                    draggable={!assignedInfo} 
                                     onDragStart={(e) => handleDragStart(e, p)} 
-                                    onClick={() => !assignedRoom && setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} 
+                                    onClick={() => !assignedInfo && setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} 
                                     className={`
                                         p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
-                                        ${assignedRoom ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
+                                        ${assignedInfo ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
                                         ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : ''}
                                     `}
                                  >
                                      <div className="flex items-center gap-3 overflow-hidden">
-                                         {!assignedRoom && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
-                                         {assignedRoom && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
+                                         {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                         {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                          
                                          {accompanyMatch ? (
@@ -1033,7 +1179,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                             </div>
                                         )}
                                      </div>
-                                     {assignedRoom && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{assignedRoom}</span>}
+                                     {assignedInfo && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]" title={assignedInfo}>{assignedInfo.split(' - ').pop()}</span>}
                                  </div>
                              );
                          })}
@@ -1043,46 +1189,50 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
                 {/* Right Grid */}
                 <div className="flex-1 bg-slate-100 overflow-y-auto p-6 custom-scrollbar">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
-                        {rooms.map(room => {
-                            const isFull = room.guests.length >= room.capacity;
-                            const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
-                            return (
-                                <div 
-                                    key={room.id} 
-                                    onDragOver={(e) => { e.preventDefault(); if(!isFull) setDragOverRoom(room.id); }}
-                                    onDragLeave={() => setDragOverRoom(null)}
-                                    onDrop={(e) => handleDrop(e, room.id)}
-                                    onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
-                                    className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
-                                >
-                                    <div className="p-3 border-b flex justify-between items-center bg-gray-50/50 w-full">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0 truncate">
-                                            <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
-                                            <div className="truncate flex-1">
-                                                <h5 className="font-bold text-gray-800 text-sm truncate" title={room.name}>{room.name}</h5>
-                                                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase"><span>{room.type}</span><span className={isFull?'text-green-600':'text-blue-600'}>{room.guests.length}/{room.capacity}</span></div>
+                    {activeHotel ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
+                            {activeHotel.rooms.map(room => {
+                                const isFull = room.guests.length >= room.capacity;
+                                const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
+                                return (
+                                    <div 
+                                        key={room.id} 
+                                        onDragOver={(e) => { e.preventDefault(); if(!isFull) setDragOverRoom(room.id); }}
+                                        onDragLeave={() => setDragOverRoom(null)}
+                                        onDrop={(e) => handleDrop(e, room.id)}
+                                        onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
+                                        className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
+                                    >
+                                        <div className="p-3 border-b flex justify-between items-center bg-gray-50/50 w-full">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0 truncate">
+                                                <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
+                                                <div className="truncate flex-1">
+                                                    <h5 className="font-bold text-gray-800 text-sm truncate" title={room.name}>{room.name}</h5>
+                                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase"><span>{room.type}</span><span className={isFull?'text-green-600':'text-blue-600'}>{room.guests.length}/{room.capacity}</span></div>
+                                                </div>
                                             </div>
+                                            <button onClick={(e) => {e.stopPropagation(); setRoomToDelete(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5 flex-shrink-0"><Trash2 size={16}/></button>
                                         </div>
-                                        <button onClick={(e) => {e.stopPropagation(); setRoomToDelete(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5 flex-shrink-0"><Trash2 size={16}/></button>
+                                        <div className="p-3 space-y-2 min-h-[80px]">
+                                            {room.guests.map(g => (
+                                                <div key={g.bookingId} className="bg-blue-50/50 px-3 py-2 rounded text-xs font-medium flex justify-between items-center group/guest border border-blue-100/50">
+                                                    <div className="flex items-center gap-2"><User size={12} className="text-blue-400"/><span className="truncate max-w-[120px]">{g.name}</span></div>
+                                                    <button onClick={(e)=>{e.stopPropagation(); setGuestToRemove({roomId: room.id, guestId: g.bookingId, guestName: g.name});}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
+                                                </div>
+                                            ))}
+                                            {Array.from({length: Math.max(0, room.capacity - room.guests.length)}).map((_,i) => (
+                                                <div key={i} className={`border-2 border-dashed rounded px-3 py-2 text-xs flex items-center justify-center gap-1 select-none ${isTarget ? 'border-primary-200 bg-primary-50 text-primary-600 font-bold' : 'border-gray-100 text-gray-300'}`}>
+                                                    {isTarget ? <><MousePointer2 size={12}/> Alocar Aqui</> : 'Vaga Livre'}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="p-3 space-y-2 min-h-[80px]">
-                                        {room.guests.map(g => (
-                                            <div key={g.bookingId} className="bg-blue-50/50 px-3 py-2 rounded text-xs font-medium flex justify-between items-center group/guest border border-blue-100/50">
-                                                <div className="flex items-center gap-2"><User size={12} className="text-blue-400"/><span className="truncate max-w-[120px]">{g.name}</span></div>
-                                                <button onClick={(e)=>{e.stopPropagation(); setGuestToRemove({roomId: room.id, guestId: g.bookingId, guestName: g.name});}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
-                                            </div>
-                                        ))}
-                                        {Array.from({length: Math.max(0, room.capacity - room.guests.length)}).map((_,i) => (
-                                            <div key={i} className={`border-2 border-dashed rounded px-3 py-2 text-xs flex items-center justify-center gap-1 select-none ${isTarget ? 'border-primary-200 bg-primary-50 text-primary-600 font-bold' : 'border-gray-100 text-gray-300'}`}>
-                                                {isTarget ? <><MousePointer2 size={12}/> Alocar Aqui</> : 'Vaga Livre'}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">Selecione ou adicione um hotel para gerenciar os quartos.</div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1185,11 +1335,28 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             }
 
             // ROOMING LIST
-            doc.addPage();
-            doc.setFontSize(14);
-            doc.text('Rooming List', 15, 20);
-            const roomData = opData.rooming?.map(r => [r.name, r.type, r.guests.map(g => g.name).join('\n')]) || [];
-            (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 30, theme: 'grid' });
+            // Iterate Hotels
+            if (opData.hotels && opData.hotels.length > 0) {
+                doc.addPage();
+                doc.setFontSize(14);
+                doc.text('Rooming List (Por Hotel)', 15, 20);
+                
+                opData.hotels.forEach((hotel, hIndex) => {
+                    if (hIndex > 0) doc.addPage();
+                    doc.setFontSize(12);
+                    doc.text(`Hotel: ${hotel.name}`, 15, 30);
+                    
+                    const roomData = hotel.rooms?.map(r => [r.name, r.type, r.guests.map(g => g.name).join('\n')]) || [];
+                    (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 40, theme: 'grid' });
+                });
+            } else {
+                // Legacy Rooming
+                doc.addPage();
+                doc.setFontSize(14);
+                doc.text('Rooming List', 15, 20);
+                const roomData = opData.rooming?.map(r => [r.name, r.type, r.guests.map(g => g.name).join('\n')]) || [];
+                (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 30, theme: 'grid' });
+            }
 
             // PAX LIST
             doc.addPage();
