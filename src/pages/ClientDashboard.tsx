@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address, AgencyReview, Agency, Trip } from '../types';
@@ -95,22 +95,42 @@ const ClientDashboard: React.FC = () => {
   const [greeting, setGreeting] = useState('');
 
   // --- Data Reactivity Fix: Refresh data on mount/focus ---
+  // Use ref to track if we're currently saving to avoid refresh loops
+  const isSavingRef = useRef(false);
+  const hasRefreshedRef = useRef(false);
+  
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
+
   const handleRefresh = useCallback(async () => {
+    // Skip refresh if currently saving to avoid loops
+    if (isSavingRef.current) return;
+    
     // Only refresh if user is a client and not currently loading auth
     if (!authLoading && user?.role === UserRole.CLIENT) {
       await refreshAllData(); // Calls DataContext's refreshUserData
       // FIX: Pass the current user object to reloadUser
       await reloadUser(user); // Reload AuthContext's user to get latest favorites/profile
     }
-  }, [authLoading, user, refreshAllData, reloadUser]);
+  }, [authLoading, user?.role, user?.id, refreshAllData, reloadUser]); // Use specific user properties instead of whole user object
 
   useEffect(() => {
-    handleRefresh(); // Initial fetch
+    // Only refresh on mount once, not on every user change
+    if (!authLoading && user?.role === UserRole.CLIENT && !hasRefreshedRef.current) {
+      hasRefreshedRef.current = true;
+      handleRefresh();
+    }
 
     // Add event listener for window focus
-    window.addEventListener('focus', handleRefresh);
-    return () => window.removeEventListener('focus', handleRefresh);
-  }, [handleRefresh]);
+    const handleFocus = () => {
+      if (!isSavingRef.current && hasRefreshedRef.current) {
+        handleRefresh();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [authLoading, user?.role, handleRefresh]); // Only depend on authLoading and role, not whole user object
   // --- END Data Reactivity Fix ---
 
   // Generate greeting on mount
@@ -237,18 +257,41 @@ const ClientDashboard: React.FC = () => {
     if (isSaving) return;
     
     setIsSaving(true);
-    const res = await updateUser({ 
-        name: editForm.name, 
-        email: editForm.email,
-        phone: editForm.phone,
-        cpf: editForm.cpf,
-        birthDate: editForm.birthDate,
-        address: addressForm
-    });
+    isSavingRef.current = true; // Set flag immediately to prevent refresh loops
     
-    setIsSaving(false);
-    if (res.success) showToast('Perfil atualizado com sucesso!', 'success');
-    else showToast('Erro ao atualizar: ' + res.error, 'error');
+    try {
+      const res = await updateUser({ 
+          name: editForm.name, 
+          email: editForm.email,
+          phone: editForm.phone,
+          cpf: editForm.cpf,
+          birthDate: editForm.birthDate,
+          address: addressForm
+      });
+      
+      if (res.success) {
+        showToast('Perfil atualizado com sucesso!', 'success');
+        // Don't manually refresh - Supabase subscription will handle it automatically
+        // Just reload the user data from AuthContext to update local state
+        // Use a small delay to let the DB update propagate and avoid loops
+        setTimeout(async () => {
+          if (user) {
+            await reloadUser(user);
+          }
+          // Reset flag after reload completes
+          isSavingRef.current = false;
+        }, 500);
+      } else {
+        showToast('Erro ao atualizar: ' + (res.error || 'Erro desconhecido'), 'error');
+        isSavingRef.current = false;
+      }
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      showToast('Erro ao atualizar perfil. Tente novamente.', 'error');
+      isSavingRef.current = false;
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
