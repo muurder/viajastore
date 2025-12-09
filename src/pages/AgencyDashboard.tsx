@@ -942,6 +942,40 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     // Derived State: Active Vehicle
     const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
 
+    // Fetch passenger data from database
+    const [dbPassengers, setDbPassengers] = useState<Map<string, any>>(new Map());
+    
+    useEffect(() => {
+        const fetchPassengers = async () => {
+            try {
+                const { supabase } = await import('../services/supabase');
+                if (supabase && bookings.length > 0) {
+                    const bookingIds = bookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
+                    if (bookingIds.length > 0) {
+                        const { data, error } = await supabase
+                            .from('booking_passengers')
+                            .select('*')
+                            .in('booking_id', bookingIds)
+                            .order('booking_id', { ascending: true })
+                            .order('passenger_index', { ascending: true });
+                        
+                        if (!error && data) {
+                            const map = new Map<string, any>();
+                            data.forEach(p => {
+                                const key = `${p.booking_id}-${p.passenger_index}`;
+                                map.set(key, p);
+                            });
+                            setDbPassengers(map);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching passengers:', err);
+            }
+        };
+        fetchPassengers();
+    }, [bookings]);
+
     // Derived Passengers List
     const opData = trip.operationalData as any;
     const nameOverrides = opData?.passengerNameOverrides || {};
@@ -952,16 +986,30 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
             return Array.from({ length: b.passengers }).map((_, i) => {
                 const id = `${b.id}-${i}`;
+                // Try database first, then operational data, then fallback
+                const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
+                const dbName = dbPassenger?.full_name;
+                const detailName = passengerDetails[id]?.name || nameOverrides[id];
                 const originalName = i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`;
-                // Use details name if available, else override, else original
-                const detailName = passengerDetails[id]?.name;
+                
+                // Use database name first, then details, then override, then original
+                const finalName = dbName || detailName || nameOverrides[id] || originalName;
+                
                 return { 
                     id, 
                     bookingId: b.id, 
-                    name: detailName || nameOverrides[id] || originalName, 
+                    name: finalName,
+                    isMain: i === 0,
+                    isAccompaniment: i > 0,
                     isManual: false,
-                    // Pass extra details for display
-                    details: passengerDetails[id]
+                    passengerIndex: i,
+                    // Pass extra details for display - prioritize database
+                    details: dbPassenger ? {
+                        name: dbPassenger.full_name,
+                        document: dbPassenger.cpf,
+                        phone: dbPassenger.whatsapp,
+                        birthDate: dbPassenger.birth_date
+                    } : passengerDetails[id]
                 };
             });
         });
@@ -970,10 +1018,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             bookingId: p.id, 
             name: passengerDetails[p.id]?.name || nameOverrides[p.id] || p.name, 
             isManual: true,
+            isMain: false,
+            isAccompaniment: false,
             details: passengerDetails[p.id]
         }));
         return [...booked, ...manual];
-    }, [bookings, clients, manualPassengers, nameOverrides, passengerDetails]);
+    }, [bookings, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers]);
 
     // Global Assignment Map (Passenger ID -> Vehicle Name + Seat)
     const globalAssignmentMap = useMemo(() => {
@@ -1020,9 +1070,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         const targetVehicleIndex = cleanedVehicles.findIndex(v => v.id === activeVehicle.id);
         if (targetVehicleIndex === -1) return;
 
+        // Get passenger name from database or details first
+        const passengerName = passenger.details?.name || passenger.name;
+        
         const newSeat: PassengerSeat = {
             seatNumber: seatNum,
-            passengerName: passenger.name,
+            passengerName: passengerName,
             bookingId: passenger.id,
             status: 'occupied'
         };
@@ -1369,12 +1422,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     // Passenger Editing Logic
     const handleOpenPassengerEdit = (p: any) => {
         setPassengerEditId(p.id);
-        const details = passengerDetails?.[p.id]; // Access safely
+        // Prioritize database data, then operational data, then passenger name
+        const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+        const details = p.details || passengerDetails?.[p.id]; // Access safely
         setPassengerEditForm({
-            name: details?.name || p.name,
-            document: details?.document || '',
-            phone: details?.phone || '',
-            birthDate: details?.birthDate || ''
+            name: dbPassenger?.full_name || details?.name || p.name || '',
+            document: dbPassenger?.cpf || details?.document || '',
+            phone: dbPassenger?.whatsapp || details?.phone || '',
+            birthDate: dbPassenger?.birth_date || details?.birthDate || ''
         });
     };
 
@@ -1570,10 +1625,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         const assignedInfo = globalAssignmentMap.get(p.id);
                         const isSelected = selectedPassenger?.id === p.id;
                         
-                        const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
-                        
-                        // Determine display name (prefer override/detail over raw name)
-                        const displayName = p.details?.name || p.name;
+                        // Get passenger name from database first, then details, then name
+                        const passengerName = p.details?.name || p.name;
+                        const displayInitial = passengerName.charAt(0).toUpperCase();
 
                         return (
                             <div 
@@ -1590,12 +1644,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 <div className="flex items-center gap-3 overflow-hidden pr-6">
                                     {!isAssigned && <Grip size={12} className={isSelected ? 'text-white/50' : 'text-gray-300'}/>}
                                     {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayName.charAt(0).toUpperCase()}</div>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
                                     
                                     {/* Always show full name on top, type below */}
                                     <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
                                         <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                                            {displayName || p.name}
+                                            {passengerName}
                                         </span>
                                         <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
                                             {p.isManual ? (
@@ -1603,10 +1657,10 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
                                                     <span className="truncate">Manual</span>
                                                 </>
-                                            ) : accompanyMatch ? (
+                                            ) : p.isAccompaniment ? (
                                                 <>
                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                    <span className="truncate">Acompanhante {accompanyMatch[1]} • Via: {accompanyMatch[2]}</span>
+                                                    <span className="truncate">Acompanhante {p.passengerIndex}</span>
                                                 </>
                                             ) : (
                                                 <span className={`text-[10px] uppercase font-bold tracking-wide ${isSelected ? 'text-white/90' : 'text-primary-600/70'}`}>
@@ -1852,17 +1906,78 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
     const activeHotel = useMemo(() => hotels.find(h => h.id === activeHotelId), [hotels, activeHotelId]);
 
+    // Fetch passenger data from database
+    const [dbPassengers, setDbPassengers] = useState<Map<string, any>>(new Map());
+    
+    useEffect(() => {
+        const fetchPassengers = async () => {
+            try {
+                const { supabase } = await import('../services/supabase');
+                if (supabase && bookings.length > 0) {
+                    const bookingIds = bookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
+                    if (bookingIds.length > 0) {
+                        const { data, error } = await supabase
+                            .from('booking_passengers')
+                            .select('*')
+                            .in('booking_id', bookingIds)
+                            .order('booking_id', { ascending: true })
+                            .order('passenger_index', { ascending: true });
+                        
+                        if (!error && data) {
+                            const map = new Map<string, any>();
+                            data.forEach(p => {
+                                const key = `${p.booking_id}-${p.passenger_index}`;
+                                map.set(key, p);
+                            });
+                            setDbPassengers(map);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching passengers:', err);
+            }
+        };
+        fetchPassengers();
+    }, [bookings]);
+
     const allPassengers = useMemo(() => {
         const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
             const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
             return Array.from({ length: b.passengers }).map((_, i) => {
                 const id = `${b.id}-${i}`;
-                return { id, bookingId: b.id, name: nameOverrides[id] || (i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`), isManual: false };
+                // Try database first, then override, then fallback
+                const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
+                const dbName = dbPassenger?.full_name;
+                const originalName = i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`;
+                const finalName = dbName || nameOverrides[id] || originalName;
+                
+                return { 
+                    id, 
+                    bookingId: b.id, 
+                    name: finalName,
+                    isMain: i === 0,
+                    isAccompaniment: i > 0,
+                    isManual: false,
+                    passengerIndex: i,
+                    details: dbPassenger ? {
+                        name: dbPassenger.full_name,
+                        document: dbPassenger.cpf,
+                        phone: dbPassenger.whatsapp,
+                        birthDate: dbPassenger.birth_date
+                    } : undefined
+                };
             });
         });
-        const manual = manualPassengers.map(p => ({ id: p.id, bookingId: p.id, name: nameOverrides[p.id] || p.name, isManual: true }));
+        const manual = manualPassengers.map(p => ({ 
+            id: p.id, 
+            bookingId: p.id, 
+            name: nameOverrides[p.id] || p.name, 
+            isManual: true,
+            isMain: false,
+            isAccompaniment: false
+        }));
         return [...booked, ...manual];
-    }, [bookings, clients, manualPassengers, nameOverrides]);
+    }, [bookings, clients, manualPassengers, nameOverrides, dbPassengers]);
 
     // Global Assignment Map across all hotels
     const assignedMap = useMemo(() => {
@@ -1914,7 +2029,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         saveHotels(updatedHotels);
     };
 
-    const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
+    const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string, details?: any }) => {
         // Remove from ANY existing hotel/room first
         const cleanedHotels = hotels.map(h => ({
             ...h,
@@ -1934,7 +2049,9 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         if (targetRoomIndex !== -1) {
             const room = targetHotel.rooms[targetRoomIndex];
             if (room.guests.length < room.capacity) {
-                room.guests.push({ name: passenger.name, bookingId: passenger.id });
+                // Get passenger name from details first
+                const passengerName = passenger.details?.name || passenger.name;
+                room.guests.push({ name: passengerName, bookingId: passenger.id });
                 saveHotels(cleanedHotels);
                 if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
             } else {
@@ -2179,7 +2296,12 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                     key={p.id} 
                                     draggable={!assignedInfo} 
                                     onDragStart={(e) => handleDragStart(e, p)} 
-                                    onClick={() => !assignedInfo && setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} 
+                                    onClick={() => {
+                                        if (!assignedInfo) {
+                                            const passengerName = p.details?.name || p.name;
+                                            setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
+                                        }
+                                    }} 
                                     className={`
                                         p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
                                         ${assignedInfo ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
@@ -2189,31 +2311,38 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                      <div className="flex items-center gap-3 overflow-hidden">
                                          {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
                                          {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
-                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                         
-                                         {/* Always show full name on top, type below */}
-                                         <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                             <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
-                                                 {p.details?.name || p.name}
-                                             </span>
-                                             <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
-                                                 {p.isManual ? (
-                                                     <>
-                                                         <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                         <span className="truncate">Manual</span>
-                                                     </>
-                                                 ) : accompanyMatch ? (
-                                                     <>
-                                                         <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                         <span className="truncate">Acompanhante {accompanyMatch[1]} • Via: {accompanyMatch[2]}</span>
-                                                     </>
-                                                 ) : (
-                                                     <span className={`text-[10px] uppercase font-bold tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                         Titular
-                                                     </span>
-                                                 )}
-                                             </div>
-                                         </div>
+                                         {(() => {
+                                             const passengerName = p.details?.name || p.name;
+                                             return (
+                                                 <>
+                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{passengerName.charAt(0).toUpperCase()}</div>
+                                                     
+                                                     {/* Always show full name on top, type below */}
+                                                     <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                                         <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                             {passengerName}
+                                                         </span>
+                                                         <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
+                                                             {p.isManual ? (
+                                                                 <>
+                                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                                     <span className="truncate">Manual</span>
+                                                                 </>
+                                                             ) : p.isAccompaniment ? (
+                                                                 <>
+                                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                                     <span className="truncate">Acompanhante {p.passengerIndex}</span>
+                                                                 </>
+                                                             ) : (
+                                                                 <span className={`text-[10px] uppercase font-bold tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                                     Titular
+                                                                 </span>
+                                                             )}
+                                                         </div>
+                                                     </div>
+                                                 </>
+                                             );
+                                         })()}
                                      </div>
                                      {assignedInfo && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]" title={assignedInfo}>{assignedInfo.split(' - ').pop()}</span>}
                                  </div>
