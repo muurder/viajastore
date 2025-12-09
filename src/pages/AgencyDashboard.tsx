@@ -11,7 +11,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Minus
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -628,6 +628,13 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 };
 
 // 2. ROOMING MANAGER (Config em Lote + Smart Click)
+const ROOM_PRESETS = [
+    { id: 'SINGLE', label: 'Single', cap: 1 },
+    { id: 'DOUBLE', label: 'Duplo', cap: 2 },
+    { id: 'TRIPLE', label: 'Triplo', cap: 3 },
+    { id: 'QUAD', label: 'Quádruplo', cap: 4 },
+];
+
 interface RoomingManagerProps {
     trip: Trip; 
     bookings: Booking[]; 
@@ -646,9 +653,13 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     const [dragOverRoom, setDragOverRoom] = useState<string | null>(null);
     const [filterText, setFilterText] = useState('');
     
-    // Batch Config
-    const [invQty, setInvQty] = useState(1);
-    const [invType, setInvType] = useState<'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE'>('DOUBLE');
+    // Improved Batch Config State
+    const [creationMode, setCreationMode] = useState<'PRESET' | 'CUSTOM'>('PRESET');
+    const [selectedPresetCap, setSelectedPresetCap] = useState<number>(2); // Default Double
+    const [customCapacity, setCustomCapacity] = useState<number>(5);
+    const [roomQuantity, setRoomQuantity] = useState<number>(1);
+
+    const activeCapacity = creationMode === 'PRESET' ? selectedPresetCap : customCapacity;
 
     const allPassengers = useMemo(() => {
         const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
@@ -676,10 +687,22 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // Actions
     const handleBatchCreate = () => {
         const newRooms: RoomConfig[] = [];
-        const capMap = { 'DOUBLE': 2, 'TRIPLE': 3, 'QUAD': 4, 'COLLECTIVE': 6 };
+        
+        // Map capacity to strict ENUM type
+        let typeStr: 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE' = 'COLLECTIVE';
+        if (activeCapacity <= 2) typeStr = 'DOUBLE';
+        else if (activeCapacity === 3) typeStr = 'TRIPLE';
+        else if (activeCapacity === 4) typeStr = 'QUAD';
+        
         const startIdx = rooms.length + 1;
-        for(let i=0; i<invQty; i++) {
-            newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capMap[invType], guests: [] });
+        for(let i=0; i<roomQuantity; i++) {
+            newRooms.push({ 
+                id: crypto.randomUUID(), 
+                name: `Quarto ${startIdx+i}`, 
+                type: typeStr, 
+                capacity: activeCapacity, 
+                guests: [] 
+            });
         }
         const updated = [...rooms, ...newRooms];
         setRooms(updated);
@@ -688,12 +711,6 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
     const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
         const target = rooms.find(r => r.id === roomId);
-        // Check if passenger already assigned elsewhere
-        if (assignedMap.has(passenger.id)) {
-             // Optional: Allow re-assignment? For now, assume sidebar controls availability or user removes first.
-             // But if dragging from sidebar, sidebar filters availability.
-        }
-
         if (target && target.guests.length < target.capacity) {
             // Remove from old room if exists
             const prevRoomName = assignedMap.get(passenger.id);
@@ -755,16 +772,84 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white">
-            {/* Header Config */}
-            <div className="bg-slate-50 border-b p-4 flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
-                <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border shadow-sm">
-                    <span className="text-xs font-bold text-gray-500 uppercase ml-2"><Building size={14}/> Config:</span>
-                    <input type="number" min="1" max="20" value={invQty} onChange={e => setInvQty(parseInt(e.target.value)||1)} className="w-12 border rounded p-1 text-center text-sm font-bold"/>
-                    <select value={invType} onChange={e => setInvType(e.target.value as any)} className="border rounded p-1 text-sm"><option value="DOUBLE">Duplo</option><option value="TRIPLE">Triplo</option><option value="QUAD">Quádruplo</option><option value="COLLECTIVE">Coletivo</option></select>
-                    <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-primary-700 flex items-center gap-1"><Plus size={14}/> Add</button>
+            {/* Improved Header Config */}
+            <div className="bg-slate-50 border-b p-4 flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0 shadow-sm z-20">
+                <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto justify-center sm:justify-start">
+                    
+                    {/* Quick Selectors & Custom Input */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                        <div className="flex items-center gap-2">
+                            {ROOM_PRESETS.map(preset => (
+                                <button
+                                    key={preset.id}
+                                    onClick={() => { setCreationMode('PRESET'); setSelectedPresetCap(preset.cap); }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                        creationMode === 'PRESET' && selectedPresetCap === preset.cap
+                                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                            : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {preset.label}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setCreationMode('CUSTOM')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                    creationMode === 'CUSTOM'
+                                        ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                        : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'
+                                }`}
+                            >
+                                Personalizado
+                            </button>
+                        </div>
+
+                        {creationMode === 'CUSTOM' && (
+                            <div className="flex items-center gap-2 border-l pl-3 animate-[fadeIn_0.2s]">
+                                <span className="text-xs font-bold text-gray-500 uppercase">Capacidade:</span>
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    max="20" 
+                                    value={customCapacity} 
+                                    onChange={e => setCustomCapacity(parseInt(e.target.value) || 1)} 
+                                    className="w-14 border border-gray-300 rounded-md p-1 text-center text-sm font-bold focus:ring-1 focus:ring-primary-500 outline-none"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Quantity Stepper & Add Button */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center bg-white border rounded-lg overflow-hidden shadow-sm">
+                            <button 
+                                onClick={() => setRoomQuantity(Math.max(1, roomQuantity - 1))} 
+                                className="px-3 py-1.5 hover:bg-gray-100 text-gray-600 transition-colors"
+                            >
+                                <Minus size={14}/>
+                            </button>
+                            <span className="w-8 text-center text-sm font-bold text-gray-800 border-x border-gray-100">{roomQuantity}</span>
+                            <button 
+                                onClick={() => setRoomQuantity(Math.min(10, roomQuantity + 1))} 
+                                className="px-3 py-1.5 hover:bg-gray-100 text-gray-600 transition-colors"
+                            >
+                                <Plus size={14}/>
+                            </button>
+                        </div>
+                        
+                        <button 
+                            onClick={handleBatchCreate} 
+                            className="bg-primary-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-2 shadow-md transition-transform active:scale-95"
+                        >
+                            <Plus size={16}/> Adicionar Quartos
+                        </button>
+                    </div>
                 </div>
+
                 <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
-                    <span>Vagas: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
+                    <span>Vagas: <b>{totalCap}</b></span>
+                    <span>Ocupado: <b className="text-blue-600">{occupied}</b></span>
+                    <span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
                 </div>
             </div>
 
