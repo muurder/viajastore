@@ -1645,10 +1645,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         const isSelected = selectedPassenger?.id === p.id;
                         
                         // Get passenger name from database first, then details, then name
-                        let passengerName = p.details?.name || p.name || '';
-                        // If name is "Acompanhante X (...)", use empty and let the label show
-                        if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                            passengerName = p.details?.name || '';
+                        // When selected, use the name from selectedPassenger to ensure consistency
+                        let passengerName: string;
+                        if (isSelected && selectedPassenger?.name) {
+                            // Use the name from selectedPassenger when selected
+                            passengerName = selectedPassenger.name;
+                        } else {
+                            // Calculate name normally when not selected
+                            passengerName = p.details?.name || p.name || '';
+                            // If name is "Acompanhante X (...)", use empty and let the label show
+                            if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                                passengerName = p.details?.name || '';
+                            }
                         }
                         const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                         const displayInitial = displayName.charAt(0).toUpperCase();
@@ -2336,7 +2344,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                          {filteredPassengers.map(p => {
                              const assignedInfo = assignedMap.get(p.id); // "Hotel Name - Room Name"
-                             const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
+                             const isSelected = selectedPassenger?.id === p.id;
 
                              return (
                                  <div 
@@ -2368,20 +2376,29 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                          {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
                                          {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          {(() => {
-                                             let passengerName = p.details?.name || p.name || '';
-                                             // If name is "Acompanhante X (...)", use empty and let the label show
-                                             if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                                 passengerName = p.details?.name || '';
+                                             const isSelected = selectedPassenger?.id === p.id;
+                                             // When selected, use the name from selectedPassenger to ensure consistency
+                                             let passengerName: string;
+                                             if (isSelected && selectedPassenger?.name) {
+                                                 // Use the name from selectedPassenger when selected
+                                                 passengerName = selectedPassenger.name;
+                                             } else {
+                                                 // Calculate name normally when not selected
+                                                 passengerName = p.details?.name || p.name || '';
+                                                 // If name is "Acompanhante X (...)", use empty and let the label show
+                                                 if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                                                     passengerName = p.details?.name || '';
+                                                 }
                                              }
                                              const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                                              const displayInitial = displayName.charAt(0).toUpperCase();
                                              return (
                                                  <>
-                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
+                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
                                                      
                                                      {/* Always show full name on top, type below */}
-                                                     <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                                         <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                     <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
+                                                         <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
                                                              {displayName}
                                                          </span>
                                                          <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
