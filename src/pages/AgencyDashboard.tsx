@@ -10,7 +10,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Edit3, Phone
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Edit3, Phone, Briefcase
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -536,12 +536,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const handleOpenPassengerEdit = (p: any) => {
         setEditingPassenger({ id: p.id, name: p.name });
         // Load existing details or blank
-        const details = passengerDetails[p.id] || {};
+        const details = passengerDetails[p.id];
         setPassengerForm({
-            name: details.name || p.name,
-            doc: details.doc || '',
-            phone: details.phone || '',
-            email: details.email || ''
+            name: details?.name || p.name,
+            doc: details?.doc || '',
+            phone: details?.phone || '',
+            email: details?.email || ''
         });
     };
 
@@ -949,3 +949,800 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 const id = `${b.id}-${i}`;
                 return { id, bookingId: b.id, name: nameOverrides[id] || (i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`), isManual: false };
             });
+        });
+        const manual = manualPassengers.map(p => ({ id: p.id, bookingId: p.id, name: nameOverrides[p.id] || p.name, isManual: true }));
+        return [...booked, ...manual];
+    }, [bookings, clients, manualPassengers, nameOverrides]);
+
+    // Global Assigned Map (Checks ALL hotels to remove from sidebar)
+    const assignedMap = useMemo(() => {
+        const map = new Map<string, string>();
+        hotels.forEach(hotel => {
+            hotel.rooms.forEach(r => r.guests.forEach(g => map.set(g.bookingId, `${hotel.name} - ${r.name}`)));
+        });
+        return map;
+    }, [hotels]);
+
+    const filteredPassengers = useMemo(() => {
+        if (!filterText) return allPassengers;
+        return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
+    }, [allPassengers, filterText]);
+
+    // Actions
+    const saveHotels = (updatedHotels: HotelInstance[]) => {
+        setHotels(updatedHotels);
+        onSave({ ...trip.operationalData, hotels: updatedHotels });
+    };
+
+    const handleAddHotel = () => {
+        const newHotel: HotelInstance = { id: `h-${Date.now()}`, name: `Hotel ${hotels.length + 1}`, rooms: [] };
+        const updated = [...hotels, newHotel];
+        saveHotels(updated);
+        setActiveHotelId(newHotel.id);
+    };
+
+    const handleDeleteHotel = (hotelId: string) => {
+        if (window.confirm('Excluir este local de hospedagem? Todos os passageiros alocados aqui voltarão para a lista.')) {
+            const updated = hotels.filter(h => h.id !== hotelId);
+            saveHotels(updated);
+            if (activeHotelId === hotelId) setActiveHotelId(updated[0]?.id || null);
+        }
+    };
+
+    const handleRenameHotel = (hotelId: string) => {
+        setEditHotelNameId(hotelId);
+        setTempHotelName(hotels.find(h => h.id === hotelId)?.name || '');
+    };
+
+    const saveHotelName = () => {
+        if (editHotelNameId) {
+            const updated = hotels.map(h => h.id === editHotelNameId ? { ...h, name: tempHotelName } : h);
+            saveHotels(updated);
+            setEditHotelNameId(null);
+        }
+    };
+
+    const handleBatchCreate = () => {
+        if (!activeHotel) return;
+        
+        const newRooms: RoomConfig[] = [];
+        const capMap = { 'DOUBLE': 2, 'TRIPLE': 3, 'QUAD': 4, 'COLLECTIVE': 6 };
+        
+        let capacity = capMap[invType];
+        if (invType === 'COLLECTIVE' && invCustomCap !== '' && Number(invCustomCap) > 0) {
+            capacity = Number(invCustomCap);
+        }
+
+        const startIdx = activeHotel.rooms.length + 1;
+        for(let i=0; i<invQty; i++) {
+            newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capacity, guests: [] });
+        }
+        
+        const updatedHotels = hotels.map(h => {
+            if (h.id === activeHotelId) {
+                return { ...h, rooms: [...h.rooms, ...newRooms] };
+            }
+            return h;
+        });
+        saveHotels(updatedHotels);
+    };
+
+    const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
+        if (!activeHotel) return;
+        const targetRoomIndex = activeHotel.rooms.findIndex(r => r.id === roomId);
+        if (targetRoomIndex === -1) return;
+        
+        const targetRoom = activeHotel.rooms[targetRoomIndex];
+
+        // Check if passenger already assigned (Globally)
+        if (assignedMap.has(passenger.id)) {
+             // Logic to remove from previous room could be complex across hotels.
+             // For now, assume drag/drop only enabled for unassigned.
+             // But if we want move:
+             const prevHotel = hotels.find(h => h.rooms.some(r => r.guests.some(g => g.bookingId === passenger.id)));
+             if (prevHotel) {
+                 // Remove from old
+                 const updatedHotels = hotels.map(h => {
+                     if (h.id === prevHotel.id) {
+                         return { 
+                             ...h, 
+                             rooms: h.rooms.map(r => ({
+                                 ...r,
+                                 guests: r.guests.filter(g => g.bookingId !== passenger.id)
+                             }))
+                         };
+                     }
+                     return h;
+                 });
+                 // Add to new (needs careful index handling since 'updatedHotels' is fresh)
+                 // Simplest is to save removal first, then add. Or do in one pass.
+                 // Let's do one pass logic locally
+             }
+        }
+
+        if (targetRoom.guests.length < targetRoom.capacity) {
+            // Remove from ANY room in ANY hotel first
+            const cleanedHotels = hotels.map(h => ({
+                ...h,
+                rooms: h.rooms.map(r => ({
+                    ...r,
+                    guests: r.guests.filter(g => g.bookingId !== passenger.id)
+                }))
+            }));
+
+            // Add to target
+            const hotelIndex = cleanedHotels.findIndex(h => h.id === activeHotelId);
+            const roomIndex = cleanedHotels[hotelIndex].rooms.findIndex(r => r.id === roomId);
+            cleanedHotels[hotelIndex].rooms[roomIndex].guests.push({ name: passenger.name, bookingId: passenger.id });
+
+            saveHotels(cleanedHotels);
+            if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
+        } else {
+            alert('Quarto lotado!');
+        }
+    };
+
+    const confirmRemoveGuest = () => {
+        if (!guestToRemove || !activeHotel) return;
+        const updatedHotels = hotels.map(h => {
+            if (h.id === activeHotelId) {
+                return {
+                    ...h,
+                    rooms: h.rooms.map(r => r.id === guestToRemove.roomId ? { ...r, guests: r.guests.filter(g => g.bookingId !== guestToRemove.guestId) } : r)
+                };
+            }
+            return h;
+        });
+        saveHotels(updatedHotels);
+        setGuestToRemove(null);
+    };
+    
+    const confirmDeleteRoom = () => {
+        if (!roomToDelete || !activeHotel) return;
+        const updatedHotels = hotels.map(h => {
+            if (h.id === activeHotelId) {
+                return { ...h, rooms: h.rooms.filter(r => r.id !== roomToDelete) };
+            }
+            return h;
+        });
+        saveHotels(updatedHotels);
+        setRoomToDelete(null);
+    };
+    
+    const handleAddManual = (p: ManualPassenger) => {
+        const newManuals = [...manualPassengers, p];
+        setManualPassengers(newManuals);
+        onSave({ ...trip.operationalData, manualPassengers: newManuals });
+    };
+
+    // Drag Handlers
+    const handleDragStart = (e: React.DragEvent, passenger: any) => {
+        e.dataTransfer.setData('application/json', JSON.stringify(passenger));
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDrop = (e: React.DragEvent, roomId: string) => {
+        e.preventDefault();
+        setDragOverRoom(null);
+        try {
+            const data = e.dataTransfer.getData('application/json');
+            const passenger = JSON.parse(data);
+            if (passenger?.id) handleAssign(roomId, passenger);
+        } catch (err) {}
+    };
+
+    // Stats
+    const totalCap = activeHotel?.rooms.reduce((sum, r) => sum + r.capacity, 0) || 0;
+    const occupied = activeHotel?.rooms.reduce((sum, r) => sum + r.guests.length, 0) || 0;
+    const assignedCount = assignedMap.size;
+    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
+
+    // Helper for Quick Selectors
+    const QuickSelector = ({ type, label, active }: { type: string; label: string; active: boolean }) => (
+        <button 
+            onClick={() => setInvType(type as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${active ? 'bg-primary-600 text-white border-primary-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+        >
+            {label}
+        </button>
+    );
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden bg-white">
+            <ConfirmationModal isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os passageiros voltarão para a lista." variant="danger" />
+            <ConfirmationModal isOpen={!!guestToRemove} onClose={() => setGuestToRemove(null)} onConfirm={confirmRemoveGuest} title="Remover Passageiro" message={`Remover ${guestToRemove?.guestName} deste quarto?`} variant="warning" confirmText="Remover" />
+
+            {/* Hotel Tabs */}
+            <div className="flex items-center bg-white border-b border-gray-200 px-4 py-2 gap-2 overflow-x-auto scrollbar-hide flex-shrink-0">
+                {hotels.map(hotel => (
+                    <div 
+                        key={hotel.id} 
+                        onClick={() => setActiveHotelId(hotel.id)}
+                        className={`
+                            flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 cursor-pointer transition-all min-w-[120px] justify-between group
+                            ${activeHotelId === hotel.id ? 'border-primary-500 text-primary-600 bg-primary-50 font-bold' : 'border-transparent text-gray-500 hover:bg-gray-50'}
+                        `}
+                    >
+                        {editHotelNameId === hotel.id ? (
+                            <div className="flex items-center gap-1">
+                                <input 
+                                    value={tempHotelName} 
+                                    onChange={e => setTempHotelName(e.target.value)} 
+                                    className="w-24 text-xs border rounded px-1" 
+                                    autoFocus 
+                                    onBlur={saveHotelName}
+                                    onKeyDown={e => e.key === 'Enter' && saveHotelName()}
+                                />
+                                <button onMouseDown={saveHotelName} className="text-green-600"><Check size={12}/></button>
+                            </div>
+                        ) : (
+                            <span className="truncate max-w-[120px] text-xs">{hotel.name} <span className="opacity-50 font-normal">({hotel.rooms.length})</span></span>
+                        )}
+                        
+                        {activeHotelId === hotel.id && !editHotelNameId && (
+                            <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleRenameHotel(hotel.id); }}
+                                    className="p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-500"
+                                >
+                                    <Edit3 size={12}/>
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteHotel(hotel.id); }}
+                                    className="p-1 hover:bg-red-100 rounded-full text-red-400 hover:text-red-500"
+                                >
+                                    <Trash2 size={12}/>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ))}
+                <button onClick={handleAddHotel} className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                    <Plus size={14}/> Add Hotel
+                </button>
+            </div>
+
+            {/* Header Config */}
+            <div className="bg-slate-50 border-b p-4 flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase flex items-center mr-2"><Building size={14} className="mr-1"/> Config:</span>
+                    
+                    <div className="flex gap-2 mr-2">
+                        <QuickSelector type="DOUBLE" label="Single/Duplo" active={invType === 'DOUBLE'} />
+                        <QuickSelector type="TRIPLE" label="Triplo" active={invType === 'TRIPLE'} />
+                        <QuickSelector type="QUAD" label="Quádruplo" active={invType === 'QUAD'} />
+                        <QuickSelector type="COLLECTIVE" label="Personalizado" active={invType === 'COLLECTIVE'} />
+                    </div>
+
+                    {invType === 'COLLECTIVE' && (
+                        <div className="relative animate-[fadeIn_0.2s]">
+                            <input 
+                                type="number" 
+                                min="1" 
+                                placeholder="Cap." 
+                                value={invCustomCap} 
+                                onChange={e => setInvCustomCap(e.target.value === '' ? '' : parseInt(e.target.value))} 
+                                className="w-16 border rounded-lg p-1.5 text-center text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
+                            />
+                        </div>
+                    )}
+
+                    <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+                    <div className="flex items-center bg-white rounded-lg border border-gray-200 p-0.5">
+                        <button onClick={() => setInvQty(Math.max(1, invQty-1))} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-l-md font-bold">-</button>
+                        <span className="px-2 text-xs font-bold min-w-[20px] text-center">{invQty}</span>
+                        <button onClick={() => setInvQty(invQty+1)} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r-md font-bold">+</button>
+                    </div>
+
+                    <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-1 shadow-sm ml-2">
+                        <Plus size={14}/> Adicionar Quartos
+                    </button>
+                </div>
+                
+                <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
+                    <span>Vagas: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
+                </div>
+            </div>
+
+            <div className="flex flex-1 overflow-hidden">
+                {/* Left List */}
+                <div className="w-80 border-r bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
+                    <div className="p-4 border-b bg-gray-50 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedCount}/{allPassengers.length})</h4>
+                            <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded" title="Adicionar Manual"><Plus size={18}/></button>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="bg-blue-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
+                            <input 
+                                type="text" 
+                                placeholder="Buscar passageiro..." 
+                                className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
+                                value={filterText}
+                                onChange={(e) => setFilterText(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
+                         {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
+                         {filteredPassengers.map(p => {
+                             const assignedRoom = assignedMap.get(p.id);
+                             const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
+
+                             return (
+                                 <div 
+                                    key={p.id} 
+                                    draggable={!assignedRoom} 
+                                    onDragStart={(e) => handleDragStart(e, p)} 
+                                    onClick={() => !assignedRoom && setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} 
+                                    className={`
+                                        p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
+                                        ${assignedRoom ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
+                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : ''}
+                                    `}
+                                 >
+                                     <div className="flex items-center gap-3 overflow-hidden">
+                                         {!assignedRoom && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                         {assignedRoom && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
+                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
+                                         
+                                         {accompanyMatch ? (
+                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                    Acompanhante {accompanyMatch[1]}
+                                                </span>
+                                                <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                    <span className="truncate">Via: {accompanyMatch[2]}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
+                                                {p.isManual ? (
+                                                    <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                        <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                        <span className="truncate">Manual</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                        Titular
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                     </div>
+                                     {assignedRoom && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{assignedRoom}</span>}
+                                 </div>
+                             );
+                         })}
+                    </div>
+                    <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">Arraste para o quarto ou clique para selecionar.</div>
+                </div>
+
+                {/* Right Grid */}
+                <div className="flex-1 bg-slate-100 overflow-y-auto p-6 custom-scrollbar">
+                    {hotels.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">Adicione um hotel para começar.</div>
+                    ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
+                        {activeHotel?.rooms.map(room => {
+                            const isFull = room.guests.length >= room.capacity;
+                            const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
+                            return (
+                                <div 
+                                    key={room.id} 
+                                    onDragOver={(e) => { e.preventDefault(); if(!isFull) setDragOverRoom(room.id); }}
+                                    onDragLeave={() => setDragOverRoom(null)}
+                                    onDrop={(e) => handleDrop(e, room.id)}
+                                    onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
+                                    className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
+                                >
+                                    <div className="p-3 border-b flex justify-between items-center bg-gray-50/50 w-full">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0 truncate">
+                                            <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
+                                            <div className="truncate flex-1">
+                                                <h5 className="font-bold text-gray-800 text-sm truncate" title={room.name}>{room.name}</h5>
+                                                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase"><span>{room.type}</span><span className={isFull?'text-green-600':'text-blue-600'}>{room.guests.length}/{room.capacity}</span></div>
+                                            </div>
+                                        </div>
+                                        <button onClick={(e) => {e.stopPropagation(); setRoomToDelete(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5 flex-shrink-0"><Trash2 size={16}/></button>
+                                    </div>
+                                    <div className="p-3 space-y-2 min-h-[80px]">
+                                        {room.guests.map(g => (
+                                            <div key={g.bookingId} className="bg-blue-50/50 px-3 py-2 rounded text-xs font-medium flex justify-between items-center group/guest border border-blue-100/50">
+                                                <div className="flex items-center gap-2"><User size={12} className="text-blue-400"/><span className="truncate max-w-[120px]">{g.name}</span></div>
+                                                <button onClick={(e)=>{e.stopPropagation(); setGuestToRemove({roomId: room.id, guestId: g.bookingId, guestName: g.name});}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
+                                            </div>
+                                        ))}
+                                        {Array.from({length: Math.max(0, room.capacity - room.guests.length)}).map((_,i) => (
+                                            <div key={i} className={`border-2 border-dashed rounded px-3 py-2 text-xs flex items-center justify-center gap-1 select-none ${isTarget ? 'border-primary-200 bg-primary-50 text-primary-600 font-bold' : 'border-gray-100 text-gray-300'}`}>
+                                                {isTarget ? <><MousePointer2 size={12}/> Alocar Aqui</> : 'Vaga Livre'}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// 3. OPERATIONS MODULE (MASTER-DETAIL LAYOUT REFACTOR)
+interface OperationsModuleProps {
+    myTrips: Trip[];
+    myBookings: Booking[];
+    clients: any[];
+    selectedTripId: string | null;
+    onSelectTrip: (id: string | null) => void;
+    onSaveTripData: (tripId: string, data: OperationalData) => void;
+    currentAgency: Agency;
+}
+
+const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency }) => {
+    const selectedTrip = myTrips.find(t => t.id === selectedTripId);
+    const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
+    const { showToast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // PDF Generator
+    const generateManifest = () => {
+        if (!selectedTrip) return;
+        try {
+            const doc = new jsPDF();
+            const primaryColor = [59, 130, 246]; // Blue
+            
+            // COVER PAGE
+            doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(22);
+            doc.text(currentAgency.name.toUpperCase(), 15, 20);
+            doc.setFontSize(10);
+            doc.text('MANIFESTO DE VIAGEM', 195, 20, { align: 'right' });
+            
+            doc.setTextColor(30, 30, 30);
+            doc.setFontSize(18);
+            doc.text(selectedTrip.title, 15, 55);
+            doc.setFontSize(10);
+            doc.text(`Destino: ${selectedTrip.destination}`, 15, 65);
+            doc.text(`Data: ${safeDate(selectedTrip.startDate)} - ${safeDate(selectedTrip.endDate)}`, 15, 70);
+            
+            // PASSENGER LIST
+            const rows: any[] = [];
+            const bookingsForTrip = myBookings.filter(b => b.tripId === selectedTrip.id && b.status === 'CONFIRMED');
+            
+            // Collect all passengers with details
+            bookingsForTrip.forEach(booking => {
+                const client = (booking as any)._client || clients.find(c => c.id === booking.clientId);
+                const clientName = client?.name || 'Cliente';
+                
+                for(let i=0; i<booking.passengers; i++) {
+                    const pId = `${booking.id}-${i}`;
+                    const details = selectedTrip.operationalData?.passengerDetails?.[pId];
+                    const nameOverride = selectedTrip.operationalData?.passengerNameOverrides?.[pId];
+                    
+                    let finalName = details?.name || nameOverride;
+                    if (!finalName) {
+                        finalName = i===0 ? clientName : `Acompanhante ${i+1}`;
+                    }
+                    
+                    const docInfo = details?.doc || '---';
+                    const phoneInfo = details?.phone || (i===0 ? (client?.phone || '') : '');
+                    
+                    // Find assignment
+                    let assignment = '---';
+                    if (selectedTrip.operationalData?.transport?.vehicles) {
+                        // Search in all vehicles
+                        for(const v of selectedTrip.operationalData.transport.vehicles) {
+                            const seat = v.seats.find(s => s.bookingId === pId);
+                            if (seat) {
+                                assignment = `${v.name} - ${seat.seatNumber}`;
+                                break;
+                            }
+                        }
+                    } else if (selectedTrip.operationalData?.transport?.seats) {
+                        // Legacy check
+                        const seat = selectedTrip.operationalData.transport.seats.find(s => s.bookingId === pId);
+                        if (seat) assignment = seat.seatNumber;
+                    }
+
+                    rows.push([finalName, docInfo, phoneInfo, assignment]);
+                }
+            });
+            
+            // Sort alphabetical
+            rows.sort((a,b) => a[0].localeCompare(b[0]));
+
+            (doc as any).autoTable({
+                startY: 80,
+                head: [['Nome Passageiro', 'Documento (RG/CPF)', 'Contato', 'Assento']],
+                body: rows,
+                theme: 'striped',
+                headStyles: { fillColor: primaryColor },
+                styles: { fontSize: 9 }
+            });
+            
+            doc.save(`manifesto_${slugify(selectedTrip.title)}.pdf`);
+            showToast('PDF gerado com sucesso!', 'success');
+        } catch (e: any) {
+            console.error(e);
+            showToast('Erro ao gerar PDF: ' + e.message, 'error');
+        }
+    };
+
+    return (
+        <div className="flex h-[calc(100vh-140px)] border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            {/* Sidebar List (Collapsible) */}
+            <div className={`border-r border-gray-200 bg-gray-50 flex flex-col transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 overflow-hidden'}`}>
+                <div className="p-4 border-b bg-white">
+                    <h3 className="font-bold text-gray-900 mb-3">Selecione uma Viagem</h3>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                        <input 
+                            type="text" 
+                            placeholder="Buscar viagem..." 
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-primary-500 focus:border-primary-500 outline-none"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {filteredTrips.map(trip => (
+                        <button 
+                            key={trip.id}
+                            onClick={() => { onSelectTrip(trip.id); setIsSidebarOpen(false); }}
+                            className={`w-full text-left p-4 border-b border-gray-100 hover:bg-white transition-colors ${selectedTripId === trip.id ? 'bg-white border-l-4 border-l-primary-600 shadow-sm' : 'border-l-4 border-l-transparent'}`}
+                        >
+                            <h4 className={`font-bold text-sm ${selectedTripId === trip.id ? 'text-primary-700' : 'text-gray-800'}`}>{trip.title}</h4>
+                            <p className="text-xs text-gray-500 mt-1">{safeDate(trip.startDate)}</p>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col bg-white relative">
+                {/* Toggle Button */}
+                <button 
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                    className="absolute top-4 left-4 z-20 bg-white p-2 rounded-full shadow-md border border-gray-100 hover:bg-gray-50 transition-colors text-gray-600"
+                    title={isSidebarOpen ? "Fechar Lista" : "Abrir Lista"}
+                >
+                    {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+                </button>
+
+                {selectedTrip ? (
+                    <>
+                        {/* Header Toolbar */}
+                        <div className="border-b px-6 py-3 flex justify-between items-center bg-white pl-16">
+                            <div>
+                                <h2 className="font-bold text-lg text-gray-900 truncate max-w-md">{selectedTrip.title}</h2>
+                                <p className="text-xs text-gray-500">Gerenciamento Operacional</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setActiveView('TRANSPORT')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'TRANSPORT' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Transporte</button>
+                                    <button onClick={() => setActiveView('ROOMING')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'ROOMING' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Hospedagem</button>
+                                </div>
+                                <button onClick={generateManifest} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-black transition-colors">
+                                    <FileText size={14}/> Manifesto PDF
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Module Content */}
+                        <div className="flex-1 overflow-hidden relative">
+                            {activeView === 'TRANSPORT' ? (
+                                <TransportManager 
+                                    trip={selectedTrip} 
+                                    bookings={myBookings.filter(b => b.tripId === selectedTrip.id)}
+                                    clients={clients}
+                                    onSave={(data) => onSaveTripData(selectedTrip.id, data)}
+                                />
+                            ) : (
+                                <RoomingManager 
+                                    trip={selectedTrip} 
+                                    bookings={myBookings.filter(b => b.tripId === selectedTrip.id)}
+                                    clients={clients}
+                                    onSave={(data) => onSaveTripData(selectedTrip.id, data)}
+                                />
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <Truck size={48} className="mb-4 opacity-20"/>
+                        <p>Selecione uma viagem para gerenciar o operacional.</p>
+                        <button onClick={() => setIsSidebarOpen(true)} className="mt-4 text-primary-600 text-sm font-bold hover:underline">Abrir Lista de Viagens</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export const AgencyDashboard: React.FC = () => {
+  const { user } = useAuth();
+  const { agencies, trips, bookings, clients, updateTripOperationalData, createTrip, updateTrip } = useData(); // Added createTrip/updateTrip
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'OVERVIEW';
+  const { showToast } = useToast();
+
+  // Wizard State
+  const [showWizard, setShowWizard] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+
+  const currentAgency = agencies.find(a => a.id === user?.id);
+  const myTrips = trips.filter(t => t.agencyId === currentAgency?.agencyId);
+  
+  // Stats
+  const totalSales = myTrips.reduce((acc, t) => acc + (t.sales || 0), 0);
+  const totalRevenue = bookings
+    .filter(b => b._trip?.agencyId === currentAgency?.agencyId && b.status === 'CONFIRMED')
+    .reduce((acc, b) => acc + b.totalPrice, 0);
+  const totalViews = myTrips.reduce((acc, t) => acc + (t.views || 0), 0);
+
+  const handleTabChange = (tab: string) => setSearchParams({ tab });
+
+  const handleSaveOperationalData = async (tripId: string, data: OperationalData) => {
+      try {
+          await updateTripOperationalData(tripId, data);
+          // Toast handled in context
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  const handleEditTrip = (trip: Trip) => {
+      setEditingTrip(trip);
+      setShowWizard(true);
+  };
+
+  const handleWizardSuccess = () => {
+      setShowWizard(false);
+      setEditingTrip(null);
+      // Data refresh handled by context
+  };
+
+  if (!user || user.role !== 'AGENCY') return <div className="p-8 text-center">Acesso restrito a agências.</div>;
+  if (!currentAgency) return <div className="p-8 text-center"><Loader className="animate-spin inline mr-2"/> Carregando perfil da agência...</div>;
+
+  return (
+    <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+        {/* Wizard Modal */}
+        {showWizard && (
+            <CreateTripWizard 
+                onClose={() => { setShowWizard(false); setEditingTrip(null); }} 
+                onSuccess={handleWizardSuccess}
+                initialTripData={editingTrip || undefined}
+            />
+        )}
+
+        <div className="flex flex-col md:flex-row justify-between items-end mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-900">Painel da Agência</h1>
+                <p className="text-gray-500 mt-1">Bem-vindo, {currentAgency.name}</p>
+            </div>
+            <div className="flex gap-3">
+                <button onClick={() => setShowWizard(true)} className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2">
+                    <Plus size={18}/> Novo Pacote
+                </button>
+            </div>
+        </div>
+
+        {/* Tab Nav */}
+        <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
+            <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={handleTabChange} />
+            <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Briefcase} activeTab={activeTab} onClick={handleTabChange} />
+            <NavButton tabId="OPERATIONS" label="Operacional" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
+            <NavButton tabId="FINANCIAL" label="Financeiro" icon={DollarSign} activeTab={activeTab} onClick={handleTabChange} />
+        </div>
+
+        {/* Content */}
+        <div className="animate-[fadeIn_0.3s]">
+            {activeTab === 'OVERVIEW' && (
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatCard title="Vendas Totais" value={totalSales} subtitle="Passageiros confirmados" icon={Users} color="blue" />
+                        <StatCard title="Receita Bruta" value={`R$ ${totalRevenue.toLocaleString()}`} subtitle="Total em vendas" icon={DollarSign} color="green" />
+                        <StatCard title="Visualizações" value={totalViews} subtitle="Acessos aos pacotes" icon={Eye} color="purple" />
+                        <StatCard title="Avaliação Média" value="4.8" subtitle="Baseado em 50 reviews" icon={Star} color="amber" />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2">
+                            <RecentBookingsTable bookings={bookings.filter(b => b._trip?.agencyId === currentAgency.agencyId)} clients={clients} />
+                        </div>
+                        <div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-full">
+                                <h3 className="font-bold text-gray-900 mb-4 flex items-center"><Rocket className="mr-2 text-primary-600" size={20}/> Dicas para vender mais</h3>
+                                <ul className="space-y-4 text-sm text-gray-600">
+                                    <li className="flex gap-3"><CheckCircle size={16} className="text-green-500 shrink-0 mt-0.5"/> <span>Complete o perfil da sua agência com fotos e descrição detalhada.</span></li>
+                                    <li className="flex gap-3"><CheckCircle size={16} className="text-green-500 shrink-0 mt-0.5"/> <span>Crie pacotes com títulos atrativos e fotos de alta qualidade.</span></li>
+                                    <li className="flex gap-3"><CheckCircle size={16} className="text-green-500 shrink-0 mt-0.5"/> <span>Responda rapidamente às dúvidas dos clientes no WhatsApp.</span></li>
+                                    <li className="flex gap-3"><CheckCircle size={16} className="text-green-500 shrink-0 mt-0.5"/> <span>Incentive seus clientes a deixarem avaliações após a viagem.</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'TRIPS' && (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                        <h3 className="font-bold text-lg text-gray-900">Seus Pacotes Cadastrados</h3>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                            <input type="text" placeholder="Buscar pacote..." className="pl-9 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-primary-500"/>
+                        </div>
+                    </div>
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Preço</th>
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                                <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {myTrips.map(trip => (
+                                <tr key={trip.id} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <img src={trip.images[0] || 'https://placehold.co/100'} className="w-10 h-10 rounded-lg object-cover" alt=""/>
+                                            <div className="font-medium text-gray-900 text-sm">{trip.title}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">{new Date(trip.startDate).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 text-sm font-bold text-gray-900">R$ {trip.price}</td>
+                                    <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Rascunho'}</Badge></td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button onClick={() => handleEditTrip(trip)} className="text-primary-600 hover:text-primary-800 text-sm font-bold">Editar</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {activeTab === 'OPERATIONS' && (
+                <OperationsModule 
+                    myTrips={myTrips}
+                    myBookings={bookings.filter(b => b._trip?.agencyId === currentAgency.agencyId)}
+                    clients={clients}
+                    selectedTripId={null} // Default
+                    onSelectTrip={(id) => { /* handled inside module state usually, but passed for lift */ }}
+                    onSaveTripData={handleSaveOperationalData}
+                    currentAgency={currentAgency}
+                />
+            )}
+
+            {activeTab === 'FINANCIAL' && (
+                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                    <DollarSign size={48} className="text-gray-300 mx-auto mb-4"/>
+                    <h3 className="text-xl font-bold text-gray-900">Módulo Financeiro</h3>
+                    <p className="text-gray-500">Em breve você poderá gerenciar seus recebimentos por aqui.</p>
+                </div>
+            )}
+        </div>
+    </div>
+  );
+};

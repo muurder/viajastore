@@ -298,6 +298,7 @@ export interface AuditLog {
   action: string;
   details: string;
   createdAt: string;
+  deleted_at?: string;
 }
 
 export interface UserStats {
