@@ -517,6 +517,92 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             </div>
         </div>
 
+        {/* Itinerary by Day - Premium Feature */}
+        <div className="bg-gradient-to-br from-primary-50 to-blue-50 p-6 rounded-xl border-2 border-primary-200">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">📅 Roteiro por Dia</label>
+                    <p className="text-xs text-gray-600">Organize as atividades de cada dia da viagem</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => {
+                        const currentDays = tripData.itinerary?.length || 0;
+                        const newDay = {
+                            day: currentDays + 1,
+                            title: `Dia ${currentDays + 1}`,
+                            description: ''
+                        };
+                        setTripData(prev => ({
+                            ...prev,
+                            itinerary: [...(prev.itinerary || []), newDay]
+                        }));
+                    }}
+                    className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 shadow-sm"
+                >
+                    <Plus size={16}/> Adicionar Dia
+                </button>
+            </div>
+
+            {tripData.itinerary && tripData.itinerary.length > 0 ? (
+                <div className="space-y-4">
+                    {tripData.itinerary.map((day, index) => (
+                        <div key={index} className="bg-white rounded-lg p-5 border border-gray-200 shadow-sm">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm">
+                                        {day.day}
+                                    </div>
+                                    <div className="flex-1">
+                                        <input
+                                            type="text"
+                                            value={day.title}
+                                            onChange={e => {
+                                                const updated = [...(tripData.itinerary || [])];
+                                                updated[index] = { ...day, title: e.target.value };
+                                                setTripData(prev => ({ ...prev, itinerary: updated }));
+                                            }}
+                                            className="w-full font-bold text-gray-900 border-b-2 border-transparent focus:border-primary-500 outline-none pb-1"
+                                            placeholder={`Dia ${day.day}`}
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const updated = tripData.itinerary?.filter((_, i) => i !== index) || [];
+                                        // Renumber days
+                                        const renumbered = updated.map((d, i) => ({ ...d, day: i + 1 }));
+                                        setTripData(prev => ({ ...prev, itinerary: renumbered }));
+                                    }}
+                                    className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                >
+                                    <Trash2 size={16}/>
+                                </button>
+                            </div>
+                            <textarea
+                                value={day.description}
+                                onChange={e => {
+                                    const updated = [...(tripData.itinerary || [])];
+                                    updated[index] = { ...day, description: e.target.value };
+                                    setTripData(prev => ({ ...prev, itinerary: updated }));
+                                }}
+                                className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                                rows={3}
+                                placeholder="Descreva as atividades deste dia: horários, passeios, refeições, etc..."
+                            />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                    <Calendar className="mx-auto text-gray-400 mb-2" size={32}/>
+                    <p className="text-sm text-gray-500 font-medium">Nenhum dia adicionado ainda</p>
+                    <p className="text-xs text-gray-400 mt-1">Clique em "Adicionar Dia" para começar</p>
+                </div>
+            )}
+        </div>
+
         {/* Visibility Toggle */}
         <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <input 

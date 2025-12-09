@@ -43,7 +43,8 @@ const ClientDashboard: React.FC = () => {
   const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData } = useData();
   const { showToast } = useToast();
   
-  const [selectedBooking, setSelectedBooking] = useState<any | null>(null); 
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [bookingPassengers, setBookingPassengers] = useState<any[]>([]); 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showEditReviewModal, setShowEditReviewModal] = useState(false);
   const [editingReview, setEditingReview] = useState<AgencyReview | null>(null);
@@ -189,6 +190,38 @@ const ClientDashboard: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleEsc);
     };
+  }, [selectedBooking]);
+
+  // Fetch passengers when booking is selected
+  useEffect(() => {
+    const fetchPassengers = async () => {
+      if (!selectedBooking) {
+        setBookingPassengers([]);
+        return;
+      }
+      
+      try {
+        const { supabase } = await import('../services/supabase');
+        if (supabase) {
+          const { data, error } = await supabase
+            .from('booking_passengers')
+            .select('*')
+            .eq('booking_id', selectedBooking.id)
+            .order('passenger_index', { ascending: true });
+          
+          if (!error && data) {
+            setBookingPassengers(data);
+          } else {
+            setBookingPassengers([]);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching passengers:', err);
+        setBookingPassengers([]);
+      }
+    };
+
+    fetchPassengers();
   }, [selectedBooking]);
 
   if (authLoading || !user || user.role !== UserRole.CLIENT) {
@@ -817,11 +850,45 @@ const ClientDashboard: React.FC = () => {
                     <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
                     <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
                 </div>
-                <div className="p-8 text-center">
-                    <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
-                    <p className="font-bold text-gray-900 text-lg">{user.name}</p>
-                    <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
-                    <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
+                <div className="p-8">
+                    <div className="text-center mb-6">
+                        <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
+                        <p className="font-bold text-gray-900 text-lg">{user.name}</p>
+                        <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
+                        <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
+                    </div>
+
+                    {/* Passengers List */}
+                    {bookingPassengers.length > 0 && (
+                        <div className="mb-6 border-t pt-6">
+                            <h4 className="text-sm font-bold text-gray-700 mb-3">Passageiros ({bookingPassengers.length})</h4>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {bookingPassengers.map((passenger, index) => (
+                                    <div key={passenger.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-gray-900">
+                                                    {index === 0 ? '👤 ' : '👥 '}
+                                                    {passenger.full_name}
+                                                </p>
+                                                {passenger.cpf && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        CPF: {passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                                                    </p>
+                                                )}
+                                                {passenger.birth_date && (
+                                                    <p className="text-xs text-gray-500">
+                                                        Nasc: {new Date(passenger.birth_date).toLocaleDateString('pt-BR')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-3">
                         <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
                         <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>

@@ -2561,6 +2561,8 @@ const AgencyDashboard: React.FC = () => {
             whatsapp: currentAgency.whatsapp || '', 
             phone: currentAgency.phone || '', 
             website: currentAgency.website || '', 
+            slug: currentAgency.slug || '',
+            logo: currentAgency.logo || '',
             address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
             bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, 
             logo: currentAgency.logo 
@@ -3217,11 +3219,33 @@ const AgencyDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Meu Perfil</h2>
               <form onSubmit={handleSaveProfile} className="space-y-6">
+                  {/* Logo Upload */}
+                  <div className="mb-6">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Logo da Agência</label>
+                      <div className="flex items-center gap-4">
+                          {profileForm.logo && (
+                              <img src={profileForm.logo} alt="Logo" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
+                          )}
+                          <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
+                              <Upload size={16}/> {profileForm.logo ? 'Alterar Logo' : 'Fazer Upload'}
+                              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                  if(e.target.files?.[0]) {
+                                      const url = await uploadImage(e.target.files[0], 'agency-logos');
+                                      if(url) {
+                                          setProfileForm({...profileForm, logo: url});
+                                          showToast('Logo atualizado! Salve o perfil para confirmar.', 'success');
+                                      }
+                                  }
+                              }}/>
+                          </label>
+                      </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://suaagencia.com.br" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website / Redes Sociais</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://instagram.com/suaagencia ou https://facebook.com/suaagencia" /></div>
                       
                       <div className="md:col-span-2">
                         <label className="block text-sm font-bold text-gray-700 mb-1">Link do seu Site (Slug)</label>
@@ -3288,58 +3312,127 @@ const AgencyDashboard: React.FC = () => {
 
       {activeTab === 'THEME' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Personalizar Tema do Meu Microsite</h2>
-              <form onSubmit={handleSaveTheme} className="space-y-6">
-                  
-                  {/* Preset Colors */}
-                  <div className="mb-6">
-                      <label className="block text-sm font-bold text-gray-700 mb-3">Cores Rápidas</label>
-                      <div className="flex gap-3 flex-wrap">
+              <div className="mb-8">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Personalizar Tema</h2>
+                  <p className="text-gray-500">Customize as cores do seu microsite de forma rápida e fácil</p>
+              </div>
+              
+              <form onSubmit={handleSaveTheme} className="space-y-8">
+                  {/* Preset Colors - Improved */}
+                  <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-4">🎨 Cores Pré-definidas</label>
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                           {[
-                              {p: '#3b82f6', s: '#f97316'}, // Default
-                              {p: '#10b981', s: '#3b82f6'}, // Emerald/Blue
-                              {p: '#8b5cf6', s: '#ec4899'}, // Purple/Pink
-                              {p: '#f59e0b', s: '#ef4444'}, // Amber/Red
-                              {p: '#06b6d4', s: '#10b981'}, // Cyan/Emerald
-                              {p: '#6366f1', s: '#8b5cf6'}, // Indigo/Purple
+                              {p: '#3b82f6', s: '#f97316', name: 'Azul/Laranja'},
+                              {p: '#10b981', s: '#3b82f6', name: 'Verde/Azul'},
+                              {p: '#8b5cf6', s: '#ec4899', name: 'Roxo/Rosa'},
+                              {p: '#f59e0b', s: '#ef4444', name: 'Amarelo/Vermelho'},
+                              {p: '#06b6d4', s: '#10b981', name: 'Ciano/Verde'},
+                              {p: '#6366f1', s: '#8b5cf6', name: 'Índigo/Roxo'},
                           ].map((c, i) => (
                               <button 
                                 key={i}
                                 type="button"
                                 onClick={() => setThemeForm({ ...themeForm, primary: c.p, secondary: c.s })}
-                                className="w-8 h-8 rounded-full border-2 border-white shadow-md hover:scale-110 transition-transform ring-1 ring-gray-200 overflow-hidden relative"
+                                className="group relative p-4 rounded-xl border-2 border-gray-200 hover:border-primary-500 transition-all hover:shadow-lg bg-white"
                               >
-                                  <div className="absolute left-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.p }}></div>
-                                  <div className="absolute right-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.s }}></div>
+                                  <div className="flex items-center gap-3 mb-2">
+                                      <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm ring-1 ring-gray-200">
+                                          <div className="absolute left-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.p }}></div>
+                                          <div className="absolute right-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.s }}></div>
+                                      </div>
+                                  </div>
+                                  <p className="text-xs font-bold text-gray-700 text-center">{c.name}</p>
+                                  {(themeForm.primary === c.p && themeForm.secondary === c.s) && (
+                                      <div className="absolute top-2 right-2 w-5 h-5 bg-primary-600 rounded-full flex items-center justify-center">
+                                          <Check size={12} className="text-white"/>
+                                      </div>
+                                  )}
                               </button>
                           ))}
                       </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Cor Primária</label>
-                          <div className="flex items-center gap-2">
-                              <input type="color" value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-1" />
-                              <input value={themeForm.primary} onChange={e => setThemeForm({...themeForm, primary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 uppercase" />
+                  {/* Custom Colors - Improved */}
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200">
+                      <h3 className="text-lg font-bold text-gray-900 mb-6">🎨 Cores Personalizadas</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="bg-white p-5 rounded-xl border border-gray-200">
+                              <label className="block text-sm font-bold text-gray-700 mb-3">Cor Primária</label>
+                              <div className="flex items-center gap-3">
+                                  <div className="relative">
+                                      <input 
+                                          type="color" 
+                                          value={themeForm.primary} 
+                                          onChange={e => setThemeForm({...themeForm, primary: e.target.value})} 
+                                          className="w-16 h-16 rounded-xl border-2 border-gray-300 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
+                                      />
+                                  </div>
+                                  <div className="flex-1">
+                                      <input 
+                                          value={themeForm.primary} 
+                                          onChange={e => setThemeForm({...themeForm, primary: e.target.value})} 
+                                          className="w-full border-2 border-gray-200 p-3 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase bg-gray-50"
+                                          placeholder="#3b82f6"
+                                      />
+                                      <p className="text-xs text-gray-500 mt-1">Usada em botões e destaques</p>
+                                  </div>
+                              </div>
                           </div>
-                      </div>
-                      <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Cor Secundária</label>
-                          <div className="flex items-center gap-2">
-                              <input type="color" value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-1" />
-                              <input value={themeForm.secondary} onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} className="flex-1 border p-2.5 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 uppercase" />
+                          <div className="bg-white p-5 rounded-xl border border-gray-200">
+                              <label className="block text-sm font-bold text-gray-700 mb-3">Cor Secundária</label>
+                              <div className="flex items-center gap-3">
+                                  <div className="relative">
+                                      <input 
+                                          type="color" 
+                                          value={themeForm.secondary} 
+                                          onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} 
+                                          className="w-16 h-16 rounded-xl border-2 border-gray-300 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
+                                      />
+                                  </div>
+                                  <div className="flex-1">
+                                      <input 
+                                          value={themeForm.secondary} 
+                                          onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} 
+                                          className="w-full border-2 border-gray-200 p-3 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase bg-gray-50"
+                                          placeholder="#f97316"
+                                      />
+                                      <p className="text-xs text-gray-500 mt-1">Usada em elementos complementares</p>
+                                  </div>
+                              </div>
                           </div>
                       </div>
                   </div>
+
+                  {/* Preview */}
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">👁️ Preview</h3>
+                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                          <div className="flex items-center gap-4 mb-4">
+                              <div className="w-12 h-12 rounded-full" style={{ backgroundColor: themeForm.primary }}></div>
+                              <div>
+                                  <div className="h-4 rounded mb-2 w-32" style={{ backgroundColor: themeForm.primary }}></div>
+                                  <div className="h-3 rounded w-24" style={{ backgroundColor: themeForm.secondary }}></div>
+                              </div>
+                          </div>
+                          <button 
+                              type="button"
+                              className="px-6 py-3 rounded-lg font-bold text-white transition-all hover:scale-105 shadow-lg"
+                              style={{ backgroundColor: themeForm.primary }}
+                          >
+                              Botão de Exemplo
+                          </button>
+                      </div>
+                  </div>
+
                   <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-blue-700 flex items-start gap-3">
                       <Info size={20} className="flex-shrink-0 mt-0.5"/>
                       <p className="text-sm">
                           Estas cores serão aplicadas apenas na sua página de agência (microsite). O tema padrão da ViajaStore permanecerá o mesmo no marketplace principal.
                       </p>
                   </div>
-                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
-                      {loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Tema
+                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg transition-all hover:scale-[1.02]">
+                      {loading ? <Loader size={20} className="animate-spin" /> : <><Save size={20} /> Salvar Tema</>}
                   </button>
               </form>
           </div>
