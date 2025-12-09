@@ -1458,32 +1458,6 @@ const AgencyDashboard: React.FC = () => {
           />
       )}
 
-      {selectedOperationalTripId && currentAgency && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-              {/* Changed h-[95vh] to h-[90vh] and added flex flex-col overflow-hidden to parent */}
-              <div className="bg-white rounded-2xl max-w-7xl w-full h-[90vh] shadow-2xl relative flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => setSelectedOperationalTripId(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-50"><X size={20}/></button>
-                  <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-4 shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center"><Truck size={20}/></div>
-                      <h2 className="text-xl font-bold text-gray-900">Gerenciar Operacional</h2>
-                  </div>
-                  
-                  {/* Container for the module needs to be flex-1 and handle overflow */}
-                  <div className="flex-1 overflow-hidden min-h-0">
-                      <OperationsModule 
-                          myTrips={myTrips} 
-                          myBookings={myBookings} 
-                          clients={clients} 
-                          selectedTripId={selectedOperationalTripId} 
-                          onSelectTrip={setSelectedOperationalTripId}
-                          onSaveTripData={updateTripOperationalData}
-                          currentAgency={currentAgency}
-                      />
-                  </div>
-              </div>
-          </div>
-      )}
-
       {showConfirmSubscription && (
         <SubscriptionConfirmationModal 
           plan={showConfirmSubscription} 
