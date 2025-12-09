@@ -153,13 +153,6 @@ export interface ManualPassenger {
     document?: string;
 }
 
-export interface PassengerDetail {
-    name: string;
-    doc: string;
-    phone: string;
-    email: string;
-}
-
 export interface Guest {
     name: string;
     bookingId: string;
@@ -184,8 +177,6 @@ export interface OperationalData {
     rooming?: RoomConfig[]; // Deprecated (single list)
     hotels?: HotelInstance[]; // New (multiple hotels)
     manualPassengers?: ManualPassenger[];
-    passengerDetails?: Record<string, PassengerDetail>;
-    passengerNameOverrides?: Record<string, string>;
 }
 
 export interface Trip {
@@ -298,7 +289,6 @@ export interface AuditLog {
   action: string;
   details: string;
   createdAt: string;
-  deleted_at?: string;
 }
 
 export interface UserStats {
