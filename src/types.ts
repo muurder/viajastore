@@ -157,6 +157,7 @@ export interface PassengerDetail {
     name: string;
     document?: string;
     phone?: string;
+    birthDate?: string; // Data de nascimento
 }
 
 export interface Guest {
