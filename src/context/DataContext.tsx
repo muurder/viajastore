@@ -599,16 +599,56 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     console.log("[DataContext] Adding/updating agency review:", review); // Debug Log
     try {
-        await sb.from('agency_reviews').upsert({
-            agency_id: review.agencyId,
-            client_id: review.clientId,
-            booking_id: review.bookingId, // Optional
-            trip_id: review.trip_id, // Optional
-            rating: review.rating,
-            comment: review.comment,
-            tags: review.tags,
-            // created_at is automatically handled by Supabase default
-        }, { onConflict: ['agency_id', 'client_id'] }); // Allow client to update their review
+        // Check if review already exists
+        const { data: existingReview, error: checkError } = await sb
+            .from('agency_reviews')
+            .select('id')
+            .eq('agency_id', review.agencyId)
+            .eq('client_id', review.clientId)
+            .maybeSingle();
+        
+        if (checkError) {
+            console.error("[DataContext] Error checking existing review:", checkError); // Debug Log
+            throw checkError;
+        }
+        
+        if (existingReview) {
+            // Update existing review
+            const { error: updateError } = await sb
+                .from('agency_reviews')
+                .update({
+                    rating: review.rating,
+                    comment: review.comment,
+                    tags: review.tags,
+                    booking_id: review.bookingId,
+                    trip_id: review.trip_id,
+                })
+                .eq('id', existingReview.id);
+            
+            if (updateError) {
+                console.error("[DataContext] Error updating review:", updateError); // Debug Log
+                throw updateError;
+            }
+        } else {
+            // Insert new review
+            const { error: insertError } = await sb
+                .from('agency_reviews')
+                .insert({
+                    agency_id: review.agencyId,
+                    client_id: review.clientId,
+                    booking_id: review.bookingId, // Optional
+                    trip_id: review.trip_id, // Optional
+                    rating: review.rating,
+                    comment: review.comment,
+                    tags: review.tags,
+                });
+            
+            if (insertError) {
+                console.error("[DataContext] Error inserting review:", insertError); // Debug Log
+                throw insertError;
+            }
+        }
+        
         showToast('Avaliação enviada/atualizada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
         // Await the fetch to ensure data is updated before returning
