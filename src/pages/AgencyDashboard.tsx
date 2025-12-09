@@ -335,8 +335,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     useEffect(() => {
         if (legacyTransport?.vehicles && legacyTransport.vehicles.length > 0) {
             // New structure exists
-            setVehicles(legacyTransport.vehicles);
-            if (!activeVehicleId) setActiveVehicleId(legacyTransport.vehicles[0].id);
+            const currentVehicles = legacyTransport.vehicles;
+            setVehicles(currentVehicles);
+            // Só definir activeVehicleId se não houver um já definido ou se o atual não existir mais
+            if (!activeVehicleId || !currentVehicles.find(v => v.id === activeVehicleId)) {
+                setActiveVehicleId(currentVehicles[0].id);
+            }
         } else if (legacyTransport?.vehicleConfig) {
             // Migrate legacy single vehicle to array
             const migratedVehicle: VehicleInstance = {
@@ -347,9 +351,11 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 seats: legacyTransport.seats || []
             };
             setVehicles([migratedVehicle]);
-            setActiveVehicleId(migratedVehicle.id);
+            if (!activeVehicleId) {
+                setActiveVehicleId(migratedVehicle.id);
+            }
         }
-    }, [trip.operationalData]); // Only re-run if operationalData changes significantly
+    }, [trip.operationalData?.transport?.vehicles]); // Only re-run if vehicles array changes
 
     // Derived State: Active Vehicle
     const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
@@ -406,7 +412,10 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     // --- ACTIONS ---
 
     const saveVehicles = (updatedVehicles: VehicleInstance[]) => {
+        // Atualizar estado local primeiro
         setVehicles(updatedVehicles);
+        
+        // Salvar no banco
         onSave({ 
             ...trip.operationalData, 
             transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
@@ -486,17 +495,30 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         }
         
         const config = VEHICLE_TYPES[type];
+        const vehicleNumber = vehicles.length + 1;
         const newVehicle: VehicleInstance = {
             id: `v-${Date.now()}`,
-            name: `${config.label.split(' ')[0]} ${vehicles.length + 1}`,
+            name: `${config.label.split(' ')[0]} ${vehicleNumber}`,
             type,
             config,
             seats: []
         };
         
         const updatedVehicles = [...vehicles, newVehicle];
-        saveVehicles(updatedVehicles);
+        
+        // Atualizar estado local imediatamente
+        setVehicles(updatedVehicles);
         setActiveVehicleId(newVehicle.id);
+        
+        // Salvar no banco
+        onSave({ 
+            ...trip.operationalData, 
+            transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
+        });
+        
+        // Feedback ao usuário
+        showToast(`Veículo "${newVehicle.name}" criado com sucesso!`, 'success');
+        
         setIsVehicleMenuOpen(false);
     };
 
@@ -536,10 +558,25 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 seats: []
             };
             updatedVehicles.push(newVehicle);
+            
+            // Atualizar estado local imediatamente
+            setVehicles(updatedVehicles);
             setActiveVehicleId(newVehicle.id);
         }
 
-        saveVehicles(updatedVehicles);
+        // Salvar no banco
+        onSave({ 
+            ...trip.operationalData, 
+            transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
+        });
+        
+        // Feedback ao usuário
+        if (!editingVehicleId) {
+            showToast(`Veículo "${customVehicleData.label || `Veículo ${vehicles.length + 1}`}" criado com sucesso!`, 'success');
+        } else {
+            showToast('Veículo atualizado com sucesso!', 'success');
+        }
+        
         setShowCustomVehicleForm(false);
         setEditingVehicleId(null);
         setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
