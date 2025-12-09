@@ -255,63 +255,154 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let subscription: { unsubscribe: () => void } | null = null;
+    let isInitialized = false; // Flag to prevent race conditions
+    let ignoreFirstAuthEvent = true; // Ignore the first auth event (it's the current session)
+
     const initializeAuth = async () => {
+      // Safety timeout: Force loading to false after 5 seconds
+      timeoutId = setTimeout(() => {
+        if (!isInitialized) {
+          console.warn("[AuthContext] Initialization timeout - forcing loading to false after 5s");
+          setLoading(false);
+          // Don't set user to null here - let the initialization complete naturally
+          // This prevents clearing a valid session that's just taking time to load
+          isInitialized = true;
+        }
+      }, 5000);
+
       setLoading(true);
       console.log("[AuthContext] Initializing Auth..."); // Debug Log
 
-      if (!supabase) {
-        console.warn("[AuthContext] Supabase client not initialized."); // Debug Log
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      
-      const { data: { session } } = await (supabase.auth as any).getSession();
-      
-      if (session?.user) {
-        console.log("[AuthContext] Session found on init", session.user.email); // Debug Log
-        const pendingRole = localStorage.getItem('viajastore_pending_role');
-        if (pendingRole) {
-            console.log("[AuthContext] Pending role found:", pendingRole); // Debug Log
-            await ensureUserRecord(session.user, pendingRole);
-            localStorage.removeItem('viajastore_pending_role');
-        }
-        await fetchUserData(session.user.id, session.user.email!);
-      } else {
-        console.log("[AuthContext] No session found on init"); // Debug Log
-        setUser(null);
-      }
-      setLoading(false);
-      console.log("[AuthContext] Auth initialization finished. User:", user ? user.email : "none"); // Debug Log
-
-      const { data: { subscription } } = (supabase.auth as any).onAuthStateChange(async (event: string, session: any) => {
-        console.log("[AuthContext] Auth State Change:", event, session?.user?.email); // Debug Log
-        if (session?.user) {
-          if (event === 'SIGNED_IN') {
-             console.log("[AuthContext] Event: SIGNED_IN"); // Debug Log
-             const pendingRole = localStorage.getItem('viajastore_pending_role');
-             if (pendingRole) {
-                 const success = await ensureUserRecord(session.user, pendingRole);
-                 if (success) {
-                    localStorage.removeItem('viajastore_pending_role');
-                 }
-             }
-             await fetchUserData(session.user.id, session.user.email!);
-          } else if (event === 'USER_UPDATED') {
-             console.log("[AuthContext] Event: USER_UPDATED"); // Debug Log
-             await fetchUserData(session.user.id, session.user.email!);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          console.log("[AuthContext] Event: SIGNED_OUT, clearing user state."); // Debug Log
+      try {
+        if (!supabase) {
+          console.warn("[AuthContext] Supabase client not initialized."); // Debug Log
           setUser(null);
-          localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+          return;
         }
-      });
+        
+        // Set up auth state change listener FIRST (before getSession)
+        // This prevents race conditions where the listener fires before we're ready
+        if (!subscription) {
+          const { data: { subscription: sub } } = (supabase.auth as any).onAuthStateChange(async (event: string, newSession: any) => {
+            // Ignore the first event (it's the current session from getSession)
+            if (ignoreFirstAuthEvent) {
+              ignoreFirstAuthEvent = false;
+              console.log("[AuthContext] Ignoring first auth event (current session):", event);
+              return;
+            }
 
-      return () => subscription.unsubscribe();
+            // Only process events after initialization is complete
+            if (isInitialized) {
+              console.log("[AuthContext] Auth State Change:", event, newSession?.user?.email); // Debug Log
+              if (newSession?.user) {
+                if (event === 'SIGNED_IN') {
+                   console.log("[AuthContext] Event: SIGNED_IN"); // Debug Log
+                   const pendingRole = localStorage.getItem('viajastore_pending_role');
+                   if (pendingRole) {
+                       try {
+                         const success = await ensureUserRecord(newSession.user, pendingRole);
+                         if (success) {
+                            localStorage.removeItem('viajastore_pending_role');
+                         }
+                       } catch (ensureError) {
+                         console.error("[AuthContext] Error ensuring user record in listener:", ensureError);
+                       }
+                   }
+                   try {
+                     await fetchUserData(newSession.user.id, newSession.user.email!);
+                   } catch (fetchError) {
+                     console.error("[AuthContext] Error fetching user data in listener:", fetchError);
+                   }
+                } else if (event === 'USER_UPDATED') {
+                   console.log("[AuthContext] Event: USER_UPDATED"); // Debug Log
+                   try {
+                     await fetchUserData(newSession.user.id, newSession.user.email!);
+                   } catch (fetchError) {
+                     console.error("[AuthContext] Error fetching user data on update:", fetchError);
+                   }
+                }
+              } else if (event === 'SIGNED_OUT') {
+                console.log("[AuthContext] Event: SIGNED_OUT, clearing user state."); // Debug Log
+                setUser(null);
+                localStorage.removeItem('viajastore_pending_role'); // Clear pending role on sign out
+              }
+            }
+          });
+          subscription = sub;
+        }
+
+        // Get session with timeout protection
+        let session: any = null;
+        try {
+          const sessionPromise = (supabase.auth as any).getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 4000)
+          );
+          const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+          session = data?.session;
+        } catch (sessionError: any) {
+          console.error("[AuthContext] Error getting session:", sessionError.message);
+          // Continue with null session - user is not logged in
+          session = null;
+        }
+        
+        if (session?.user) {
+          console.log("[AuthContext] Session found on init", session.user.email); // Debug Log
+          const pendingRole = localStorage.getItem('viajastore_pending_role');
+          if (pendingRole) {
+              console.log("[AuthContext] Pending role found:", pendingRole); // Debug Log
+              try {
+                await ensureUserRecord(session.user, pendingRole);
+                localStorage.removeItem('viajastore_pending_role');
+              } catch (ensureError) {
+                console.error("[AuthContext] Error ensuring user record:", ensureError);
+                // Continue anyway - don't block initialization
+              }
+          }
+          try {
+            await fetchUserData(session.user.id, session.user.email!);
+          } catch (fetchError) {
+            console.error("[AuthContext] Error fetching user data:", fetchError);
+            // Set user to null if fetch fails
+            setUser(null);
+          }
+        } else {
+          console.log("[AuthContext] No session found on init"); // Debug Log
+          setUser(null);
+        }
+
+        isInitialized = true;
+        console.log("[AuthContext] Auth initialization finished. User:", user ? user.email : "none"); // Debug Log
+
+      } catch (error: any) {
+        console.error("[AuthContext] Error during initialization:", error);
+        setUser(null);
+      } finally {
+        // CRITICAL: Always set loading to false, even on errors or timeouts
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        setLoading(false);
+        isInitialized = true;
+        // Allow auth state changes to be processed after initialization
+        ignoreFirstAuthEvent = false;
+      }
     };
 
     initializeAuth();
+
+    // Cleanup function
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []); 
   
   const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
