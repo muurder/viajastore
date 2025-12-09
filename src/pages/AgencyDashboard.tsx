@@ -322,6 +322,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
     const [customVehicleData, setCustomVehicleData] = useState({ label: '', totalSeats: 4, cols: 2 });
     const [showManualForm, setShowManualForm] = useState(false);
+    const [filterText, setFilterText] = useState('');
 
     const { showToast } = useToast();
 
@@ -345,6 +346,17 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return new Set(config.seats.map(s => s.bookingId));
     }, [config.seats]);
 
+    const assignedSeatMap = useMemo(() => {
+        const map = new Map<string, string>();
+        config.seats.forEach(s => map.set(s.bookingId, s.seatNumber));
+        return map;
+    }, [config.seats]);
+
+    const filteredPassengers = useMemo(() => {
+        if (!filterText) return allPassengers;
+        return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
+    }, [allPassengers, filterText]);
+
     const isSeatOccupied = (seatNum: string) => config.seats.find(s => s.seatNumber === seatNum);
     
     // Actions
@@ -359,7 +371,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             bookingId: passenger.id,
             status: 'occupied'
         };
-        const newSeats = [...config.seats, newSeat];
+        // Remove previous assignment if any
+        const cleanSeats = config.seats.filter(s => s.bookingId !== passenger.id);
+        const newSeats = [...cleanSeats, newSeat];
         const newConfig = { ...config, seats: newSeats };
         setConfig(newConfig);
         onSave({ ...trip.operationalData, transport: newConfig });
@@ -507,20 +521,40 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         );
     }
     
+    const assignedCount = assignedSet.size;
+    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
+
     return (
         <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
             <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name}?`} variant="warning" />
 
             {/* Sidebar */}
             <div className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
-                <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedSet.size}/{allPassengers.length})</h4>
-                    <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded"><Plus size={18}/></button>
+                <div className="p-4 border-b bg-gray-50 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedCount}/{allPassengers.length})</h4>
+                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded" title="Adicionar Manual"><Plus size={18}/></button>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
+                        <input 
+                            type="text" 
+                            placeholder="Buscar passageiro..." 
+                            className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                        />
+                    </div>
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                     {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                    {allPassengers.map(p => {
+                    {filteredPassengers.map(p => {
                         const isAssigned = assignedSet.has(p.id);
+                        const assignedSeat = assignedSeatMap.get(p.id);
                         return (
                             <div 
                                 key={p.id} 
@@ -535,11 +569,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             >
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     {!isAssigned && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
-                                    {isAssigned && <CheckCircle size={14} className="text-green-600"/>}
+                                    {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                    <div className="min-w-0"><span className="font-medium truncate block">{p.name}</span>{p.isManual && <span className="text-[10px] opacity-70 block">Manual</span>}</div>
+                                    <div className="min-w-0">
+                                        <span className="font-medium truncate block">{p.name}</span>
+                                        {p.isManual && <span className="text-[10px] opacity-70 block">Manual</span>}
+                                    </div>
                                 </div>
-                                {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">OK</span>}
+                                {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">Assento {assignedSeat}</span>}
                             </div>
                         );
                     })}
@@ -582,6 +619,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     const [dragOverRoom, setDragOverRoom] = useState<string | null>(null);
+    const [filterText, setFilterText] = useState('');
     
     // Batch Config
     const [invQty, setInvQty] = useState(1);
@@ -605,6 +643,11 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         return map;
     }, [rooms]);
 
+    const filteredPassengers = useMemo(() => {
+        if (!filterText) return allPassengers;
+        return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
+    }, [allPassengers, filterText]);
+
     // Actions
     const handleBatchCreate = () => {
         const newRooms: RoomConfig[] = [];
@@ -620,8 +663,21 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
     const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string }) => {
         const target = rooms.find(r => r.id === roomId);
+        // Check if passenger already assigned elsewhere
+        if (assignedMap.has(passenger.id)) {
+             // Optional: Allow re-assignment? For now, assume sidebar controls availability or user removes first.
+             // But if dragging from sidebar, sidebar filters availability.
+        }
+
         if (target && target.guests.length < target.capacity) {
-            const updated = rooms.map(r => r.id === roomId ? { ...r, guests: [...r.guests, { name: passenger.name, bookingId: passenger.id }] } : r);
+            // Remove from old room if exists
+            const prevRoomName = assignedMap.get(passenger.id);
+            let tempRooms = rooms;
+            if (prevRoomName) {
+                tempRooms = rooms.map(r => r.name === prevRoomName ? { ...r, guests: r.guests.filter(g => g.bookingId !== passenger.id) } : r);
+            }
+
+            const updated = tempRooms.map(r => r.id === roomId ? { ...r, guests: [...r.guests, { name: passenger.name, bookingId: passenger.id }] } : r);
             setRooms(updated);
             onSave({ ...trip.operationalData, rooming: updated });
             if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
@@ -669,6 +725,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // Stats
     const totalCap = rooms.reduce((sum, r) => sum + r.capacity, 0);
     const occupied = rooms.reduce((sum, r) => sum + r.guests.length, 0);
+    const assignedCount = assignedMap.size;
+    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white">
@@ -688,13 +746,29 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
             <div className="flex flex-1 overflow-hidden">
                 {/* Left List */}
                 <div className="w-80 border-r bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
-                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedMap.size}/{allPassengers.length})</h4>
-                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded"><Plus size={18}/></button>
+                    <div className="p-4 border-b bg-gray-50 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedCount}/{allPassengers.length})</h4>
+                            <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded" title="Adicionar Manual"><Plus size={18}/></button>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="bg-blue-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
+                            <input 
+                                type="text" 
+                                placeholder="Buscar passageiro..." 
+                                className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
+                                value={filterText}
+                                onChange={(e) => setFilterText(e.target.value)}
+                            />
+                        </div>
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                         {allPassengers.map(p => {
+                         {filteredPassengers.map(p => {
                              const assignedRoom = assignedMap.get(p.id);
                              return (
                                  <div 
@@ -710,10 +784,10 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                  >
                                      <div className="flex items-center gap-3 overflow-hidden">
                                          {!assignedRoom && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                         {assignedRoom && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                          <span className="truncate font-medium">{p.name}</span>
                                      </div>
-                                     {selectedPassenger?.id === p.id && <CheckCircle size={16}/>}
                                      {assignedRoom && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{assignedRoom}</span>}
                                  </div>
                              );
@@ -770,7 +844,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     );
 };
 
-// 3. OPERATIONS MODULE (CONTAINER)
+// 3. OPERATIONS MODULE (MASTER-DETAIL LAYOUT REFACTOR)
 interface OperationsModuleProps {
     myTrips: Trip[];
     myBookings: Booking[];
@@ -785,6 +859,9 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     const selectedTrip = myTrips.find(t => t.id === selectedTripId);
     const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
     const { showToast } = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
     // PDF Generator
     const generateManifest = () => {
@@ -863,73 +940,106 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
         } catch (e: any) { console.error(e); showToast('Erro no PDF: '+e.message, 'error'); }
     };
 
-    if (!selectedTripId || !selectedTrip) {
-        return (
-            <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 p-8">
-                <div className="max-w-6xl mx-auto w-full">
-                    <div className="text-center mb-10">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-primary-600"><Bus size={32}/></div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Selecione uma viagem para gerenciar</h2>
-                        <p className="text-gray-500">Configure assentos, quartos e passageiros.</p>
+    const tripBookings = selectedTrip ? myBookings.filter(b => b.tripId === selectedTripId) : [];
+
+    return (
+        <div className="flex h-full overflow-hidden bg-white">
+            {/* LEFT SIDEBAR: TRIP LIST */}
+            <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Selecione a Viagem</h3>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                        <input 
+                            type="text" 
+                            placeholder="Buscar viagem..." 
+                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
-                    
-                    {myTrips.filter(t => t.is_active).length === 0 ? (
-                        <div className="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
-                            <p className="text-gray-500">Nenhuma viagem ativa encontrada.</p>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {filteredTrips.length === 0 ? (
+                        <div className="p-6 text-center text-gray-400 text-sm">
+                            <Bus size={24} className="mx-auto mb-2 opacity-50"/>
+                            Nenhuma viagem ativa.
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myTrips.filter(t => t.is_active).map(trip => (
-                                <div key={trip.id} onClick={() => onSelectTrip(trip.id)} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-lg hover:border-primary-300 transition-all cursor-pointer group flex flex-col h-full">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                                            <img src={trip.images[0] || 'https://placehold.co/100x100?text=IMG'} className="w-full h-full object-cover" alt="" />
-                                        </div>
-                                        <div className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Ativo</div>
+                        <div className="divide-y divide-gray-50">
+                            {filteredTrips.map(trip => (
+                                <button 
+                                    key={trip.id}
+                                    onClick={() => onSelectTrip(trip.id)}
+                                    className={`w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4 ${selectedTripId === trip.id ? 'bg-blue-50 border-primary-500' : 'border-transparent'}`}
+                                >
+                                    <h4 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedTripId === trip.id ? 'text-primary-700' : 'text-gray-800'}`}>{trip.title}</h4>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={12}/> {safeDate(trip.startDate)}</p>
+                                        {selectedTripId === trip.id && <ChevronRight size={14} className="text-primary-500"/>}
                                     </div>
-                                    <h3 className="font-bold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors line-clamp-1">{trip.title}</h3>
-                                    <p className="text-xs text-gray-500 mb-4 flex items-center gap-1"><Calendar size={12}/> {safeDate(trip.startDate)}</p>
-                                    
-                                    <div className="mt-auto pt-4 border-t border-gray-100">
-                                        <button className="w-full bg-gray-50 text-gray-700 font-bold py-2 rounded-lg text-sm group-hover:bg-primary-600 group-hover:text-white transition-colors flex items-center justify-center gap-2">
-                                            <Settings2 size={16}/> Gerenciar
-                                        </button>
-                                    </div>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-        );
-    }
 
-    const tripBookings = myBookings.filter(b => b.tripId === selectedTripId);
+            {/* RIGHT CONTENT AREA: DETAILS */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative">
+                {selectedTrip ? (
+                    <>
+                        {/* Header for Selected Trip */}
+                        <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-20">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    {selectedTrip.title}
+                                    <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Ativa</span>
+                                </h2>
+                                <p className="text-xs text-gray-500">{selectedTrip.destination}</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {/* Navigation Tabs (Inside Header) */}
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setActiveView('TRANSPORT')}
+                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'TRANSPORT' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Bus size={14} className="inline mr-1 mb-0.5"/> Transporte
+                                    </button>
+                                    <button 
+                                        onClick={() => setActiveView('ROOMING')}
+                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'ROOMING' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <BedDouble size={14} className="inline mr-1 mb-0.5"/> Hospedagem
+                                    </button>
+                                </div>
+                                <div className="h-6 w-px bg-gray-200"></div>
+                                <button onClick={generateManifest} className="flex items-center gap-2 text-gray-600 hover:text-primary-600 text-xs font-bold transition-colors">
+                                    <FileText size={16}/> Imprimir Lista
+                                </button>
+                            </div>
+                        </div>
 
-    return (
-        <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex justify-between items-center border-b border-gray-200 bg-white px-6 py-2 shrink-0 h-14">
-                <div className="flex items-center gap-4 h-full">
-                    <button onClick={() => onSelectTrip(null)} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors" title="Voltar para seleção">
-                        <ArrowLeft size={20}/>
-                    </button>
-                    <div className="h-6 w-px bg-gray-300 mx-2"></div>
-                    <div className="flex gap-6 h-full">
-                        <button onClick={() => setActiveView('TRANSPORT')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Bus size={18}/> Transporte</button>
-                        <button onClick={() => setActiveView('ROOMING')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Hospedagem</button>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-gray-500 hidden sm:inline-block max-w-[200px] truncate">{selectedTrip.title}</span>
-                    <button onClick={generateManifest} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm"><FileDown size={14}/> Manifesto PDF</button>
-                </div>
-            </div>
-            
-            <div className="flex-1 overflow-hidden min-h-0 bg-slate-50">
-                {activeView === 'TRANSPORT' ? (
-                    <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-hidden relative">
+                            {activeView === 'TRANSPORT' ? (
+                                <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                            ) : (
+                                <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                            )}
+                        </div>
+                    </>
                 ) : (
-                    <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                    // Empty State
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
+                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+                            <MousePointer2 size={32} className="text-gray-300"/>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-600 mb-2">Nenhuma viagem selecionada</h3>
+                        <p className="text-sm max-w-xs text-center">Selecione uma viagem na lista à esquerda para gerenciar o transporte e a hospedagem.</p>
+                    </div>
                 )}
             </div>
         </div>
