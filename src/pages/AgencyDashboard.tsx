@@ -137,15 +137,17 @@ const ConfirmationModal: React.FC<{ isOpen: boolean; onClose: () => void; onConf
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${variant === 'danger' ? 'bg-red-100 text-red-600' : variant === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 mx-auto ${variant === 'danger' ? 'bg-red-100 text-red-600' : variant === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
                     <AlertTriangle size={24}/>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
-                <p className="text-sm text-gray-600 mb-6">{message}</p>
+                <div className="text-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+                    <p className="text-sm text-gray-600">{message}</p>
+                </div>
                 <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200">Cancelar</button>
-                    <button onClick={onConfirm} className={`flex-1 px-4 py-2 text-white rounded-lg font-bold ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}>{confirmText}</button>
+                    <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
+                    <button onClick={onConfirm} className={`flex-1 px-4 py-2.5 text-white rounded-lg font-bold transition-colors ${variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'}`}>{confirmText}</button>
                 </div>
             </div>
         </div>
@@ -317,6 +319,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [dragOverSeat, setDragOverSeat] = useState<string | null>(null);
     const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
     
     // Config Mode
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
@@ -387,6 +390,13 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         setConfig(newConfig);
         onSave({ ...trip.operationalData, transport: newConfig });
         setSeatToDelete(null);
+    };
+
+    const handleResetVehicle = () => {
+        setConfig({ vehicleConfig: null, seats: [] });
+        onSave({ ...trip.operationalData, transport: undefined });
+        setShowResetConfirm(false);
+        showToast('Layout do veículo resetado com sucesso.', 'success');
     };
 
     // Handlers
@@ -527,6 +537,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     return (
         <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
             <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name}?`} variant="warning" />
+            <ConfirmationModal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} onConfirm={handleResetVehicle} title="Excluir Veículo" message="Tem certeza que deseja remover este veículo e todos os assentos configurados? Esta ação não pode ser desfeita." variant="danger" confirmText="Excluir Veículo" />
 
             {/* Sidebar */}
             <div className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
@@ -613,7 +624,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-gray-200 text-xs font-bold text-gray-600 z-20 flex items-center gap-2">
                     <Truck size={14} /> {config.vehicleConfig.label}
-                    <button onClick={() => { if(window.confirm('Resetar layout?')) { setConfig({ vehicleConfig: null, seats: [] }); onSave({ ...trip.operationalData, transport: undefined }); } }} className="ml-2 text-gray-400 hover:text-red-500"><Settings size={14}/></button>
+                    <button onClick={() => setShowResetConfirm(true)} className="ml-2 text-gray-400 hover:text-red-500"><Settings size={14}/></button>
                 </div>
                 <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
                     <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto">
@@ -649,6 +660,11 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     // Batch Config
     const [invQty, setInvQty] = useState(1);
     const [invType, setInvType] = useState<'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE'>('DOUBLE');
+    const [invCustomCap, setInvCustomCap] = useState<number | ''>(''); // New state for custom capacity
+
+    // Delete/Remove States
+    const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
+    const [guestToRemove, setGuestToRemove] = useState<{roomId: string, guestId: string, guestName: string} | null>(null);
 
     const allPassengers = useMemo(() => {
         const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
@@ -677,9 +693,16 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     const handleBatchCreate = () => {
         const newRooms: RoomConfig[] = [];
         const capMap = { 'DOUBLE': 2, 'TRIPLE': 3, 'QUAD': 4, 'COLLECTIVE': 6 };
+        
+        // Determine capacity: custom input takes precedence if type is COLLECTIVE, otherwise use map
+        let capacity = capMap[invType];
+        if (invType === 'COLLECTIVE' && invCustomCap !== '' && Number(invCustomCap) > 0) {
+            capacity = Number(invCustomCap);
+        }
+
         const startIdx = rooms.length + 1;
         for(let i=0; i<invQty; i++) {
-            newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capMap[invType], guests: [] });
+            newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capacity, guests: [] });
         }
         const updated = [...rooms, ...newRooms];
         setRooms(updated);
@@ -711,18 +734,20 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         }
     };
 
-    const handleRemoveGuest = (roomId: string, guestId: string) => {
-        const updated = rooms.map(r => r.id === roomId ? { ...r, guests: r.guests.filter(g => g.bookingId !== guestId) } : r);
+    const confirmRemoveGuest = () => {
+        if (!guestToRemove) return;
+        const updated = rooms.map(r => r.id === guestToRemove.roomId ? { ...r, guests: r.guests.filter(g => g.bookingId !== guestToRemove.guestId) } : r);
         setRooms(updated);
         onSave({ ...trip.operationalData, rooming: updated });
+        setGuestToRemove(null);
     };
     
-    const handleDeleteRoom = (roomId: string) => {
-        if(confirm('Excluir quarto?')) {
-            const updated = rooms.filter(r => r.id !== roomId);
-            setRooms(updated);
-            onSave({ ...trip.operationalData, rooming: updated });
-        }
+    const confirmDeleteRoom = () => {
+        if (!roomToDelete) return;
+        const updated = rooms.filter(r => r.id !== roomToDelete);
+        setRooms(updated);
+        onSave({ ...trip.operationalData, rooming: updated });
+        setRoomToDelete(null);
     };
     
     const handleAddManual = (p: ManualPassenger) => {
@@ -753,16 +778,59 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
     const assignedCount = assignedMap.size;
     const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
 
+    // Helper for Quick Selectors
+    const QuickSelector = ({ type, label, active }: { type: string; label: string; active: boolean }) => (
+        <button 
+            onClick={() => setInvType(type as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${active ? 'bg-primary-600 text-white border-primary-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+        >
+            {label}
+        </button>
+    );
+
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white">
+            <ConfirmationModal isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os passageiros voltarão para a lista." variant="danger" />
+            <ConfirmationModal isOpen={!!guestToRemove} onClose={() => setGuestToRemove(null)} onConfirm={confirmRemoveGuest} title="Remover Passageiro" message={`Remover ${guestToRemove?.guestName} deste quarto?`} variant="warning" confirmText="Remover" />
+
             {/* Header Config */}
             <div className="bg-slate-50 border-b p-4 flex flex-wrap items-center justify-between gap-4 flex-shrink-0">
-                <div className="flex items-center gap-2 bg-white p-1.5 rounded-lg border shadow-sm">
-                    <span className="text-xs font-bold text-gray-500 uppercase ml-2"><Building size={14}/> Config:</span>
-                    <input type="number" min="1" max="20" value={invQty} onChange={e => setInvQty(parseInt(e.target.value)||1)} className="w-12 border rounded p-1 text-center text-sm font-bold"/>
-                    <select value={invType} onChange={e => setInvType(e.target.value as any)} className="border rounded p-1 text-sm"><option value="DOUBLE">Duplo</option><option value="TRIPLE">Triplo</option><option value="QUAD">Quádruplo</option><option value="COLLECTIVE">Coletivo</option></select>
-                    <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-primary-700 flex items-center gap-1"><Plus size={14}/> Add</button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase flex items-center mr-2"><Building size={14} className="mr-1"/> Config:</span>
+                    
+                    <div className="flex gap-2 mr-2">
+                        <QuickSelector type="DOUBLE" label="Single/Duplo" active={invType === 'DOUBLE'} />
+                        <QuickSelector type="TRIPLE" label="Triplo" active={invType === 'TRIPLE'} />
+                        <QuickSelector type="QUAD" label="Quádruplo" active={invType === 'QUAD'} />
+                        <QuickSelector type="COLLECTIVE" label="Personalizado" active={invType === 'COLLECTIVE'} />
+                    </div>
+
+                    {invType === 'COLLECTIVE' && (
+                        <div className="relative animate-[fadeIn_0.2s]">
+                            <input 
+                                type="number" 
+                                min="1" 
+                                placeholder="Cap." 
+                                value={invCustomCap} 
+                                onChange={e => setInvCustomCap(e.target.value === '' ? '' : parseInt(e.target.value))} 
+                                className="w-16 border rounded-lg p-1.5 text-center text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
+                            />
+                        </div>
+                    )}
+
+                    <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+                    <div className="flex items-center bg-white rounded-lg border border-gray-200 p-0.5">
+                        <button onClick={() => setInvQty(Math.max(1, invQty-1))} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-l-md font-bold">-</button>
+                        <span className="px-2 text-xs font-bold min-w-[20px] text-center">{invQty}</span>
+                        <button onClick={() => setInvQty(invQty+1)} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r-md font-bold">+</button>
+                    </div>
+
+                    <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-1 shadow-sm ml-2">
+                        <Plus size={14}/> Adicionar Quartos
+                    </button>
                 </div>
+                
                 <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
                     <span>Vagas: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
                 </div>
@@ -863,21 +931,21 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                     onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
                                     className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
                                 >
-                                    <div className="p-3 border-b flex justify-between items-center bg-gray-50/50">
-                                        <div className="flex items-center gap-3">
+                                    <div className="p-3 border-b flex justify-between items-center bg-gray-50/50 w-full">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0 truncate">
                                             <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
-                                            <div>
-                                                <h5 className="font-bold text-gray-800 text-sm">{room.name}</h5>
+                                            <div className="truncate flex-1">
+                                                <h5 className="font-bold text-gray-800 text-sm truncate" title={room.name}>{room.name}</h5>
                                                 <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase"><span>{room.type}</span><span className={isFull?'text-green-600':'text-blue-600'}>{room.guests.length}/{room.capacity}</span></div>
                                             </div>
                                         </div>
-                                        <button onClick={(e) => {e.stopPropagation(); handleDeleteRoom(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5"><Trash2 size={16}/></button>
+                                        <button onClick={(e) => {e.stopPropagation(); setRoomToDelete(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5 flex-shrink-0"><Trash2 size={16}/></button>
                                     </div>
                                     <div className="p-3 space-y-2 min-h-[80px]">
                                         {room.guests.map(g => (
                                             <div key={g.bookingId} className="bg-blue-50/50 px-3 py-2 rounded text-xs font-medium flex justify-between items-center group/guest border border-blue-100/50">
                                                 <div className="flex items-center gap-2"><User size={12} className="text-blue-400"/><span className="truncate max-w-[120px]">{g.name}</span></div>
-                                                <button onClick={(e)=>{e.stopPropagation(); handleRemoveGuest(room.id, g.bookingId);}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
+                                                <button onClick={(e)=>{e.stopPropagation(); setGuestToRemove({roomId: room.id, guestId: g.bookingId, guestName: g.name});}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
                                             </div>
                                         ))}
                                         {Array.from({length: Math.max(0, room.capacity - room.guests.length)}).map((_,i) => (
