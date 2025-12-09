@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
@@ -39,7 +39,8 @@ export const TripCardSkeleton = () => (
 );
 
 // FIX: Changed from default export to named export
-export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
+// Memoized component to prevent unnecessary re-renders
+export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
   const { user } = useAuth();
   const { toggleFavorite, clients, agencies } = useData();
   const { showToast } = useToast();
@@ -48,23 +49,28 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   // Context awareness for link generation
   const { agencySlug } = useParams<{ agencySlug?: string }>();
 
-  // Determine the link target based on context
-  // If we are inside an agency route, keep the context. If global, keep global.
-  // FIX: Use only slug (no ID fallback) since we now guarantee all trips have slugs
-  const linkTarget = agencySlug 
-    ? `/${agencySlug}/viagem/${trip.slug}` 
-    : `/viagem/${trip.slug}`;
+  // Memoize computed values to prevent recalculation
+  const linkTarget = useMemo(() => 
+    agencySlug ? `/${agencySlug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`,
+    [agencySlug, trip.slug]
+  );
 
-  // Ensure clients data is loaded and use current user's favorites
-  const currentUserData = clients.find(c => c.id === user?.id);
-  const isFavorite = user?.role === 'CLIENT' && currentUserData?.favorites.includes(trip.id);
+  // Memoize favorite check
+  const isFavorite = useMemo(() => {
+    if (!user || user.role !== 'CLIENT') return false;
+    const currentUserData = clients.find(c => c.id === user.id);
+    return currentUserData?.favorites.includes(trip.id) || false;
+  }, [user, clients, trip.id]);
 
-  // Find Agency for WhatsApp
-  // FIX: Find agency by 'agencyId' (PK) to match trip.agencyId, not by user 'id'.
-  const agency = agencies.find(a => a.agencyId === trip.agencyId);
-  // UPDATE: Check for both whatsapp and phone fields for robustness
-  const contactNumber = agency?.whatsapp || agency?.phone;
-  const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
+  // Memoize agency and WhatsApp link
+  const { agency, whatsappLink } = useMemo(() => {
+    const foundAgency = agencies.find(a => a.agencyId === trip.agencyId);
+    const contactNumber = foundAgency?.whatsapp || foundAgency?.phone;
+    return {
+      agency: foundAgency,
+      whatsappLink: contactNumber ? buildWhatsAppLink(contactNumber, trip) : null
+    };
+  }, [agencies, trip.agencyId, trip]);
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent Link navigation
@@ -115,6 +121,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
         <img 
           src={displayImage} 
           alt={trip.title} 
+          loading="lazy"
           onError={() => setImgError(true)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
@@ -189,4 +196,15 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
       </div>
     </Link>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo
+  // Only re-render if trip data actually changed
+  return (
+    prevProps.trip.id === nextProps.trip.id &&
+    prevProps.trip.title === nextProps.trip.title &&
+    prevProps.trip.price === nextProps.trip.price &&
+    prevProps.trip.tripRating === nextProps.trip.tripRating &&
+    prevProps.trip.slug === nextProps.trip.slug &&
+    prevProps.trip.images?.[0] === nextProps.trip.images?.[0]
+  );
+});

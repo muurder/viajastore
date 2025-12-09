@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
+import { debounce } from '../utils/debounce';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
 const normalizeText = (text: string) => {
@@ -89,21 +90,11 @@ export const TripList: React.FC = () => {
     ? [] 
     : (currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips);
   
-  const [filteredTrips, setFilteredTrips] = useState(initialTrips);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   // FIX: Corrected typo 'true' to 'price' in initial state of openFilterSections
   const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
      traveler: true, style: true, duration: true, price: true, dest: true
   });
-
-  // Update initial trips when data loads or route changes
-  useEffect(() => {
-     if (isResolvingAgency) return; // Wait until loaded
-
-     // Corrected: Use agencyId (PK) instead of id (Auth ID)
-     const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips;
-     setFilteredTrips(sourceTrips);
-  }, [currentAgency, agencySlug, loading, trips]);
 
   // Extract URL Params
   const q = searchParams.get('q') || '';
@@ -113,6 +104,29 @@ export const TripList: React.FC = () => {
   const priceParam = searchParams.get('price'); // '0-500', '500-1000' etc
   const categoryParam = searchParams.get('category');
   const sortParam = searchParams.get('sort') || 'RELEVANCE';
+
+  // Local state for search input with debounce
+  const [searchInput, setSearchInput] = useState(q);
+
+  // Update local state when URL param changes (e.g., from back button)
+  useEffect(() => {
+    setSearchInput(q);
+  }, [q]);
+
+  // Debounced update function
+  const debouncedUpdateUrl = useMemo(
+    () => debounce((value: string) => {
+      updateUrl('q', value || null);
+    }, 400),
+    []
+  );
+
+  // Handle search input change
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchInput(value);
+    debouncedUpdateUrl(value);
+  }, [debouncedUpdateUrl]);
 
   // Derived State from URL
   const selectedTags = tagsParam ? tagsParam.split(',') : [];
@@ -174,12 +188,16 @@ export const TripList: React.FC = () => {
      setOpenFilterSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  // Filter Logic
-  useEffect(() => {
-    if (isResolvingAgency) return;
+  // Memoize source trips to avoid recalculation
+  const sourceTrips = useMemo(() => {
+    if (isResolvingAgency) return [];
+    return currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips;
+  }, [currentAgency, trips, isResolvingAgency, getAgencyPublicTrips]);
 
-    // Corrected: Use agencyId (PK) instead of id (Auth ID)
-    const sourceTrips = currentAgency ? getAgencyPublicTrips(currentAgency.agencyId) : trips;
+  // Optimized filter logic with useMemo
+  const filteredTrips = useMemo(() => {
+    if (isResolvingAgency || sourceTrips.length === 0) return [];
+    
     let result = [...sourceTrips];
 
     // 1. Search Term (Generalized Search)
@@ -250,8 +268,8 @@ export const TripList: React.FC = () => {
            }
     }
 
-    setFilteredTrips(result);
-  }, [currentAgency, q, categoryParam, tagsParam, travelerParam, durationParam, priceParam, sortParam, isResolvingAgency, trips]);
+    return result;
+  }, [sourceTrips, q, categoryParam, selectedTags, selectedTravelerTypes, durationParam, priceParam, sortParam, isResolvingAgency]);
 
   const clearFilters = () => {
       setSearchParams({});
@@ -327,8 +345,8 @@ export const TripList: React.FC = () => {
                        <MapPin className="text-primary-500 ml-3 shrink-0" size={20} />
                        <input 
                          type="text" 
-                         value={q}
-                         onChange={(e) => updateUrl('q', e.target.value || null)}
+                         value={searchInput}
+                         onChange={handleSearchChange}
                          placeholder="Qual seu próximo destino?"
                          className="w-full pl-3 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium outline-none bg-transparent rounded-xl"
                        />
