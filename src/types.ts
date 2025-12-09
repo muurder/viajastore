@@ -130,9 +130,19 @@ export interface VehicleLayoutConfig {
   lowerDeckSeats?: number;
 }
 
+export interface VehicleInstance {
+  id: string;
+  name: string;
+  config: VehicleLayoutConfig;
+  seats: PassengerSeat[];
+}
+
 export interface TransportConfig {
-    vehicleConfig: VehicleLayoutConfig | null;
-    seats: PassengerSeat[];
+    // Deprecated single fields (kept for migration)
+    vehicleConfig?: VehicleLayoutConfig | null;
+    seats?: PassengerSeat[];
+    // New fleet field
+    vehicles?: VehicleInstance[];
 }
 
 export interface ManualPassenger {

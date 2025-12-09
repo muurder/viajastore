@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { 
-  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig 
+  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance
 } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
@@ -31,7 +32,7 @@ const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
 };
 
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
-    transport: undefined, 
+    transport: { vehicles: [] }, 
     rooming: [],
     manualPassengers: []
 };
@@ -292,7 +293,7 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
     );
 };
 
-// --- SUB-COMPONENTS FOR OPERATIONS ---
+// --- TRANSPORT MANAGER (FLEET SUPPORT) ---
 
 interface TransportManagerProps {
     trip: Trip; 
@@ -302,29 +303,55 @@ interface TransportManagerProps {
 }
 
 const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, clients, onSave }) => {
-    const currentVehicleConfig = trip.operationalData?.transport?.vehicleConfig;
-    const currentSeats = trip.operationalData?.transport?.seats || [];
+    // Current data structure access
+    const transportData = trip.operationalData?.transport;
     const currentManualPassengers = trip.operationalData?.manualPassengers || [];
     const nameOverrides = (trip.operationalData as any)?.passengerNameOverrides || {};
 
-    const [config, setConfig] = useState<TransportConfig>({ 
-        vehicleConfig: currentVehicleConfig || null,
-        seats: currentSeats
-    });
-    
+    // --- State ---
+    const [vehicles, setVehicles] = useState<VehicleInstance[]>([]);
+    const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
     const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(currentManualPassengers);
+    
+    // UI State
     const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
     const [dragOverSeat, setDragOverSeat] = useState<string | null>(null);
     const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
-    
-    // Config Mode
-    const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
-    const [customVehicleData, setCustomVehicleData] = useState({ label: '', totalSeats: 4, cols: 2 });
-    const [showManualForm, setShowManualForm] = useState(false);
     const [filterText, setFilterText] = useState('');
-    const [showResetVehicleConfirm, setShowResetVehicleConfirm] = useState(false);
-
+    const [showManualForm, setShowManualForm] = useState(false);
+    
+    // Modals
+    const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
+    
     const { showToast } = useToast();
+
+    // --- Migration & Initialization ---
+    useEffect(() => {
+        if (transportData?.vehicles && transportData.vehicles.length > 0) {
+            // Already in new format
+            setVehicles(transportData.vehicles);
+            if (!activeVehicleId) setActiveVehicleId(transportData.vehicles[0].id);
+        } else if (transportData?.vehicleConfig) {
+            // Old format: Migrate to fleet array
+            const migratedVehicle: VehicleInstance = {
+                id: 'migrated-1',
+                name: 'Veículo 1',
+                config: transportData.vehicleConfig,
+                seats: transportData.seats || []
+            };
+            const newFleet = [migratedVehicle];
+            setVehicles(newFleet);
+            setActiveVehicleId('migrated-1');
+            // Save immediately to persist migration
+            onSave({ ...trip.operationalData, transport: { vehicles: newFleet } });
+        } else {
+            // Empty state
+            setVehicles([]);
+        }
+    }, [transportData]); // Run once on data load
+
+    const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
 
     // Derived Passengers List
     const allPassengers = useMemo(() => {
@@ -342,115 +369,121 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return [...booked, ...manual];
     }, [bookings, clients, manualPassengers, nameOverrides]);
 
-    const assignedSet = useMemo(() => {
-        return new Set(config.seats.map(s => s.bookingId));
-    }, [config.seats]);
-
-    const assignedSeatMap = useMemo(() => {
-        const map = new Map<string, string>();
-        config.seats.forEach(s => map.set(s.bookingId, s.seatNumber));
+    // Assigned Map (Global across ALL vehicles)
+    const assignedMap = useMemo(() => {
+        const map = new Map<string, string>(); // bookingId -> vehicleName + seat
+        vehicles.forEach(v => {
+            v.seats.forEach(s => {
+                map.set(s.bookingId, `${v.name} - ${s.seatNumber}`);
+            });
+        });
         return map;
-    }, [config.seats]);
+    }, [vehicles]);
 
     const filteredPassengers = useMemo(() => {
         if (!filterText) return allPassengers;
         return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
     }, [allPassengers, filterText]);
 
-    const isSeatOccupied = (seatNum: string) => config.seats.find(s => s.seatNumber === seatNum);
-    
-    // Actions
-    const handleAssign = (seatNum: string, passenger: { id: string, name: string, bookingId: string }) => {
-        if (isSeatOccupied(seatNum)) {
-            showToast(`Assento ${seatNum} já ocupado.`, 'warning');
+    // --- Actions ---
+
+    const handleAddVehicle = (type: VehicleType, customData?: any) => {
+        const config = type === 'CUSTOM' ? {
+            type: 'CUSTOM',
+            label: customData.label || 'Personalizado',
+            totalSeats: customData.totalSeats,
+            cols: customData.cols,
+            aisleAfterCol: Math.floor(customData.cols / 2)
+        } : VEHICLE_TYPES[type];
+
+        const newVehicle: VehicleInstance = {
+            id: `v-${Date.now()}`,
+            name: `${config.label.split(' ')[0]} ${vehicles.length + 1}`,
+            config: config as VehicleLayoutConfig,
+            seats: []
+        };
+
+        const updatedFleet = [...vehicles, newVehicle];
+        setVehicles(updatedFleet);
+        setActiveVehicleId(newVehicle.id);
+        onSave({ ...trip.operationalData, transport: { vehicles: updatedFleet } });
+        setShowAddVehicleModal(false);
+    };
+
+    const handleDeleteVehicle = () => {
+        if (!activeVehicleId) return;
+        const updatedFleet = vehicles.filter(v => v.id !== activeVehicleId);
+        setVehicles(updatedFleet);
+        setActiveVehicleId(updatedFleet.length > 0 ? updatedFleet[0].id : null);
+        onSave({ ...trip.operationalData, transport: { vehicles: updatedFleet } });
+        setShowResetConfirm(false);
+        showToast('Veículo removido da frota.', 'success');
+    };
+
+    const handleAssign = (seatNum: string, passenger: { id: string, name: string }) => {
+        if (!activeVehicle) return;
+        
+        // Check if seat is occupied in THIS vehicle
+        if (activeVehicle.seats.find(s => s.seatNumber === seatNum)) {
+            showToast('Assento ocupado!', 'warning');
             return;
         }
-        const newSeat: PassengerSeat = {
-            seatNumber: seatNum,
-            passengerName: passenger.name,
-            bookingId: passenger.id,
-            status: 'occupied'
-        };
-        // Remove previous assignment if any
-        const cleanSeats = config.seats.filter(s => s.bookingId !== passenger.id);
-        const newSeats = [...cleanSeats, newSeat];
-        const newConfig = { ...config, seats: newSeats };
-        setConfig(newConfig);
-        onSave({ ...trip.operationalData, transport: newConfig });
+
+        // Remove passenger from ANY other vehicle first (Global unassign)
+        const cleanedFleet = vehicles.map(v => ({
+            ...v,
+            seats: v.seats.filter(s => s.bookingId !== passenger.id)
+        }));
+
+        // Assign to current vehicle
+        const updatedFleet = cleanedFleet.map(v => {
+            if (v.id === activeVehicleId) {
+                return {
+                    ...v,
+                    seats: [...v.seats, {
+                        seatNumber: seatNum,
+                        passengerName: passenger.name,
+                        bookingId: passenger.id,
+                        status: 'occupied' as const
+                    }]
+                };
+            }
+            return v;
+        });
+
+        setVehicles(updatedFleet);
+        onSave({ ...trip.operationalData, transport: { vehicles: updatedFleet } });
         if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
     };
 
     const confirmRemoveSeat = () => {
-        if (!seatToDelete) return;
-        const newSeats = config.seats.filter(s => s.seatNumber !== seatToDelete.seatNum);
-        const newConfig = { ...config, seats: newSeats };
-        setConfig(newConfig);
-        onSave({ ...trip.operationalData, transport: newConfig });
+        if (!activeVehicle || !seatToDelete) return;
+        
+        const updatedFleet = vehicles.map(v => {
+            if (v.id === activeVehicleId) {
+                return {
+                    ...v,
+                    seats: v.seats.filter(s => s.seatNumber !== seatToDelete.seatNum)
+                };
+            }
+            return v;
+        });
+
+        setVehicles(updatedFleet);
+        onSave({ ...trip.operationalData, transport: { vehicles: updatedFleet } });
         setSeatToDelete(null);
     };
 
-    const confirmResetVehicle = () => {
-        setConfig({ vehicleConfig: null, seats: [] });
-        onSave({ ...trip.operationalData, transport: undefined });
-        setShowResetVehicleConfirm(false);
-        showToast('Veículo resetado com sucesso.', 'success');
-    };
-
-    // Handlers
-    const handleDragStart = (e: React.DragEvent, passenger: any) => {
-        e.dataTransfer.setData('application/json', JSON.stringify(passenger));
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDrop = (e: React.DragEvent, seatNum: string) => {
-        e.preventDefault();
-        setDragOverSeat(null);
-        try {
-            const data = e.dataTransfer.getData('application/json');
-            const passenger = JSON.parse(data);
-            if (passenger?.id) handleAssign(seatNum, passenger);
-        } catch (err) {}
-    };
-
-    const handleSeatClick = (seatNum: string) => {
-        const occupant = isSeatOccupied(seatNum);
-        if (occupant) setSeatToDelete({ seatNum, name: occupant.passengerName });
-        else if (selectedPassenger) handleAssign(seatNum, selectedPassenger);
-    };
-
-    const handleSelectVehicleType = (type: VehicleType) => {
-        if (type === 'CUSTOM') { setShowCustomVehicleForm(true); return; }
-        const newConfig = VEHICLE_TYPES[type];
-        const newTransportState = { vehicleConfig: newConfig, seats: [] };
-        setConfig(newTransportState);
-        onSave({ ...trip.operationalData, transport: newTransportState });
-    };
-
-    const handleSaveCustomVehicle = (e: React.FormEvent) => {
-        e.preventDefault();
-        const newConfig: VehicleLayoutConfig = { 
-            type: 'CUSTOM', 
-            label: customVehicleData.label || 'Veículo Personalizado', 
-            totalSeats: customVehicleData.totalSeats, 
-            cols: customVehicleData.cols, 
-            aisleAfterCol: Math.floor(customVehicleData.cols / 2) 
-        };
-        const newTransportState = { vehicleConfig: newConfig, seats: [] };
-        setConfig(newTransportState);
-        onSave({ ...trip.operationalData, transport: newTransportState });
-        setShowCustomVehicleForm(false);
-    };
-    
     const handleAddManual = (p: ManualPassenger) => {
         const newManuals = [...manualPassengers, p];
         setManualPassengers(newManuals);
         onSave({ ...trip.operationalData, manualPassengers: newManuals });
     };
 
-    // Render Logic
+    // Render Logic for Bus Layout
     const renderBusLayout = () => {
-        if (!config.vehicleConfig) return null;
-        const { totalSeats, cols, aisleAfterCol } = config.vehicleConfig;
+        if (!activeVehicle) return null;
+        const { totalSeats, cols, aisleAfterCol } = activeVehicle.config;
         const rows = Math.ceil(totalSeats / cols);
         const grid = [];
 
@@ -462,7 +495,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 
                 if (seatNum <= totalSeats) {
                     const seatStr = seatNum.toString();
-                    const occupant = isSeatOccupied(seatStr);
+                    const occupant = activeVehicle.seats.find(s => s.seatNumber === seatStr);
                     const isTarget = dragOverSeat === seatStr || (selectedPassenger && !occupant);
                     
                     rowSeats.push(
@@ -470,8 +503,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             key={seatNum}
                             onDragOver={(e) => { e.preventDefault(); if(!occupant) setDragOverSeat(seatStr); }}
                             onDragLeave={() => setDragOverSeat(null)}
-                            onDrop={(e) => { e.preventDefault(); setDragOverSeat(null); if(!occupant) handleDrop(e, seatStr); }}
-                            onClick={() => handleSeatClick(seatStr)}
+                            onDrop={(e) => { e.preventDefault(); setDragOverSeat(null); if(!occupant) { 
+                                const data = e.dataTransfer.getData('application/json');
+                                try { handleAssign(seatStr, JSON.parse(data)); } catch(e){} 
+                            }}}
+                            onClick={() => {
+                                if (occupant) setSeatToDelete({ seatNum: seatStr, name: occupant.passengerName });
+                                else if (selectedPassenger) handleAssign(seatStr, selectedPassenger);
+                            }}
                             className={`
                                 relative w-12 h-12 flex flex-col items-center justify-center transition-all duration-200
                                 ${occupant ? 'cursor-pointer text-primary-600' : isTarget ? 'cursor-pointer scale-110 text-green-500 bg-green-50 rounded-lg shadow-sm border border-green-200' : 'cursor-pointer text-gray-300 hover:text-gray-400'}
@@ -494,58 +533,60 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return grid;
     };
 
-    if (!config.vehicleConfig) {
+    // Stats
+    const totalFleetCapacity = vehicles.reduce((sum, v) => sum + v.config.totalSeats, 0);
+    const assignedCount = assignedMap.size;
+    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
+
+    // Custom Add Vehicle Modal
+    const AddVehicleModal = () => {
+        const [mode, setMode] = useState<'PRESET' | 'CUSTOM'>('PRESET');
+        const [customData, setCustomData] = useState({ label: '', totalSeats: 4, cols: 2 });
+
         return (
-            <div className="flex-1 h-full flex flex-col items-center justify-center p-8 bg-slate-50 animate-[fadeIn_0.3s]">
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 max-w-2xl w-full text-center">
-                    {!showCustomVehicleForm ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 relative">
+                    <button onClick={() => setShowAddVehicleModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Adicionar Veículo à Frota</h2>
+                    
+                    {mode === 'PRESET' ? (
                         <>
-                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600"><Settings2 size={32}/></div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure o Transporte</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                                {Object.values(VEHICLE_TYPES).map(v => (
-                                    <button key={v.type} onClick={() => handleSelectVehicleType(v.type)} className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-all">
-                                        <Truck size={24} className="mb-3 text-gray-400"/>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                                {Object.values(VEHICLE_TYPES).filter(v => v.type !== 'CUSTOM').map(v => (
+                                    <button key={v.type} onClick={() => handleAddVehicle(v.type as VehicleType)} className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-all text-center">
+                                        <Truck size={24} className="mb-2 text-gray-400"/>
                                         <span className="font-bold text-gray-700 text-sm">{v.label}</span>
-                                        <span className="text-xs text-gray-400 mt-1">{v.totalSeats > 0 ? `${v.totalSeats} Lugares` : 'Definir'}</span>
+                                        <span className="text-xs text-gray-400">{v.totalSeats} Lugares</span>
                                     </button>
                                 ))}
                             </div>
+                            <button onClick={() => setMode('CUSTOM')} className="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-lg hover:bg-gray-200">Criar Personalizado</button>
                         </>
                     ) : (
-                        <form onSubmit={handleSaveCustomVehicle} className="text-left max-w-sm mx-auto">
-                             <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Veículo Personalizado</h3><button type="button" onClick={() => setShowCustomVehicleForm(false)}><X size={20}/></button></div>
-                             <div className="space-y-4">
-                                <div><label className="text-sm font-bold">Nome</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded"/></div>
-                                <div><label className="text-sm font-bold">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"/></div>
-                                <div><label className="text-sm font-bold">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></div>
-                                <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">Criar</button>
-                             </div>
-                        </form>
+                        <div className="space-y-4">
+                            <div><label className="block text-sm font-bold mb-1">Nome do Veículo</label><input value={customData.label} onChange={e => setCustomData({...customData, label: e.target.value})} className="w-full border p-2 rounded" placeholder="Ex: Van Executiva"/></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-sm font-bold mb-1">Lugares</label><input type="number" value={customData.totalSeats} onChange={e => setCustomData({...customData, totalSeats: parseInt(e.target.value)})} className="w-full border p-2 rounded"/></div>
+                                <div><label className="block text-sm font-bold mb-1">Colunas</label><select value={customData.cols} onChange={e => setCustomData({...customData, cols: parseInt(e.target.value)})} className="w-full border p-2 rounded"><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></div>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button onClick={() => setMode('PRESET')} className="flex-1 py-2 bg-gray-100 font-bold rounded text-gray-600">Voltar</button>
+                                <button onClick={() => handleAddVehicle('CUSTOM', customData)} className="flex-1 py-2 bg-primary-600 text-white font-bold rounded hover:bg-primary-700">Criar</button>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>
         );
-    }
-    
-    const assignedCount = assignedSet.size;
-    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
+    };
 
     return (
         <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
             <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name}?`} variant="warning" />
-            
-            <ConfirmationModal 
-                isOpen={showResetVehicleConfirm} 
-                onClose={() => setShowResetVehicleConfirm(false)} 
-                onConfirm={confirmResetVehicle} 
-                title="Excluir Veículo" 
-                message="Tem certeza que deseja remover o veículo e limpar todos os assentos? Esta ação não pode ser desfeita."
-                variant="danger"
-                confirmText="Excluir"
-            />
+            <ConfirmationModal isOpen={showResetConfirm} onClose={() => setShowResetConfirm(false)} onConfirm={handleDeleteVehicle} title="Excluir Veículo" message="Remover este veículo da frota? Os passageiros ficarão sem assento." variant="danger" confirmText="Excluir"/>
+            {showAddVehicleModal && <AddVehicleModal />}
 
-            {/* Sidebar */}
+            {/* Sidebar - Passenger List */}
             <div className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
                 <div className="p-4 border-b bg-gray-50 space-y-3">
                     <div className="flex justify-between items-center">
@@ -558,38 +599,31 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     </div>
                     <div className="relative">
                         <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar passageiro..." 
-                            className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
-                            value={filterText}
-                            onChange={(e) => setFilterText(e.target.value)}
-                        />
+                        <input type="text" placeholder="Buscar passageiro..." className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
                     </div>
                 </div>
+                
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                     {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                     {filteredPassengers.map(p => {
-                        const isAssigned = assignedSet.has(p.id);
-                        const assignedSeat = assignedSeatMap.get(p.id);
-                        
+                        const assignedInfo = assignedMap.get(p.id);
                         const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
                         
                         return (
                             <div 
                                 key={p.id} 
-                                draggable={!isAssigned} 
-                                onDragStart={(e) => handleDragStart(e, p)} 
-                                onClick={() => !isAssigned && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} 
+                                draggable={!assignedInfo} 
+                                onDragStart={(e) => e.dataTransfer.setData('application/json', JSON.stringify(p))}
+                                onClick={() => !assignedInfo && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} 
                                 className={`
                                     p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all
-                                    ${isAssigned ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
+                                    ${assignedInfo ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
                                     ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md ring-2 ring-primary-100' : ''}
                                 `}
                             >
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    {!isAssigned && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
-                                    {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
+                                    {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                    {assignedInfo && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                     
                                     {accompanyMatch ? (
@@ -618,27 +652,70 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                         </div>
                                     )}
                                 </div>
-                                {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">Assento {assignedSeat}</span>}
+                                {assignedInfo && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap max-w-[80px] truncate" title={assignedInfo}>{assignedInfo}</span>}
                             </div>
                         );
                     })}
                 </div>
-                <div className="p-3 bg-gray-50 border-t text-[10px] text-gray-400 text-center">Arraste para o assento ou clique para selecionar.</div>
+                <div className="p-3 bg-gray-50 border-t text-[10px] text-gray-400 text-center">Total Frota: {totalFleetCapacity} lugares.</div>
             </div>
 
-            {/* Bus Area */}
+            {/* Main Area: Fleet Management */}
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-gray-200 text-xs font-bold text-gray-600 z-20 flex items-center gap-2">
-                    <Truck size={14} /> {config.vehicleConfig.label}
-                    <button onClick={() => setShowResetVehicleConfirm(true)} className="ml-2 text-gray-400 hover:text-red-500"><Settings size={14}/></button>
+                
+                {/* Fleet Tab Bar */}
+                <div className="bg-white border-b px-4 pt-3 flex gap-2 overflow-x-auto scrollbar-hide shadow-sm z-20">
+                    {vehicles.map(v => (
+                        <button 
+                            key={v.id} 
+                            onClick={() => setActiveVehicleId(v.id)}
+                            className={`
+                                flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-bold border-t border-x transition-all min-w-[120px] justify-center
+                                ${activeVehicleId === v.id 
+                                    ? 'bg-slate-100 text-primary-700 border-slate-200 border-b-slate-100 -mb-px shadow-sm' 
+                                    : 'bg-white text-gray-500 border-transparent hover:bg-gray-50'
+                                }
+                            `}
+                        >
+                            {v.name}
+                            <span className="text-[10px] bg-black/10 px-1.5 py-0.5 rounded-full text-black/60">{v.config.totalSeats}</span>
+                        </button>
+                    ))}
+                    <button 
+                        onClick={() => setShowAddVehicleModal(true)}
+                        className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors mb-1 ml-1"
+                    >
+                        <Plus size={14}/> Add Veículo
+                    </button>
                 </div>
-                <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
-                    <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto">
-                        <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
-                        <div className="mt-12 space-y-2 select-none">{renderBusLayout()}</div>
-                        <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
+
+                {/* Active Vehicle View */}
+                {activeVehicle ? (
+                    <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
+                        <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto animate-[fadeIn_0.3s]">
+                            <div className="absolute top-4 right-4 flex gap-2">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeVehicle.config.label}</span>
+                                <button onClick={() => setShowResetConfirm(true)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                            </div>
+                            
+                            <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]">
+                                <User size={24} className="text-slate-300"/>
+                            </div>
+                            
+                            <div className="mt-12 space-y-2 select-none">
+                                {renderBusLayout()}
+                            </div>
+                            
+                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <Truck size={48} className="mb-4 opacity-50"/>
+                        <p className="text-lg font-medium">Nenhum veículo na frota.</p>
+                        <button onClick={() => setShowAddVehicleModal(true)} className="mt-4 text-primary-600 font-bold hover:underline">Adicionar Primeiro Veículo</button>
+                    </div>
+                )}
             </div>
         </div>
     );
