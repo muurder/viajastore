@@ -159,11 +159,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // 1. Fetch Agencies
-        const { data: agenciesData } = await sb.from('agencies').select('*');
+        // 1. Fetch Agencies (exclude soft-deleted)
+        const { data: agenciesData } = await sb.from('agencies')
+          .select('*')
+          .is('deleted_at', null); // FIX: Only fetch non-deleted agencies
         if (agenciesData) {
             const mappedAgencies: Agency[] = agenciesData.map((a: any) => ({
-                id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}
+                id: a.user_id, agencyId: a.id, name: a.name, email: a.email || '', role: UserRole.AGENCY, slug: a.slug || '', whatsapp: a.whatsapp, cnpj: a.cnpj, description: a.description || '', logo: a.logo_url || '', is_active: a.is_active ?? false, heroMode: a.hero_mode || 'TRIPS', heroBannerUrl: a.hero_banner_url, heroTitle: a.hero_title, heroSubtitle: a.hero_subtitle, customSettings: a.custom_settings || {}, subscriptionStatus: a.subscription_status || 'ACTIVE', subscriptionPlan: a.subscription_plan || 'BASIC', subscriptionExpiresAt: a.subscription_expires_at || new Date().toISOString(), website: a.website, phone: a.phone, address: a.address || {}, bankInfo: a.bank_info || {}, deleted_at: a.deleted_at
             }));
             setAgencies(mappedAgencies);
         }
@@ -1575,7 +1577,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const searchAgencies = useCallback(async (params: SearchAgenciesParams): Promise<PaginatedResult<Agency>> => {
       await new Promise(resolve => setTimeout(resolve, 300));
-      let result = agenciesRef.current.filter(a => a.is_active);
+      // FIX: Filter out inactive agencies and soft-deleted agencies
+      let result = agenciesRef.current.filter(a => 
+        a.is_active === true && 
+        !a.deleted_at // Exclude soft-deleted agencies
+      );
 
       if (params.query) {
           const q = normalizeText(params.query);

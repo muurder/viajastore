@@ -50,9 +50,10 @@ export const TripCard: React.FC<TripCardProps> = ({ trip }) => {
 
   // Determine the link target based on context
   // If we are inside an agency route, keep the context. If global, keep global.
+  // FIX: Use only slug (no ID fallback) since we now guarantee all trips have slugs
   const linkTarget = agencySlug 
-    ? `/${agencySlug}/viagem/${trip.slug || trip.id}` 
-    : `/viagem/${trip.slug || trip.id}`;
+    ? `/${agencySlug}/viagem/${trip.slug}` 
+    : `/viagem/${trip.slug}`;
 
   // Ensure clients data is loaded and use current user's favorites
   const currentUserData = clients.find(c => c.id === user?.id);

@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { Trip } from '../types';
 import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 
@@ -11,13 +12,43 @@ const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const activeSlug = tripSlug || slug;
   
-  const { getTripBySlug, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies } = useData();
+  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const trip = activeSlug ? getTripBySlug(activeSlug) : undefined;
-  const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : undefined;
+  // FIX: When in agency microsite context, search trips within that agency first
+  // This prevents issues with duplicate slugs across different agencies
+  const currentAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+  
+  let trip: Trip | undefined = undefined;
+  
+  if (activeSlug) {
+    if (currentAgency) {
+      // In agency microsite: search within agency's trips first
+      const agencyTrips = getAgencyPublicTrips(currentAgency.agencyId);
+      trip = agencyTrips.find(t => t.slug === activeSlug);
+      
+      // If not found by slug, try by ID (fallback for old links)
+      if (!trip && activeSlug.length === 36) { // UUIDs are 36 chars
+        trip = getTripById(activeSlug);
+        // Verify it belongs to this agency
+        if (trip && trip.agencyId !== currentAgency.agencyId) {
+          trip = undefined;
+        }
+      }
+    } else {
+      // Global context: search all trips
+      trip = getTripBySlug(activeSlug);
+      
+      // If not found by slug, try by ID (fallback for old links)
+      if (!trip && activeSlug.length === 36) { // UUIDs are 36 chars
+        trip = getTripById(activeSlug);
+      }
+    }
+  }
+  
+  const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : currentAgency;
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,11 +58,30 @@ const TripDetails: React.FC = () => {
   const currentUserData = user ? clients.find(c => c.id === user.id) : undefined;
   const isFavorite = user?.role === 'CLIENT' && trip && currentUserData?.favorites.includes(trip.id);
 
-  if (!trip || !agency) {
+  if (!trip) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center">
-        <h2 className="text-2xl font-bold text-gray-900">Viagem não encontrada</h2>
-        <Link to="/trips" className="text-primary-600 hover:underline mt-4">Voltar para lista</Link>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Viagem não encontrada</h2>
+        <p className="text-gray-500 mb-4 text-center max-w-md">
+          {activeSlug ? `A viagem com slug "${activeSlug}" não foi encontrada.` : 'Nenhuma viagem especificada.'}
+          {currentAgency && ' Verifique se a viagem pertence a esta agência.'}
+        </p>
+        <Link 
+          to={currentAgency ? `/${currentAgency.slug}/trips` : '/trips'} 
+          className="text-primary-600 hover:underline font-medium"
+        >
+          {currentAgency ? `Voltar para pacotes de ${currentAgency.name}` : 'Voltar para lista de viagens'}
+        </Link>
+      </div>
+    );
+  }
+  
+  if (!agency) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Agência não encontrada</h2>
+        <p className="text-gray-500 mb-4">A agência desta viagem não foi encontrada.</p>
+        <Link to="/trips" className="text-primary-600 hover:underline font-medium">Voltar para lista</Link>
       </div>
     );
   }

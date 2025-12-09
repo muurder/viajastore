@@ -396,7 +396,7 @@ const AgencyLandingPage: React.FC = () => {
 
                                   <div className="flex flex-wrap gap-4">
                                       <Link 
-                                        to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
+                                        to={`/${agencySlug}/viagem/${currentHeroTrip.slug}`}
                                         className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
                                       >
                                           Ver Detalhes <ArrowRight size={18}/>
@@ -415,7 +415,7 @@ const AgencyLandingPage: React.FC = () => {
                               {/* Right Card */}
                               <div className="hidden lg:flex justify-end">
                                   <Link 
-                                    to={`/${agencySlug}/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`}
+                                    to={`/${agencySlug}/viagem/${currentHeroTrip.slug}`}
                                     className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
                                   >
                                       <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-inner">
