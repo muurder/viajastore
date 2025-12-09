@@ -11,7 +11,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -978,10 +978,17 @@ interface OperationsModuleProps {
 const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency }) => {
     const selectedTrip = myTrips.find(t => t.id === selectedTripId);
     const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
     const { showToast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // Auto-close sidebar on selection
+    const handleTripSelect = (id: string) => {
+        onSelectTrip(id);
+        setIsSidebarOpen(false);
+    };
 
     // PDF Generator
     const generateManifest = () => {
@@ -1063,104 +1070,132 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     const tripBookings = selectedTrip ? myBookings.filter(b => b.tripId === selectedTripId) : [];
 
     return (
-        <div className="flex h-full overflow-hidden bg-white">
+        <div className="flex h-full overflow-hidden bg-white relative">
             {/* LEFT SIDEBAR: TRIP LIST */}
-            <div className="w-80 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
-                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Selecione a Viagem</h3>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar viagem..." 
-                            className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+            <div className={`
+                flex-shrink-0 border-r border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out overflow-hidden
+                ${isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 border-none'}
+            `}>
+                <div className="min-w-[20rem]">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Selecione a Viagem</h3>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                            <input 
+                                type="text" 
+                                placeholder="Buscar viagem..." 
+                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {filteredTrips.length === 0 ? (
-                        <div className="p-6 text-center text-gray-400 text-sm">
-                            <Bus size={24} className="mx-auto mb-2 opacity-50"/>
-                            Nenhuma viagem ativa.
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-50">
-                            {filteredTrips.map(trip => (
-                                <button 
-                                    key={trip.id}
-                                    onClick={() => onSelectTrip(trip.id)}
-                                    className={`w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4 ${selectedTripId === trip.id ? 'bg-blue-50 border-primary-500' : 'border-transparent'}`}
-                                >
-                                    <h4 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedTripId === trip.id ? 'text-primary-700' : 'text-gray-800'}`}>{trip.title}</h4>
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={12}/> {safeDate(trip.startDate)}</p>
-                                        {selectedTripId === trip.id && <ChevronRight size={14} className="text-primary-500"/>}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    
+                    <div className="flex-1 overflow-y-auto custom-scrollbar h-[calc(100vh-250px)]">
+                        {filteredTrips.length === 0 ? (
+                            <div className="p-6 text-center text-gray-400 text-sm">
+                                <Bus size={24} className="mx-auto mb-2 opacity-50"/>
+                                Nenhuma viagem ativa.
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-gray-50">
+                                {filteredTrips.map(trip => (
+                                    <button 
+                                        key={trip.id}
+                                        onClick={() => handleTripSelect(trip.id)}
+                                        className={`w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4 ${selectedTripId === trip.id ? 'bg-blue-50 border-primary-500' : 'border-transparent'}`}
+                                    >
+                                        <h4 className={`font-bold text-sm mb-1 line-clamp-1 ${selectedTripId === trip.id ? 'text-primary-700' : 'text-gray-800'}`}>{trip.title}</h4>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs text-gray-500 flex items-center gap-1"><Calendar size={12}/> {safeDate(trip.startDate)}</p>
+                                            {selectedTripId === trip.id && <ChevronRight size={14} className="text-primary-500"/>}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* RIGHT CONTENT AREA: DETAILS */}
             <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative">
-                {selectedTrip ? (
-                    <>
-                        {/* Header for Selected Trip */}
-                        <div className="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-20">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                    {selectedTrip.title}
-                                    <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Ativa</span>
-                                </h2>
-                                <p className="text-xs text-gray-500">{selectedTrip.destination}</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                {/* Navigation Tabs (Inside Header) */}
-                                <div className="flex bg-gray-100 p-1 rounded-lg">
-                                    <button 
-                                        onClick={() => setActiveView('TRANSPORT')}
-                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'TRANSPORT' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <Bus size={14} className="inline mr-1 mb-0.5"/> Transporte
-                                    </button>
-                                    <button 
-                                        onClick={() => setActiveView('ROOMING')}
-                                        className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'ROOMING' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        <BedDouble size={14} className="inline mr-1 mb-0.5"/> Hospedagem
-                                    </button>
+                
+                {/* Header for Selected Trip or Empty State */}
+                <div className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center shadow-sm z-20">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                            className="text-gray-500 hover:text-primary-600 p-2 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
+                            title={isSidebarOpen ? "Fechar Menu" : "Abrir Menu"}
+                        >
+                            {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+                        </button>
+
+                        {selectedTrip ? (
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <h2 className="text-sm md:text-lg font-bold text-gray-900 flex items-center gap-2 line-clamp-1">
+                                        {selectedTrip.title}
+                                        <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase hidden md:inline-block">Ativa</span>
+                                    </h2>
+                                    <p className="text-xs text-gray-500 hidden md:block">{selectedTrip.destination}</p>
                                 </div>
-                                <div className="h-6 w-px bg-gray-200"></div>
-                                <button onClick={generateManifest} className="flex items-center gap-2 text-gray-600 hover:text-primary-600 text-xs font-bold transition-colors">
-                                    <FileText size={16}/> Imprimir Lista
+                            </div>
+                        ) : (
+                            <span className="text-gray-400 font-medium text-sm">Selecione uma viagem para gerenciar</span>
+                        )}
+                    </div>
+
+                    {selectedTrip && (
+                        <div className="flex items-center gap-2 md:gap-4">
+                            {/* Navigation Tabs (Inside Header) */}
+                            <div className="flex bg-gray-100 p-1 rounded-lg">
+                                <button 
+                                    onClick={() => setActiveView('TRANSPORT')}
+                                    className={`px-3 md:px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'TRANSPORT' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    <Bus size={14} className="inline mr-1 mb-0.5"/> <span className="hidden md:inline">Transporte</span>
+                                </button>
+                                <button 
+                                    onClick={() => setActiveView('ROOMING')}
+                                    className={`px-3 md:px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'ROOMING' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    <BedDouble size={14} className="inline mr-1 mb-0.5"/> <span className="hidden md:inline">Hospedagem</span>
                                 </button>
                             </div>
+                            <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
+                            <button onClick={generateManifest} className="flex items-center gap-2 text-gray-600 hover:text-primary-600 text-xs font-bold transition-colors" title="Imprimir Manifesto">
+                                <FileText size={16}/> <span className="hidden md:inline">Imprimir</span>
+                            </button>
                         </div>
+                    )}
+                </div>
 
-                        {/* Content Area */}
-                        <div className="flex-1 overflow-hidden relative">
-                            {activeView === 'TRANSPORT' ? (
-                                <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
-                            ) : (
-                                <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                {/* Content Area */}
+                <div className="flex-1 overflow-hidden relative">
+                    {selectedTrip ? (
+                        activeView === 'TRANSPORT' ? (
+                            <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                        ) : (
+                            <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
+                        )
+                    ) : (
+                        // Empty State
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 h-full">
+                            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+                                <MousePointer2 size={32} className="text-gray-300"/>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-600 mb-2">Nenhuma viagem selecionada</h3>
+                            <p className="text-sm max-w-xs text-center mb-6">Selecione uma viagem na lista à esquerda para gerenciar o transporte e a hospedagem.</p>
+                            {!isSidebarOpen && (
+                                <button onClick={() => setIsSidebarOpen(true)} className="bg-primary-50 text-primary-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-primary-100 transition-colors">
+                                    Abrir Lista de Viagens
+                                </button>
                             )}
                         </div>
-                    </>
-                ) : (
-                    // Empty State
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-                            <MousePointer2 size={32} className="text-gray-300"/>
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-600 mb-2">Nenhuma viagem selecionada</h3>
-                        <p className="text-sm max-w-xs text-center">Selecione uma viagem na lista à esquerda para gerenciar o transporte e a hospedagem.</p>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -1844,15 +1879,7 @@ const AgencyDashboard: React.FC = () => {
       {activeTab === 'OPERATIONS' && (
           <div className="animate-[fadeIn_0.3s] h-full flex flex-col">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex-shrink-0">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2"><Bus size={24}/> Gerenciar Operacional</h2>
-                  <p className="text-gray-600 mb-4">Organize seus passageiros em assentos e quartos para cada viagem.</p>
-                  <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-xl flex items-start gap-3">
-                    <Info size={20} className="flex-shrink-0 mt-0.5"/>
-                    <p className="text-sm">
-                        Selecione uma viagem abaixo para começar a configurar o layout do transporte e a lista de quartos.
-                        As alterações são salvas automaticamente.
-                    </p>
-                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Bus size={24}/> Gerenciar Operacional</h2>
               </div>
               
               {/* Operations Module Container with Flex Grow */}
