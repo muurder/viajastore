@@ -891,13 +891,25 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 </div>
 
                 {/* Seat Map */}
-                <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
+                <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide relative">
                     {activeVehicle ? (
-                        <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto animate-[scaleIn_0.3s]">
-                            <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
-                            <div className="mt-12 space-y-2 select-none">{renderBusLayout()}</div>
-                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
-                        </div>
+                        <>
+                            {/* Botão de Editar Veículo - Visível sempre */}
+                            <div className="absolute top-4 right-4 z-20">
+                                <button 
+                                    onClick={() => handleEditVehicle(activeVehicle)} 
+                                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-lg hover:bg-primary-700 transition-colors text-xs font-bold"
+                                    title="Editar veículo (alterar número de vagas)"
+                                >
+                                    <Edit3 size={14}/> Editar Veículo
+                                </button>
+                            </div>
+                            <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto animate-[scaleIn_0.3s]">
+                                <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
+                                <div className="mt-12 space-y-2 select-none">{renderBusLayout()}</div>
+                                <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
+                            </div>
+                        </>
                     ) : (
                         <div className="flex items-center justify-center h-full text-gray-400 text-sm">Selecione ou crie um veículo.</div>
                     )}
@@ -1427,7 +1439,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
         setIsSidebarOpen(false);
     };
 
-    // PDF Generator
+    // PDF Generator - Melhorado com desenhos visuais
     const generateManifest = () => {
         if (!selectedTrip) return;
         try {
@@ -1456,74 +1468,13 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             const totalPax = (opData.manualPassengers?.length || 0) + tripBookings.reduce((sum, b) => sum + b.passengers, 0);
             doc.text(`Total Passageiros: ${totalPax}`, 15, 80);
 
-            // SEAT MAP
-            // Update to iterate over all vehicles
-            if (opData.transport?.vehicles) {
-                doc.addPage();
-                doc.setFontSize(14);
-                doc.text('Mapa de Assentos (Por Veículo)', 15, 20);
-                
-                opData.transport.vehicles.forEach((vehicle, vIndex) => {
-                    const { cols, totalSeats, aisleAfterCol } = vehicle.config;
-                    doc.setFontSize(12);
-                    // Add some spacing for subsequent vehicles
-                    const yStart = 30 + (vIndex * 10); 
-                    // Note: autoTable handles paging automatically, but for simple stacking, we might need a manual y
-                    // For simplicity, we just add a page per vehicle if needed or rely on autoTable flow
-                    if (vIndex > 0) doc.addPage();
-                    
-                    doc.text(`Veículo: ${vehicle.name} (${vehicle.config.label})`, 15, 20);
-                    
-                    const rows = Math.ceil(totalSeats / cols);
-                    const seatData = [];
-                    for(let r = 1; r <= rows; r++) {
-                        const rowData = [];
-                        for(let c = 1; c <= cols; c++) {
-                            const seatNum = ((r - 1) * cols) + c;
-                            if (c === aisleAfterCol + 1) rowData.push(''); 
-                            if (seatNum <= totalSeats) {
-                                const occupant = vehicle.seats?.find(s => s.seatNumber === seatNum.toString());
-                                rowData.push(occupant ? `${seatNum}: ${occupant.passengerName}` : `${seatNum} [Livre]`);
-                            } else rowData.push('');
-                        }
-                        seatData.push(rowData);
-                    }
-                    (doc as any).autoTable({ head: [], body: seatData, startY: 30, theme: 'grid', styles: { fontSize: 8, halign: 'center' } });
-                });
-            } else if (opData.transport?.vehicleConfig) {
-               // Legacy single vehicle support
-               const { cols, totalSeats, aisleAfterCol } = opData.transport.vehicleConfig;
-                // ... (existing logic for single vehicle)
-            }
-
-            // ROOMING LIST
-            // Iterate Hotels
-            if (opData.hotels && opData.hotels.length > 0) {
-                doc.addPage();
-                doc.setFontSize(14);
-                doc.text('Rooming List (Por Hotel)', 15, 20);
-                
-                opData.hotels.forEach((hotel, hIndex) => {
-                    if (hIndex > 0) doc.addPage();
-                    doc.setFontSize(12);
-                    doc.text(`Hotel: ${hotel.name}`, 15, 30);
-                    
-                    const roomData = hotel.rooms?.map(r => [r.name, r.type, r.guests.map(g => g.name).join('\n')]) || [];
-                    (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 40, theme: 'grid' });
-                });
-            } else {
-                // Legacy Rooming
-                doc.addPage();
-                doc.setFontSize(14);
-                doc.text('Rooming List', 15, 20);
-                const roomData = opData.rooming?.map(r => [r.name, r.type, r.guests.map(g => g.name).join('\n')]) || [];
-                (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 30, theme: 'grid' });
-            }
-
-            // PAX LIST (Updated with Details)
+            // LISTA DE PASSAGEIROS (Primeiro)
             doc.addPage();
-            doc.setFontSize(14);
-            doc.text('Lista de Passageiros', 15, 20);
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('LISTA DE PASSAGEIROS', 15, 20);
+            doc.setFont(undefined, 'normal');
+            
             const allPax: any[] = [];
             
             // Helper to get detail
@@ -1553,16 +1504,278 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             
             opData.manualPassengers?.forEach(p => {
                 const info = getPaxDetail(p.id, p.name);
-                // If manual passenger has document directly on object, prioritize it if detail is empty
                 const doc = info.doc !== '-' ? info.doc : (p.document || '-');
                 allPax.push([info.name, 'Manual', doc]);
             });
 
-            (doc as any).autoTable({ head: [['Nome', 'Tipo', 'Ref (Doc)']], body: allPax, startY: 30 });
+            (doc as any).autoTable({ 
+                head: [['Nome', 'Tipo', 'Documento']], 
+                body: allPax, 
+                startY: 30,
+                styles: { fontSize: 9 },
+                headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' }
+            });
+
+            // DESENHO VISUAL DO ÔNIBUS
+            if (opData.transport?.vehicles && opData.transport.vehicles.length > 0) {
+                opData.transport.vehicles.forEach((vehicle, vIndex) => {
+                    doc.addPage();
+                    const { cols, totalSeats, aisleAfterCol } = vehicle.config;
+                    
+                    // Título
+                    doc.setFontSize(16);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`MAPA DE ASSENTOS - ${vehicle.name.toUpperCase()}`, 15, 20);
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`${vehicle.config.label} - ${totalSeats} lugares`, 15, 27);
+                    
+                    // Desenho visual do ônibus
+                    const seatSize = 8; // Tamanho de cada assento em mm
+                    const seatSpacing = 2;
+                    const rowHeight = seatSize + seatSpacing;
+                    const rows = Math.ceil(totalSeats / cols);
+                    const startX = 20;
+                    const startY = 40;
+                    const aisleWidth = 8;
+                    
+                    // Desenhar contorno do ônibus
+                    const busWidth = (cols * (seatSize + seatSpacing)) + aisleWidth;
+                    const busHeight = rows * rowHeight + 10;
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.5);
+                    doc.rect(startX - 5, startY - 5, busWidth + 10, busHeight + 10);
+                    
+                    // Desenhar assentos
+                    let currentY = startY;
+                    for(let r = 1; r <= rows; r++) {
+                        let currentX = startX;
+                        for(let c = 1; c <= cols; c++) {
+                            const seatNum = ((r - 1) * cols) + c;
+                            if (seatNum <= totalSeats) {
+                                const occupant = vehicle.seats?.find(s => s.seatNumber === seatNum.toString());
+                                
+                                // Desenhar retângulo do assento
+                                if (occupant) {
+                                    doc.setFillColor(59, 130, 246); // Azul para ocupado
+                                    doc.setDrawColor(59, 130, 246);
+                                } else {
+                                    doc.setFillColor(240, 240, 240); // Cinza para livre
+                                    doc.setDrawColor(200, 200, 200);
+                                }
+                                doc.rect(currentX, currentY, seatSize, seatSize, 'FD');
+                                
+                                // Número do assento
+                                doc.setTextColor(occupant ? 255 : 100);
+                                doc.setFontSize(6);
+                                doc.text(seatNum.toString(), currentX + seatSize/2, currentY + seatSize/2 + 1, { align: 'center' });
+                                
+                                // Nome do passageiro (se ocupado)
+                                if (occupant) {
+                                    doc.setFontSize(5);
+                                    const nameParts = occupant.passengerName.split(' ');
+                                    const shortName = nameParts.length > 1 
+                                        ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}` 
+                                        : occupant.passengerName;
+                                    const displayName = shortName.length > 12 ? shortName.substring(0, 10) + '...' : shortName;
+                                    doc.text(displayName, currentX + seatSize/2, currentY + seatSize + 3, { align: 'center' });
+                                }
+                                
+                                currentX += seatSize + seatSpacing;
+                            }
+                            
+                            // Adicionar corredor
+                            if (c === aisleAfterCol) {
+                                currentX += aisleWidth;
+                            }
+                        }
+                        currentY += rowHeight;
+                    }
+                    
+                    // Legenda
+                    const legendY = startY + busHeight + 15;
+                    doc.setFontSize(8);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFillColor(59, 130, 246);
+                    doc.rect(15, legendY, 4, 4, 'F');
+                    doc.text('Ocupado', 21, legendY + 3);
+                    
+                    doc.setFillColor(240, 240, 240);
+                    doc.setDrawColor(200, 200, 200);
+                    doc.rect(50, legendY, 4, 4, 'FD');
+                    doc.text('Livre', 56, legendY + 3);
+                });
+            } else if (opData.transport?.vehicleConfig) {
+                // Legacy single vehicle support
+                const { cols, totalSeats, aisleAfterCol } = opData.transport.vehicleConfig;
+                doc.addPage();
+                doc.setFontSize(16);
+                doc.setFont(undefined, 'bold');
+                doc.text('MAPA DE ASSENTOS', 15, 20);
+                doc.setFont(undefined, 'normal');
+                
+                const rows = Math.ceil(totalSeats / cols);
+                const seatData = [];
+                for(let r = 1; r <= rows; r++) {
+                    const rowData = [];
+                    for(let c = 1; c <= cols; c++) {
+                        const seatNum = ((r - 1) * cols) + c;
+                        if (c === aisleAfterCol + 1) rowData.push(''); 
+                        if (seatNum <= totalSeats) {
+                            const occupant = opData.transport.seats?.find((s: PassengerSeat) => s.seatNumber === seatNum.toString());
+                            rowData.push(occupant ? `${seatNum}: ${occupant.passengerName}` : `${seatNum} [Livre]`);
+                        } else rowData.push('');
+                    }
+                    seatData.push(rowData);
+                }
+                (doc as any).autoTable({ head: [], body: seatData, startY: 30, theme: 'grid', styles: { fontSize: 8, halign: 'center' } });
+            }
+
+            // DESENHO VISUAL DOS QUARTOS
+            if (opData.hotels && opData.hotels.length > 0) {
+                opData.hotels.forEach((hotel, hIndex) => {
+                    doc.addPage();
+                    doc.setFontSize(16);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 15, 20);
+                    doc.setFont(undefined, 'normal');
+                    
+                    let currentY = 35;
+                    const roomWidth = 60;
+                    const roomHeight = 40;
+                    const roomSpacing = 10;
+                    let currentX = 15;
+                    let roomsPerRow = 0;
+                    const maxRoomsPerRow = 3;
+                    
+                    hotel.rooms?.forEach((room, rIndex) => {
+                        // Nova linha se necessário
+                        if (roomsPerRow >= maxRoomsPerRow) {
+                            currentX = 15;
+                            currentY += roomHeight + roomSpacing;
+                            roomsPerRow = 0;
+                        }
+                        
+                        // Desenhar quarto
+                        doc.setDrawColor(100, 100, 100);
+                        doc.setLineWidth(0.5);
+                        doc.setFillColor(250, 250, 250);
+                        doc.rect(currentX, currentY, roomWidth, roomHeight, 'FD');
+                        
+                        // Título do quarto
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'bold');
+                        doc.setTextColor(0, 0, 0);
+                        doc.text(room.name, currentX + 2, currentY + 6);
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(8);
+                        doc.setTextColor(100, 100, 100);
+                        doc.text(`Tipo: ${room.type} (${room.capacity} pessoas)`, currentX + 2, currentY + 12);
+                        
+                        // Desenhar camas/leitos
+                        const bedWidth = 25;
+                        const bedHeight = 8;
+                        const bedSpacing = 3;
+                        let bedY = currentY + 18;
+                        let bedX = currentX + 2;
+                        
+                        room.guests.forEach((guest, gIndex) => {
+                            // Desenhar "cama" (retângulo)
+                            doc.setFillColor(200, 220, 255);
+                            doc.setDrawColor(100, 150, 255);
+                            doc.rect(bedX, bedY, bedWidth, bedHeight, 'FD');
+                            
+                            // Nome do hóspede
+                            doc.setFontSize(7);
+                            doc.setTextColor(0, 0, 0);
+                            const guestName = guest.name.length > 20 ? guest.name.substring(0, 18) + '...' : guest.name;
+                            doc.text(guestName, bedX + 1, bedY + 5);
+                            
+                            // Próxima cama
+                            if ((gIndex + 1) % 2 === 0) {
+                                bedY += bedHeight + bedSpacing;
+                                bedX = currentX + 2;
+                            } else {
+                                bedX += bedWidth + bedSpacing;
+                            }
+                        });
+                        
+                        currentX += roomWidth + roomSpacing;
+                        roomsPerRow++;
+                    });
+                });
+            } else if (opData.rooming && opData.rooming.length > 0) {
+                // Legacy Rooming
+                doc.addPage();
+                doc.setFontSize(16);
+                doc.setFont(undefined, 'bold');
+                doc.text('HOSPEDAGEM', 15, 20);
+                doc.setFont(undefined, 'normal');
+                
+                let currentY = 35;
+                const roomWidth = 60;
+                const roomHeight = 40;
+                const roomSpacing = 10;
+                let currentX = 15;
+                let roomsPerRow = 0;
+                const maxRoomsPerRow = 3;
+                
+                opData.rooming.forEach((room, rIndex) => {
+                    if (roomsPerRow >= maxRoomsPerRow) {
+                        currentX = 15;
+                        currentY += roomHeight + roomSpacing;
+                        roomsPerRow = 0;
+                    }
+                    
+                    doc.setDrawColor(100, 100, 100);
+                    doc.setLineWidth(0.5);
+                    doc.setFillColor(250, 250, 250);
+                    doc.rect(currentX, currentY, roomWidth, roomHeight, 'FD');
+                    
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(0, 0, 0);
+                    doc.text(room.name, currentX + 2, currentY + 6);
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(8);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(`Tipo: ${room.type} (${room.capacity} pessoas)`, currentX + 2, currentY + 12);
+                    
+                    const bedWidth = 25;
+                    const bedHeight = 8;
+                    const bedSpacing = 3;
+                    let bedY = currentY + 18;
+                    let bedX = currentX + 2;
+                    
+                    room.guests.forEach((guest, gIndex) => {
+                        doc.setFillColor(200, 220, 255);
+                        doc.setDrawColor(100, 150, 255);
+                        doc.rect(bedX, bedY, bedWidth, bedHeight, 'FD');
+                        
+                        doc.setFontSize(7);
+                        doc.setTextColor(0, 0, 0);
+                        const guestName = guest.name.length > 20 ? guest.name.substring(0, 18) + '...' : guest.name;
+                        doc.text(guestName, bedX + 1, bedY + 5);
+                        
+                        if ((gIndex + 1) % 2 === 0) {
+                            bedY += bedHeight + bedSpacing;
+                            bedX = currentX + 2;
+                        } else {
+                            bedX += bedWidth + bedSpacing;
+                        }
+                    });
+                    
+                    currentX += roomWidth + roomSpacing;
+                    roomsPerRow++;
+                });
+            }
 
             doc.save(`manifesto_${selectedTrip.slug}.pdf`);
-            showToast('PDF gerado!', 'success');
-        } catch (e: any) { console.error(e); showToast('Erro no PDF: '+e.message, 'error'); }
+            showToast('PDF gerado com sucesso!', 'success');
+        } catch (e: any) { 
+            console.error(e); 
+            showToast('Erro ao gerar PDF: '+e.message, 'error'); 
+        }
     };
 
     const tripBookings = selectedTrip ? myBookings.filter(b => b.tripId === selectedTripId) : [];
