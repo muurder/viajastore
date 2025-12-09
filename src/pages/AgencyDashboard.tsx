@@ -990,10 +990,17 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
                 const dbName = dbPassenger?.full_name;
                 const detailName = passengerDetails[id]?.name || nameOverrides[id];
-                const originalName = i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`;
                 
-                // Use database name first, then details, then override, then original
-                const finalName = dbName || detailName || nameOverrides[id] || originalName;
+                // For main passenger (i === 0), use client name as fallback
+                // For companions (i > 0), only use database or details - don't use "Acompanhante X" as name
+                let finalName: string;
+                if (i === 0) {
+                    // Main passenger: database > details > override > client name > "Passageiro"
+                    finalName = dbName || detailName || nameOverrides[id] || clientName || 'Passageiro';
+                } else {
+                    // Companion: database > details > override > empty (will show "Acompanhante" label below)
+                    finalName = dbName || detailName || nameOverrides[id] || '';
+                }
                 
                 return { 
                     id, 
@@ -1423,10 +1430,22 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const handleOpenPassengerEdit = (p: any) => {
         setPassengerEditId(p.id);
         // Prioritize database data, then operational data, then passenger name
-        const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+        // Extract bookingId and passengerIndex from the passenger object
+        const bookingId = p.bookingId;
+        const passengerIndex = p.passengerIndex !== undefined ? p.passengerIndex : (p.id.includes('-') ? parseInt(p.id.split('-')[1]) : 0);
+        
+        const dbPassenger = dbPassengers.get(`${bookingId}-${passengerIndex}`);
         const details = p.details || passengerDetails?.[p.id]; // Access safely
+        
+        // Get name - prioritize database, then details, then name (but avoid "Acompanhante X" as name)
+        let passengerName = dbPassenger?.full_name || details?.name || p.name || '';
+        // If name is still "Acompanhante X (...)", try to extract from details or leave empty
+        if (passengerName.match(/^Acompanhante \d+ \(/)) {
+            passengerName = details?.name || '';
+        }
+        
         setPassengerEditForm({
-            name: dbPassenger?.full_name || details?.name || p.name || '',
+            name: passengerName,
             document: dbPassenger?.cpf || details?.document || '',
             phone: dbPassenger?.whatsapp || details?.phone || '',
             birthDate: dbPassenger?.birth_date || details?.birthDate || ''
@@ -1626,15 +1645,34 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         const isSelected = selectedPassenger?.id === p.id;
                         
                         // Get passenger name from database first, then details, then name
-                        const passengerName = p.details?.name || p.name;
-                        const displayInitial = passengerName.charAt(0).toUpperCase();
+                        let passengerName = p.details?.name || p.name || '';
+                        // If name is "Acompanhante X (...)", use empty and let the label show
+                        if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                            passengerName = p.details?.name || '';
+                        }
+                        const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                        const displayInitial = displayName.charAt(0).toUpperCase();
 
                         return (
                             <div 
                                 key={p.id} 
                                 draggable={!isAssigned} 
                                 onDragStart={(e) => handleDragStart(e, p)} 
-                                onClick={() => !isAssigned && setSelectedPassenger(isSelected ? null : p)} 
+                                onClick={() => {
+                                    if (!isAssigned) {
+                                        // Get passenger name - prioritize database/details, avoid "Acompanhante X" as name
+                                        let passengerName = p.details?.name || p.name || '';
+                                        // If name is "Acompanhante X (...)", use empty and let the label show
+                                        if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                                            passengerName = p.details?.name || '';
+                                        }
+                                        // Fallback to a default name if still empty
+                                        if (!passengerName) {
+                                            passengerName = p.isAccompaniment ? 'Acompanhante' : 'Passageiro';
+                                        }
+                                        setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
+                                    }
+                                }} 
                                 className={`
                                     p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all relative
                                     ${isAssigned ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
@@ -1649,7 +1687,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                     {/* Always show full name on top, type below */}
                                     <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
                                         <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                                            {passengerName}
+                                            {displayName}
                                         </span>
                                         <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
                                             {p.isManual ? (
@@ -1948,8 +1986,17 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 // Try database first, then override, then fallback
                 const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
                 const dbName = dbPassenger?.full_name;
-                const originalName = i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`;
-                const finalName = dbName || nameOverrides[id] || originalName;
+                
+                // For main passenger (i === 0), use client name as fallback
+                // For companions (i > 0), only use database or details - don't use "Acompanhante X" as name
+                let finalName: string;
+                if (i === 0) {
+                    // Main passenger: database > override > client name > "Passageiro"
+                    finalName = dbName || nameOverrides[id] || clientName || 'Passageiro';
+                } else {
+                    // Companion: database > override > empty (will show "Acompanhante" label below)
+                    finalName = dbName || nameOverrides[id] || '';
+                }
                 
                 return { 
                     id, 
@@ -2298,7 +2345,16 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                     onDragStart={(e) => handleDragStart(e, p)} 
                                     onClick={() => {
                                         if (!assignedInfo) {
-                                            const passengerName = p.details?.name || p.name;
+                                            // Get passenger name - prioritize database/details, avoid "Acompanhante X" as name
+                                            let passengerName = p.details?.name || p.name || '';
+                                            // If name is "Acompanhante X (...)", use empty and let the label show
+                                            if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                                                passengerName = p.details?.name || '';
+                                            }
+                                            // Fallback to a default name if still empty
+                                            if (!passengerName) {
+                                                passengerName = p.isAccompaniment ? 'Acompanhante' : 'Passageiro';
+                                            }
                                             setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                         }
                                     }} 
@@ -2312,15 +2368,21 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                          {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
                                          {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          {(() => {
-                                             const passengerName = p.details?.name || p.name;
+                                             let passengerName = p.details?.name || p.name || '';
+                                             // If name is "Acompanhante X (...)", use empty and let the label show
+                                             if (passengerName.match(/^Acompanhante \d+ \(/)) {
+                                                 passengerName = p.details?.name || '';
+                                             }
+                                             const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                                             const displayInitial = displayName.charAt(0).toUpperCase();
                                              return (
                                                  <>
-                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{passengerName.charAt(0).toUpperCase()}</div>
+                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
                                                      
                                                      {/* Always show full name on top, type below */}
                                                      <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
                                                          <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
-                                                             {passengerName}
+                                                             {displayName}
                                                          </span>
                                                          <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
                                                              {p.isManual ? (
