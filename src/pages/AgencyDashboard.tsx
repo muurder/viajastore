@@ -1651,11 +1651,22 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             // Use the name from selectedPassenger when selected
                             passengerName = selectedPassenger.name;
                         } else {
-                            // Calculate name normally when not selected
-                            passengerName = p.details?.name || p.name || '';
-                            // If name is "Acompanhante X (...)", use empty and let the label show
+                            // Calculate name normally when not selected - prioritize database
+                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+                            passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
+                            // If name is "Acompanhante X (...)", try to get from database or details
                             if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                passengerName = p.details?.name || '';
+                                passengerName = dbPassenger?.full_name || p.details?.name || '';
+                            }
+                            // For main passenger, use client name as fallback
+                            if (!passengerName && !p.isAccompaniment) {
+                                const booking = bookings.find(b => b.id === p.bookingId);
+                                const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
+                                passengerName = clientName || 'Passageiro';
+                            }
+                            // For companions, use a descriptive fallback
+                            if (!passengerName && p.isAccompaniment) {
+                                passengerName = 'Acompanhante';
                             }
                         }
                         const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
@@ -1668,16 +1679,27 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 onDragStart={(e) => handleDragStart(e, p)} 
                                 onClick={() => {
                                     if (!isAssigned) {
-                                        // Get passenger name - prioritize database/details, avoid "Acompanhante X" as name
-                                        let passengerName = p.details?.name || p.name || '';
-                                        // If name is "Acompanhante X (...)", use empty and let the label show
+                                        // Get passenger name - prioritize database first
+                                        const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+                                        let passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
+                                        
+                                        // If name is "Acompanhante X (...)", try to get from database or details
                                         if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                            passengerName = p.details?.name || '';
+                                            passengerName = dbPassenger?.full_name || p.details?.name || '';
                                         }
-                                        // Fallback to a default name if still empty
-                                        if (!passengerName) {
-                                            passengerName = p.isAccompaniment ? 'Acompanhante' : 'Passageiro';
+                                        
+                                        // For main passenger, use client name as fallback
+                                        if (!passengerName && !p.isAccompaniment) {
+                                            const booking = bookings.find(b => b.id === p.bookingId);
+                                            const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
+                                            passengerName = clientName || 'Passageiro';
                                         }
+                                        
+                                        // For companions, use a descriptive fallback
+                                        if (!passengerName && p.isAccompaniment) {
+                                            passengerName = 'Acompanhante';
+                                        }
+                                        
                                         setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                     }
                                 }} 
@@ -2353,16 +2375,27 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                     onDragStart={(e) => handleDragStart(e, p)} 
                                     onClick={() => {
                                         if (!assignedInfo) {
-                                            // Get passenger name - prioritize database/details, avoid "Acompanhante X" as name
-                                            let passengerName = p.details?.name || p.name || '';
-                                            // If name is "Acompanhante X (...)", use empty and let the label show
+                                            // Get passenger name - prioritize database first
+                                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+                                            let passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
+                                            
+                                            // If name is "Acompanhante X (...)", try to get from database or details
                                             if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                                passengerName = p.details?.name || '';
+                                                passengerName = dbPassenger?.full_name || p.details?.name || '';
                                             }
-                                            // Fallback to a default name if still empty
-                                            if (!passengerName) {
-                                                passengerName = p.isAccompaniment ? 'Acompanhante' : 'Passageiro';
+                                            
+                                            // For main passenger, use client name as fallback
+                                            if (!passengerName && !p.isAccompaniment) {
+                                                const booking = bookings.find(b => b.id === p.bookingId);
+                                                const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
+                                                passengerName = clientName || 'Passageiro';
                                             }
+                                            
+                                            // For companions, use a descriptive fallback
+                                            if (!passengerName && p.isAccompaniment) {
+                                                passengerName = 'Acompanhante';
+                                            }
+                                            
                                             setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                         }
                                     }} 
@@ -2383,11 +2416,22 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                                  // Use the name from selectedPassenger when selected
                                                  passengerName = selectedPassenger.name;
                                              } else {
-                                                 // Calculate name normally when not selected
-                                                 passengerName = p.details?.name || p.name || '';
-                                                 // If name is "Acompanhante X (...)", use empty and let the label show
+                                                 // Calculate name normally when not selected - prioritize database
+                                                 const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+                                                 passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
+                                                 // If name is "Acompanhante X (...)", try to get from database or details
                                                  if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                                     passengerName = p.details?.name || '';
+                                                     passengerName = dbPassenger?.full_name || p.details?.name || '';
+                                                 }
+                                                 // For main passenger, use client name as fallback
+                                                 if (!passengerName && !p.isAccompaniment) {
+                                                     const booking = bookings.find(b => b.id === p.bookingId);
+                                                     const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
+                                                     passengerName = clientName || 'Passageiro';
+                                                 }
+                                                 // For companions, use a descriptive fallback
+                                                 if (!passengerName && p.isAccompaniment) {
+                                                     passengerName = 'Acompanhante';
                                                  }
                                              }
                                              const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
