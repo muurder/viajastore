@@ -1333,11 +1333,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         // Fechar menu
         setIsVehicleMenuOpen(false);
-        
-        // Feedback ao usuário
-        showToast(`Veículo "${newVehicle.name}" criado com sucesso!`, 'success');
-        
-        setIsVehicleMenuOpen(false);
     };
 
     const handleSaveCustomVehicle = (e: React.FormEvent) => {
@@ -1523,6 +1518,22 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         setPassengerToDelete(null);
         showToast('Passageiro removido.', 'success');
+    };
+
+    // Helper to get passenger details for tooltip
+    const getPassengerDetails = (seat: PassengerSeat) => {
+        const passenger = allPassengers.find(p => p.id === seat.bookingId || `${p.bookingId}-${p.passengerIndex}` === seat.bookingId);
+        if (!passenger) return null;
+        
+        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
+        const booking = bookings.find(b => b.id === passenger.bookingId);
+        const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
+        
+        return {
+            name: seat.passengerName,
+            avatar: client?.avatar || dbPassenger?.avatar || undefined,
+            status: passenger.isMain ? 'Titular' : passenger.isAccompaniment ? `Acompanhante ${passenger.passengerIndex}` : 'Manual'
+        };
     };
 
     // Handlers for BusVisualizer
@@ -1794,6 +1805,28 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 {/* Action Buttons - Always visible */}
                                 <div className="flex items-center gap-1">
                                     <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
+                                            const booking = bookings.find(b => b.id === p.bookingId);
+                                            const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
+                                            const avatar = client?.avatar || dbPassenger?.avatar;
+                                            const name = dbPassenger?.full_name || p.details?.name || p.name || 'Passageiro';
+                                            const status = p.isMain ? 'Titular' : p.isAccompaniment ? `Acompanhante ${p.passengerIndex}` : 'Manual';
+                                            const document = dbPassenger?.cpf || p.details?.document || '-';
+                                            const phone = dbPassenger?.whatsapp || p.details?.phone || '-';
+                                            const birthDate = dbPassenger?.birth_date ? new Date(dbPassenger.birth_date).toLocaleDateString('pt-BR') : (p.details?.birthDate || '-');
+                                            
+                                            // Show info in a simple alert for now (can be replaced with modal later)
+                                            const info = `Nome: ${name}\nStatus: ${status}\nCPF: ${document}\nTelefone: ${phone}\nData de Nascimento: ${birthDate}`;
+                                            alert(info);
+                                        }}
+                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-gray-500 hover:bg-gray-50 bg-gray-50/50'}`}
+                                        title="Ver detalhes do passageiro"
+                                    >
+                                        <Eye size={14}/>
+                                    </button>
+                                    <button 
                                         onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
                                         className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-blue-500 hover:bg-blue-50 bg-blue-50/50'}`}
                                         title="Editar dados do passageiro"
@@ -1968,6 +2001,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                             onDrop={handleDrop}
                                             onSeatClick={handleSeatClick}
                                             isSeatOccupied={isSeatOccupied}
+                                            getPassengerDetails={getPassengerDetails}
                                         />
                                     )}
                                 </div>
@@ -2831,33 +2865,50 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 });
             });
 
-            // Desenhar tabela manualmente
+            // Desenhar tabela manualmente com coluna de foto
             let yPos = 30;
-            const rowHeight = 8;
-            const colWidths = [50, 30, 35, 30, 25, 20]; // Nome, Telefone, Assento, RG, Nascimento, Tipo
+            const rowHeight = 10; // Increased for photo
+            const colWidths = [8, 45, 28, 32, 28, 23, 18]; // Foto, Nome, Telefone, Assento, RG, Nascimento, Tipo
             
             // Cabeçalho
             doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
             doc.setTextColor(255, 255, 255);
             doc.setFont(undefined, 'bold');
-            doc.setFontSize(9);
-            doc.rect(15, yPos, colWidths[0], rowHeight, 'F');
-            doc.text('Nome', 17, yPos + 5.5);
-            doc.rect(15 + colWidths[0], yPos, colWidths[1], rowHeight, 'F');
-            doc.text('Telefone', 17 + colWidths[0], yPos + 5.5);
-            doc.rect(15 + colWidths[0] + colWidths[1], yPos, colWidths[2], rowHeight, 'F');
-            doc.text('Assento', 17 + colWidths[0] + colWidths[1], yPos + 5.5);
-            doc.rect(15 + colWidths[0] + colWidths[1] + colWidths[2], yPos, colWidths[3], rowHeight, 'F');
-            doc.text('RG/CPF', 17 + colWidths[0] + colWidths[1] + colWidths[2], yPos + 5.5);
-            doc.rect(15 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos, colWidths[4], rowHeight, 'F');
-            doc.text('Nasc.', 17 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos + 5.5);
-            doc.rect(15 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], yPos, colWidths[5], rowHeight, 'F');
-            doc.text('Tipo', 17 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], yPos + 5.5);
+            doc.setFontSize(8);
+            let xOffset = 15;
+            doc.rect(xOffset, yPos, colWidths[0], rowHeight, 'F');
+            doc.text('Foto', xOffset + colWidths[0]/2, yPos + 5.5, { align: 'center' });
+            xOffset += colWidths[0];
+            doc.rect(xOffset, yPos, colWidths[1], rowHeight, 'F');
+            doc.text('Nome', xOffset + 2, yPos + 5.5);
+            xOffset += colWidths[1];
+            doc.rect(xOffset, yPos, colWidths[2], rowHeight, 'F');
+            doc.text('Telefone', xOffset + 2, yPos + 5.5);
+            xOffset += colWidths[2];
+            doc.rect(xOffset, yPos, colWidths[3], rowHeight, 'F');
+            doc.text('Assento', xOffset + 2, yPos + 5.5);
+            xOffset += colWidths[3];
+            doc.rect(xOffset, yPos, colWidths[4], rowHeight, 'F');
+            doc.text('RG/CPF', xOffset + 2, yPos + 5.5);
+            xOffset += colWidths[4];
+            doc.rect(xOffset, yPos, colWidths[5], rowHeight, 'F');
+            doc.text('Nasc.', xOffset + 2, yPos + 5.5);
+            xOffset += colWidths[5];
+            doc.rect(xOffset, yPos, colWidths[6], rowHeight, 'F');
+            doc.text('Tipo', xOffset + 2, yPos + 5.5);
             
             yPos += rowHeight;
             doc.setTextColor(0, 0, 0);
             doc.setFont(undefined, 'normal');
             doc.setFontSize(8);
+            
+            // Helper to get initials
+            const getInitials = (name: string): string => {
+                const parts = name.trim().split(' ').filter(p => p.length > 0);
+                if (parts.length === 0) return '??';
+                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            };
             
             // Linhas de dados
             allPax.forEach((pax, index) => {
@@ -2872,8 +2923,24 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                     doc.rect(15, yPos, 190, rowHeight, 'F');
                 }
                 
-                doc.text(pax.name.length > 25 ? pax.name.substring(0, 23) + '...' : pax.name, 17, yPos + 5.5);
-                doc.text(pax.phone, 17 + colWidths[0], yPos + 5.5);
+                // Foto (avatar ou iniciais)
+                xOffset = 15;
+                doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+                doc.circle(xOffset + colWidths[0]/2, yPos + rowHeight/2, 3, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(6);
+                doc.text(getInitials(pax.name), xOffset + colWidths[0]/2, yPos + rowHeight/2 + 1.5, { align: 'center' });
+                doc.setTextColor(0, 0, 0);
+                xOffset += colWidths[0];
+                
+                // Nome
+                doc.setFontSize(7);
+                doc.text(pax.name.length > 30 ? pax.name.substring(0, 28) + '...' : pax.name, xOffset + 2, yPos + 5.5);
+                xOffset += colWidths[1];
+                
+                // Telefone
+                doc.text(pax.phone, xOffset + 2, yPos + 5.5);
+                xOffset += colWidths[2];
                 doc.text(pax.seat.length > 18 ? pax.seat.substring(0, 16) + '...' : pax.seat, 17 + colWidths[0] + colWidths[1], yPos + 5.5);
                 doc.text(pax.document, 17 + colWidths[0] + colWidths[1] + colWidths[2], yPos + 5.5);
                 doc.text(pax.birthDate !== '-' ? new Date(pax.birthDate).toLocaleDateString('pt-BR') : '-', 17 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos + 5.5);
@@ -2975,6 +3042,31 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                     doc.setDrawColor(200, 200, 200);
                     doc.rect(50, legendY, 4, 4, 'FD');
                     doc.text('Livre', 56, legendY + 3);
+                    
+                    // Lista textual de assentos abaixo do desenho
+                    let listY = legendY + 12;
+                    const occupiedSeats = vehicle.seats?.filter(s => s.seatNumber) || [];
+                    if (occupiedSeats.length > 0) {
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'bold');
+                        doc.text('LISTA DE ASSENTOS OCUPADOS:', 15, listY);
+                        listY += 6;
+                        doc.setFont(undefined, 'normal');
+                        doc.setFontSize(8);
+                        
+                        // Sort by seat number
+                        const sortedSeats = [...occupiedSeats].sort((a, b) => parseInt(a.seatNumber) - parseInt(b.seatNumber));
+                        sortedSeats.forEach((seat, idx) => {
+                            if (listY > 280) { // New page if needed
+                                doc.addPage();
+                                listY = 20;
+                            }
+                            const dbPassenger = bookingPassengersMap.get(seat.bookingId.split('-')[0] + '-' + (seat.bookingId.includes('-') ? seat.bookingId.split('-')[1] : '0'));
+                            const passengerName = dbPassenger?.full_name || seat.passengerName;
+                            doc.text(`Assento ${seat.seatNumber}: ${passengerName}`, 15, listY);
+                            listY += 5;
+                        });
+                    }
                 });
             } else if (opData.transport?.vehicleConfig) {
                 // Legacy single vehicle support - desenho visual
@@ -3059,64 +3151,36 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                     const maxRoomsPerRow = 3;
                     
                     hotel.rooms?.forEach((room, rIndex) => {
-                        // Nova linha se necessário
-                        if (roomsPerRow >= maxRoomsPerRow) {
-                            currentX = 15;
-                            currentY += roomHeight + roomSpacing;
-                            roomsPerRow = 0;
+                        if (yPos > 270) {
+                            doc.addPage();
+                            yPos = 20;
                         }
                         
-                        // Desenhar quarto
-                        doc.setDrawColor(100, 100, 100);
-                        doc.setLineWidth(0.5);
-                        doc.setFillColor(250, 250, 250);
-                        doc.rect(currentX, currentY, roomWidth, roomHeight, 'FD');
+                        const isEven = rIndex % 2 === 0;
+                        if (isEven) {
+                            doc.setFillColor(245, 245, 245);
+                            doc.rect(15, yPos, 190, rowHeight, 'F');
+                        }
                         
-                        // Título do quarto
-                        doc.setFontSize(10);
-                        doc.setFont(undefined, 'bold');
-                        doc.setTextColor(0, 0, 0);
-                        doc.text(room.name, currentX + 2, currentY + 6);
-                        doc.setFont(undefined, 'normal');
-                        doc.setFontSize(8);
-                        doc.setTextColor(100, 100, 100);
-                        doc.text(`Tipo: ${room.type} (${room.capacity} pessoas)`, currentX + 2, currentY + 12);
+                        xOffset = 15;
+                        // Quarto
+                        doc.text(room.name, xOffset + 2, yPos + 5.5);
+                        xOffset += colWidths[0];
                         
-                        // Desenhar camas/leitos - layout melhorado
-                        const bedWidth = 28;
-                        const bedHeight = 10;
-                        const bedSpacing = 2;
-                        let bedY = currentY + 18;
-                        let bedX = currentX + 2;
-                        let bedsInRow = 0;
-                        const maxBedsPerRow = 2;
+                        // Tipo
+                        doc.text(room.type, xOffset + 2, yPos + 5.5);
+                        xOffset += colWidths[1];
                         
-                        room.guests.forEach((guest, gIndex) => {
-                            // Nova linha se necessário
-                            if (bedsInRow >= maxBedsPerRow) {
-                                bedY += bedHeight + bedSpacing;
-                                bedX = currentX + 2;
-                                bedsInRow = 0;
-                            }
-                            
-                            // Desenhar "cama" (retângulo)
-                            doc.setFillColor(200, 220, 255);
-                            doc.setDrawColor(100, 150, 255);
-                            doc.setLineWidth(0.3);
-                            doc.rect(bedX, bedY, bedWidth, bedHeight, 'FD');
-                            
-                            // Nome do hóspede
-                            doc.setFontSize(6);
-                            doc.setTextColor(0, 0, 0);
-                            const guestName = guest.name.length > 18 ? guest.name.substring(0, 16) + '...' : guest.name;
-                            doc.text(guestName, bedX + bedWidth/2, bedY + bedHeight/2 + 2, { align: 'center' });
-                            
-                            bedX += bedWidth + bedSpacing;
-                            bedsInRow++;
-                        });
+                        // Hóspedes (lista de nomes)
+                        const guestNames = room.guests.map(g => g.name).join(', ') || 'Vazio';
+                        const truncatedGuests = guestNames.length > 50 ? guestNames.substring(0, 48) + '...' : guestNames;
+                        doc.text(truncatedGuests, xOffset + 2, yPos + 5.5);
+                        xOffset += colWidths[2];
                         
-                        currentX += roomWidth + roomSpacing;
-                        roomsPerRow++;
+                        // Capacidade
+                        doc.text(`${room.guests.length}/${room.capacity}`, xOffset + 2, yPos + 5.5);
+                        
+                        yPos += rowHeight;
                     });
                 });
             } else if (opData.rooming && opData.rooming.length > 0) {

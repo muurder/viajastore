@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Armchair } from 'lucide-react';
 import { VehicleInstance, PassengerSeat } from '../../types';
 
@@ -11,6 +11,7 @@ interface BusVisualizerProps {
     onDrop: (e: React.DragEvent, seatNum: string) => void;
     onSeatClick: (seatNum: string) => void;
     isSeatOccupied: (seatNum: string) => PassengerSeat | undefined;
+    getPassengerDetails?: (seat: PassengerSeat) => { name: string; avatar?: string; status?: string } | null;
 }
 
 const BusVisualizer: React.FC<BusVisualizerProps> = ({
@@ -21,11 +22,21 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
     onDragLeave,
     onDrop,
     onSeatClick,
-    isSeatOccupied
+    isSeatOccupied,
+    getPassengerDetails
 }) => {
     const { totalSeats, cols, aisleAfterCol } = vehicle.config;
     const rows = Math.ceil(totalSeats / cols);
+    const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
     const grid = [];
+
+    // Helper to get initials from name
+    const getInitials = (name: string): string => {
+        const parts = name.trim().split(' ').filter(p => p.length > 0);
+        if (parts.length === 0) return '??';
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
 
     for (let r = 1; r <= rows; r++) {
         const rowSeats = [];
@@ -48,6 +59,8 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                 const seatStr = seatNum.toString();
                 const occupant = isSeatOccupied(seatStr);
                 const isTarget = dragOverSeat === seatStr || (selectedPassenger && !occupant);
+                const isHovered = hoveredSeat === seatStr;
+                const passengerDetails = occupant && getPassengerDetails ? getPassengerDetails(occupant) : null;
                 
                 rowSeats.push(
                     <div
@@ -56,13 +69,18 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                             e.preventDefault(); 
                             if (!occupant) onDragOver(e, seatStr); 
                         }}
-                        onDragLeave={onDragLeave}
+                        onDragLeave={() => {
+                            onDragLeave();
+                            setHoveredSeat(null);
+                        }}
                         onDrop={(e) => { 
                             e.preventDefault(); 
                             onDragLeave(); 
                             if (!occupant) onDrop(e, seatStr); 
                         }}
                         onClick={() => onSeatClick(seatStr)}
+                        onMouseEnter={() => setHoveredSeat(seatStr)}
+                        onMouseLeave={() => setHoveredSeat(null)}
                         className={`
                             relative w-12 h-12 flex flex-col items-center justify-center transition-all duration-200
                             ${occupant 
@@ -72,7 +90,6 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                                     : 'cursor-pointer text-gray-300 hover:text-gray-400'
                             }
                         `}
-                        title={occupant ? occupant.passengerName : `Poltrona ${seatNum}`}
                     >
                         <Armchair 
                             size={40} 
@@ -87,17 +104,48 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                             `} 
                             strokeWidth={1.5} 
                         />
-                        <span 
-                            className={`
-                                absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-bold 
-                                ${occupant ? 'text-primary-700' : 'text-gray-400'}
-                            `}
-                        >
-                            {occupant ? occupant.passengerName.substring(0, 2).toUpperCase() : seatNum}
-                        </span>
-                        {occupant && (
-                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow opacity-0 hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                {occupant.passengerName}
+                        {/* Content: Number for free, Initials for occupied */}
+                        {occupant ? (
+                            <span 
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-primary-700 leading-none"
+                                style={{ fontSize: '11px' }}
+                            >
+                                {getInitials(occupant.passengerName)}
+                            </span>
+                        ) : (
+                            <span 
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-gray-700 leading-none"
+                                style={{ fontSize: '13px' }}
+                            >
+                                {seatNum}
+                            </span>
+                        )}
+                        
+                        {/* Enhanced Tooltip on Hover */}
+                        {occupant && isHovered && (
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap min-w-[180px]">
+                                <div className="flex items-center gap-2 mb-1">
+                                    {passengerDetails?.avatar ? (
+                                        <img 
+                                            src={passengerDetails.avatar} 
+                                            alt="" 
+                                            className="w-8 h-8 rounded-full object-cover border border-gray-700"
+                                        />
+                                    ) : (
+                                        <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white text-xs font-bold">
+                                            {getInitials(occupant.passengerName)}
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold truncate">{occupant.passengerName}</div>
+                                        {passengerDetails?.status && (
+                                            <div className="text-[10px] text-gray-300">{passengerDetails.status}</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-gray-300 border-t border-gray-700 pt-1 mt-1">
+                                    Assento {seatNum}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -113,7 +161,26 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
         );
     }
 
-    return <>{grid}</>;
+    return (
+        <>
+            {grid}
+            {/* Legend */}
+            <div className="mt-6 flex items-center justify-center gap-6 text-xs">
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-green-100 border border-green-300 flex items-center justify-center">
+                        <span className="text-xs font-bold text-green-700">1</span>
+                    </div>
+                    <span className="text-gray-600">Livre</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-primary-100 border border-primary-600 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-primary-700">JD</span>
+                    </div>
+                    <span className="text-gray-600">Ocupado</span>
+                </div>
+            </div>
+        </>
+    );
 };
 
 export default BusVisualizer;
