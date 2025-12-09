@@ -527,9 +527,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             }
             return v;
         });
-        
+
         saveVehicles(updatedVehicles);
-        setSeatToDelete(null);
+        // Modal will close via onClose() in ConfirmationModal button
     };
 
     // Auto-preenchimento inteligente
@@ -687,7 +687,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
         saveVehicles(updatedVehicles);
         showToast('Todos os assentos foram limpos', 'success');
-        setShowClearSeatsModal(false);
+        // Modal will close via onClose() in ConfirmationModal button
     };
 
     const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
@@ -704,7 +704,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         if (activeVehicleId === vehicleToDelete) {
             setActiveVehicleId(updatedVehicles[0]?.id || null);
         }
-        setVehicleToDelete(null);
+        // Modal will close via onClose() in ConfirmationModal button
     };
 
     const handleEditVehicle = (vehicle: VehicleInstance) => {
@@ -1450,7 +1450,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         });
         
         saveHotels(updatedHotels);
-        setGuestToRemove(null);
+        // Modal will close via onClose() in ConfirmationModal button
     };
     
     const confirmDeleteRoom = () => {
@@ -1462,7 +1462,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         }));
         
         saveHotels(updatedHotels);
-        setRoomToDelete(null);
+        // Modal will close via onClose() in ConfirmationModal button
     };
     
     // Hotel Management Actions
@@ -1491,7 +1491,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         }
         saveHotels(updated);
         if (activeHotelId === hotelToDelete) setActiveHotelId(updated[0].id);
-        setHotelToDelete(null);
+        // Modal will close via onClose() in ConfirmationModal button
     };
 
     const startRenameHotel = (hotelId: string, currentName: string) => {
@@ -2594,7 +2594,7 @@ const AgencyDashboard: React.FC = () => {
     if (!tripToDelete) return;
     await deleteTrip(tripToDelete); 
     showToast('Pacote excluído.', 'success');
-    setTripToDelete(null);
+    // Modal will close via onClose() in ConfirmationModal button
   };
   const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
   const handleSaveProfile = async (e: React.FormEvent) => { 

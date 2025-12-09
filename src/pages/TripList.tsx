@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
@@ -11,6 +11,61 @@ const normalizeText = (text: string) => {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+};
+
+// Deterministic shuffle using seed (Fisher-Yates with seeded random)
+const seededShuffle = <T,>(array: T[], seed: number): T[] => {
+  const shuffled = [...array];
+  // Simple seeded random number generator
+  let currentSeed = seed;
+  const seededRandom = () => {
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    return currentSeed / 233280;
+  };
+  
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRandom() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+// Generate a deterministic seed from filter state
+const generateSeed = (filters: {
+  q: string | null;
+  categoryParam: string | null;
+  selectedTags: string[];
+  selectedTravelerTypes: string[];
+  durationParam: string | null;
+  priceParam: string | null;
+}): number => {
+  // Create a hash from all filter values
+  const filterString = JSON.stringify({
+    q: filters.q || '',
+    category: filters.categoryParam || '',
+    tags: filters.selectedTags.sort().join(','),
+    travelers: filters.selectedTravelerTypes.sort().join(','),
+    duration: filters.durationParam || '',
+    price: filters.priceParam || ''
+  });
+  
+  // Simple hash function to convert string to number
+  let hash = 0;
+  for (let i = 0; i < filterString.length; i++) {
+    const char = filterString.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // If no filters, use date-based seed (changes once per day)
+  if (!filters.q && !filters.categoryParam && filters.selectedTags.length === 0 && 
+      filters.selectedTravelerTypes.length === 0 && !filters.durationParam && !filters.priceParam) {
+    const today = new Date();
+    const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+    return Math.abs(daySeed);
+  }
+  
+  return Math.abs(hash);
 };
 
 // @FIX: Changed from default export to named export
@@ -184,14 +239,13 @@ export const TripList: React.FC = () => {
         case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
         case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
         default: // RELEVANCE
-           // Shuffle for random order when no filters are applied
+           // Shuffle for random order when no filters are applied (deterministic based on day)
            if (!q && !categoryParam && selectedTags.length === 0 && selectedTravelerTypes.length === 0 && !durationParam && !priceParam) {
-               // Fisher-Yates shuffle
-               for (let i = result.length - 1; i > 0; i--) {
-                   const j = Math.floor(Math.random() * (i + 1));
-                   [result[i], result[j]] = [result[j], result[i]];
-               }
+               // Use deterministic shuffle with day-based seed (changes once per day)
+               const seed = generateSeed({ q, categoryParam, selectedTags, selectedTravelerTypes, durationParam, priceParam });
+               result = seededShuffle(result, seed);
            } else {
+               // When filters are applied, use relevance sorting
                result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
            }
     }
