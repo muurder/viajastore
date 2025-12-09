@@ -222,13 +222,19 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         await createTrip(finalTrip);
         showToast("Pacote criado com sucesso!", "success");
       }
-      onSuccess();
-      onClose();
+      
+      // Reset loading state before closing
+      setIsLoading(false);
+      
+      // Close modal and trigger success callback
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 100);
 
     } catch (error: any) {
       console.error("CreateTripWizard Error:", error);
       showToast(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`, "error");
-    } finally {
       setIsLoading(false);
     }
   };

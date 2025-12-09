@@ -109,23 +109,47 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
 
     return (
         <div className="relative" ref={menuRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                <MoreHorizontal size={18} />
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                }} 
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors group"
+            >
+                <MoreHorizontal size={18} className="group-hover:scale-110 transition-transform" />
             </button>
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-1 ring-black/5">
-                    <div className="py-1">
-                        {actions.map((action, idx) => (
-                            <button 
-                                key={idx} 
-                                onClick={() => { action.onClick(); setIsOpen(false); }}
-                                className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
-                            >
-                                <action.icon size={16} /> {action.label}
-                            </button>
-                        ))}
+                <>
+                    <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setIsOpen(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-2 ring-primary-100">
+                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-3 text-white">
+                            <p className="text-xs font-bold uppercase tracking-wide">Ações do Pacote</p>
+                        </div>
+                        <div className="py-2">
+                            {actions.map((action, idx) => (
+                                <button 
+                                    key={idx} 
+                                    onClick={(e) => { 
+                                        e.stopPropagation();
+                                        action.onClick(); 
+                                        setIsOpen(false); 
+                                    }}
+                                    className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center gap-3 transition-all hover:scale-[1.02] ${
+                                        action.variant === 'danger' 
+                                            ? 'text-red-600 hover:bg-red-50 border-l-4 border-red-500' 
+                                            : 'text-gray-700 hover:bg-primary-50 border-l-4 border-transparent hover:border-primary-500'
+                                    }`}
+                                >
+                                    <action.icon size={18} className={action.variant === 'danger' ? 'text-red-500' : 'text-primary-600'} /> 
+                                    <span>{action.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );
@@ -287,7 +311,304 @@ interface RecentBookingsTableProps {
     clients: any[];
 }
 
+interface BookingDetailsViewProps {
+    bookings: Booking[];
+    clients: any[];
+}
+
+const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clients }) => {
+    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
+    const { showToast } = useToast();
+
+    const sortedBookings = useMemo(() => {
+        return [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [bookings]);
+
+    const isNewBooking = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - date.getTime());
+        const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); 
+        return diffHours <= 24;
+    };
+
+    // Fetch passengers when booking is selected
+    useEffect(() => {
+        const fetchPassengers = async () => {
+            if (!selectedBooking) {
+                setBookingPassengers([]);
+                return;
+            }
+            
+            try {
+                const { supabase } = await import('../services/supabase');
+                if (supabase) {
+                    const { data, error } = await supabase
+                        .from('booking_passengers')
+                        .select('*')
+                        .eq('booking_id', selectedBooking.id)
+                        .order('passenger_index', { ascending: true });
+                    
+                    if (!error && data) {
+                        setBookingPassengers(data);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching passengers:', err);
+            }
+        };
+
+        fetchPassengers();
+    }, [selectedBooking]);
+
+    const openWhatsApp = (phone: string) => {
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone) {
+            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+        } else {
+            showToast('Número de WhatsApp não disponível', 'warning');
+        }
+    };
+
+    return (
+        <>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Minhas Reservas ({bookings.length})</h2>
+            {sortedBookings.length > 0 ? (
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gray-50/50">
+                            <tr>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider"># Reserva</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Passageiros</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th>
+                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Valor Total</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                            {sortedBookings.map(booking => {
+                                const client = clients.find(c => c.id === booking.clientId);
+                                const isNew = isNewBooking(booking.date);
+                                return (
+                                    <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4 font-mono text-xs text-gray-700 font-bold">{booking.voucherCode}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-gray-900">{booking._trip?.title || 'N/A'}</span>
+                                                <span className="text-xs text-gray-500">{booking._trip?.destination || ''}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                {client?.avatar ? (
+                                                    <img src={client.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                                        {client?.name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-gray-900">{client?.name || 'Cliente Desconhecido'}</span>
+                                                    {client?.phone && (
+                                                        <span className="text-xs text-gray-500">{client.phone}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                <Users size={16} className="text-primary-600"/>
+                                                <span className="text-sm font-bold text-gray-900">{booking.passengers}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                            <div className="flex items-center gap-2">
+                                                {new Date(booking.date).toLocaleDateString('pt-BR')}
+                                                {isNew && <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NOVO</span>}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="px-6 py-4">
+                                            <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>{booking.status}</Badge>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <button
+                                                onClick={() => setSelectedBooking(booking)}
+                                                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 mx-auto"
+                                            >
+                                                <Eye size={14}/> Ver Detalhes
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="text-center py-12 text-gray-400">
+                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50"/>
+                    <p className="text-lg">Nenhuma reserva ainda</p>
+                </div>
+            )}
+        </div>
+
+        {/* Premium Booking Details Modal */}
+        {selectedBooking && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
+                <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-bold mb-1">Detalhes Completos da Reserva</h2>
+                                <p className="text-primary-100 text-sm">#{selectedBooking.voucherCode}</p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedBooking(null)}
+                                className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+                            >
+                                <X size={24}/>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {/* Booking Info Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Pacote</p>
+                                <p className="text-lg font-bold text-gray-900 mb-1">{selectedBooking._trip?.title || 'N/A'}</p>
+                                <p className="text-sm text-gray-600">{selectedBooking._trip?.destination || ''}</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valor Total</p>
+                                <p className="text-2xl font-bold text-green-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                <p className="text-xs text-gray-500 mt-1">R$ {(selectedBooking.totalPrice / selectedBooking.passengers).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por passageiro</p>
+                            </div>
+                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-100">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Passageiros</p>
+                                <p className="text-2xl font-bold text-purple-600">{selectedBooking.passengers}</p>
+                                <p className="text-xs text-gray-500 mt-1">{selectedBooking.passengers === 1 ? 'passageiro' : 'passageiros'}</p>
+                            </div>
+                        </div>
+
+                        {/* Client Info */}
+                        {(() => {
+                            const clientData = (selectedBooking as any)._client || clients.find(c => c.id === selectedBooking.clientId);
+                            return clientData ? (
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <User size={20} className="text-primary-600"/> Dados do Comprador
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</p>
+                                            <p className="text-base font-bold text-gray-900">{clientData.name || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Email</p>
+                                            <p className="text-base text-gray-700">{clientData.email || 'N/A'}</p>
+                                        </div>
+                                        {clientData.phone && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Telefone</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-base text-gray-700">{clientData.phone}</p>
+                                                    <button
+                                                        onClick={() => openWhatsApp(clientData.phone)}
+                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageCircle size={14}/> WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {clientData.cpf && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">CPF</p>
+                                                <p className="text-base text-gray-700">{clientData.cpf}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : null;
+                        })()}
+
+                        {/* Passengers List */}
+                        {bookingPassengers.length > 0 && (
+                            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <Users size={20} className="text-primary-600"/> Passageiros ({bookingPassengers.length})
+                                </h3>
+                                <div className="space-y-3">
+                                    {bookingPassengers.map((passenger, index) => (
+                                        <div key={passenger.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-gray-900">{passenger.full_name}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {passenger.whatsapp && (
+                                                    <button
+                                                        onClick={() => openWhatsApp(passenger.whatsapp)}
+                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageCircle size={14}/> WhatsApp
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                                {passenger.cpf && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">CPF</p>
+                                                        <p className="font-medium text-gray-900">{passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
+                                                    </div>
+                                                )}
+                                                {passenger.birth_date && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">Data de Nascimento</p>
+                                                        <p className="font-medium text-gray-900">{new Date(passenger.birth_date).toLocaleDateString('pt-BR')}</p>
+                                                    </div>
+                                                )}
+                                                {passenger.whatsapp && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">WhatsApp</p>
+                                                        <p className="font-medium text-gray-900">{passenger.whatsapp}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
+    );
+};
+
 const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
+    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
+    const { showToast } = useToast();
+
     const recentBookings = useMemo(() => {
         return [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
     }, [bookings]);
@@ -296,7 +617,46 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
         return (new Date().getTime() - new Date(date).getTime()) < 24 * 60 * 60 * 1000;
     };
 
+    // Fetch passengers when booking is selected
+    useEffect(() => {
+        const fetchPassengers = async () => {
+            if (!selectedBooking) {
+                setBookingPassengers([]);
+                return;
+            }
+            
+            try {
+                const { supabase } = await import('../services/supabase');
+                if (supabase) {
+                    const { data, error } = await supabase
+                        .from('booking_passengers')
+                        .select('*')
+                        .eq('booking_id', selectedBooking.id)
+                        .order('passenger_index', { ascending: true });
+                    
+                    if (!error && data) {
+                        setBookingPassengers(data);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching passengers:', err);
+            }
+        };
+
+        fetchPassengers();
+    }, [selectedBooking]);
+
+    const openWhatsApp = (phone: string) => {
+        const cleanPhone = phone.replace(/\D/g, '');
+        if (cleanPhone) {
+            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+        } else {
+            showToast('Número de WhatsApp não disponível', 'warning');
+        }
+    };
+
     return (
+        <>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag size={20} className="mr-2 text-primary-600"/> Últimas Vendas</h3>
             {recentBookings.length > 0 ? (
@@ -309,6 +669,7 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                                 <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
                                 <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Valor</th>
                                 <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                                <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -339,6 +700,14 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                                                 {booking.status}
                                             </Badge>
                                         </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <button
+                                                onClick={() => setSelectedBooking(booking)}
+                                                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors flex items-center gap-1 mx-auto"
+                                            >
+                                                <Eye size={14}/> Ver Detalhes
+                                            </button>
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -352,6 +721,151 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                 </div>
             )}
         </div>
+
+        {/* Premium Booking Details Modal */}
+        {selectedBooking && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
+                <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-bold mb-1">Detalhes da Reserva</h2>
+                                <p className="text-primary-100 text-sm">#{selectedBooking.voucherCode}</p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedBooking(null)}
+                                className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/20 transition-colors"
+                            >
+                                <X size={24}/>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {/* Booking Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Pacote</p>
+                                <p className="text-lg font-bold text-gray-900">{selectedBooking._trip?.title || 'N/A'}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Valor Total</p>
+                                <p className="text-lg font-bold text-primary-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Passageiros</p>
+                                <p className="text-lg font-bold text-gray-900">{selectedBooking.passengers} {selectedBooking.passengers === 1 ? 'passageiro' : 'passageiros'}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-4">
+                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Data da Reserva</p>
+                                <p className="text-lg font-bold text-gray-900">{new Date(selectedBooking.date).toLocaleDateString('pt-BR')}</p>
+                            </div>
+                        </div>
+
+                        {/* Client Info */}
+                        {(() => {
+                            const clientData = (selectedBooking as any)._client || clients.find(c => c.id === selectedBooking.clientId);
+                            return clientData ? (
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <User size={20} className="text-primary-600"/> Dados do Comprador
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</p>
+                                            <p className="text-base font-bold text-gray-900">{clientData.name || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Email</p>
+                                            <p className="text-base text-gray-700">{clientData.email || 'N/A'}</p>
+                                        </div>
+                                        {clientData.phone && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Telefone</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-base text-gray-700">{clientData.phone}</p>
+                                                    <button
+                                                        onClick={() => openWhatsApp(clientData.phone)}
+                                                        className="px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageCircle size={14}/> WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {clientData.cpf && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">CPF</p>
+                                                <p className="text-base text-gray-700">{clientData.cpf}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : null;
+                        })()}
+
+                        {/* Passengers List */}
+                        {bookingPassengers.length > 0 && (
+                            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <Users size={20} className="text-primary-600"/> Passageiros ({bookingPassengers.length})
+                                </h3>
+                                <div className="space-y-3">
+                                    {bookingPassengers.map((passenger, index) => (
+                                        <div key={passenger.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-gray-900">{passenger.full_name}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {passenger.whatsapp && (
+                                                    <button
+                                                        onClick={() => openWhatsApp(passenger.whatsapp)}
+                                                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
+                                                    >
+                                                        <MessageCircle size={14}/> WhatsApp
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                                {passenger.cpf && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">CPF</p>
+                                                        <p className="font-medium text-gray-900">{passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
+                                                    </div>
+                                                )}
+                                                {passenger.birth_date && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">Data de Nascimento</p>
+                                                        <p className="font-medium text-gray-900">{new Date(passenger.birth_date).toLocaleDateString('pt-BR')}</p>
+                                                    </div>
+                                                )}
+                                                {passenger.whatsapp && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500 mb-1">WhatsApp</p>
+                                                        <p className="font-medium text-gray-900">{passenger.whatsapp}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 
@@ -1078,40 +1592,37 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                     {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayName.charAt(0).toUpperCase()}</div>
                                     
-                                    {accompanyMatch && !p.details?.name ? (
-                                        <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
-                                            <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                                                Acompanhante {accompanyMatch[1]}
-                                            </span>
-                                            <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
-                                                <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                <span className="truncate">Via: {accompanyMatch[2]}</span>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
-                                            <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>{displayName}</span>
+                                    {/* Always show full name on top, type below */}
+                                    <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
+                                        <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                                            {displayName || p.name}
+                                        </span>
+                                        <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
                                             {p.isManual ? (
-                                                <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
+                                                <>
                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
                                                     <span className="truncate">Manual</span>
-                                                </div>
+                                                </>
+                                            ) : accompanyMatch ? (
+                                                <>
+                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                    <span className="truncate">Acompanhante {accompanyMatch[1]} • Via: {accompanyMatch[2]}</span>
+                                                </>
                                             ) : (
-                                                !p.details?.name && (
-                                                    <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${isSelected ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                        Titular
-                                                    </div>
-                                                )
+                                                <span className={`text-[10px] uppercase font-bold tracking-wide ${isSelected ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                    Titular
+                                                </span>
                                             )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                                 {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap truncate max-w-[80px]">{assignedInfo}</span>}
                                 
-                                {/* Edit Button */}
+                                {/* Edit Button - Always visible */}
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
-                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-opacity opacity-0 group-hover:opacity-100 ${isSelected ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-100 hover:text-blue-500'}`}
+                                    className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-blue-500 hover:bg-blue-50 bg-blue-50/50'}`}
+                                    title="Editar dados do passageiro"
                                 >
                                     <Edit3 size={14}/>
                                 </button>
@@ -1680,31 +2191,29 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                          {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
                                          
-                                         {accompanyMatch ? (
-                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
-                                                    Acompanhante {accompanyMatch[1]}
-                                                </span>
-                                                <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
-                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                    <span className="truncate">Via: {accompanyMatch[2]}</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
-                                                {p.isManual ? (
-                                                    <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
-                                                        <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                        <span className="truncate">Manual</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                        Titular
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                         {/* Always show full name on top, type below */}
+                                         <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                             <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                 {p.details?.name || p.name}
+                                             </span>
+                                             <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
+                                                 {p.isManual ? (
+                                                     <>
+                                                         <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                         <span className="truncate">Manual</span>
+                                                     </>
+                                                 ) : accompanyMatch ? (
+                                                     <>
+                                                         <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                         <span className="truncate">Acompanhante {accompanyMatch[1]} • Via: {accompanyMatch[2]}</span>
+                                                     </>
+                                                 ) : (
+                                                     <span className={`text-[10px] uppercase font-bold tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                         Titular
+                                                     </span>
+                                                 )}
+                                             </div>
+                                         </div>
                                      </div>
                                      {assignedInfo && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]" title={assignedInfo}>{assignedInfo.split(' - ').pop()}</span>}
                                  </div>
@@ -1783,10 +2292,17 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
     const { showToast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
-    const { deleteTrip } = useData(); // Import deleteTrip function
+    const { deleteTrip, refreshData } = useData(); // Import deleteTrip and refreshData
     const [tripToDelete, setTripToDelete] = useState<string | null>(null);
 
     const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // Reload data when trip is selected to ensure fresh data
+    useEffect(() => {
+        if (selectedTripId) {
+            refreshData();
+        }
+    }, [selectedTripId, refreshData]);
 
     const confirmDeleteTrip = async () => {
         if (!tripToDelete) return;
@@ -1811,7 +2327,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     };
 
     // PDF Generator - Melhorado com desenhos visuais (sem autoTable)
-    const generateManifest = () => {
+    const generateManifest = async () => {
         if (!selectedTrip) return;
         try {
             const doc = new jsPDF();
@@ -1851,8 +2367,46 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 return '-';
             };
 
-            // Helper to get detail completo
-            const getPaxDetail = (id: string, fallbackName: string) => {
+            // Fetch passenger data from database
+            let bookingPassengersMap = new Map<string, any>();
+            try {
+                const { supabase } = await import('../services/supabase');
+                if (supabase) {
+                    const bookingIds = tripBookings.map(b => b.id);
+                    if (bookingIds.length > 0) {
+                        const { data, error } = await supabase
+                            .from('booking_passengers')
+                            .select('*')
+                            .in('booking_id', bookingIds)
+                            .order('booking_id', { ascending: true })
+                            .order('passenger_index', { ascending: true });
+                        
+                        if (!error && data) {
+                            data.forEach(p => {
+                                const key = `${p.booking_id}-${p.passenger_index}`;
+                                bookingPassengersMap.set(key, p);
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching passengers from DB:', err);
+            }
+
+            // Helper to get detail completo - busca do banco primeiro
+            const getPaxDetail = (id: string, bookingId: string, passengerIndex: number, fallbackName: string) => {
+                // Try database first
+                const dbPassenger = bookingPassengersMap.get(`${bookingId}-${passengerIndex}`);
+                if (dbPassenger) {
+                    return {
+                        name: dbPassenger.full_name || fallbackName,
+                        document: dbPassenger.cpf ? dbPassenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '-',
+                        phone: dbPassenger.whatsapp || '-',
+                        birthDate: dbPassenger.birth_date ? new Date(dbPassenger.birth_date).toLocaleDateString('pt-BR') : '-',
+                        seat: getPassengerSeat(id)
+                    };
+                }
+                // Fallback to operational data
                 const detail = opData.passengerDetails?.[id];
                 return {
                     name: detail?.name || fallbackName,
@@ -1877,7 +2431,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 
                 // Main Passenger
                 const mainPaxId = `${b.id}-0`;
-                const mainInfo = getPaxDetail(mainPaxId, clientName);
+                const mainInfo = getPaxDetail(mainPaxId, b.id, 0, clientName);
                 allPax.push({
                     name: mainInfo.name,
                     phone: mainInfo.phone,
@@ -1891,7 +2445,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 for(let i=1; i<b.passengers; i++) {
                     const accId = `${b.id}-${i}`;
                     const originalAccName = `Acompanhante ${i} de ${clientName}`;
-                    const accInfo = getPaxDetail(accId, originalAccName);
+                    const accInfo = getPaxDetail(accId, b.id, i, originalAccName);
                     allPax.push({
                         name: accInfo.name,
                         phone: accInfo.phone,
@@ -1904,7 +2458,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             });
             
             opData.manualPassengers?.forEach(p => {
-                const info = getPaxDetail(p.id, p.name);
+                const info = getPaxDetail(p.id, '', -1, p.name);
                 allPax.push({
                     name: info.name,
                     phone: info.phone,
@@ -3064,53 +3618,7 @@ const AgencyDashboard: React.FC = () => {
       )}
 
       {activeTab === 'BOOKINGS' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Minhas Reservas ({myBookings.length})</h2>
-              {myBookings.length > 0 ? (
-                  <div className="overflow-x-auto custom-scrollbar">
-                      <table className="min-w-full divide-y divide-gray-100">
-                          <thead className="bg-gray-50/50">
-                              <tr>
-                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider"># Reserva</th>
-                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
-                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
-                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th>
-                                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Valor Total</th>
-                                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                              </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 bg-white">
-                              {sortedBookings.map(booking => {
-                                  const client = clients.find(c => c.id === booking.clientId);
-                                  const isNew = isNewBooking(booking.date);
-                                  return (
-                                      <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
-                                          <td className="px-6 py-4 font-mono text-xs text-gray-700">{booking.voucherCode}</td>
-                                          <td className="px-6 py-4 text-sm font-bold text-gray-900">{booking._trip?.title || 'N/A'}</td>
-                                          <td className="px-6 py-4 text-sm text-gray-700">{client?.name || 'Cliente Desconhecido'}</td>
-                                          <td className="px-6 py-4 text-sm text-gray-500">
-                                              <div className="flex items-center gap-2">
-                                                  {new Date(booking.date).toLocaleDateString()}
-                                                  {isNew && <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NOVO</span>}
-                                              </div>
-                                          </td>
-                                          <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
-                                          <td className="px-6 py-4">
-                                              <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>{booking.status}</Badge>
-                                          </td>
-                                      </tr>
-                                  );
-                              })}
-                          </tbody>
-                      </table>
-                  </div>
-              ) : (
-                  <div className="text-center py-16 text-gray-400 text-sm">
-                      <ShoppingBag size={32} className="mx-auto mb-3"/>
-                      <p>Nenhuma reserva encontrada. Comece a vender!</p>
-                  </div>
-              )}
-          </div>
+          <BookingDetailsView bookings={myBookings} clients={clients} />
       )}
 
       {activeTab === 'OPERATIONS' && (
