@@ -602,6 +602,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         const updates: any = {};
         if (userData.name) updates.full_name = userData.name;
+        // Update email in profiles table if it changed
+        if (userData.email) updates.email = userData.email;
         if ((userData as Client).phone) updates.phone = (userData as Client).phone;
         if ((userData as Client).cpf) updates.cpf = (userData as Client).cpf;
         if ((userData as Client).birthDate) updates.birth_date = (userData as Client).birthDate;

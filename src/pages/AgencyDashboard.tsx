@@ -1783,8 +1783,26 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
     const { showToast } = useToast();
     const [searchTerm, setSearchTerm] = useState('');
+    const { deleteTrip } = useData(); // Import deleteTrip function
+    const [tripToDelete, setTripToDelete] = useState<string | null>(null);
 
     const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const confirmDeleteTrip = async () => {
+        if (!tripToDelete) return;
+        try {
+            await deleteTrip(tripToDelete);
+            setTripToDelete(null);
+            showToast('Pacote excluído.', 'success');
+            // If the deleted trip was selected, clear the selection
+            if (selectedTripId === tripToDelete) {
+                onSelectTrip(null);
+            }
+        } catch (error: any) {
+            console.error('Error deleting trip:', error);
+            showToast('Erro ao excluir pacote.', 'error');
+        }
+    };
 
     // Auto-close sidebar on selection
     const handleTripSelect = (id: string) => {
