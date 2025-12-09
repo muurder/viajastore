@@ -10,7 +10,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone, Briefcase, Edit3
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -310,6 +310,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     // New State for Multiple Vehicles
     const [vehicles, setVehicles] = useState<VehicleInstance[]>([]);
     const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
+    const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false); // For click menu
+    const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null); // To know if we are creating or updating
     
     // UI States
     const [showManualForm, setShowManualForm] = useState(false);
@@ -319,6 +321,10 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     
+    // Passenger Edit Modal
+    const [passengerEditId, setPassengerEditId] = useState<string | null>(null);
+    const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '' });
+
     // Config Mode
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
     const [customVehicleData, setCustomVehicleData] = useState({ label: '', totalSeats: 4, cols: 2 });
@@ -350,21 +356,37 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
 
     // Derived Passengers List
-    const nameOverrides = (trip.operationalData as any)?.passengerNameOverrides || {};
+    const opData = trip.operationalData as any;
+    const nameOverrides = opData?.passengerNameOverrides || {};
+    const passengerDetails = opData?.passengerDetails || {}; // New: Details map { [id]: { name, document, phone } }
+
     const allPassengers = useMemo(() => {
         const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
             const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
             return Array.from({ length: b.passengers }).map((_, i) => {
                 const id = `${b.id}-${i}`;
                 const originalName = i === 0 ? (clientName || 'Passageiro') : `Acompanhante ${i + 1} (${clientName || ''})`;
-                return { id, bookingId: b.id, name: nameOverrides[id] || originalName, isManual: false };
+                // Use details name if available, else override, else original
+                const detailName = passengerDetails[id]?.name;
+                return { 
+                    id, 
+                    bookingId: b.id, 
+                    name: detailName || nameOverrides[id] || originalName, 
+                    isManual: false,
+                    // Pass extra details for display
+                    details: passengerDetails[id]
+                };
             });
         });
         const manual = manualPassengers.map(p => ({
-            id: p.id, bookingId: p.id, name: nameOverrides[p.id] || p.name, isManual: true
+            id: p.id, 
+            bookingId: p.id, 
+            name: passengerDetails[p.id]?.name || nameOverrides[p.id] || p.name, 
+            isManual: true,
+            details: passengerDetails[p.id]
         }));
         return [...booked, ...manual];
-    }, [bookings, clients, manualPassengers, nameOverrides]);
+    }, [bookings, clients, manualPassengers, nameOverrides, passengerDetails]);
 
     // Global Assignment Map (Passenger ID -> Vehicle Name + Seat)
     const globalAssignmentMap = useMemo(() => {
@@ -444,9 +466,25 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         }
     };
 
+    const handleEditVehicle = (vehicle: VehicleInstance) => {
+        setCustomVehicleData({
+            label: vehicle.name, // Use vehicle name as label here for editing
+            totalSeats: vehicle.config.totalSeats,
+            cols: vehicle.config.cols
+        });
+        setEditingVehicleId(vehicle.id);
+        setShowCustomVehicleForm(true);
+    };
+
     // Handlers for New Vehicle
     const handleSelectVehicleType = (type: VehicleType) => {
-        if (type === 'CUSTOM') { setShowCustomVehicleForm(true); return; }
+        if (type === 'CUSTOM') { 
+            setEditingVehicleId(null);
+            setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
+            setShowCustomVehicleForm(true); 
+            setIsVehicleMenuOpen(false);
+            return; 
+        }
         
         const config = VEHICLE_TYPES[type];
         const newVehicle: VehicleInstance = {
@@ -460,30 +498,52 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         const updatedVehicles = [...vehicles, newVehicle];
         saveVehicles(updatedVehicles);
         setActiveVehicleId(newVehicle.id);
+        setIsVehicleMenuOpen(false);
     };
 
     const handleSaveCustomVehicle = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Base config object
         const config: VehicleLayoutConfig = { 
             type: 'CUSTOM', 
-            label: customVehicleData.label || 'Veículo Personalizado', 
+            label: 'Personalizado', 
             totalSeats: customVehicleData.totalSeats, 
             cols: customVehicleData.cols, 
             aisleAfterCol: Math.floor(customVehicleData.cols / 2) 
         };
-        
-        const newVehicle: VehicleInstance = {
-            id: `v-${Date.now()}`,
-            name: customVehicleData.label || `Veículo ${vehicles.length + 1}`,
-            type: 'CUSTOM',
-            config,
-            seats: []
-        };
 
-        const updatedVehicles = [...vehicles, newVehicle];
+        let updatedVehicles = [...vehicles];
+
+        if (editingVehicleId) {
+            // Updating existing vehicle
+            updatedVehicles = updatedVehicles.map(v => {
+                if (v.id === editingVehicleId) {
+                    return {
+                        ...v,
+                        name: customVehicleData.label || v.name, // Update name
+                        config: config // Update config (seats count etc)
+                    };
+                }
+                return v;
+            });
+        } else {
+            // Creating new vehicle
+            const newVehicle: VehicleInstance = {
+                id: `v-${Date.now()}`,
+                name: customVehicleData.label || `Veículo ${vehicles.length + 1}`,
+                type: 'CUSTOM',
+                config,
+                seats: []
+            };
+            updatedVehicles.push(newVehicle);
+            setActiveVehicleId(newVehicle.id);
+        }
+
         saveVehicles(updatedVehicles);
-        setActiveVehicleId(newVehicle.id);
         setShowCustomVehicleForm(false);
+        setEditingVehicleId(null);
+        setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
     };
     
     // Drag & Drop Handlers
@@ -512,6 +572,45 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         const newManuals = [...manualPassengers, p];
         setManualPassengers(newManuals);
         onSave({ ...trip.operationalData, manualPassengers: newManuals });
+    };
+
+    // Passenger Editing Logic
+    const handleOpenPassengerEdit = (p: any) => {
+        setPassengerEditId(p.id);
+        const details = passengerDetails?.[p.id]; // Access safely
+        setPassengerEditForm({
+            name: details?.name || p.name,
+            document: details?.document || '',
+            phone: details?.phone || ''
+        });
+    };
+
+    const handleSavePassengerDetails = () => {
+        if (!passengerEditId) return;
+        
+        // Construct new details object
+        const newDetails = {
+            ...passengerDetails,
+            [passengerEditId]: {
+                name: passengerEditForm.name,
+                document: passengerEditForm.document,
+                phone: passengerEditForm.phone
+            }
+        };
+
+        // Also update name overrides for backward compatibility in list display
+        const newNameOverrides = {
+            ...nameOverrides,
+            [passengerEditId]: passengerEditForm.name
+        };
+
+        onSave({ 
+            ...trip.operationalData, 
+            passengerDetails: newDetails,
+            passengerNameOverrides: newNameOverrides
+        });
+        setPassengerEditId(null);
+        showToast('Dados do passageiro salvos.', 'success');
     };
 
     // Render Logic
@@ -604,6 +703,40 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
             <ConfirmationModal isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name}?`} variant="warning" />
             
+            {/* Passenger Edit Modal */}
+            {passengerEditId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Passageiro</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
+                                <input value={passengerEditForm.name} onChange={e => setPassengerEditForm({...passengerEditForm, name: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">RG ou CPF</label>
+                                <input value={passengerEditForm.document} onChange={e => setPassengerEditForm({...passengerEditForm, document: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="000.000.000-00" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</label>
+                                <div className="flex gap-2">
+                                    <input value={passengerEditForm.phone} onChange={e => setPassengerEditForm({...passengerEditForm, phone: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="(00) 00000-0000" />
+                                    {passengerEditForm.phone && (
+                                        <a href={`https://wa.me/55${passengerEditForm.phone.replace(/\D/g, '')}`} target="_blank" className="p-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center justify-center" title="Abrir WhatsApp">
+                                            <MessageCircle size={18}/>
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 mt-6">
+                            <button onClick={() => setPassengerEditId(null)} className="flex-1 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded font-bold">Cancelar</button>
+                            <button onClick={handleSavePassengerDetails} className="flex-1 py-2 text-white bg-primary-600 hover:bg-primary-700 rounded font-bold">Salvar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Sidebar */}
             <div className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
                 <div className="p-4 border-b bg-gray-50 space-y-3">
@@ -631,53 +764,67 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     {filteredPassengers.map(p => {
                         const isAssigned = globalAssignmentMap.has(p.id);
                         const assignedInfo = globalAssignmentMap.get(p.id);
+                        const isSelected = selectedPassenger?.id === p.id;
                         
                         const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
                         
+                        // Determine display name (prefer override/detail over raw name)
+                        const displayName = p.details?.name || p.name;
+
                         return (
                             <div 
                                 key={p.id} 
                                 draggable={!isAssigned} 
                                 onDragStart={(e) => handleDragStart(e, p)} 
-                                onClick={() => !isAssigned && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} 
+                                onClick={() => !isAssigned && setSelectedPassenger(isSelected ? null : p)} 
                                 className={`
-                                    p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all
+                                    p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all relative
                                     ${isAssigned ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
-                                    ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md ring-2 ring-primary-100' : ''}
+                                    ${isSelected ? 'bg-primary-600 border-primary-600 shadow-md ring-2 ring-primary-100' : ''}
                                 `}
                             >
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    {!isAssigned && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                <div className="flex items-center gap-3 overflow-hidden pr-6">
+                                    {!isAssigned && <Grip size={12} className={isSelected ? 'text-white/50' : 'text-gray-300'}/>}
                                     {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayName.charAt(0).toUpperCase()}</div>
                                     
-                                    {accompanyMatch ? (
-                                        <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                            <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                    {accompanyMatch && !p.details?.name ? (
+                                        <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
+                                            <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
                                                 Acompanhante {accompanyMatch[1]}
                                             </span>
-                                            <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                            <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
                                                 <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
                                                 <span className="truncate">Via: {accompanyMatch[2]}</span>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
-                                            <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
+                                        <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
+                                            <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>{displayName}</span>
                                             {p.isManual ? (
-                                                <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
                                                     <span className="truncate">Manual</span>
                                                 </div>
                                             ) : (
-                                                <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                    Titular
-                                                </div>
+                                                !p.details?.name && (
+                                                    <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${isSelected ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                        Titular
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                     )}
                                 </div>
                                 {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap truncate max-w-[80px]">{assignedInfo}</span>}
+                                
+                                {/* Edit Button */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
+                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-opacity opacity-0 group-hover:opacity-100 ${isSelected ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-100 hover:text-blue-500'}`}
+                                >
+                                    <Edit3 size={14}/>
+                                </button>
                             </div>
                         );
                     })}
@@ -701,32 +848,45 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         >
                             <span className="truncate max-w-[100px] text-xs">{vehicle.name} <span className="opacity-50 font-normal">({vehicle.config.totalSeats})</span></span>
                             {activeVehicleId === vehicle.id && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }}
-                                    className="p-1 hover:bg-red-100 rounded-full text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <Trash2 size={12}/>
-                                </button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                    <button onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} className="p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600">
+                                        <Edit3 size={12}/>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }}
+                                        className="p-1 hover:bg-red-100 rounded-full text-red-400 hover:text-red-500"
+                                    >
+                                        <Trash2 size={12}/>
+                                    </button>
+                                </div>
                             )}
                         </div>
                     ))}
                     
-                    {/* Add Vehicle Popover Trigger */}
-                    <div className="relative group/add">
-                        <button className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                    {/* Add Vehicle Menu (Click based) */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsVehicleMenuOpen(!isVehicleMenuOpen)}
+                            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
+                        >
                             <Plus size={14}/> Add Veículo
                         </button>
                         
-                        <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50 hidden group-hover/add:block">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-2">Selecione o Tipo</p>
-                            {Object.values(VEHICLE_TYPES).slice(0, 5).map(v => (
-                                <button key={v.type} onClick={() => handleSelectVehicleType(v.type)} className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-gray-700 rounded-lg flex items-center gap-2">
-                                    <Truck size={12} className="text-gray-400"/> {v.label.split('(')[0]}
-                                </button>
-                            ))}
-                            <div className="border-t my-1"></div>
-                            <button onClick={() => setShowCustomVehicleForm(true)} className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-primary-600 font-bold rounded-lg">Personalizado...</button>
-                        </div>
+                        {isVehicleMenuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsVehicleMenuOpen(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50 animate-[scaleIn_0.1s]">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-2">Selecione o Tipo</p>
+                                    {Object.values(VEHICLE_TYPES).slice(0, 5).map(v => (
+                                        <button key={v.type} onClick={() => handleSelectVehicleType(v.type)} className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-gray-700 rounded-lg flex items-center gap-2">
+                                            <Truck size={12} className="text-gray-400"/> {v.label.split('(')[0]}
+                                        </button>
+                                    ))}
+                                    <div className="border-t my-1"></div>
+                                    <button onClick={() => handleSelectVehicleType('CUSTOM')} className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-primary-600 font-bold rounded-lg">Personalizado...</button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -744,17 +904,19 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 </div>
             </div>
             
-            {/* Custom Vehicle Modal */}
+            {/* Custom Vehicle Modal (Create/Edit) */}
             {showCustomVehicleForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
-                        <button onClick={() => setShowCustomVehicleForm(false)} className="absolute top-4 right-4"><X size={20}/></button>
-                        <h3 className="text-lg font-bold mb-4">Novo Veículo</h3>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setShowCustomVehicleForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        <h3 className="text-lg font-bold mb-4">{editingVehicleId ? 'Editar Veículo' : 'Novo Veículo'}</h3>
                         <form onSubmit={handleSaveCustomVehicle} className="space-y-4">
-                            <div><label className="text-xs font-bold uppercase">Nome</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded"/></div>
-                            <div><label className="text-xs font-bold uppercase">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"/></div>
-                            <div><label className="text-xs font-bold uppercase">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></div>
-                            <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">Criar</button>
+                            <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Nome do Veículo</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="Ex: Ônibus 1"/></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500"/></div>
+                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500"><option value={2}>2 (Van)</option><option value={3}>3 (Exec)</option><option value={4}>4 (Padrão)</option></select></div>
+                            </div>
+                            <button className="w-full bg-primary-600 text-white py-2.5 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-sm">{editingVehicleId ? 'Salvar Alterações' : 'Criar Veículo'}</button>
                         </form>
                     </div>
                 </div>
@@ -1358,18 +1520,45 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 (doc as any).autoTable({ head: [['Quarto', 'Tipo', 'Hóspedes']], body: roomData, startY: 30, theme: 'grid' });
             }
 
-            // PAX LIST
+            // PAX LIST (Updated with Details)
             doc.addPage();
             doc.setFontSize(14);
             doc.text('Lista de Passageiros', 15, 20);
             const allPax: any[] = [];
+            
+            // Helper to get detail
+            const getPaxDetail = (id: string, fallbackName: string) => {
+                const detail = opData.passengerDetails?.[id];
+                const finalName = detail?.name || fallbackName;
+                const finalDoc = detail?.document || '-';
+                return { name: finalName, doc: finalDoc };
+            };
+
             tripBookings.forEach(b => {
-                const name = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name || 'Cliente';
-                allPax.push([name, 'Principal', b.voucherCode]);
-                for(let i=1; i<b.passengers; i++) allPax.push([`Acompanhante ${i} de ${name}`, 'Acompanhante', b.voucherCode]);
+                const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name || 'Cliente';
+                
+                // Main Passenger
+                const mainPaxId = `${b.id}-0`;
+                const mainInfo = getPaxDetail(mainPaxId, clientName);
+                allPax.push([mainInfo.name, 'Principal', mainInfo.doc]);
+
+                // Accompanying
+                for(let i=1; i<b.passengers; i++) {
+                    const accId = `${b.id}-${i}`;
+                    const originalAccName = `Acompanhante ${i} de ${clientName}`;
+                    const accInfo = getPaxDetail(accId, originalAccName);
+                    allPax.push([accInfo.name, 'Acompanhante', accInfo.doc]);
+                }
             });
-            opData.manualPassengers?.forEach(p => allPax.push([p.name, 'Manual', p.document || '-']));
-            (doc as any).autoTable({ head: [['Nome', 'Tipo', 'Ref']], body: allPax, startY: 30 });
+            
+            opData.manualPassengers?.forEach(p => {
+                const info = getPaxDetail(p.id, p.name);
+                // If manual passenger has document directly on object, prioritize it if detail is empty
+                const doc = info.doc !== '-' ? info.doc : (p.document || '-');
+                allPax.push([info.name, 'Manual', doc]);
+            });
+
+            (doc as any).autoTable({ head: [['Nome', 'Tipo', 'Ref (Doc)']], body: allPax, startY: 30 });
 
             doc.save(`manifesto_${selectedTrip.slug}.pdf`);
             showToast('PDF gerado!', 'success');
