@@ -333,7 +333,7 @@ const AgencyLandingPage: React.FC = () => {
                       </div>
                   </div>
 
-                  <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0">
+                  <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 pt-20 md:pt-0">
                       <div className="text-white animate-[fadeInUp_0.8s_ease-out] pt-8 lg:pt-24 max-w-2xl">
                           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-white drop-shadow-xl">
                               {agency.heroTitle || `Bem-vindo à ${agency.name}`}
@@ -379,7 +379,7 @@ const AgencyLandingPage: React.FC = () => {
                       </div>
 
                       {/* Content Overlay */}
-                      <div className="relative z-20 w-full max-w-7xl mx-auto px-6 md:px-12 pt-20 md:pt-0 h-full flex items-center">
+                      <div className="relative z-20 w-full max-w-[1600px] mx-auto px-6 md:px-12 pt-20 md:pt-0 h-full flex items-center">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
                               {/* Left Text */}
                               <div className="text-white pt-8 lg:pt-0">
@@ -466,7 +466,7 @@ const AgencyLandingPage: React.FC = () => {
       </div>
 
       <div ref={reviewsSectionRef} className="sticky top-[64px] z-40 bg-gray-50/90 backdrop-blur-md border-b border-gray-200 shadow-sm -mt-6 pt-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center gap-8">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex justify-center gap-8">
               {[
                   { id: 'PACKAGES', label: 'Pacotes', icon: MapPin },
                   { id: 'ABOUT', label: 'Sobre a Agência', icon: Info },
@@ -483,7 +483,7 @@ const AgencyLandingPage: React.FC = () => {
           </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[500px]">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 min-h-[500px]">
         
         {activeTab === 'PACKAGES' && (
             <div id="packages-section" className="animate-[fadeIn_0.3s]">
@@ -524,7 +524,7 @@ const AgencyLandingPage: React.FC = () => {
                 </div>
 
                 {filteredTrips.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
                     {filteredTrips.map(trip => (
                     <TripCard key={trip.id} trip={trip} />
                     ))}

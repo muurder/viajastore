@@ -164,8 +164,8 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
     return (
         <>
             {grid}
-            {/* Legend */}
-            <div className="mt-6 flex items-center justify-center gap-6 text-xs">
+            {/* Legend - Hidden on mobile (shown above in parent) */}
+            <div className="hidden md:flex mt-6 items-center justify-center gap-6 text-xs">
                 <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded bg-green-100 border border-green-300 flex items-center justify-center">
                         <span className="text-xs font-bold text-green-700">1</span>

@@ -192,7 +192,7 @@ const Layout: React.FC = () => {
 
       {/* Navbar */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           {isMicrositeClientArea && currentAgency ? (
              // Microsite Client Dashboard Header
             <div className="flex justify-between h-16">
@@ -378,7 +378,7 @@ const Layout: React.FC = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
 
@@ -391,7 +391,7 @@ const Layout: React.FC = () => {
                </Link>
             </div>
          ) : (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                 <div className="col-span-1 md:col-span-2">
                   {currentAgency ? (

@@ -189,7 +189,7 @@ const Home: React.FC = () => {
 
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-20 pointer-events-none"></div>
         
-        <div className="relative z-30 w-full max-w-7xl mx-auto px-6 md:px-12">
+        <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Side: Text and Search */}
             <div className="text-center lg:text-left">
@@ -246,7 +246,7 @@ const Home: React.FC = () => {
       </div>
 
       {/* FILTERS & GRID */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
            <div className="flex items-center justify-between mb-3 px-1"><div className="flex items-center gap-2 text-gray-500"><Filter size={16} /><span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span></div></div>
            <div className="relative group/scroll bg-white/60 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl py-3">
@@ -277,7 +277,7 @@ const Home: React.FC = () => {
             </div>
             
             {gridLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
             ) : gridTrips.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">{gridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}</div>
             ) : (

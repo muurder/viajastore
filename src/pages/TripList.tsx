@@ -277,7 +277,7 @@ export const TripList: React.FC = () => {
 
   if (isResolvingAgency || loading && !initialTrips.length) {
       return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
               {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
           </div>
       );
@@ -311,7 +311,7 @@ export const TripList: React.FC = () => {
          </div>
 
          {/* Content */}
-         <div className="relative z-20 w-full max-w-7xl mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+         <div className="relative z-20 w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
              <div className="flex-1 text-center lg:text-left">
                 {currentAgency && (
                     <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
@@ -537,7 +537,7 @@ export const TripList: React.FC = () => {
           </div>
 
           {filteredTrips.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 animate-[fadeInUp_0.5s]">
               {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
             </div>
           ) : (

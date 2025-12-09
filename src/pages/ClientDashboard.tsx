@@ -587,7 +587,7 @@ const ClientDashboard: React.FC = () => {
 
 
   return (
-    <div className="max-w-6xl mx-auto py-6">
+    <div className="max-w-[1600px] mx-auto py-6">
       {!isMicrositeMode && <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

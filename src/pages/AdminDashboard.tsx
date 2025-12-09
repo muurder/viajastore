@@ -819,7 +819,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pb-12 min-h-screen">
+    <div className="max-w-[1600px] mx-auto pb-12 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900">Painel Master</h1>
         <div className="flex flex-wrap gap-3">

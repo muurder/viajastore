@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -7,10 +7,11 @@ import { Trip, TripCategory, OperationalData, Agency, BoardingPoint } from '../.
 import { 
   X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, Image as ImageIcon,
-  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 // Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
@@ -34,7 +35,7 @@ interface CreateTripWizardProps {
   initialTripData?: Partial<Trip>;
 }
 
-const DRAFT_STORAGE_KEY = 'viajastore_trip_draft';
+const getDraftStorageKey = (tripId?: string) => `trip_draft_${tripId || 'new'}`;
 
 const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess, initialTripData }) => {
   const { user, uploadImage } = useAuth(); 
@@ -156,6 +157,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDraftRestore, setShowDraftRestore] = useState(false);
+  const [retryMode, setRetryMode] = useState(false); // For "Tentar Novamente" button state
+  const [failedImageUploads, setFailedImageUploads] = useState<string[]>([]); // Track failed uploads for user choice
+  const [showImageFailureDialog, setShowImageFailureDialog] = useState(false);
+  const [pendingFailedUploads, setPendingFailedUploads] = useState<string[]>([]);
 
   // Auto-calculate duration, but respect user edits
   useEffect(() => {
@@ -186,41 +191,51 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       }
   }, [isEditing, initialTripData]);
 
-  // Check for draft on mount (only if not editing)
+  // Check for draft on mount (works for both new and editing)
   useEffect(() => {
-    if (!isEditing) {
-      try {
-        const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
-        if (draft) {
-          const parsedDraft = JSON.parse(draft);
-          if (parsedDraft.timestamp && (Date.now() - parsedDraft.timestamp) < 7 * 24 * 60 * 60 * 1000) {
+    try {
+      const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
+      const draft = localStorage.getItem(draftKey);
+      if (draft) {
+        const parsedDraft = JSON.parse(draft);
+        if (parsedDraft.timestamp && (Date.now() - parsedDraft.timestamp) < 7 * 24 * 60 * 60 * 1000) {
+          // Check if draft is newer than initial data
+          if (isEditing && initialTripData) {
+            const initialTimestamp = initialTripData.updated_at 
+              ? new Date(initialTripData.updated_at).getTime() 
+              : 0;
+            if (parsedDraft.timestamp > initialTimestamp) {
+              setShowDraftRestore(true);
+            }
+          } else if (!isEditing) {
             setShowDraftRestore(true);
           }
         }
-      } catch (err) {
-        console.error('Error checking draft:', err);
       }
+    } catch (err) {
+      console.error('Error checking draft:', err);
     }
-  }, [isEditing]);
+  }, [isEditing, tripData.id, initialTripData]);
 
-  // Auto-save to localStorage on every tripData change (debounced)
+  // Auto-save to localStorage on every tripData change (debounced) - Works for both new and editing
   useEffect(() => {
-    if (isEditing) return; // Don't save drafts when editing existing trip
+    if (isLoading) return; // Don't save while publishing
     
     const timeoutId = setTimeout(() => {
       try {
+        const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
         const draftData = {
           data: tripData,
           timestamp: Date.now()
         };
-        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+        localStorage.setItem(draftKey, JSON.stringify(draftData));
       } catch (err) {
         console.error('Error saving draft:', err);
       }
     }, 1000); // Debounce: save 1 second after last change
 
     return () => clearTimeout(timeoutId);
-  }, [tripData, isEditing]);
+  }, [tripData, isEditing, isLoading]);
 
   // Clear draft when component unmounts (if successfully published)
   useEffect(() => {
@@ -262,6 +277,9 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const handleBack = () => setCurrentStep(prev => prev - 1);
 
+  // Store uploaded URLs for continuation after user decision
+  const uploadedUrlsRef = useRef<string[]>([]);
+  
   // --- CRITICAL: BULLETPROOF UPLOAD LOGIC ---
   const handlePublish = async () => {
     if (!validateStep()) {
@@ -276,11 +294,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
     setIsLoading(true);
     setUploadProgress(null);
+    setRetryMode(false);
+    uploadedUrlsRef.current = [];
     
     try {
-      // Wrap entire operation in timeout (15 seconds)
+      // Wrap entire operation in timeout (20 seconds - increased for slow Supabase connections)
       const publishPromise = (async () => {
-        // 1. Upload Loop with Progress Tracking
+        // 1. Upload Loop with Progress Tracking (Resilient)
         const uploadedUrls: string[] = [];
         const failedUploads: string[] = [];
         
@@ -309,20 +329,28 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               } else {
                 // This shouldn't happen now since uploadImage throws, but keeping as safety
                 failedUploads.push(file.name);
-                showToast(`Falha no upload de ${file.name}. Verifique o tamanho da imagem e sua conexão.`, 'warning');
               }
             } catch (err: any) {
               console.error("Falha no upload de arquivo individual:", err);
               failedUploads.push(file.name);
-              const errorMsg = err.message || `Falha no upload de ${file.name}`;
-              showToast(errorMsg, 'warning');
+              // Don't show toast for each failed upload - we'll ask user at the end
             }
           }
         }
         
         setUploadProgress(null);
+        uploadedUrlsRef.current = uploadedUrls;
+        
+        // Ask user about failed uploads before proceeding
+        if (failedUploads.length > 0) {
+          // Store failed uploads and show dialog
+          setPendingFailedUploads(failedUploads);
+          setShowImageFailureDialog(true);
+          setIsLoading(false); // Pause loading while user decides
+          return; // Exit early, will continue after user confirms via handleContinueWithFailedImages
+        }
 
-        // 2. Merge Images
+        // 2. Merge Images (continue with successful uploads)
         const finalImages = [...(tripData.images || []), ...uploadedUrls];
         
         if (finalImages.length === 0 && !isEditing) {
@@ -385,44 +413,69 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         await savePromise;
 
         // 6. Clear draft on success
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
+        localStorage.removeItem(draftKey);
         
         // 7. Show success message
-        if (failedUploads.length > 0) {
-          showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso! Algumas fotos falharam: ${failedUploads.join(', ')}`, "warning");
+        if (pendingFailedUploads.length > 0) {
+          showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso! Algumas fotos falharam: ${pendingFailedUploads.join(', ')}`, "warning");
         } else {
           showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso!`, "success");
         }
         
-        // 8. Close modal and trigger success callback
+        // 8. Reset retry mode and failed uploads
+        setRetryMode(false);
+        setFailedImageUploads([]);
+        setPendingFailedUploads([]);
+        setShowImageFailureDialog(false);
+        
+        // 9. Close modal and trigger success callback
         setTimeout(() => {
           onSuccess();
           onClose();
         }, 100);
       })();
 
-      // Race against timeout
+      // Race against timeout (20 seconds - increased for slow Supabase connections)
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('O servidor demorou muito para responder. Tente novamente.')), 15000)
+        setTimeout(() => reject(new Error('TIMEOUT')), 20000)
       );
 
       await Promise.race([publishPromise, timeoutPromise]);
 
     } catch (error: any) {
       console.error("CreateTripWizard Error:", error);
-      const errorMessage = error.message || 'Erro desconhecido';
-      showToast(`Erro ao salvar: ${errorMessage}`, "error");
+      
+      // Check if it's a timeout or network error
+      const isTimeout = error.message === 'TIMEOUT' || error.message?.includes('timeout') || error.message?.includes('demorou muito');
+      const isNetworkError = error.message?.includes('network') || error.message?.includes('Network') || error.code === 'NETWORK_ERROR';
+      
+      if (isTimeout || isNetworkError) {
+        // Don't clear form data - keep user's work
+        setRetryMode(true);
+        showToast(
+          'A conexão está lenta, mas não feche a página. Os dados foram preservados. Tente clicar em "Tentar Novamente" em alguns segundos.',
+          'warning'
+        );
+      } else {
+        // Other errors - show error but don't clear form
+        const errorMessage = error.message || 'Erro desconhecido';
+        showToast(`Erro ao salvar: ${errorMessage}`, "error");
+      }
     } finally {
-      // CRITICAL: Always reset loading state
-      setIsLoading(false);
-      setUploadProgress(null);
+      // CRITICAL: Always reset loading state (unless waiting for user decision on failed images)
+      if (!showImageFailureDialog) {
+        setIsLoading(false);
+        setUploadProgress(null);
+      }
     }
   };
 
   // Draft restoration handlers
   const handleRestoreDraft = () => {
     try {
-      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
+      const draft = localStorage.getItem(draftKey);
       if (draft) {
         const parsedDraft = JSON.parse(draft);
         setTripData(prev => ({ ...prev, ...parsedDraft.data }));
@@ -436,9 +489,121 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   };
 
   const handleDiscardDraft = () => {
-    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
+    localStorage.removeItem(draftKey);
     setShowDraftRestore(false);
     showToast('Rascunho descartado', 'info');
+  };
+  
+  // Handler to continue publishing after user decides about failed images
+  const handleContinueWithFailedImages = async () => {
+    setShowImageFailureDialog(false);
+    setIsLoading(true);
+    
+    try {
+      // Continue from where we left off - merge images and save
+      const finalImages = [...(tripData.images || []), ...uploadedUrlsRef.current];
+      
+      if (finalImages.length === 0 && !isEditing) {
+        throw new Error('É necessário pelo menos uma imagem para publicar.');
+      }
+      
+      // Validate max images limit
+      if (finalImages.length > MAX_IMAGES) {
+        throw new Error(`Máximo de ${MAX_IMAGES} imagens permitidas. Você tem ${finalImages.length}. Remova algumas imagens antes de publicar.`);
+      }
+
+      // Generate and validate slug
+      const normalizedSlug = normalizeSlug(tripData.slug, tripData.title!);
+      const slugValidation = validateSlug(normalizedSlug);
+      
+      if (!slugValidation.valid) {
+        throw new Error(`Slug inválido: ${slugValidation.error}`);
+      }
+      
+      // Ensure slug is unique
+      const finalSlug = isEditing 
+        ? await generateUniqueSlug(normalizedSlug, 'trips', tripData.id)
+        : await generateUniqueSlug(normalizedSlug, 'trips');
+
+      // Construct Final Object
+      const finalTrip: Trip = {
+        id: tripData.id || crypto.randomUUID(),
+        agencyId: currentAgency!.agencyId,
+        title: tripData.title!,
+        slug: finalSlug,
+        description: tripData.description!,
+        destination: tripData.destination!,
+        price: tripData.price!,
+        startDate: new Date(tripData.startDate!).toISOString(),
+        endDate: new Date(tripData.endDate!).toISOString(),
+        durationDays: tripData.durationDays || 1,
+        images: finalImages,
+        category: tripData.category!,
+        tags: tripData.tags || [],
+        travelerTypes: tripData.travelerTypes || [],
+        paymentMethods: tripData.paymentMethods || ['PIX'],
+        boardingPoints: Array.isArray(tripData.boardingPoints) ? tripData.boardingPoints : [],
+        itinerary: Array.isArray(tripData.itinerary) ? tripData.itinerary : [],
+        included: Array.isArray(tripData.included) ? tripData.included : [],
+        notIncluded: Array.isArray(tripData.notIncluded) ? tripData.notIncluded : [],
+        is_active: tripData.is_active!,
+        featured: tripData.featured || false,
+        featuredInHero: tripData.featuredInHero || false,
+        popularNearSP: tripData.popularNearSP || false,
+        operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
+      };
+
+      // Save to DB with timeout
+      const savePromise = isEditing 
+        ? updateTrip(finalTrip)
+        : createTrip(finalTrip);
+      
+      // Wrap save in timeout
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('TIMEOUT')), 20000)
+      );
+      
+      await Promise.race([savePromise, timeoutPromise]);
+
+      // Clear draft on success
+      const draftKey = getDraftStorageKey(isEditing ? tripData.id : undefined);
+      localStorage.removeItem(draftKey);
+      
+      // Show success message
+      showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso! Algumas fotos falharam: ${pendingFailedUploads.join(', ')}`, "warning");
+      
+      // Reset states
+      setRetryMode(false);
+      setFailedImageUploads([]);
+      setPendingFailedUploads([]);
+      
+      // Close modal and trigger success callback
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 100);
+    } catch (error: any) {
+      console.error("Error continuing with failed images:", error);
+      const isTimeout = error.message === 'TIMEOUT' || error.message?.includes('timeout');
+      if (isTimeout) {
+        setRetryMode(true);
+        showToast('A conexão está lenta. Tente novamente em alguns segundos.', 'warning');
+      } else {
+        showToast(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`, "error");
+      }
+    } finally {
+      setIsLoading(false);
+      setUploadProgress(null);
+    }
+  };
+  
+  // Handler to cancel and retry uploads
+  const handleRetryFailedUploads = () => {
+    setShowImageFailureDialog(false);
+    setPendingFailedUploads([]);
+    setIsLoading(false);
+    showToast('Você pode tentar fazer upload das imagens novamente.', 'info');
   };
 
   // --- BOARDING POINTS LOGIC ---
@@ -876,9 +1041,22 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const StepIcon = steps[currentStep].icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-      <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
+    <>
+      {/* Image Failure Dialog */}
+      <ConfirmDialog
+        isOpen={showImageFailureDialog}
+        onClose={handleRetryFailedUploads}
+        onConfirm={handleContinueWithFailedImages}
+        title="Algumas Imagens Falharam no Upload"
+        message={`${pendingFailedUploads.length} imagem(ns) falharam no upload:\n${pendingFailedUploads.join(', ')}\n\nDeseja salvar o pacote sem essas imagens ou tentar novamente?`}
+        variant="warning"
+        confirmText="Salvar sem essas imagens"
+        cancelText="Tentar Novamente"
+      />
+      
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+        <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
         
         {/* Draft Restore Alert */}
         {showDraftRestore && !isEditing && (
@@ -966,15 +1144,29 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               type="button"
               onClick={handlePublish}
               disabled={isLoading}
-              className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 ml-auto shadow-lg shadow-green-200"
+              className={`px-8 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 disabled:opacity-50 ml-auto shadow-lg ${
+                retryMode 
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200' 
+                  : 'bg-green-600 hover:bg-green-700 text-white shadow-green-200'
+              }`}
             >
-              {isLoading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} 
-              {isEditing ? 'Salvar Alterações' : 'Publicar Pacote'}
+              {isLoading ? (
+                <>
+                  <Loader size={18} className="animate-spin" />
+                  {retryMode ? 'Tentando novamente...' : 'Salvando...'}
+                </>
+              ) : (
+                <>
+                  {retryMode ? <RefreshCw size={18} /> : <Save size={18} />}
+                  {retryMode ? 'Tentar Novamente' : (isEditing ? 'Salvar Alterações' : 'Publicar Pacote')}
+                </>
+              )}
             </button>
           )}
         </div>
       </div>
     </div>
+    </>
   );
 };
 

@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { usePlanPermissions } from '../hooks/usePlanPermissions';
 import { 
   Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance, HotelInstance
 } from '../types'; 
@@ -10,7 +11,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone, Briefcase, Edit3, CreditCard as CreditCardIcon
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone, Briefcase, Edit3, CreditCard as CreditCardIcon, QrCode, CheckCircle2
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
@@ -139,14 +140,19 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
                                         action.onClick(); 
                                         setIsOpen(false); 
                                     }}
-                                    className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center gap-3 transition-all hover:scale-[1.02] ${
+                                    disabled={action.isLoading}
+                                    className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center gap-3 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                                         action.variant === 'danger' 
                                             ? 'text-red-600 hover:bg-red-50 border-l-4 border-red-500' 
                                             : 'text-gray-700 hover:bg-primary-50 border-l-4 border-transparent hover:border-primary-500'
                                     }`}
                                 >
-                                    <action.icon size={18} className={action.variant === 'danger' ? 'text-red-500' : 'text-primary-600'} /> 
-                                    <span>{action.label}</span>
+                                    {action.isLoading ? (
+                                        <Loader size={18} className="animate-spin text-gray-400" />
+                                    ) : (
+                                        <action.icon size={18} className={action.variant === 'danger' ? 'text-red-500' : 'text-primary-600'} />
+                                    )}
+                                    <span>{action.isLoading ? 'Processando...' : action.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -164,37 +170,225 @@ const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentT
   </button>
 );
 
+// Upgrade Modal Component
+const UpgradeModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  currentPlan: string;
+  maxTrips: number;
+  currentActiveTrips: number;
+  onUpgrade: () => void;
+}> = ({ isOpen, onClose, currentPlan, maxTrips, currentActiveTrips, onUpgrade }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-[scaleIn_0.2s_ease-out]">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <Rocket size={32} />
+            <h3 className="text-2xl font-bold">Limite do Plano Atingido</h3>
+          </div>
+          <p className="text-amber-50 text-sm">Faça upgrade para criar mais viagens</p>
+        </div>
+        <div className="p-6">
+          <p className="text-gray-700 mb-4">
+            Você atingiu o limite do plano <strong>{currentPlan}</strong>.
+          </p>
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-600">Viagens ativas:</span>
+              <span className="font-bold text-gray-900">{currentActiveTrips} / {maxTrips === Infinity ? '∞' : maxTrips}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-amber-500 h-2 rounded-full transition-all"
+                style={{ width: `${Math.min(100, (currentActiveTrips / (maxTrips === Infinity ? 1 : maxTrips)) * 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                onUpgrade();
+                onClose();
+              }}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold hover:from-amber-600 hover:to-orange-600 transition-colors shadow-lg"
+            >
+              Ver Planos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SubscriptionConfirmationModal: React.FC<{ 
   plan: Plan; 
   onClose: () => void; 
   onConfirm: () => void; 
-  isSubmitting: boolean 
-}> = ({ plan, onClose, onConfirm, isSubmitting }) => {
+  isSubmitting: boolean;
+  agencyName?: string;
+}> = ({ plan, onClose, onConfirm, isSubmitting, agencyName = '' }) => {
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  
+  // PIX Configuration
+  const PIX_KEY = '401.334.708-30';
+  const PIX_BENEFICIARY = 'Juan Galindo';
+  const WHATSAPP_NUMBER = '5511987697684';
+  
+  const handleCopyPixKey = async () => {
+    try {
+      await navigator.clipboard.writeText(PIX_KEY);
+      setCopied(true);
+      showToast('Chave PIX copiada!', 'success');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      showToast('Erro ao copiar. Tente novamente.', 'error');
+    }
+  };
+  
+  const handleOpenWhatsApp = () => {
+    const planName = plan.name;
+    const message = encodeURIComponent(
+      `Olá, fiz o pix para o plano ${planName} da agência ${agencyName || 'minha agência'}. Segue o comprovante.`
+    );
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
+  };
+  
+  const formatPrice = (price: number) => {
+    if (price === 0) return 'Grátis';
+    return `R$ ${price.toFixed(2).replace('.', ',')}`;
+  };
+  
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-      <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-        <div className="text-center mb-6">
-            <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
-                <Rocket size={32}/>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors z-10">
+          <X size={20}/>
+        </button>
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-white/20 p-2 rounded-lg">
+              <Rocket size={24} className="text-white"/>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Mudar para {plan.name}?</h2>
-            <p className="text-gray-500">Você terá acesso a todos os recursos deste plano imediatamente após a confirmação.</p>
+            <h2 className="text-2xl font-bold">Ativar Plano {plan.name}</h2>
+          </div>
+          <p className="text-primary-50 text-sm">Siga os passos abaixo para finalizar sua assinatura</p>
         </div>
         
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-bold text-gray-600">Novo Valor Mensal</span>
-                <span className="text-xl font-extrabold text-gray-900">R$ {plan.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        <div className="p-6 space-y-6">
+          {/* Step 1: PIX Payment */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary-100 text-primary-600 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                1
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Faça o Pagamento via PIX</h3>
             </div>
-            <p className="text-xs text-gray-400 text-center">Cobrança recorrente no cartão cadastrado.</p>
-        </div>
-
-        <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancelar</button>
-            <button onClick={onConfirm} disabled={isSubmitting} className="flex-1 py-3 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
-                {isSubmitting ? <Loader size={18} className="animate-spin"/> : 'Confirmar Mudança'}
+            
+            {/* PIX Card */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <QrCode size={20} className="text-green-600"/>
+                <span className="text-sm font-bold text-green-700 uppercase tracking-wide">Chave PIX (CPF)</span>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border border-green-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500 mb-1">Chave PIX</p>
+                    <p className="text-lg font-mono font-bold text-gray-900 break-all">{PIX_KEY}</p>
+                  </div>
+                  <button
+                    onClick={handleCopyPixKey}
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                      copied 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-white"/>
+                        Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16}/>
+                        Copiar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg p-3 border border-green-200">
+                <p className="text-xs text-gray-500 mb-1">Beneficiário</p>
+                <p className="text-sm font-bold text-gray-900">{PIX_BENEFICIARY}</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-4 border-2 border-green-500">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-600">Valor do Plano</span>
+                  <span className="text-2xl font-extrabold text-green-600">
+                    {formatPrice(plan.price)}<span className="text-sm font-normal text-gray-500">/mês</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Step 2: Send Receipt */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary-100 text-primary-600 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
+                2
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Envie o Comprovante</h3>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Após realizar a transferência, envie o comprovante no nosso WhatsApp para ativarmos sua conta imediatamente.
+              </p>
+            </div>
+            
+            <button
+              onClick={handleOpenWhatsApp}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-3"
+            >
+              <MessageCircle size={20}/>
+              <span>Enviar Comprovante no WhatsApp</span>
             </button>
+          </div>
+          
+          {/* Footer Note */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+            <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5"/>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              <strong>Atenção:</strong> A liberação do plano ocorre em instantes após a conferência do pagamento.
+            </p>
+          </div>
+          
+          {/* Cancel Button */}
+          <button
+            onClick={onClose}
+            className="w-full py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+          >
+            Fechar
+          </button>
         </div>
       </div>
     </div>
@@ -1193,6 +1387,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         birthDate: string;
         avatar?: string;
     } | null>(null);
+    
+    const [isAutoFilling, setIsAutoFilling] = useState(false);
 
     // Config Mode
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
@@ -1401,13 +1597,15 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     };
 
     // Auto-preenchimento inteligente
-    const handleAutoFill = () => {
+    const handleAutoFill = async () => {
         if (!activeVehicle) {
             showToast('Selecione um veículo primeiro', 'warning');
             return;
         }
-
-        // Filtrar apenas passageiros não atribuídos
+        
+        setIsAutoFilling(true);
+        try {
+            // Filtrar apenas passageiros não atribuídos
         const unassignedPassengers = allPassengers.filter(p => !globalAssignmentMap.has(p.id));
 
         if (unassignedPassengers.length === 0) {
@@ -1527,9 +1725,15 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             return v;
         });
 
-        saveVehicles(finalVehicles);
-        const newlyAssigned = newSeats.length - cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats.length;
-        showToast(`${newlyAssigned} passageiros atribuídos automaticamente!`, 'success');
+            saveVehicles(finalVehicles);
+            const newlyAssigned = newSeats.length - cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats.length;
+            showToast(`${newlyAssigned} passageiros atribuídos automaticamente!`, 'success');
+        } catch (error: any) {
+            console.error('Error auto-filling seats:', error);
+            showToast(`Erro ao preencher assentos: ${error.message || 'Erro desconhecido'}`, 'error');
+        } finally {
+            setIsAutoFilling(false);
+        }
     };
 
     // Limpar todos os assentos
@@ -1567,12 +1771,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const confirmDeleteVehicle = () => {
         if (!vehicleToDelete) return;
         
-        const updatedVehicles = vehicles.filter(v => v.id !== vehicleToDelete);
-        saveVehicles(updatedVehicles);
-        if (activeVehicleId === vehicleToDelete) {
-            setActiveVehicleId(updatedVehicles[0]?.id || null);
+        try {
+            const updatedVehicles = vehicles.filter(v => v.id !== vehicleToDelete);
+            saveVehicles(updatedVehicles);
+            if (activeVehicleId === vehicleToDelete) {
+                setActiveVehicleId(updatedVehicles[0]?.id || null);
+            }
+            showToast('Veículo removido com sucesso', 'success');
+            setVehicleToDelete(null);
+        } catch (error: any) {
+            console.error('Error deleting vehicle:', error);
+            showToast(`Erro ao remover veículo: ${error.message || 'Erro desconhecido'}`, 'error');
         }
-        // Modal will close via onClose() in ConfirmDialog button
     };
 
     const handleEditVehicle = (vehicle: VehicleInstance) => {
@@ -1905,17 +2115,21 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <ConfirmDialog isOpen={!!vehicleToDelete} onClose={() => setVehicleToDelete(null)} onConfirm={confirmDeleteVehicle} title="Remover Veículo" message="Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados." variant="danger" confirmText="Remover" />
             <ConfirmDialog isOpen={!!passengerToDelete} onClose={() => setPassengerToDelete(null)} onConfirm={handleDeletePassenger} title="Remover Passageiro" message="Tem certeza que deseja remover este passageiro da lista? Ele será desvinculado de qualquer assento atribuído." variant="danger" confirmText="Remover" />
             
-            {/* Passenger Details Modal */}
+            {/* Passenger Details Modal - Bottom Sheet on Mobile */}
             {passengerDetailsModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl max-w-md w-full p-6 md:animate-[scaleIn_0.2s] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Mobile: Drag Handle */}
+                        <div className="md:hidden flex justify-center mb-4 pt-2">
+                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                        </div>
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Detalhes do Passageiro</h3>
+                            <h3 className="text-lg md:text-xl font-bold text-gray-900">Detalhes do Passageiro</h3>
                             <button 
                                 onClick={() => setPassengerDetailsModal(null)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                className="text-gray-400 hover:text-gray-600 transition-colors p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
                             >
-                                <X size={20}/>
+                                <X size={24}/>
                             </button>
                         </div>
                         
@@ -1968,34 +2182,46 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 </div>
             )}
             
-            {/* Passenger Edit Modal */}
+            {/* Passenger Edit Modal - Bottom Sheet on Mobile */}
             {passengerEditId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Editar Passageiro</h3>
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-t-2xl md:rounded-xl shadow-2xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Mobile: Drag Handle */}
+                        <div className="md:hidden flex justify-center mb-4 pt-2">
+                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                        </div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">Editar Passageiro</h3>
+                            <button 
+                                onClick={() => setPassengerEditId(null)}
+                                className="text-gray-400 hover:text-gray-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            >
+                                <X size={24}/>
+                            </button>
+                        </div>
                         <div className="space-y-3">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
-                                <input value={passengerEditForm.name} onChange={e => setPassengerEditForm({...passengerEditForm, name: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" />
+                                <input value={passengerEditForm.name} onChange={e => setPassengerEditForm({...passengerEditForm, name: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF</label>
-                                <input value={passengerEditForm.document} onChange={e => setPassengerEditForm({...passengerEditForm, document: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="000.000.000-00" />
+                                <input value={passengerEditForm.document} onChange={e => setPassengerEditForm({...passengerEditForm, document: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="000.000.000-00" />
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">RG</label>
-                                    <input value={passengerEditForm.rg} onChange={e => setPassengerEditForm({...passengerEditForm, rg: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="00.000.000-0" />
+                                    <input value={passengerEditForm.rg} onChange={e => setPassengerEditForm({...passengerEditForm, rg: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="00.000.000-0" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Órgão Emissor</label>
-                                    <input value={passengerEditForm.rgOrg} onChange={e => setPassengerEditForm({...passengerEditForm, rgOrg: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="SSP" />
+                                    <input value={passengerEditForm.rgOrg} onChange={e => setPassengerEditForm({...passengerEditForm, rgOrg: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="SSP" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</label>
                                 <div className="flex gap-2">
-                                    <input value={passengerEditForm.phone} onChange={e => setPassengerEditForm({...passengerEditForm, phone: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="(00) 00000-0000" />
+                                    <input value={passengerEditForm.phone} onChange={e => setPassengerEditForm({...passengerEditForm, phone: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="(00) 00000-0000" />
                                     {passengerEditForm.phone && (
                                         <a href={`https://wa.me/55${passengerEditForm.phone.replace(/\D/g, '')}`} target="_blank" className="p-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center justify-center" title="Abrir WhatsApp">
                                             <MessageCircle size={18}/>
@@ -2005,12 +2231,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Nascimento</label>
-                                <input type="date" value={passengerEditForm.birthDate} onChange={e => setPassengerEditForm({...passengerEditForm, birthDate: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" />
+                                <input type="date" value={passengerEditForm.birthDate} onChange={e => setPassengerEditForm({...passengerEditForm, birthDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" />
                             </div>
                         </div>
                         <div className="flex gap-2 mt-6">
-                            <button onClick={() => setPassengerEditId(null)} className="flex-1 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded font-bold">Cancelar</button>
-                            <button onClick={handleSavePassengerDetails} className="flex-1 py-2 text-white bg-primary-600 hover:bg-primary-700 rounded font-bold">Salvar</button>
+                            <button onClick={() => setPassengerEditId(null)} className="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold min-h-[48px]">Cancelar</button>
+                            <button onClick={handleSavePassengerDetails} className="flex-1 py-3 text-white bg-primary-600 hover:bg-primary-700 rounded-lg font-bold min-h-[48px]">Salvar</button>
                         </div>
                     </div>
                 </div>
@@ -2337,10 +2563,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200 flex-shrink-0">
                         <button
                             onClick={handleAutoFill}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm"
+                            disabled={isAutoFilling}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             title="Preencher automaticamente mantendo acompanhantes juntos"
                         >
-                            <Zap size={14}/> Auto Preencher
+                            {isAutoFilling ? <Loader size={14} className="animate-spin"/> : <Zap size={14}/>} 
+                            {isAutoFilling ? 'Preenchendo...' : 'Auto Preencher'}
                         </button>
                         <button
                             onClick={handleClearAllSeats}
@@ -2373,24 +2601,46 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                     <Trash2 size={14}/> Remover
                                 </button>
                             </div>
-                            <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto animate-[scaleIn_0.3s]">
-                                <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
-                                <div className="mt-12 space-y-2 select-none">
+                            {/* Bus Container with Horizontal Scroll for Mobile */}
+                            <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar snap-x snap-mandatory md:overflow-x-visible">
+                                <div className="bg-white px-4 md:px-8 py-8 md:py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit min-w-full md:min-w-fit h-fit my-auto animate-[scaleIn_0.3s] mx-auto md:mx-0">
+                                    <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
+                                    
+                                    {/* Legend - Above bus on mobile, below on desktop */}
                                     {activeVehicle && (
-                                        <BusVisualizer
-                                            vehicle={activeVehicle}
-                                            selectedPassenger={selectedPassenger}
-                                            dragOverSeat={dragOverSeat}
-                                            onDragOver={handleDragOverSeat}
-                                            onDragLeave={handleDragLeaveSeat}
-                                            onDrop={handleDrop}
-                                            onSeatClick={handleSeatClick}
-                                            isSeatOccupied={isSeatOccupied}
-                                            getPassengerDetails={getPassengerDetails}
-                                        />
+                                        <div className="md:hidden mb-4 flex items-center justify-center gap-4 text-xs px-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded bg-green-100 border border-green-300 flex items-center justify-center">
+                                                    <span className="text-xs font-bold text-green-700">1</span>
+                                                </div>
+                                                <span className="text-gray-600">Livre</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded bg-primary-100 border border-primary-600 flex items-center justify-center">
+                                                    <span className="text-[10px] font-bold text-primary-700">JD</span>
+                                                </div>
+                                                <span className="text-gray-600">Ocupado</span>
+                                            </div>
+                                        </div>
                                     )}
+                                    
+                                    <div className="mt-12 space-y-2 select-none">
+                                        {activeVehicle && (
+                                            <BusVisualizer
+                                                vehicle={activeVehicle}
+                                                selectedPassenger={selectedPassenger}
+                                                dragOverSeat={dragOverSeat}
+                                                onDragOver={handleDragOverSeat}
+                                                onDragLeave={handleDragLeaveSeat}
+                                                onDrop={handleDrop}
+                                                onSeatClick={handleSeatClick}
+                                                isSeatOccupied={isSeatOccupied}
+                                                getPassengerDetails={getPassengerDetails}
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
                             </div>
                         </>
                     ) : (
@@ -2399,19 +2649,23 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 </section>
             </main>
             
-            {/* Custom Vehicle Modal (Create/Edit) */}
+            {/* Custom Vehicle Modal (Create/Edit) - Bottom Sheet on Mobile */}
             {showCustomVehicleForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setShowCustomVehicleForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl p-6 w-full md:max-w-sm shadow-2xl relative md:animate-[scaleIn_0.2s] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        {/* Mobile: Drag Handle */}
+                        <div className="md:hidden flex justify-center mb-4 pt-2">
+                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+                        </div>
+                        <button onClick={() => setShowCustomVehicleForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"><X size={24}/></button>
                         <h3 className="text-lg font-bold mb-4">{editingVehicleId ? 'Editar Veículo' : 'Novo Veículo'}</h3>
                         <form onSubmit={handleSaveCustomVehicle} className="space-y-4">
-                            <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Nome do Veículo</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500" placeholder="Ex: Ônibus 1"/></div>
+                            <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Nome do Veículo</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="Ex: Ônibus 1"/></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500"/></div>
-                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-primary-500"><option value={2}>2 (Van)</option><option value={3}>3 (Exec)</option><option value={4}>4 (Padrão)</option></select></div>
+                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]"/></div>
+                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]"><option value={2}>2 (Van)</option><option value={3}>3 (Exec)</option><option value={4}>4 (Padrão)</option></select></div>
                             </div>
-                            <button className="w-full bg-primary-600 text-white py-2.5 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-sm">{editingVehicleId ? 'Salvar Alterações' : 'Criar Veículo'}</button>
+                            <button className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-sm min-h-[48px]">{editingVehicleId ? 'Salvar Alterações' : 'Criar Veículo'}</button>
                         </form>
                     </div>
                 </div>
@@ -3007,7 +3261,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 {/* Right Grid */}
                 <div className="flex-1 bg-slate-100 overflow-y-auto p-6 custom-scrollbar">
                     {activeHotel ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-20">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5 pb-20">
                             {activeHotel.rooms.map(room => {
                                 const isFull = room.guests.length >= room.capacity;
                                 const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
@@ -3085,19 +3339,24 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
         }
     }, [selectedTripId, refreshData]);
 
+    const [isDeletingTripInOps, setIsDeletingTripInOps] = useState(false);
+    
     const confirmDeleteTrip = async () => {
         if (!tripToDelete) return;
+        setIsDeletingTripInOps(true);
         try {
             await deleteTrip(tripToDelete);
             setTripToDelete(null);
-            showToast('Pacote excluído.', 'success');
+            showToast('Pacote excluído com sucesso.', 'success');
             // If the deleted trip was selected, clear the selection
             if (selectedTripId === tripToDelete) {
                 onSelectTrip(null);
             }
         } catch (error: any) {
             console.error('Error deleting trip:', error);
-            showToast('Erro ao excluir pacote.', 'error');
+            showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
+        } finally {
+            setIsDeletingTripInOps(false);
         }
     };
 
@@ -3658,7 +3917,8 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 title="Excluir Pacote" 
                 message="Tem certeza que deseja excluir este pacote? Esta ação não pode ser desfeita." 
                 variant="danger" 
-                confirmText="Excluir" 
+                confirmText={isDeletingTripInOps ? "Excluindo..." : "Excluir"}
+                isConfirming={isDeletingTripInOps}
             />
             
             {/* LEFT SIDEBAR: TRIP LIST (Collapsible) */}
@@ -3909,6 +4169,7 @@ const AgencyDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
   const { setAgencyTheme: setGlobalAgencyTheme } = useTheme();
+  const planPermissions = usePlanPermissions();
 
   const currentAgency = agencies.find(a => a.id === user?.id);
   const navigate = useNavigate();
@@ -3948,6 +4209,7 @@ const AgencyDashboard: React.FC = () => {
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
   const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   // Helper to determine new booking
   const isNewBooking = (dateStr: string) => {
@@ -4019,6 +4281,10 @@ const AgencyDashboard: React.FC = () => {
   
   // Custom handler for switching to operational view with a pre-selected trip
   const handleGoToOperational = (tripId: string) => {
+      if (!planPermissions.canAccessOperational) {
+          setShowUpgradeModal(true);
+          return;
+      }
       setSearchParams({ tab: 'OPERATIONS' });
       setSelectedOperationalTripId(tripId);
       // We manually set this here because handleTabChange clears the selection
@@ -4031,7 +4297,21 @@ const AgencyDashboard: React.FC = () => {
       setIsEditingTrip(true); 
       window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
+  
+  const handleCreateTrip = () => {
+    // Check if user can post trip
+    if (!planPermissions.canPostTrip) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    setIsEditingTrip(true);
+    setEditingTripId(null);
+    setTripForm({});
+  };
+  
   const [tripToDelete, setTripToDelete] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isDeletingTrip, setIsDeletingTrip] = useState(false);
   
   const handleDeleteTrip = async (id: string) => { 
     setTripToDelete(id);
@@ -4039,11 +4319,38 @@ const AgencyDashboard: React.FC = () => {
   
   const confirmDeleteTrip = async () => {
     if (!tripToDelete) return;
-    await deleteTrip(tripToDelete); 
-    showToast('Pacote excluído.', 'success');
-    // Modal will close via onClose() in ConfirmationModal button
+    setIsDeletingTrip(true);
+    try {
+      await deleteTrip(tripToDelete);
+      showToast('Pacote excluído com sucesso.', 'success');
+      setTripToDelete(null);
+      // If the deleted trip was selected, clear the selection
+      if (selectedOperationalTripId === tripToDelete) {
+        setSelectedOperationalTripId(null);
+      }
+    } catch (error: any) {
+      console.error('Error deleting trip:', error);
+      showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
+    } finally {
+      setIsDeletingTrip(false);
+    }
   };
-  const handleDuplicateTrip = async (trip: Trip) => { const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false }; const { id, ...tripData } = newTrip; await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip); showToast('Pacote duplicado com sucesso!', 'success'); };
+  const [isDuplicatingTrip, setIsDuplicatingTrip] = useState<string | null>(null);
+  
+  const handleDuplicateTrip = async (trip: Trip) => {
+    setIsDuplicatingTrip(trip.id);
+    try {
+      const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false };
+      const { id, ...tripData } = newTrip;
+      await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip);
+      showToast('Pacote duplicado com sucesso!', 'success');
+    } catch (error: any) {
+      console.error('Error duplicating trip:', error);
+      showToast(`Erro ao duplicar pacote: ${error.message || 'Erro desconhecido'}`, 'error');
+    } finally {
+      setIsDuplicatingTrip(null);
+    }
+  };
   const handleSaveProfile = async (e: React.FormEvent) => { 
       e.preventDefault(); 
       setLoading(true); 
@@ -4086,7 +4393,7 @@ const AgencyDashboard: React.FC = () => {
           const nextMonth = new Date();
           nextMonth.setDate(nextMonth.getDate() + 30);
           
-          await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'BASIC' | 'PREMIUM', nextMonth.toISOString()); 
+          await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'STARTER' | 'BASIC' | 'PREMIUM', nextMonth.toISOString()); 
           showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); 
           window.location.reload(); 
       } catch (error: any) { 
@@ -4098,28 +4405,42 @@ const AgencyDashboard: React.FC = () => {
   };
 
   // Reusable Action Menu Generator
-  const getTripActions = (trip: Trip) => [
-    { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
-    { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
-    { label: 'Gerenciar Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) },
-    { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
-    { label: 'Pausar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
-    { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
-  ];
+  const getTripActions = (trip: Trip) => {
+    const actions = [
+      { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
+      { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
+      { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip), isLoading: isDuplicatingTrip === trip.id },
+      { label: 'Pausar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+      { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
+    ];
+    
+    // Only show "Gerenciar Operacional" for PREMIUM plans
+    if (planPermissions.canAccessOperational) {
+      actions.splice(2, 0, { label: 'Gerenciar Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) });
+    }
+    
+    return actions;
+  };
 
   // Reply State
   const [replyText, setReplyText] = useState('');
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
+  const [isSendingReply, setIsSendingReply] = useState<string | null>(null);
+  
   const handleSendReply = async (reviewId: string) => {
       if (!replyText.trim()) return;
+      setIsSendingReply(reviewId);
       try {
           await updateAgencyReview(reviewId, { response: replyText });
           setReplyText('');
           setActiveReplyId(null);
-          showToast('Resposta enviada!', 'success');
-      } catch (error) {
-          showToast('Erro ao enviar resposta.', 'error');
+          showToast('Resposta enviada com sucesso!', 'success');
+      } catch (error: any) {
+          console.error('Error sending reply:', error);
+          showToast(`Erro ao enviar resposta: ${error.message || 'Erro desconhecido'}`, 'error');
+      } finally {
+          setIsSendingReply(null);
       }
   };
 
@@ -4131,10 +4452,14 @@ const AgencyDashboard: React.FC = () => {
       const totalCycleDays = 30; // Assuming monthly cycle for visuals
       const progressPercent = Math.max(0, Math.min(100, (daysLeft / totalCycleDays) * 100));
       
-      const isPremium = currentAgency?.subscriptionPlan === 'PREMIUM';
-      const planColor = isPremium ? 'bg-purple-600' : 'bg-blue-600';
-      const planName = isPremium ? 'Premium' : 'Básico';
-      const planPrice = isPremium ? 'R$ 199,90' : 'R$ 99,90';
+      const currentPlanId = currentAgency?.subscriptionPlan || 'STARTER';
+      const currentPlanObj = PLANS.find(p => p.id === currentPlanId) || PLANS[0];
+      const isPremium = currentPlanId === 'PREMIUM';
+      const isBasic = currentPlanId === 'BASIC';
+      const isStarter = currentPlanId === 'STARTER';
+      const planColor = isPremium ? 'bg-purple-600' : isBasic ? 'bg-blue-600' : 'bg-gray-600';
+      const planName = currentPlanObj.name;
+      const planPrice = isStarter ? 'Grátis' : `R$ ${currentPlanObj.price.toFixed(2).replace('.', ',')}`;
 
       return (
           <div className="space-y-8 animate-[fadeIn_0.3s]">
@@ -4153,10 +4478,21 @@ const AgencyDashboard: React.FC = () => {
                               <p className="text-gray-500 text-sm">Gerencie sua assinatura e cobranças.</p>
                           </div>
                           <div className="flex gap-3">
-                              <button className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm">
+                              <button 
+                                  onClick={() => showToast('Funcionalidade em desenvolvimento. Em breve você poderá gerenciar seus pagamentos aqui.', 'info')}
+                                  className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm cursor-pointer"
+                              >
                                   Gerenciar Pagamento
                               </button>
-                              <button className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90`}>
+                              <button 
+                                  onClick={() => {
+                                      if (currentAgency) {
+                                          const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
+                                          setShowConfirmSubscription(currentPlan);
+                                      }
+                                  }}
+                                  className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
+                              >
                                   Renovar Agora
                               </button>
                           </div>
@@ -4203,44 +4539,93 @@ const AgencyDashboard: React.FC = () => {
                   </div>
               </div>
 
-              {/* Plans Options */}
-              <div className="grid md:grid-cols-2 gap-8">
-                  {PLANS.map((plan) => (
-                      <div 
-                          key={plan.id} 
-                          className={`bg-white rounded-2xl shadow-sm border p-8 transition-all hover:shadow-md relative ${currentAgency?.subscriptionPlan === plan.id ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-100'}`}
-                      >
-                          {currentAgency?.subscriptionPlan === plan.id && (
-                              <div className="absolute top-4 right-4 bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-100">
-                                  Plano Atual
-                              </div>
-                          )}
-                          <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
-                          <div className="flex items-baseline gap-1 mb-6">
-                              <span className="text-3xl font-extrabold text-gray-900">R$ {plan.price.toFixed(2)}</span>
-                              <span className="text-gray-500 font-medium">/mês</span>
-                          </div>
-                          <ul className="space-y-4 mb-8">
-                              {plan.features.map((feature, i) => (
-                                  <li key={i} className="flex items-start text-sm text-gray-600">
-                                      <Check size={16} className="text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                                      {feature}
-                                  </li>
-                              ))}
-                          </ul>
-                          <button
-                              onClick={() => handleSelectPlan(plan)}
-                              disabled={currentAgency?.subscriptionPlan === plan.id}
-                              className={`w-full py-3 rounded-xl font-bold transition-colors ${
-                                  currentAgency?.subscriptionPlan === plan.id
-                                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                      : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'
-                              }`}
+              {/* Premium Pricing Table */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+                  {PLANS.map((plan) => {
+                      const isCurrentPlan = currentAgency?.subscriptionPlan === plan.id;
+                      const isPremium = plan.id === 'PREMIUM';
+                      const isStarter = plan.id === 'STARTER';
+                      
+                      return (
+                          <div 
+                              key={plan.id} 
+                              className={`bg-white rounded-2xl shadow-lg border transition-all hover:shadow-xl relative ${
+                                  isPremium 
+                                      ? 'md:scale-105 border-2 border-gradient-to-b from-purple-500 to-pink-500 ring-4 ring-purple-200/50 shadow-2xl shadow-purple-500/20' 
+                                      : 'border-gray-200'
+                              } ${isCurrentPlan ? 'ring-2 ring-primary-500' : ''}`}
                           >
-                              {currentAgency?.subscriptionPlan === plan.id ? 'Plano Atual' : 'Mudar Plano'}
-                          </button>
-                      </div>
-                  ))}
+                              {/* Premium Badge */}
+                              {isPremium && (
+                                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
+                                      ⭐ RECOMENDADO
+                                  </div>
+                              )}
+                              
+                              {/* Current Plan Badge */}
+                              {isCurrentPlan && !isPremium && (
+                                  <div className="absolute top-4 right-4 bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-100">
+                                      Plano Atual
+                                  </div>
+                              )}
+                              
+                              <div className={`p-8 ${isPremium ? 'pt-12' : ''}`}>
+                                  {/* Plan Header */}
+                                  <div className="mb-6">
+                                      <h3 className="text-2xl font-extrabold text-gray-900 mb-2">{plan.name}</h3>
+                                      {isStarter && (
+                                          <p className="text-sm text-gray-500 mb-4">Para quem está começando</p>
+                                      )}
+                                      {plan.id === 'BASIC' && (
+                                          <p className="text-sm text-gray-500 mb-4">Para agências em crescimento</p>
+                                      )}
+                                      {isPremium && (
+                                          <p className="text-sm text-gray-500 mb-4">Controle total</p>
+                                      )}
+                                  </div>
+                                  
+                                  {/* Price */}
+                                  <div className="mb-6">
+                                      {isStarter ? (
+                                          <div className="flex items-baseline gap-2">
+                                              <span className="text-4xl font-extrabold text-gray-900">Grátis</span>
+                                          </div>
+                                      ) : (
+                                          <div className="flex items-baseline gap-2">
+                                              <span className="text-4xl font-extrabold text-gray-900">R$ {plan.price.toFixed(2).replace('.', ',')}</span>
+                                              <span className="text-gray-500 font-medium">/mês</span>
+                                          </div>
+                                      )}
+                                  </div>
+                                  
+                                  {/* Features */}
+                                  <ul className="space-y-3 mb-8 min-h-[280px]">
+                                      {plan.features.map((feature, i) => (
+                                          <li key={i} className="flex items-start text-sm text-gray-700">
+                                              <Check size={18} className={`mr-3 flex-shrink-0 mt-0.5 ${isPremium ? 'text-purple-600' : 'text-green-500'}`} />
+                                              <span className="leading-relaxed">{feature}</span>
+                                          </li>
+                                      ))}
+                                  </ul>
+                                  
+                                  {/* CTA Button */}
+                                  <button
+                                      onClick={() => handleSelectPlan(plan)}
+                                      disabled={isCurrentPlan}
+                                      className={`w-full py-4 rounded-xl font-bold transition-all ${
+                                          isCurrentPlan
+                                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                              : isPremium
+                                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40'
+                                              : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'
+                                      }`}
+                                  >
+                                      {isCurrentPlan ? 'Plano Atual' : isStarter ? 'Começar Grátis' : 'Assinar Agora'}
+                                  </button>
+                              </div>
+                          </div>
+                      );
+                  })}
               </div>
           </div>
       );
@@ -4253,8 +4638,29 @@ const AgencyDashboard: React.FC = () => {
   if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto pb-12 min-h-screen flex flex-col">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+    <div className="max-w-[1600px] mx-auto pb-12 min-h-screen flex flex-col px-4 md:px-6">
+      {/* Mobile Header with Hamburger */}
+      <div className="md:hidden flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" />
+            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 truncate max-w-[180px]">{currentAgency?.name}</h1>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsMobileDrawerOpen(true)}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          aria-label="Abrir menu"
+        >
+          <Menu size={24} className="text-gray-700" />
+        </button>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
          <div className="flex items-center gap-4">
             <div className="relative"><img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" /><span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span></div>
             <div><h1 className="text-2xl font-bold text-gray-900">{currentAgency?.name}</h1><div className="flex items-center gap-3 text-sm text-gray-500"><span className="flex items-center"><Globe size={14} className="mr-1"/> {currentAgency?.slug}.viajastore.com</span><a href={`/#/${currentAgency?.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center">Ver site <ExternalLink size={10} className="ml-1"/></a></div></div>
@@ -4268,6 +4674,71 @@ const AgencyDashboard: React.FC = () => {
             </button>
          </div>
       </div>
+
+      {/* Mobile Drawer (Slide-over) */}
+      {isMobileDrawerOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-[9998] md:hidden animate-[fadeIn_0.2s]"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl z-[9999] md:hidden transform transition-transform duration-300 ease-out animate-[slideInRight_0.3s] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" />
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">{currentAgency?.name}</h2>
+                    <p className="text-xs text-gray-500">{currentAgency?.slug}.viajastore.com</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  aria-label="Fechar menu"
+                >
+                  <X size={24} className="text-gray-700" />
+                </button>
+              </div>
+
+              {/* Navigation Menu */}
+              <nav className="space-y-2 mb-6">
+                <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                {planPermissions.canAccessOperational && (
+                  <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                )}
+                <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="PLAN" label="Meu Plano" icon={CreditCard} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="PROFILE" label="Meu Perfil" icon={User} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="THEME" label="Meu Tema" icon={Palette} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+              </nav>
+
+              {/* Actions */}
+              <div className="pt-6 border-t border-gray-200 space-y-2">
+                <button 
+                  onClick={() => { handleTabChange('PROFILE'); setIsMobileDrawerOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-colors"
+                >
+                  <Settings size={20} />
+                  <span>Gerenciar Perfil</span>
+                </button>
+                <button 
+                  onClick={() => { handleLogout(); setIsMobileDrawerOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
+                >
+                  <LogOut size={20} />
+                  <span>Sair</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       
       {isEditingTrip && (
           <CreateTripWizard 
@@ -4283,8 +4754,21 @@ const AgencyDashboard: React.FC = () => {
           onClose={() => setShowConfirmSubscription(null)} 
           onConfirm={confirmSubscription} 
           isSubmitting={!!activatingPlanId}
+          agencyName={currentAgency?.name}
         />
       )}
+      
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={planPermissions.plan}
+        maxTrips={planPermissions.maxTrips}
+        currentActiveTrips={planPermissions.currentActiveTrips}
+        onUpgrade={() => {
+          setShowUpgradeModal(false);
+          handleTabChange('PLAN');
+        }}
+      />
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
@@ -4382,7 +4866,7 @@ const AgencyDashboard: React.FC = () => {
             </div>
             
             <button 
-                onClick={() => { setIsEditingTrip(true); setEditingTripId(null); setTripForm({ agencyId: currentAgency!.agencyId, images: [], itinerary: [{ day: 1, title: '', description: '' }], boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }], included: [], notIncluded: [], paymentMethods: [], tags: [], travelerTypes: [], is_active: true, operationalData: DEFAULT_OPERATIONAL_DATA, category: 'PRAIA', description: '', destination: '', durationDays: 1, endDate: '', price: 0, startDate: '', slug: '', title: '' }); }} 
+                onClick={handleCreateTrip}
                 className="bg-primary-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2 mb-6"
             >
                 <Plus size={18}/> Novo Pacote
@@ -4393,12 +4877,12 @@ const AgencyDashboard: React.FC = () => {
                     <Plane size={32} className="text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-bold text-gray-900">Nenhum pacote criado ainda</h3>
                     <p className="text-gray-500 mt-1 mb-6">Crie seu primeiro pacote de viagem para começar a vender na ViajaStore!</p>
-                    <button onClick={() => { setIsEditingTrip(true); setEditingTripId(null); setTripForm({ agencyId: currentAgency!.agencyId, images: [], itinerary: [{ day: 1, title: '', description: '' }], boardingPoints: [{ id: crypto.randomUUID(), time: '', location: '' }], included: [], notIncluded: [], paymentMethods: [], tags: [], travelerTypes: [], is_active: true, operationalData: DEFAULT_OPERATIONAL_DATA, category: 'PRAIA', description: '', destination: '', durationDays: 1, endDate: '', price: 0, startDate: '', slug: '', title: '' }); }} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
+                    <button onClick={handleCreateTrip} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
                         <Plus size={16}/> Criar Pacote
                     </button>
                 </div>
             ) : tripViewMode === 'GRID' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
                     {myTrips.map(trip => (
                         <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
                             {/* Trip Image & Actions */}
