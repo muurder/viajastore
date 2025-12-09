@@ -611,7 +611,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }, { onConflict: ['agency_id', 'client_id'] }); // Allow client to update their review
         showToast('Avaliação enviada/atualizada com sucesso!', 'success');
         logActivity(ActivityActionType.REVIEW_SUBMITTED, { agencyId: review.agencyId, clientId: review.clientId, rating: review.rating });
-        _fetchGlobalAndClientProfiles();
+        // Await the fetch to ensure data is updated before returning
+        await _fetchGlobalAndClientProfiles();
         console.log("[DataContext] Agency review added/updated successfully for agency:", review.agencyId); // Debug Log
     } catch (error: any) {
         console.error("[DataContext] Error adding/updating agency review:", error.message); // Debug Log
@@ -673,7 +674,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }).eq('id', id);
         showToast('Avaliação atualizada.', 'success');
         logActivity(ActivityActionType.REVIEW_UPDATED, { reviewId: id, updates });
-        _fetchGlobalAndClientProfiles();
+        // Await the fetch to ensure data is updated before returning
+        await _fetchGlobalAndClientProfiles();
         console.log("[DataContext] Agency review updated successfully:", id); // Debug Log
     } catch (error: any) {
         console.error("[DataContext] Error updating agency review:", error.message); // Debug Log

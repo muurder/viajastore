@@ -101,7 +101,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
-  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData } = useData();
+  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData, agencyReviews: allAgencyReviews } = useData();
   const { setAgencyTheme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -157,7 +157,13 @@ const AgencyLandingPage: React.FC = () => {
 
   // Other Data
   const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
-  const agencyReviews = useMemo(() => (agency ? getReviewsByAgencyId(agency.agencyId) : []).sort((a,b) => new Date(b.createdAt).getTime() - new Date(b.createdAt).getTime()), [agency, getReviewsByAgencyId]);
+  // Fix: Depend on allAgencyReviews directly to ensure updates are reflected immediately
+  const agencyReviews = useMemo(() => {
+    if (!agency) return [];
+    // Use getReviewsByAgencyId to get properly resolved client names, but trigger on allAgencyReviews changes
+    const reviews = getReviewsByAgencyId(agency.agencyId);
+    return reviews.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [agency, getReviewsByAgencyId, allAgencyReviews]);
   const hasPurchased = useMemo(() => user && agency ? bookings.some(b => b.clientId === user.id && b._trip?.agencyId === agency.agencyId && b.status === 'CONFIRMED') : false, [bookings, user, agency]);
   const myReview = useMemo(() => user ? agencyReviews.find(r => r.clientId === user.id) : undefined, [agencyReviews, user]);
 
@@ -267,8 +273,9 @@ const AgencyLandingPage: React.FC = () => {
         comment,
         tags
       });
-      showToast('Avaliação enviada com sucesso!', 'success');
+      // refreshData is already called inside addAgencyReview, but we call it again to ensure UI updates
       await refreshData();
+      showToast('Avaliação enviada com sucesso!', 'success');
     } catch (error) {
         showToast('Erro ao enviar avaliação.', 'error');
         console.error(error);
