@@ -11,7 +11,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -555,6 +555,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     {filteredPassengers.map(p => {
                         const isAssigned = assignedSet.has(p.id);
                         const assignedSeat = assignedSeatMap.get(p.id);
+                        
+                        const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
+                        
                         return (
                             <div 
                                 key={p.id} 
@@ -571,10 +574,32 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                     {!isAssigned && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
                                     {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                    <div className="min-w-0">
-                                        <span className="font-medium truncate block">{p.name}</span>
-                                        {p.isManual && <span className="text-[10px] opacity-70 block">Manual</span>}
-                                    </div>
+                                    
+                                    {accompanyMatch ? (
+                                        <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                            <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                Acompanhante {accompanyMatch[1]}
+                                            </span>
+                                            <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                <span className="truncate">Via: {accompanyMatch[2]}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                            <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
+                                            {p.isManual ? (
+                                                <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                    <span className="truncate">Manual</span>
+                                                </div>
+                                            ) : (
+                                                <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                    Titular
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">Assento {assignedSeat}</span>}
                             </div>
@@ -770,6 +795,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
                          {filteredPassengers.map(p => {
                              const assignedRoom = assignedMap.get(p.id);
+                             const accompanyMatch = p.name.match(/^Acompanhante (\d+) \((.*)\)$/);
+
                              return (
                                  <div 
                                     key={p.id} 
@@ -786,7 +813,32 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                          {!assignedRoom && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
                                          {assignedRoom && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                         <span className="truncate font-medium">{p.name}</span>
+                                         
+                                         {accompanyMatch ? (
+                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>
+                                                    Acompanhante {accompanyMatch[1]}
+                                                </span>
+                                                <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                    <span className="truncate">Via: {accompanyMatch[2]}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className={`min-w-0 flex flex-col ${selectedPassenger?.id === p.id ? 'text-white' : ''}`}>
+                                                <span className={`font-bold text-sm truncate leading-tight ${selectedPassenger?.id === p.id ? 'text-white' : 'text-gray-900'}`}>{p.name}</span>
+                                                {p.isManual ? (
+                                                    <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-400'}`}>
+                                                        <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
+                                                        <span className="truncate">Manual</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className={`flex items-center text-[10px] uppercase font-bold mt-0.5 tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
+                                                        Titular
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                      </div>
                                      {assignedRoom && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{assignedRoom}</span>}
                                  </div>
