@@ -2,12 +2,15 @@
 -- VIAJASTORE - SUPABASE SCHEMA COMPLETO
 -- =====================================================
 -- Este arquivo contém o schema completo do banco de dados
--- Última atualização: Registrado pelo Cursor
+-- Última atualização: $(date)
 -- =====================================================
 
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+-- =====================================================
+-- ACTIVITY LOGS
+-- =====================================================
 CREATE TABLE public.activity_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid,
@@ -22,6 +25,9 @@ CREATE TABLE public.activity_logs (
   CONSTRAINT activity_logs_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id)
 );
 
+-- =====================================================
+-- AGENCIES
+-- =====================================================
 CREATE TABLE public.agencies (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,
@@ -52,6 +58,9 @@ CREATE TABLE public.agencies (
   CONSTRAINT agencies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
 
+-- =====================================================
+-- AGENCY REVIEWS
+-- =====================================================
 CREATE TABLE public.agency_reviews (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   agency_id uuid NOT NULL,
@@ -70,6 +79,9 @@ CREATE TABLE public.agency_reviews (
   CONSTRAINT agency_reviews_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id)
 );
 
+-- =====================================================
+-- AGENCY THEMES
+-- =====================================================
 CREATE TABLE public.agency_themes (
   agency_id uuid NOT NULL,
   colors jsonb NOT NULL,
@@ -78,6 +90,9 @@ CREATE TABLE public.agency_themes (
   CONSTRAINT agency_themes_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id)
 );
 
+-- =====================================================
+-- AUDIT LOGS
+-- =====================================================
 CREATE TABLE public.audit_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   admin_email text,
@@ -87,6 +102,9 @@ CREATE TABLE public.audit_logs (
   CONSTRAINT audit_logs_pkey PRIMARY KEY (id)
 );
 
+-- =====================================================
+-- BOOKING PASSENGERS
+-- =====================================================
 CREATE TABLE public.booking_passengers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   booking_id uuid NOT NULL,
@@ -102,6 +120,9 @@ CREATE TABLE public.booking_passengers (
   CONSTRAINT booking_passengers_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id)
 );
 
+-- =====================================================
+-- BOOKINGS
+-- =====================================================
 CREATE TABLE public.bookings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   client_id uuid NOT NULL,
@@ -117,6 +138,9 @@ CREATE TABLE public.bookings (
   CONSTRAINT bookings_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id)
 );
 
+-- =====================================================
+-- FAVORITES
+-- =====================================================
 CREATE TABLE public.favorites (
   user_id uuid NOT NULL,
   trip_id uuid NOT NULL,
@@ -126,6 +150,9 @@ CREATE TABLE public.favorites (
   CONSTRAINT favorites_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id)
 );
 
+-- =====================================================
+-- PLANS
+-- =====================================================
 CREATE TABLE public.plans (
   id text NOT NULL,
   name text NOT NULL,
@@ -135,6 +162,9 @@ CREATE TABLE public.plans (
   CONSTRAINT plans_pkey PRIMARY KEY (id)
 );
 
+-- =====================================================
+-- PROFILES
+-- =====================================================
 CREATE TABLE public.profiles (
   id uuid NOT NULL,
   full_name text,
@@ -153,6 +183,9 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
 
+-- =====================================================
+-- REVIEWS
+-- =====================================================
 CREATE TABLE public.reviews (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   trip_id uuid NOT NULL,
@@ -165,6 +198,9 @@ CREATE TABLE public.reviews (
   CONSTRAINT reviews_pkey PRIMARY KEY (id)
 );
 
+-- =====================================================
+-- SUBSCRIPTIONS
+-- =====================================================
 CREATE TABLE public.subscriptions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   agency_id uuid NOT NULL UNIQUE,
@@ -178,6 +214,9 @@ CREATE TABLE public.subscriptions (
   CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id)
 );
 
+-- =====================================================
+-- THEMES
+-- =====================================================
 CREATE TABLE public.themes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -188,6 +227,9 @@ CREATE TABLE public.themes (
   CONSTRAINT themes_pkey PRIMARY KEY (id)
 );
 
+-- =====================================================
+-- TRANSACTIONS
+-- =====================================================
 CREATE TABLE public.transactions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   booking_id uuid NOT NULL,
@@ -202,6 +244,9 @@ CREATE TABLE public.transactions (
   CONSTRAINT transactions_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id)
 );
 
+-- =====================================================
+-- TRIP IMAGES
+-- =====================================================
 CREATE TABLE public.trip_images (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   trip_id uuid NOT NULL,
@@ -212,6 +257,9 @@ CREATE TABLE public.trip_images (
   CONSTRAINT trip_images_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES public.trips(id)
 );
 
+-- =====================================================
+-- TRIPS
+-- =====================================================
 CREATE TABLE public.trips (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   agency_id uuid NOT NULL,
@@ -246,3 +294,123 @@ CREATE TABLE public.trips (
   CONSTRAINT trips_pkey PRIMARY KEY (id),
   CONSTRAINT trips_agency_id_fkey FOREIGN KEY (agency_id) REFERENCES public.agencies(id)
 );
+
+-- =====================================================
+-- ÍNDICES RECOMENDADOS PARA PERFORMANCE E UNICIDADE
+-- =====================================================
+
+-- Índices únicos para slugs (garantir unicidade)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agencies_slug_unique ON public.agencies(slug) WHERE slug IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trips_slug_unique ON public.trips(slug) WHERE slug IS NOT NULL;
+
+-- Índices para performance em buscas comuns
+CREATE INDEX IF NOT EXISTS idx_agencies_user_id ON public.agencies(user_id);
+CREATE INDEX IF NOT EXISTS idx_agencies_is_active ON public.agencies(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_agencies_deleted_at ON public.agencies(deleted_at) WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_trips_agency_id ON public.trips(agency_id);
+CREATE INDEX IF NOT EXISTS idx_trips_is_active ON public.trips(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_trips_category ON public.trips(category);
+CREATE INDEX IF NOT EXISTS idx_trips_featured ON public.trips(featured) WHERE featured = true;
+CREATE INDEX IF NOT EXISTS idx_trips_deleted_at ON public.trips(deleted_at) WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_bookings_client_id ON public.bookings(client_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_trip_id ON public.bookings(trip_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON public.bookings(status);
+
+CREATE INDEX IF NOT EXISTS idx_agency_reviews_agency_id ON public.agency_reviews(agency_id);
+CREATE INDEX IF NOT EXISTS idx_agency_reviews_client_id ON public.agency_reviews(client_id);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
+
+-- =====================================================
+-- FUNÇÕES E TRIGGERS ÚTEIS
+-- =====================================================
+
+-- Função para atualizar updated_at automaticamente
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger para agencies
+CREATE TRIGGER update_agencies_updated_at BEFORE UPDATE ON public.agencies
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger para profiles
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger para trips
+CREATE TRIGGER update_trips_updated_at BEFORE UPDATE ON public.trips
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- RPC FUNCTIONS
+-- =====================================================
+
+-- Função para criar agência (usada no AuthContext)
+CREATE OR REPLACE FUNCTION create_agency(
+  p_user_id uuid,
+  p_name text,
+  p_email text,
+  p_phone text,
+  p_whatsapp text,
+  p_slug text
+)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO public.agencies (
+    user_id,
+    name,
+    email,
+    phone,
+    whatsapp,
+    slug,
+    is_active,
+    hero_mode,
+    subscription_status,
+    subscription_plan,
+    subscription_expires_at
+  ) VALUES (
+    p_user_id,
+    p_name,
+    p_email,
+    p_phone,
+    p_whatsapp,
+    p_slug,
+    false,
+    'TRIPS',
+    'INACTIVE',
+    'BASIC',
+    now() + interval '30 days'
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- POLÍTICAS RLS (Row Level Security) - EXEMPLO
+-- =====================================================
+-- Nota: Ajuste conforme suas necessidades de segurança
+
+-- Habilitar RLS nas tabelas principais
+-- ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.trips ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+
+-- Exemplo de política: Agências podem ver apenas suas próprias viagens
+-- CREATE POLICY "Agencies can view own trips" ON public.trips
+--   FOR SELECT USING (
+--     agency_id IN (
+--       SELECT id FROM public.agencies WHERE user_id = auth.uid()
+--     )
+--   );
+
+-- =====================================================
+-- FIM DO SCHEMA
+-- =====================================================
+

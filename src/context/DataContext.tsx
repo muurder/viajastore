@@ -6,6 +6,7 @@ import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
 import { useToast } from './ToastContext';
 import { slugify } from '../utils/slugify';
+import { validateSlug, generateUniqueSlug } from '../utils/slugUtils';
 
 // --- NEW SERVER-SIDE SEARCH TYPES ---
 export interface SearchTripsParams {
@@ -414,11 +415,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 
   // Data Getters
+  // FIX: Separated getTripBySlug from getTripById to enforce proper slug usage
+  // getTripBySlug now only accepts slugs, not IDs (prevents masking slug issues)
   const getTripBySlug = useCallback((slugToFind: string) => {
-    return trips.find(t => t.slug === slugToFind || t.id === slugToFind);
+    if (!slugToFind || slugToFind.trim() === '') {
+      return undefined;
+    }
+    // Only search by slug, not by ID (to catch missing/invalid slugs)
+    return trips.find(t => t.slug === slugToFind);
   }, [trips]);
 
   const getAgencyBySlug = useCallback((slugToFind: string) => {
+    if (!slugToFind || slugToFind.trim() === '') {
+      return undefined;
+    }
     return agencies.find(a => a.slug === slugToFind);
   }, [agencies]);
 
@@ -938,10 +948,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
     }
     console.log("[DataContext] Updating trip:", trip.id, trip.title); // Debug Log
+    
+    // Validate slug before updating
+    const slugValidation = validateSlug(trip.slug);
+    if (!slugValidation.valid) {
+        console.error("[DataContext] Invalid slug for trip update:", slugValidation.error);
+        throw new Error(`Slug inválido: ${slugValidation.error}`);
+    }
+    
+    // Ensure slug is unique (excluding current trip)
+    const uniqueSlug = await generateUniqueSlug(trip.slug, 'trips', trip.id);
+    
     try {
         const { error } = await sb.from('trips').update({
             title: trip.title,
-            slug: trip.slug,
+            slug: uniqueSlug,
             description: trip.description,
             destination: trip.destination,
             price: trip.price,

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User, UserRole, Client, Agency, Admin } from '../types';
 import { supabase } from '../services/supabase';
 import { slugify } from '../utils/slugify';
+import { generateUniqueSlug, generateSlugFromName } from '../utils/slugUtils';
 import { useToast } from './ToastContext'; // Import useToast
 
 // Define a more granular return type for register
@@ -219,7 +220,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (profileError) throw profileError;
 
           if (role === UserRole.AGENCY) {
-              const safeSlug = slugify(userName + '-' + Math.floor(Math.random() * 1000));
+              // Generate unique slug based on agency name (without random numbers)
+              const baseSlug = generateSlugFromName(userName);
+              const uniqueSlug = await generateUniqueSlug(baseSlug, 'agencies');
               
               // Use RPC for safe creation even in ensureUserRecord
               const { error: agencyError } = await supabase.rpc('create_agency', {
@@ -228,7 +231,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   p_email: userEmail,
                   p_phone: userPhone,    // Pass phone to RPC
                   p_whatsapp: userPhone, // Pass phone as whatsapp to RPC
-                  p_slug: safeSlug
+                  p_slug: uniqueSlug
               });
 
               if (agencyError) {
@@ -427,8 +430,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // 2b. Insert Agency Record (If applicable)
       if (role === UserRole.AGENCY) {
-        // Ensure slug is unique enough to avoid initial conflicts
-        const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
+        // Generate unique slug based on agency name (without random numbers)
+        const baseSlug = generateSlugFromName(data.name);
+        const uniqueSlug = await generateUniqueSlug(baseSlug, 'agencies');
         
         // Use RPC to bypass potential REST Schema Cache issues
         const { error: agencyError } = await supabase.rpc('create_agency', {
@@ -437,7 +441,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             p_email: data.email,
             p_phone: data.phone,
             p_whatsapp: data.phone,
-            p_slug: safeSlug
+            p_slug: uniqueSlug
         });
         
         if (agencyError) {
@@ -460,7 +464,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (dbError.code === "PGRST204" || dbError.message?.includes('schema cache') || dbError.message?.includes('user_id')) {
         console.warn("[AuthContext] Recovering from Schema Cache error - treating as success to allow login."); // Debug Log
         
-        const safeSlug = slugify(data.name + '-' + Math.floor(Math.random() * 1000));
+        // Generate slug without random numbers (fallback mode - will be corrected on next login)
+        const baseSlug = generateSlugFromName(data.name);
         
         // Force state locally so user isn't stuck
         if (role === UserRole.AGENCY) {
@@ -471,7 +476,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 email: data.email,
                 role: UserRole.AGENCY,
                 is_active: false,
-                slug: safeSlug,
+                slug: baseSlug, // Will be corrected to unique slug on next login
                 phone: data.phone,
                 whatsapp: data.phone,
                 cnpj: '',
@@ -536,12 +541,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updates: any = {};
         if (userData.name) updates.name = userData.name;
         
-        // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE (READ-ONLY AFTER INITIAL CREATION) ---
-        // Only allow slug update if it's currently empty, or if an explicit (and rare) admin action is intended.
-        // For general user updates, slug should be read-only derived from name or immutable after creation.
-        // Assuming userData.slug is provided only if an is intended.
-        if ( (user as Agency).slug === '' && (userData as Agency).slug) { 
-          updates.slug = (userData as Agency).slug;
+        // --- SLUG LOGIC FOR AGENCY PROFILE UPDATE ---
+        // Allow slug update if:
+        // 1. Slug is currently empty (first time setting)
+        // 2. Admin is explicitly updating (slug provided in userData)
+        // Validate slug format before updating
+        if ((userData as Agency).slug !== undefined) {
+          const newSlug = (userData as Agency).slug || '';
+          if (newSlug.trim()) {
+            // Validate slug format
+            const { validateSlug } = await import('../utils/slugUtils');
+            const validation = validateSlug(newSlug.trim());
+            if (validation.valid) {
+              // Check if slug is unique (if not empty and different from current)
+              if ((user as Agency).slug !== newSlug.trim()) {
+                const { generateUniqueSlug } = await import('../utils/slugUtils');
+                const uniqueSlug = await generateUniqueSlug(newSlug.trim(), 'agencies', user.id);
+                updates.slug = uniqueSlug;
+              } else {
+                updates.slug = newSlug.trim();
+              }
+            } else {
+              console.warn(`[AuthContext] Slug inválido ignorado: ${validation.error}`);
+            }
+          } else if ((user as Agency).slug === '') {
+            // If current slug is empty and new slug is also empty, generate from name
+            const { generateSlugFromName, generateUniqueSlug } = await import('../utils/slugUtils');
+            const baseSlug = generateSlugFromName(user.name);
+            const uniqueSlug = await generateUniqueSlug(baseSlug, 'agencies', user.id);
+            updates.slug = uniqueSlug;
+          }
         }
 
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 

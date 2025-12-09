@@ -10,6 +10,7 @@ import {
   Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
+import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
 
 // Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
@@ -168,12 +169,27 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       // 2. Merge Images
       const finalImages = [...(tripData.images || []), ...uploadedUrls];
 
-      // 3. Construct Final Object (Sanitizing arrays)
+      // 3. Generate and validate slug
+      const normalizedSlug = normalizeSlug(tripData.slug, tripData.title!);
+      const slugValidation = validateSlug(normalizedSlug);
+      
+      if (!slugValidation.valid) {
+        showToast(`Slug inválido: ${slugValidation.error}`, "error");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Ensure slug is unique (only check if editing or if slug was manually provided)
+      const finalSlug = isEditing 
+        ? await generateUniqueSlug(normalizedSlug, 'trips', tripData.id)
+        : await generateUniqueSlug(normalizedSlug, 'trips');
+
+      // 4. Construct Final Object (Sanitizing arrays)
       const finalTrip: Trip = {
         id: tripData.id || crypto.randomUUID(),
         agencyId: currentAgency.agencyId,
         title: tripData.title!,
-        slug: tripData.slug || slugify(tripData.title!),
+        slug: finalSlug,
         description: tripData.description!,
         destination: tripData.destination!,
         price: tripData.price!,
@@ -198,7 +214,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
       };
 
-      // 4. Save to DB
+      // 5. Save to DB
       if (isEditing) {
         await updateTrip(finalTrip);
         showToast("Pacote atualizado com sucesso!", "success");
