@@ -304,11 +304,13 @@ const ClientDashboard: React.FC = () => {
       
       if (res.success) {
         showToast('Perfil atualizado com sucesso!', 'success');
-        // Don't manually refresh - Supabase subscription will handle it automatically
-        // Just reload the user data from AuthContext to update local state
-        // Use a small delay to let the DB update propagate and avoid loops
+        // Reload user data to refresh the form with updated values
+        // Use a small delay to let the DB update propagate
         setTimeout(async () => {
           if (user) {
+            // Force refresh of DataContext first to get updated client data
+            await refreshAllData();
+            // Then reload user from AuthContext
             await reloadUser(user);
           }
           // Reset flag after reload completes

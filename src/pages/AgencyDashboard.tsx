@@ -901,6 +901,16 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const [passengerEditId, setPassengerEditId] = useState<string | null>(null);
     const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '', birthDate: '', rg: '', rgOrg: '' });
     const [passengerToDelete, setPassengerToDelete] = useState<string | null>(null);
+    
+    // Passenger Details Modal
+    const [passengerDetailsModal, setPassengerDetailsModal] = useState<{
+        name: string;
+        status: string;
+        document: string;
+        phone: string;
+        birthDate: string;
+        avatar?: string;
+    } | null>(null);
 
     // Config Mode
     const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
@@ -1600,6 +1610,69 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             <ConfirmationModal isOpen={!!vehicleToDelete} onClose={() => setVehicleToDelete(null)} onConfirm={confirmDeleteVehicle} title="Remover Veículo" message="Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados." variant="danger" confirmText="Remover" />
             <ConfirmationModal isOpen={!!passengerToDelete} onClose={() => setPassengerToDelete(null)} onConfirm={handleDeletePassenger} title="Remover Passageiro" message="Tem certeza que deseja remover este passageiro da lista? Ele será desvinculado de qualquer assento atribuído." variant="danger" confirmText="Remover" />
             
+            {/* Passenger Details Modal */}
+            {passengerDetailsModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-gray-900">Detalhes do Passageiro</h3>
+                            <button 
+                                onClick={() => setPassengerDetailsModal(null)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {/* Avatar and Name */}
+                            <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                                {passengerDetailsModal.avatar ? (
+                                    <img 
+                                        src={passengerDetailsModal.avatar} 
+                                        alt={passengerDetailsModal.name}
+                                        className="w-16 h-16 rounded-full object-cover border-2 border-primary-200"
+                                    />
+                                ) : (
+                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-xl font-bold border-2 border-primary-200">
+                                        {passengerDetailsModal.name.substring(0, 2).toUpperCase()}
+                                    </div>
+                                )}
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-900">{passengerDetailsModal.name}</h4>
+                                    <p className="text-sm text-gray-500">{passengerDetailsModal.status}</p>
+                                </div>
+                            </div>
+                            
+                            {/* Details Grid */}
+                            <div className="grid grid-cols-1 gap-3">
+                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span className="text-sm font-bold text-gray-600">CPF:</span>
+                                    <span className="text-sm text-gray-900">{passengerDetailsModal.document}</span>
+                                </div>
+                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span className="text-sm font-bold text-gray-600">Telefone:</span>
+                                    <span className="text-sm text-gray-900">{passengerDetailsModal.phone}</span>
+                                </div>
+                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span className="text-sm font-bold text-gray-600">Data de Nascimento:</span>
+                                    <span className="text-sm text-gray-900">{passengerDetailsModal.birthDate}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 flex justify-end">
+                            <button 
+                                onClick={() => setPassengerDetailsModal(null)}
+                                className="px-6 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             {/* Passenger Edit Modal */}
             {passengerEditId && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
@@ -1817,9 +1890,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                             const phone = dbPassenger?.whatsapp || p.details?.phone || '-';
                                             const birthDate = dbPassenger?.birth_date ? new Date(dbPassenger.birth_date).toLocaleDateString('pt-BR') : (p.details?.birthDate || '-');
                                             
-                                            // Show info in a simple alert for now (can be replaced with modal later)
-                                            const info = `Nome: ${name}\nStatus: ${status}\nCPF: ${document}\nTelefone: ${phone}\nData de Nascimento: ${birthDate}`;
-                                            alert(info);
+                                            setPassengerDetailsModal({
+                                                name,
+                                                status,
+                                                document,
+                                                phone,
+                                                birthDate,
+                                                avatar
+                                            });
                                         }}
                                         className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-gray-500 hover:bg-gray-50 bg-gray-50/50'}`}
                                         title="Ver detalhes do passageiro"
