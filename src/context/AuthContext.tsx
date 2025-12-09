@@ -411,25 +411,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     setLoading(true); // Ensure loading is set at the start of login
     console.log("[AuthContext] Attempting login for:", email); // Debug Log
+    
     try {
-      const { error } = await (supabase.auth as any).signInWithPassword({
+      // Timeout protection: if login takes more than 10 seconds, fail
+      const loginPromise = (supabase.auth as any).signInWithPassword({
         email,
         password,
       });
+      
+      const timeoutPromise = new Promise<{ error: { message: string } }>((_, reject) => 
+        setTimeout(() => reject(new Error('O servidor demorou muito para responder. Tente novamente.')), 10000)
+      );
+
+      const { error } = await Promise.race([loginPromise, timeoutPromise]);
 
       if (error) {
         const msg = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos.' : error.message;
-        setLoading(false); // Reset loading on error
         console.error("[AuthContext] Login failed:", error.message); // Debug Log
         return { success: false, error: msg };
       }
-      setLoading(false); // Reset loading on success
+      
       console.log("[AuthContext] Login successful for:", email); // Debug Log
       return { success: true };
     } catch (networkError: any) {
       console.error("[AuthContext] Network or unexpected error during login:", networkError); // Debug Log
-      setLoading(false); // Reset loading on network error
-      return { success: false, error: "Erro de conexão. Verifique sua internet." };
+      const errorMsg = networkError.message || "Erro de conexão. Verifique sua internet.";
+      return { success: false, error: errorMsg };
+    } finally {
+      // CRITICAL: Always reset loading state
+      setLoading(false);
     }
   };
 
@@ -457,15 +467,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
+    console.log("[AuthContext] Logout triggered. Clearing all local storage and user state."); // Debug Log
+    
+    // CRITICAL: Always clear state and localStorage FIRST, regardless of network
+    localStorage.clear();
+    setUser(null);
+    setLoading(false); // Ensure loading is reset
+    
+    // Attempt to sign out with Supabase, but don't block on errors
     if (supabase) {
-      console.log("[AuthContext] Logout triggered. Clearing all local storage and user state."); // Debug Log
-      // Clear all local storage data immediately
-      localStorage.clear(); 
-      setUser(null); // Clear user state
-      // Attempt to sign out with Supabase, but catch any errors silently
-      await (supabase.auth as any).signOut().catch((e: any) => {
-          console.error("[AuthContext] Silent Supabase signout failed:", e); // Debug Log
-      });
+      try {
+        // Timeout protection: if signOut takes more than 3 seconds, give up
+        const signOutPromise = (supabase.auth as any).signOut();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Logout timeout')), 3000)
+        );
+        
+        await Promise.race([signOutPromise, timeoutPromise]);
+      } catch (e: any) {
+        // Silently fail - user is already logged out locally
+        console.error("[AuthContext] Silent Supabase signout failed:", e); // Debug Log
+      }
+    }
+    
+    // Force redirect to home (user wants to leave, not see errors)
+    try {
+      window.location.href = '/';
+    } catch (err) {
+      // Fallback if window.location fails
+      console.error("[AuthContext] Redirect failed:", err);
     }
   };
 

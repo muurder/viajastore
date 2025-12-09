@@ -33,6 +33,8 @@ interface CreateTripWizardProps {
   initialTripData?: Partial<Trip>;
 }
 
+const DRAFT_STORAGE_KEY = 'viajastore_trip_draft';
+
 const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess, initialTripData }) => {
   const { user, uploadImage } = useAuth(); 
   const { createTrip, updateTrip, agencies } = useData();
@@ -49,36 +51,110 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   
   // Local state for raw files - strictly used only in handlePublish
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
   
-  const [tripData, setTripData] = useState<Partial<Trip>>(() => ({
-    agencyId: currentAgency?.agencyId || '',
-    title: '',
-    slug: '',
-    description: '',
-    destination: '',
-    price: 0,
-    startDate: '',
-    endDate: '',
-    durationDays: 1,
-    images: [],
-    category: 'PRAIA',
-    tags: [],
-    travelerTypes: [], // Default empty
-    itinerary: [], // Default empty
-    boardingPoints: [{ id: crypto.randomUUID(), time: '08:00', location: 'A definir' }], // Minimal default
-    paymentMethods: ['PIX', 'CREDIT_CARD'], // Sensible default
-    is_active: true,
-    featured: false,
-    featuredInHero: false,
-    popularNearSP: false,
-    included: [],
-    notIncluded: [],
-    operationalData: DEFAULT_OPERATIONAL_DATA,
-    ...(initialTripData || {})
-  }));
+  // Initialize tripData with draft restoration
+  const [tripData, setTripData] = useState<Partial<Trip>>(() => {
+    // If editing, use initialTripData
+    if (initialTripData?.id) {
+      return {
+        agencyId: currentAgency?.agencyId || '',
+        title: '',
+        slug: '',
+        description: '',
+        destination: '',
+        price: 0,
+        startDate: '',
+        endDate: '',
+        durationDays: 1,
+        images: [],
+        category: 'PRAIA',
+        tags: [],
+        travelerTypes: [],
+        itinerary: [],
+        boardingPoints: [{ id: crypto.randomUUID(), time: '08:00', location: 'A definir' }],
+        paymentMethods: ['PIX', 'CREDIT_CARD'],
+        is_active: true,
+        featured: false,
+        featuredInHero: false,
+        popularNearSP: false,
+        included: [],
+        notIncluded: [],
+        operationalData: DEFAULT_OPERATIONAL_DATA,
+        ...initialTripData
+      };
+    }
+    
+    // Check for draft in localStorage
+    try {
+      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (draft) {
+        const parsedDraft = JSON.parse(draft);
+        // Only restore if draft is recent (less than 7 days old)
+        if (parsedDraft.timestamp && (Date.now() - parsedDraft.timestamp) < 7 * 24 * 60 * 60 * 1000) {
+          return {
+            agencyId: currentAgency?.agencyId || '',
+            title: '',
+            slug: '',
+            description: '',
+            destination: '',
+            price: 0,
+            startDate: '',
+            endDate: '',
+            durationDays: 1,
+            images: [],
+            category: 'PRAIA',
+            tags: [],
+            travelerTypes: [],
+            itinerary: [],
+            boardingPoints: [{ id: crypto.randomUUID(), time: '08:00', location: 'A definir' }],
+            paymentMethods: ['PIX', 'CREDIT_CARD'],
+            is_active: true,
+            featured: false,
+            featuredInHero: false,
+            popularNearSP: false,
+            included: [],
+            notIncluded: [],
+            operationalData: DEFAULT_OPERATIONAL_DATA,
+            ...parsedDraft.data
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Error restoring draft:', err);
+    }
+    
+    // Default empty state
+    return {
+      agencyId: currentAgency?.agencyId || '',
+      title: '',
+      slug: '',
+      description: '',
+      destination: '',
+      price: 0,
+      startDate: '',
+      endDate: '',
+      durationDays: 1,
+      images: [],
+      category: 'PRAIA',
+      tags: [],
+      travelerTypes: [],
+      itinerary: [],
+      boardingPoints: [{ id: crypto.randomUUID(), time: '08:00', location: 'A definir' }],
+      paymentMethods: ['PIX', 'CREDIT_CARD'],
+      is_active: true,
+      featured: false,
+      featuredInHero: false,
+      popularNearSP: false,
+      included: [],
+      notIncluded: [],
+      operationalData: DEFAULT_OPERATIONAL_DATA
+    };
+  });
   
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showDraftRestore, setShowDraftRestore] = useState(false);
 
   // Auto-calculate duration, but respect user edits
   useEffect(() => {
@@ -109,6 +185,52 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       }
   }, [isEditing, initialTripData]);
 
+  // Check for draft on mount (only if not editing)
+  useEffect(() => {
+    if (!isEditing) {
+      try {
+        const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (draft) {
+          const parsedDraft = JSON.parse(draft);
+          if (parsedDraft.timestamp && (Date.now() - parsedDraft.timestamp) < 7 * 24 * 60 * 60 * 1000) {
+            setShowDraftRestore(true);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking draft:', err);
+      }
+    }
+  }, [isEditing]);
+
+  // Auto-save to localStorage on every tripData change (debounced)
+  useEffect(() => {
+    if (isEditing) return; // Don't save drafts when editing existing trip
+    
+    const timeoutId = setTimeout(() => {
+      try {
+        const draftData = {
+          data: tripData,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+      } catch (err) {
+        console.error('Error saving draft:', err);
+      }
+    }, 1000); // Debounce: save 1 second after last change
+
+    return () => clearTimeout(timeoutId);
+  }, [tripData, isEditing]);
+
+  // Clear draft when component unmounts (if successfully published)
+  useEffect(() => {
+    return () => {
+      // Only clear if we're not in a loading state (successful publish)
+      if (!isLoading) {
+        // Draft will be cleared in handlePublish on success
+      }
+    };
+  }, [isLoading]);
+
   const validateStep = useCallback(() => {
     const newErrors: Record<string, string> = {};
     
@@ -138,7 +260,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const handleBack = () => setCurrentStep(prev => prev - 1);
 
-  // --- CRITICAL: UPLOAD LOGIC ISOLATED HERE ---
+  // --- CRITICAL: BULLETPROOF UPLOAD LOGIC ---
   const handlePublish = async () => {
     if (!validateStep()) {
       showToast("Preencha todos os campos obrigatórios.", "error");
@@ -151,92 +273,151 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     }
 
     setIsLoading(true);
+    setUploadProgress(null);
+    
     try {
-      // 1. Upload Loop (With internal try/catch to not block publish on single image error)
-      const uploadedUrls: string[] = [];
-      if (filesToUpload.length > 0) {
-          for (const file of filesToUpload) {
-              try {
-                  const url = await uploadImage(file, 'trip-images');
-                  if (url) uploadedUrls.push(url);
-              } catch (err) {
-                  console.error("Falha no upload de arquivo individual:", err);
-                  showToast(`Falha no upload de ${file.name}`, 'warning');
-              }
+      // Wrap entire operation in timeout (15 seconds)
+      const publishPromise = (async () => {
+        // 1. Upload Loop with Progress Tracking
+        const uploadedUrls: string[] = [];
+        const failedUploads: string[] = [];
+        
+        if (filesToUpload.length > 0) {
+          for (let i = 0; i < filesToUpload.length; i++) {
+            const file = filesToUpload[i];
+            setUploadProgress({ current: i + 1, total: filesToUpload.length, fileName: file.name });
+            
+            try {
+              // Individual upload timeout (30 seconds per file)
+              const uploadPromise = uploadImage(file, 'trip-images');
+              const timeoutPromise = new Promise<null>((_, reject) => 
+                setTimeout(() => reject(new Error('Upload timeout')), 30000)
+              );
+              
+              const url = await Promise.race([uploadPromise, timeoutPromise]);
+              if (url) uploadedUrls.push(url);
+            } catch (err: any) {
+              console.error("Falha no upload de arquivo individual:", err);
+              failedUploads.push(file.name);
+              showToast(`Falha no upload de ${file.name}`, 'warning');
+            }
           }
-      }
-
-      // 2. Merge Images
-      const finalImages = [...(tripData.images || []), ...uploadedUrls];
-
-      // 3. Generate and validate slug
-      const normalizedSlug = normalizeSlug(tripData.slug, tripData.title!);
-      const slugValidation = validateSlug(normalizedSlug);
-      
-      if (!slugValidation.valid) {
-        showToast(`Slug inválido: ${slugValidation.error}`, "error");
-        setIsLoading(false);
-        return;
-      }
-      
-      // Ensure slug is unique (only check if editing or if slug was manually provided)
-      const finalSlug = isEditing 
-        ? await generateUniqueSlug(normalizedSlug, 'trips', tripData.id)
-        : await generateUniqueSlug(normalizedSlug, 'trips');
-
-      // 4. Construct Final Object (Sanitizing arrays)
-      const finalTrip: Trip = {
-        id: tripData.id || crypto.randomUUID(),
-        agencyId: currentAgency.agencyId,
-        title: tripData.title!,
-        slug: finalSlug,
-        description: tripData.description!,
-        destination: tripData.destination!,
-        price: tripData.price!,
-        startDate: new Date(tripData.startDate!).toISOString(),
-        endDate: new Date(tripData.endDate!).toISOString(),
-        durationDays: tripData.durationDays || 1,
-        images: finalImages,
-        category: tripData.category!,
-        tags: tripData.tags || [],
+        }
         
-        travelerTypes: tripData.travelerTypes || [],
-        paymentMethods: tripData.paymentMethods || ['PIX'],
-        boardingPoints: Array.isArray(tripData.boardingPoints) ? tripData.boardingPoints : [],
-        itinerary: Array.isArray(tripData.itinerary) ? tripData.itinerary : [],
-        included: Array.isArray(tripData.included) ? tripData.included : [],
-        notIncluded: Array.isArray(tripData.notIncluded) ? tripData.notIncluded : [],
-        
-        is_active: tripData.is_active!,
-        featured: tripData.featured || false,
-        featuredInHero: tripData.featuredInHero || false,
-        popularNearSP: tripData.popularNearSP || false,
-        operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
-      };
+        setUploadProgress(null);
 
-      // 5. Save to DB
-      if (isEditing) {
-        await updateTrip(finalTrip);
-        showToast("Pacote atualizado com sucesso!", "success");
-      } else {
-        await createTrip(finalTrip);
-        showToast("Pacote criado com sucesso!", "success");
-      }
-      
-      // Reset loading state before closing
-      setIsLoading(false);
-      
-      // Close modal and trigger success callback
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 100);
+        // 2. Merge Images
+        const finalImages = [...(tripData.images || []), ...uploadedUrls];
+        
+        if (finalImages.length === 0 && !isEditing) {
+          throw new Error('É necessário pelo menos uma imagem para publicar.');
+        }
+
+        // 3. Generate and validate slug
+        const normalizedSlug = normalizeSlug(tripData.slug, tripData.title!);
+        const slugValidation = validateSlug(normalizedSlug);
+        
+        if (!slugValidation.valid) {
+          throw new Error(`Slug inválido: ${slugValidation.error}`);
+        }
+        
+        // Ensure slug is unique (only check if editing or if slug was manually provided)
+        const finalSlug = isEditing 
+          ? await generateUniqueSlug(normalizedSlug, 'trips', tripData.id)
+          : await generateUniqueSlug(normalizedSlug, 'trips');
+
+        // 4. Construct Final Object (Sanitizing arrays)
+        const finalTrip: Trip = {
+          id: tripData.id || crypto.randomUUID(),
+          agencyId: currentAgency.agencyId,
+          title: tripData.title!,
+          slug: finalSlug,
+          description: tripData.description!,
+          destination: tripData.destination!,
+          price: tripData.price!,
+          startDate: new Date(tripData.startDate!).toISOString(),
+          endDate: new Date(tripData.endDate!).toISOString(),
+          durationDays: tripData.durationDays || 1,
+          images: finalImages,
+          category: tripData.category!,
+          tags: tripData.tags || [],
+          
+          travelerTypes: tripData.travelerTypes || [],
+          paymentMethods: tripData.paymentMethods || ['PIX'],
+          boardingPoints: Array.isArray(tripData.boardingPoints) ? tripData.boardingPoints : [],
+          itinerary: Array.isArray(tripData.itinerary) ? tripData.itinerary : [],
+          included: Array.isArray(tripData.included) ? tripData.included : [],
+          notIncluded: Array.isArray(tripData.notIncluded) ? tripData.notIncluded : [],
+          
+          is_active: tripData.is_active!,
+          featured: tripData.featured || false,
+          featuredInHero: tripData.featuredInHero || false,
+          popularNearSP: tripData.popularNearSP || false,
+          operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
+        };
+
+        // 5. Save to DB with timeout
+        const savePromise = isEditing 
+          ? updateTrip(finalTrip)
+          : createTrip(finalTrip);
+        
+        await savePromise;
+
+        // 6. Clear draft on success
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        
+        // 7. Show success message
+        if (failedUploads.length > 0) {
+          showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso! Algumas fotos falharam: ${failedUploads.join(', ')}`, "warning");
+        } else {
+          showToast(`Pacote ${isEditing ? 'atualizado' : 'criado'} com sucesso!`, "success");
+        }
+        
+        // 8. Close modal and trigger success callback
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 100);
+      })();
+
+      // Race against timeout
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('O servidor demorou muito para responder. Tente novamente.')), 15000)
+      );
+
+      await Promise.race([publishPromise, timeoutPromise]);
 
     } catch (error: any) {
       console.error("CreateTripWizard Error:", error);
-      showToast(`Erro ao salvar: ${error.message || 'Erro desconhecido'}`, "error");
+      const errorMessage = error.message || 'Erro desconhecido';
+      showToast(`Erro ao salvar: ${errorMessage}`, "error");
+    } finally {
+      // CRITICAL: Always reset loading state
       setIsLoading(false);
+      setUploadProgress(null);
     }
+  };
+
+  // Draft restoration handlers
+  const handleRestoreDraft = () => {
+    try {
+      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (draft) {
+        const parsedDraft = JSON.parse(draft);
+        setTripData(prev => ({ ...prev, ...parsedDraft.data }));
+        setShowDraftRestore(false);
+        showToast('Rascunho restaurado com sucesso!', 'success');
+      }
+    } catch (err) {
+      console.error('Error restoring draft:', err);
+      showToast('Erro ao restaurar rascunho', 'error');
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setShowDraftRestore(false);
+    showToast('Rascunho descartado', 'info');
   };
 
   // --- BOARDING POINTS LOGIC ---
@@ -637,6 +818,52 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
       <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
+        
+        {/* Draft Restore Alert */}
+        {showDraftRestore && !isEditing && (
+          <div className="mb-6 bg-amber-50 border-2 border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <Info className="text-amber-600 flex-shrink-0 mt-0.5" size={20}/>
+            <div className="flex-1">
+              <h3 className="font-bold text-amber-900 mb-1">Rascunho não salvo encontrado</h3>
+              <p className="text-sm text-amber-700 mb-3">Encontramos um rascunho não salvo. Deseja restaurar?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRestoreDraft}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition-colors"
+                >
+                  Restaurar Rascunho
+                </button>
+                <button
+                  onClick={handleDiscardDraft}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-300 transition-colors"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload Progress */}
+        {uploadProgress && (
+          <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <Loader className="text-blue-600 animate-spin" size={20}/>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-blue-900">
+                  Enviando imagem {uploadProgress.current} de {uploadProgress.total}
+                </p>
+                <p className="text-xs text-blue-700">{uploadProgress.fileName}</p>
+              </div>
+            </div>
+            <div className="w-full bg-blue-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
         
         <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">

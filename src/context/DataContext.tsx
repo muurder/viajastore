@@ -957,11 +957,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) {
         console.warn("[DataContext] Supabase not configured, cannot create trip."); // Debug Log
-        return;
+        throw new Error('Backend não configurado');
     }
     console.log("[DataContext] Creating trip:", trip.title); // Debug Log
+    
     try {
-        const { data, error } = await sb.from('trips').insert({
+        // Timeout protection: 15 seconds for trip creation
+        const insertPromise = sb.from('trips').insert({
             agency_id: trip.agencyId,
             title: trip.title,
             slug: trip.slug,
@@ -985,6 +987,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
             operational_data: trip.operationalData,
         }).select().single();
+
+        const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('O servidor demorou muito para criar o pacote. Tente novamente.')), 15000)
+        );
+
+        const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
 
         if (error) throw error;
 
@@ -1015,7 +1023,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (!sb) {
         console.warn("[DataContext] Supabase not configured, cannot update trip."); // Debug Log
-        return;
+        throw new Error('Backend não configurado');
     }
     console.log("[DataContext] Updating trip:", trip.id, trip.title); // Debug Log
     
@@ -1030,7 +1038,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const uniqueSlug = await generateUniqueSlug(trip.slug, 'trips', trip.id);
     
     try {
-        const { error } = await sb.from('trips').update({
+        // Timeout protection: 15 seconds for trip update
+        const updatePromise = sb.from('trips').update({
             title: trip.title,
             slug: uniqueSlug,
             description: trip.description,
@@ -1053,6 +1062,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
             operational_data: trip.operationalData,
         }).eq('id', trip.id);
+
+        const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('O servidor demorou muito para atualizar o pacote. Tente novamente.')), 15000)
+        );
+
+        const { error } = await Promise.race([updatePromise, timeoutPromise]);
 
         if (error) throw error;
 
