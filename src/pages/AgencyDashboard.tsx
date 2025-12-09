@@ -1647,8 +1647,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         // Get passenger name from database first, then details, then name
                         // When selected, use the name from selectedPassenger to ensure consistency
                         let passengerName: string;
-                        if (isSelected && selectedPassenger?.name) {
-                            // Use the name from selectedPassenger when selected
+                        if (isSelected && selectedPassenger?.name && selectedPassenger.name.trim() !== '') {
+                            // Use the name from selectedPassenger when selected (only if it's not empty)
                             passengerName = selectedPassenger.name;
                         } else {
                             // Calculate name normally when not selected - prioritize database
@@ -1667,6 +1667,10 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             // For companions, use a descriptive fallback
                             if (!passengerName && p.isAccompaniment) {
                                 passengerName = 'Acompanhante';
+                            }
+                            // Last resort fallback
+                            if (!passengerName) {
+                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                             }
                         }
                         const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
@@ -1700,13 +1704,38 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                             passengerName = 'Acompanhante';
                                         }
                                         
+                                        // Ensure we always have a valid name
+                                        if (!passengerName) {
+                                            // Last resort: use the name from p.name or a default
+                                            passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                                        }
+                                        
+                                        // Debug: log the name being set
+                                        console.log('[TransportManager] Setting selected passenger:', { 
+                                            id: p.id, 
+                                            name: passengerName, 
+                                            bookingId: p.bookingId, 
+                                            dbPassenger: dbPassenger?.full_name, 
+                                            pName: p.name, 
+                                            pDetails: p.details?.name,
+                                            isAccompaniment: p.isAccompaniment,
+                                            passengerIndex: p.passengerIndex
+                                        });
+                                        
+                                        // Ensure passengerName is never empty before setting
+                                        if (!passengerName || passengerName.trim() === '') {
+                                            console.warn('[TransportManager] Warning: passengerName is empty, using fallback');
+                                            passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                                        }
+                                        
                                         setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                     }
                                 }} 
                                 className={`
                                     p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all relative
-                                    ${isAssigned ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
-                                    ${isSelected ? 'bg-primary-600 border-primary-600 shadow-md ring-2 ring-primary-100' : ''}
+                                    ${isSelected ? 'bg-primary-600 border-primary-600 shadow-md ring-2 ring-primary-100 text-white' : ''}
+                                    ${isAssigned && !isSelected ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : ''}
+                                    ${!isAssigned && !isSelected ? 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing' : ''}
                                 `}
                             >
                                 <div className="flex items-center gap-3 overflow-hidden pr-6">
@@ -1715,11 +1744,11 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
                                     
                                     {/* Always show full name on top, type below */}
-                                    <div className={`min-w-0 flex flex-col ${isSelected ? 'text-white' : ''}`}>
-                                        <span className={`font-bold text-sm truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                                    <div className={`min-w-0 flex flex-col`}>
+                                        <span className={`font-bold text-sm truncate leading-tight`} style={{ color: isSelected ? '#ffffff' : '#111827' }}>
                                             {displayName}
                                         </span>
-                                        <div className={`flex items-center text-xs mt-0.5 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                                        <div className={`flex items-center text-xs mt-0.5`} style={{ color: isSelected ? 'rgba(255, 255, 255, 0.8)' : '#6b7280' }}>
                                             {p.isManual ? (
                                                 <>
                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
@@ -2396,13 +2425,38 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                                 passengerName = 'Acompanhante';
                                             }
                                             
+                                            // Ensure we always have a valid name
+                                            if (!passengerName) {
+                                                // Last resort: use the name from p.name or a default
+                                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                                            }
+                                            
+                                            // Debug: log the name being set
+                                            console.log('[RoomingManager] Setting selected passenger:', { 
+                                                id: p.id, 
+                                                name: passengerName, 
+                                                bookingId: p.bookingId, 
+                                                dbPassenger: dbPassenger?.full_name, 
+                                                pName: p.name, 
+                                                pDetails: p.details?.name,
+                                                isAccompaniment: p.isAccompaniment,
+                                                passengerIndex: p.passengerIndex
+                                            });
+                                            
+                                            // Ensure passengerName is never empty before setting
+                                            if (!passengerName || passengerName.trim() === '') {
+                                                console.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
+                                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
+                                            }
+                                            
                                             setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                         }
                                     }} 
                                     className={`
                                         p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
-                                        ${assignedInfo ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
-                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : ''}
+                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 border-primary-600 text-white shadow-md scale-[1.02]' : ''}
+                                        ${assignedInfo && selectedPassenger?.id !== p.id ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : ''}
+                                        ${!assignedInfo && selectedPassenger?.id !== p.id ? 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing' : ''}
                                     `}
                                  >
                                      <div className="flex items-center gap-3 overflow-hidden">
