@@ -331,16 +331,21 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
     const { showToast } = useToast();
 
-    // Data Migration & Initialization Effect
+    // Data Migration & Initialization Effect - Só inicializa uma vez
+    const [isInitialized, setIsInitialized] = useState(false);
+    
     useEffect(() => {
+        // Só inicializar uma vez quando o componente monta
+        if (isInitialized || vehicles.length > 0) return;
+        
         if (legacyTransport?.vehicles && legacyTransport.vehicles.length > 0) {
             // New structure exists
             const currentVehicles = legacyTransport.vehicles;
             setVehicles(currentVehicles);
-            // Só definir activeVehicleId se não houver um já definido ou se o atual não existir mais
-            if (!activeVehicleId || !currentVehicles.find(v => v.id === activeVehicleId)) {
+            if (!activeVehicleId) {
                 setActiveVehicleId(currentVehicles[0].id);
             }
+            setIsInitialized(true);
         } else if (legacyTransport?.vehicleConfig) {
             // Migrate legacy single vehicle to array
             const migratedVehicle: VehicleInstance = {
@@ -354,8 +359,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             if (!activeVehicleId) {
                 setActiveVehicleId(migratedVehicle.id);
             }
+            setIsInitialized(true);
         }
-    }, [trip.operationalData?.transport?.vehicles]); // Only re-run if vehicles array changes
+    }, [trip.operationalData?.transport]); // Só roda quando transport muda pela primeira vez
 
     // Derived State: Active Vehicle
     const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
@@ -495,6 +501,11 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         }
         
         const config = VEHICLE_TYPES[type];
+        if (!config) {
+            showToast('Tipo de veículo inválido', 'error');
+            return;
+        }
+        
         const vehicleNumber = vehicles.length + 1;
         const newVehicle: VehicleInstance = {
             id: `v-${Date.now()}`,
@@ -509,6 +520,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         // Atualizar estado local imediatamente
         setVehicles(updatedVehicles);
         setActiveVehicleId(newVehicle.id);
+        
+        // Marcar como inicializado para evitar que o useEffect sobrescreva
+        setIsInitialized(true);
         
         // Salvar no banco
         onSave({ 
