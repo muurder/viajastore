@@ -470,6 +470,160 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         setSeatToDelete(null);
     };
 
+    // Auto-preenchimento inteligente
+    const handleAutoFill = () => {
+        if (!activeVehicle) {
+            showToast('Selecione um veículo primeiro', 'warning');
+            return;
+        }
+
+        // Filtrar apenas passageiros não atribuídos
+        const unassignedPassengers = allPassengers.filter(p => !globalAssignmentMap.has(p.id));
+
+        if (unassignedPassengers.length === 0) {
+            showToast('Todos os passageiros já estão atribuídos', 'info');
+            return;
+        }
+
+        // Agrupar passageiros por bookingId (titular + acompanhantes juntos)
+        const passengerGroups: Map<string, typeof unassignedPassengers> = new Map();
+        
+        unassignedPassengers.forEach(p => {
+            const groupKey = p.bookingId;
+            if (!passengerGroups.has(groupKey)) {
+                passengerGroups.set(groupKey, []);
+            }
+            passengerGroups.get(groupKey)!.push(p);
+        });
+
+        // Ordenar grupos: grupos maiores primeiro (mais acompanhantes)
+        const sortedGroups = Array.from(passengerGroups.values()).sort((a, b) => b.length - a.length);
+
+        // Obter assentos disponíveis do veículo ativo
+        const occupiedSeats = new Set(activeVehicle.seats.map(s => s.seatNumber));
+        const availableSeats: number[] = [];
+        for (let i = 1; i <= activeVehicle.config.totalSeats; i++) {
+            if (!occupiedSeats.has(i.toString())) {
+                availableSeats.push(i);
+            }
+        }
+
+        if (availableSeats.length === 0) {
+            showToast('Não há assentos disponíveis neste veículo', 'warning');
+            return;
+        }
+
+        if (availableSeats.length < unassignedPassengers.length) {
+            showToast(`Apenas ${availableSeats.length} assentos disponíveis para ${unassignedPassengers.length} passageiros`, 'warning');
+        }
+
+        // Limpar assentos atuais do veículo ativo (apenas os que serão realocados)
+        const cleanedVehicles = vehicles.map(v => {
+            if (v.id === activeVehicle.id) {
+                // Manter apenas assentos de passageiros que não estão na lista de não atribuídos
+                const keepSeats = v.seats.filter(s => {
+                    const passenger = allPassengers.find(p => p.id === s.bookingId);
+                    return passenger && globalAssignmentMap.has(passenger.id);
+                });
+                return { ...v, seats: keepSeats };
+            }
+            return v;
+        });
+
+        const newSeats: PassengerSeat[] = [...cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats];
+        const usedSeats = new Set(newSeats.map(s => parseInt(s.seatNumber)));
+        let availableIndex = 0;
+
+        // Preencher grupos tentando manter juntos
+        sortedGroups.forEach(group => {
+            const groupSize = group.length;
+            let startIndex = availableIndex;
+            let foundConsecutive = false;
+
+            // Tentar encontrar assentos consecutivos para o grupo
+            for (let i = 0; i <= availableSeats.length - groupSize; i++) {
+                const consecutive = availableSeats.slice(i, i + groupSize);
+                if (consecutive.length === groupSize) {
+                    // Verificar se esses assentos ainda estão disponíveis
+                    const stillAvailable = consecutive.every(seat => !usedSeats.has(seat));
+                    if (stillAvailable) {
+                        startIndex = i;
+                        foundConsecutive = true;
+                        break;
+                    }
+                }
+            }
+
+            // Atribuir assentos ao grupo
+            group.forEach((passenger, idx) => {
+                let seatNum: number;
+                if (foundConsecutive && startIndex + idx < availableSeats.length) {
+                    seatNum = availableSeats[startIndex + idx];
+                } else {
+                    // Encontrar próximo assento disponível
+                    while (availableIndex < availableSeats.length && usedSeats.has(availableSeats[availableIndex])) {
+                        availableIndex++;
+                    }
+                    if (availableIndex < availableSeats.length) {
+                        seatNum = availableSeats[availableIndex];
+                        availableIndex++;
+                    } else {
+                        return; // Sem mais assentos disponíveis
+                    }
+                }
+
+                if (!usedSeats.has(seatNum)) {
+                    newSeats.push({
+                        seatNumber: seatNum.toString(),
+                        passengerName: passenger.name,
+                        bookingId: passenger.id,
+                        status: 'occupied'
+                    });
+                    usedSeats.add(seatNum);
+                }
+            });
+
+            // Atualizar índice para próximo grupo
+            if (foundConsecutive) {
+                availableIndex = startIndex + groupSize;
+            }
+        });
+
+        // Atualizar veículo com novos assentos
+        const finalVehicles = cleanedVehicles.map(v => {
+            if (v.id === activeVehicle.id) {
+                return { ...v, seats: newSeats };
+            }
+            return v;
+        });
+
+        saveVehicles(finalVehicles);
+        const newlyAssigned = newSeats.length - cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats.length;
+        showToast(`${newlyAssigned} passageiros atribuídos automaticamente!`, 'success');
+    };
+
+    // Limpar todos os assentos
+    const handleClearAllSeats = () => {
+        if (!activeVehicle) {
+            showToast('Selecione um veículo primeiro', 'warning');
+            return;
+        }
+
+        if (!window.confirm('Tem certeza que deseja limpar todos os assentos deste veículo?')) {
+            return;
+        }
+
+        const updatedVehicles = vehicles.map(v => {
+            if (v.id === activeVehicle.id) {
+                return { ...v, seats: [] };
+            }
+            return v;
+        });
+
+        saveVehicles(updatedVehicles);
+        showToast('Todos os assentos foram limpos', 'success');
+    };
+
     const handleDeleteVehicle = (vehicleId: string) => {
         if(window.confirm('Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados.')) {
             const updatedVehicles = vehicles.filter(v => v.id !== vehicleId);
@@ -717,14 +871,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return (
             <div className="flex-1 h-full flex flex-col items-center justify-center p-8 bg-slate-50 animate-[fadeIn_0.3s]">
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 max-w-2xl w-full text-center">
-                    {!showCustomVehicleForm ? (
+                    {!showCustomVehicleForm && !isVehicleMenuOpen ? (
                         <>
                             <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600"><Settings2 size={32}/></div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-2">Adicione o Primeiro Veículo</h2>
                             <p className="text-gray-500 mb-6">Escolha o tipo de transporte para começar a organizar sua frota.</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
                                 {Object.values(VEHICLE_TYPES).map(v => (
-                                    <button key={v.type} onClick={() => handleSelectVehicleType(v.type)} className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-all">
+                                    <button 
+                                        key={v.type} 
+                                        onClick={() => handleSelectVehicleType(v.type)} 
+                                        className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-all"
+                                    >
                                         <Truck size={24} className="mb-3 text-gray-400"/>
                                         <span className="font-bold text-gray-700 text-sm">{v.label}</span>
                                         <span className="text-xs text-gray-400 mt-1">{v.totalSeats > 0 ? `${v.totalSeats} Lugares` : 'Definir'}</span>
@@ -732,7 +890,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 ))}
                             </div>
                         </>
-                    ) : (
+                    ) : showCustomVehicleForm ? (
                         <form onSubmit={handleSaveCustomVehicle} className="text-left max-w-sm mx-auto">
                              <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Veículo Personalizado</h3><button type="button" onClick={() => setShowCustomVehicleForm(false)}><X size={20}/></button></div>
                              <div className="space-y-4">
@@ -742,7 +900,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">Criar</button>
                              </div>
                         </form>
-                    )}
+                    ) : null}
                 </div>
             </div>
         );
@@ -919,59 +1077,88 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         </div>
                     ))}
                     
-                    {/* Add Vehicle Menu (Click based) */}
-                    <div className="relative z-30">
+                    {/* Add Vehicle Button - Mostra menu se há veículos, senão mostra tela completa */}
+                    {vehicles.length > 0 ? (
+                        <div className="relative z-30">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsVehicleMenuOpen(!isVehicleMenuOpen);
+                                }}
+                                className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
+                            >
+                                <Plus size={14}/> Add Veículo
+                            </button>
+                            
+                            {isVehicleMenuOpen && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-40" 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsVehicleMenuOpen(false);
+                                        }}
+                                    ></div>
+                                    <div 
+                                        className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50 animate-[scaleIn_0.1s]"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-2">Selecione o Tipo</p>
+                                        {Object.values(VEHICLE_TYPES).slice(0, 5).map(v => (
+                                            <button 
+                                                key={v.type} 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSelectVehicleType(v.type);
+                                                }} 
+                                                className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-gray-700 rounded-lg flex items-center gap-2"
+                                            >
+                                                <Truck size={12} className="text-gray-400"/> {v.label.split('(')[0]}
+                                            </button>
+                                        ))}
+                                        <div className="border-t my-1"></div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSelectVehicleType('CUSTOM');
+                                            }} 
+                                            className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-primary-600 font-bold rounded-lg"
+                                        >
+                                            Personalizado...
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
                         <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsVehicleMenuOpen(!isVehicleMenuOpen);
-                            }}
-                            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
+                            onClick={() => setIsVehicleMenuOpen(true)}
+                            className="flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg text-primary-600 hover:bg-primary-50"
                         >
                             <Plus size={14}/> Add Veículo
                         </button>
-                        
-                        {isVehicleMenuOpen && (
-                            <>
-                                <div 
-                                    className="fixed inset-0 z-40" 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsVehicleMenuOpen(false);
-                                    }}
-                                ></div>
-                                <div 
-                                    className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50 animate-[scaleIn_0.1s]"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-2">Selecione o Tipo</p>
-                                    {Object.values(VEHICLE_TYPES).slice(0, 5).map(v => (
-                                        <button 
-                                            key={v.type} 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSelectVehicleType(v.type);
-                                            }} 
-                                            className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-gray-700 rounded-lg flex items-center gap-2"
-                                        >
-                                            <Truck size={12} className="text-gray-400"/> {v.label.split('(')[0]}
-                                        </button>
-                                    ))}
-                                    <div className="border-t my-1"></div>
-                                    <button 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSelectVehicleType('CUSTOM');
-                                        }} 
-                                        className="w-full text-left px-2 py-1.5 hover:bg-gray-50 text-xs text-primary-600 font-bold rounded-lg"
-                                    >
-                                        Personalizado...
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    )}
                 </div>
+
+                {/* Botões de Ação - Auto Preencher e Limpar */}
+                {activeVehicle && vehicles.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200">
+                        <button
+                            onClick={handleAutoFill}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm"
+                            title="Preencher automaticamente mantendo acompanhantes juntos"
+                        >
+                            <Zap size={14}/> Auto Preencher
+                        </button>
+                        <button
+                            onClick={handleClearAllSeats}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm"
+                            title="Limpar todos os assentos deste veículo"
+                        >
+                            <Trash2 size={14}/> Limpar Assentos
+                        </button>
+                    </div>
+                )}
 
                 {/* Seat Map */}
                 <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide relative">
