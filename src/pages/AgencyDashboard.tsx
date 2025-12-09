@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +11,7 @@ import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
 import { 
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send
+  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -449,11 +450,11 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             key={seatNum}
                             onDragOver={(e) => { e.preventDefault(); if(!occupant) setDragOverSeat(seatStr); }}
                             onDragLeave={() => setDragOverSeat(null)}
-                            onDrop={(e) => !occupant && handleDrop(e, seatStr)}
+                            onDrop={(e) => { e.preventDefault(); setDragOverSeat(null); if(!occupant) handleDrop(e, seatStr); }}
                             onClick={() => handleSeatClick(seatStr)}
                             className={`
                                 relative w-12 h-12 flex flex-col items-center justify-center transition-all duration-200
-                                ${occupant ? 'cursor-pointer text-primary-600' : isTarget ? 'cursor-pointer scale-110 text-green-500' : 'cursor-pointer text-gray-300 hover:text-gray-400'}
+                                ${occupant ? 'cursor-pointer text-primary-600' : isTarget ? 'cursor-pointer scale-110 text-green-500 bg-green-50 rounded-lg shadow-sm border border-green-200' : 'cursor-pointer text-gray-300 hover:text-gray-400'}
                             `}
                             title={occupant ? occupant.passengerName : `Poltrona ${seatNum}`}
                         >
@@ -540,7 +541,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     <button onClick={() => { if(window.confirm('Resetar layout?')) { setConfig({ vehicleConfig: null, seats: [] }); onSave({ ...trip.operationalData, transport: undefined }); } }} className="ml-2 text-gray-400 hover:text-red-500"><Settings size={14}/></button>
                 </div>
                 <div className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide">
-                    <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit">
+                    <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto">
                         <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
                         <div className="mt-12 space-y-2 select-none">{renderBusLayout()}</div>
                         <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
@@ -837,21 +838,40 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
 
     if (!selectedTripId || !selectedTrip) {
         return (
-            <div className="flex h-full">
-                <div className="w-80 border-r border-gray-200 bg-white p-4 overflow-y-auto custom-scrollbar flex-shrink-0">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">Selecione uma viagem</h3>
-                    <div className="space-y-2">
-                        {myTrips.map(trip => (
-                            <button key={trip.id} onClick={() => onSelectTrip(trip.id)} className="w-full text-left p-3 rounded-lg hover:bg-gray-50 border border-gray-100 hover:border-gray-300 transition-all text-sm font-medium text-gray-700 flex items-center justify-between group">
-                                <span className="truncate">{trip.title}</span>
-                                <ChevronRight size={16} className="text-gray-300 group-hover:text-primary-600"/>
-                            </button>
-                        ))}
+            <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-50 p-8">
+                <div className="max-w-6xl mx-auto w-full">
+                    <div className="text-center mb-10">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-primary-600"><Bus size={32}/></div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Selecione uma viagem para gerenciar</h2>
+                        <p className="text-gray-500">Configure assentos, quartos e passageiros.</p>
                     </div>
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-slate-50">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm"><Bus size={32} className="opacity-50"/></div>
-                    <p className="font-medium">Selecione um pacote para gerenciar.</p>
+                    
+                    {myTrips.filter(t => t.is_active).length === 0 ? (
+                        <div className="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
+                            <p className="text-gray-500">Nenhuma viagem ativa encontrada.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {myTrips.filter(t => t.is_active).map(trip => (
+                                <div key={trip.id} onClick={() => onSelectTrip(trip.id)} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-lg hover:border-primary-300 transition-all cursor-pointer group flex flex-col h-full">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                            <img src={trip.images[0] || 'https://placehold.co/100x100?text=IMG'} className="w-full h-full object-cover" alt="" />
+                                        </div>
+                                        <div className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">Ativo</div>
+                                    </div>
+                                    <h3 className="font-bold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors line-clamp-1">{trip.title}</h3>
+                                    <p className="text-xs text-gray-500 mb-4 flex items-center gap-1"><Calendar size={12}/> {safeDate(trip.startDate)}</p>
+                                    
+                                    <div className="mt-auto pt-4 border-t border-gray-100">
+                                        <button className="w-full bg-gray-50 text-gray-700 font-bold py-2 rounded-lg text-sm group-hover:bg-primary-600 group-hover:text-white transition-colors flex items-center justify-center gap-2">
+                                            <Settings2 size={16}/> Gerenciar
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -862,11 +882,20 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex justify-between items-center border-b border-gray-200 bg-white px-6 py-2 shrink-0 h-14">
-                <div className="flex gap-6 h-full">
-                    <button onClick={() => setActiveView('TRANSPORT')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Bus size={18}/> Transporte</button>
-                    <button onClick={() => setActiveView('ROOMING')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Hospedagem</button>
+                <div className="flex items-center gap-4 h-full">
+                    <button onClick={() => onSelectTrip(null)} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors" title="Voltar para seleção">
+                        <ArrowLeft size={20}/>
+                    </button>
+                    <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                    <div className="flex gap-6 h-full">
+                        <button onClick={() => setActiveView('TRANSPORT')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'TRANSPORT' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><Bus size={18}/> Transporte</button>
+                        <button onClick={() => setActiveView('ROOMING')} className={`flex items-center gap-2 h-full border-b-2 text-sm font-bold transition-colors ${activeView === 'ROOMING' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}><BedDouble size={18}/> Hospedagem</button>
+                    </div>
                 </div>
-                <button onClick={generateManifest} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm"><FileDown size={14}/> Manifesto PDF</button>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-gray-500 hidden sm:inline-block max-w-[200px] truncate">{selectedTrip.title}</span>
+                    <button onClick={generateManifest} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm"><FileDown size={14}/> Manifesto PDF</button>
+                </div>
             </div>
             
             <div className="flex-1 overflow-hidden min-h-0 bg-slate-50">
@@ -1043,6 +1072,13 @@ const AgencyDashboard: React.FC = () => {
 
   const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
   
+  // Custom handler for switching to operational view with a pre-selected trip
+  const handleGoToOperational = (tripId: string) => {
+      setSearchParams({ tab: 'OPERATIONS' });
+      setSelectedOperationalTripId(tripId);
+      // We manually set this here because handleTabChange clears the selection
+  };
+
   const handleEditTrip = (trip: Trip) => { 
       const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
       setTripForm({ ...trip, operationalData: opData }); 
@@ -1109,7 +1145,7 @@ const AgencyDashboard: React.FC = () => {
   const getTripActions = (trip: Trip) => [
     { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
     { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
-    { label: 'Gerenciar Operacional', icon: Bus, onClick: () => setSelectedOperationalTripId(trip.id) },
+    { label: 'Gerenciar Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) },
     { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
     { label: 'Pausar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
     { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
@@ -1575,48 +1611,35 @@ const AgencyDashboard: React.FC = () => {
       )}
 
       {activeTab === 'OPERATIONS' && (
-          <div className="animate-[fadeIn_0.3s]">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+          <div className="animate-[fadeIn_0.3s] h-full flex flex-col">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6 flex-shrink-0">
                   <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2"><Bus size={24}/> Gerenciar Operacional</h2>
                   <p className="text-gray-600 mb-4">Organize seus passageiros em assentos e quartos para cada viagem.</p>
                   <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-xl flex items-start gap-3">
                     <Info size={20} className="flex-shrink-0 mt-0.5"/>
                     <p className="text-sm">
-                        Selecione uma viagem na barra lateral para começar a configurar o layout do transporte e a lista de quartos.
+                        Selecione uma viagem abaixo para começar a configurar o layout do transporte e a lista de quartos.
                         As alterações são salvas automaticamente.
                     </p>
                   </div>
               </div>
               
-              {selectedOperationalTripId && currentAgency ? (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-                      {/* Changed h-[95vh] to h-[90vh] and added flex flex-col overflow-hidden to parent */}
-                      <div className="bg-white rounded-2xl max-w-7xl w-full h-[90vh] shadow-2xl relative flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => setSelectedOperationalTripId(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-50"><X size={20}/></button>
-                          <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center gap-4 shrink-0">
-                              <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center"><Truck size={20}/></div>
-                              <h2 className="text-xl font-bold text-gray-900">Gerenciar Operacional</h2>
-                          </div>
-                          
-                          {/* Container for the module needs to be flex-1 and handle overflow */}
-                          <div className="flex-1 overflow-hidden min-h-0">
-                              <OperationsModule 
-                                  myTrips={myTrips} 
-                                  myBookings={myBookings} 
-                                  clients={clients} 
-                                  selectedTripId={selectedOperationalTripId} 
-                                  onSelectTrip={setSelectedOperationalTripId}
-                                  onSaveTripData={updateTripOperationalData}
-                                  currentAgency={currentAgency}
-                              />
-                          </div>
-                      </div>
-                  </div>
-              ) : (
-                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center text-gray-500">
-                       <p>Selecione uma viagem na aba "Meus Pacotes" e clique em "Gerenciar Operacional" para abrir o painel.</p>
-                   </div>
-              )}
+              {/* Operations Module Container with Flex Grow */}
+              <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                  {currentAgency ? (
+                      <OperationsModule 
+                          myTrips={myTrips} 
+                          myBookings={myBookings} 
+                          clients={clients} 
+                          selectedTripId={selectedOperationalTripId} 
+                          onSelectTrip={setSelectedOperationalTripId}
+                          onSaveTripData={updateTripOperationalData}
+                          currentAgency={currentAgency}
+                      />
+                  ) : (
+                      <div className="p-8 text-center text-gray-500">Carregando dados da agência...</div>
+                  )}
+              </div>
           </div>
       )}
 
