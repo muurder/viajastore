@@ -1321,18 +1321,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         const updatedVehicles = [...vehicles, newVehicle];
         
-        // Atualizar estado local imediatamente
-        setVehicles(updatedVehicles);
+        // Save vehicles (updates local state AND saves to database)
+        saveVehicles(updatedVehicles);
         setActiveVehicleId(newVehicle.id);
         
         // Marcar como inicializado para evitar que o useEffect sobrescreva
         setIsInitialized(true);
         
-        // Salvar no banco
-        onSave({ 
-            ...trip.operationalData, 
-            transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
-        });
+        // Feedback ao usuário
+        showToast(`Veículo "${newVehicle.name}" criado com sucesso!`, 'success');
+        
+        // Fechar menu
+        setIsVehicleMenuOpen(false);
         
         // Feedback ao usuário
         showToast(`Veículo "${newVehicle.name}" criado com sucesso!`, 'success');
@@ -1352,11 +1352,11 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             aisleAfterCol: Math.floor(customVehicleData.cols / 2) 
         };
 
-        let updatedVehicles = [...vehicles];
+        let updatedVehicles: VehicleInstance[];
 
         if (editingVehicleId) {
-            // Updating existing vehicle
-            updatedVehicles = updatedVehicles.map(v => {
+            // Updating existing vehicle - use map to update the specific vehicle
+            updatedVehicles = vehicles.map(v => {
                 if (v.id === editingVehicleId) {
                     return {
                         ...v,
@@ -1375,18 +1375,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 config,
                 seats: []
             };
-            updatedVehicles.push(newVehicle);
+            updatedVehicles = [...vehicles, newVehicle];
             
-            // Atualizar estado local imediatamente
-            setVehicles(updatedVehicles);
+            // Set the new vehicle as active
             setActiveVehicleId(newVehicle.id);
         }
 
-        // Salvar no banco
-        onSave({ 
-            ...trip.operationalData, 
-            transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
-        });
+        // Save vehicles (updates local state AND saves to database)
+        saveVehicles(updatedVehicles);
         
         // Feedback ao usuário
         if (!editingVehicleId) {
@@ -1395,6 +1391,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             showToast('Veículo atualizado com sucesso!', 'success');
         }
         
+        // Reset form and close modal
         setShowCustomVehicleForm(false);
         setEditingVehicleId(null);
         setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
@@ -1565,12 +1562,14 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         </>
                     ) : showCustomVehicleForm ? (
                         <form onSubmit={handleSaveCustomVehicle} className="text-left max-w-sm mx-auto">
-                             <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">Veículo Personalizado</h3><button type="button" onClick={() => setShowCustomVehicleForm(false)}><X size={20}/></button></div>
+                             <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">{editingVehicleId ? 'Editar Veículo' : 'Veículo Personalizado'}</h3><button type="button" onClick={() => setShowCustomVehicleForm(false)}><X size={20}/></button></div>
                              <div className="space-y-4">
                                 <div><label className="text-sm font-bold">Nome</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded"/></div>
                                 <div><label className="text-sm font-bold">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"/></div>
                                 <div><label className="text-sm font-bold">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></div>
-                                <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">Criar</button>
+                                <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">
+                                    {editingVehicleId ? 'Salvar Alterações' : 'Criar'}
+                                </button>
                              </div>
                         </form>
                     ) : null}
@@ -1832,13 +1831,18 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                         >
                             <span className="truncate max-w-[100px] text-xs">{vehicle.name} <span className="opacity-50 font-normal">({vehicle.config.totalSeats})</span></span>
                             {activeVehicleId === vehicle.id && (
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                    <button onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} className="p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600">
+                                <div className="flex items-center gap-1 ml-2">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} 
+                                        className="p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors"
+                                        title="Editar veículo"
+                                    >
                                         <Edit3 size={12}/>
                                     </button>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }}
-                                        className="p-1 hover:bg-red-100 rounded-full text-red-400 hover:text-red-500"
+                                        className="p-1 hover:bg-red-100 rounded-full text-red-500 hover:text-red-600 transition-colors"
+                                        title="Remover veículo"
                                     >
                                         <Trash2 size={12}/>
                                     </button>
@@ -1934,14 +1938,21 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 <section className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide relative">
                     {activeVehicle ? (
                         <>
-                            {/* Botão de Editar Veículo - Visível sempre */}
-                            <div className="absolute top-4 right-4 z-20">
+                            {/* Botões de Ação do Veículo - Visíveis sempre */}
+                            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                                 <button 
                                     onClick={() => handleEditVehicle(activeVehicle)} 
                                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-lg hover:bg-primary-700 transition-colors text-xs font-bold"
                                     title="Editar veículo (alterar número de vagas)"
                                 >
                                     <Edit3 size={14}/> Editar Veículo
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteVehicle(activeVehicle.id)} 
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-700 transition-colors text-xs font-bold"
+                                    title="Remover veículo"
+                                >
+                                    <Trash2 size={14}/> Remover
                                 </button>
                             </div>
                             <div className="bg-white px-8 py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit h-fit my-auto animate-[scaleIn_0.3s]">
