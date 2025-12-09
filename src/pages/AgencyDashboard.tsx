@@ -341,13 +341,12 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         return [...booked, ...manual];
     }, [bookings, clients, manualPassengers, nameOverrides]);
 
+    const assignedSet = useMemo(() => {
+        return new Set(config.seats.map(s => s.bookingId));
+    }, [config.seats]);
+
     const isSeatOccupied = (seatNum: string) => config.seats.find(s => s.seatNumber === seatNum);
     
-    const unassignedPassengers = useMemo(() => {
-        const assignedIds = new Set(config.seats.map(s => s.bookingId));
-        return allPassengers.filter(p => !assignedIds.has(p.id));
-    }, [allPassengers, config.seats]);
-
     // Actions
     const handleAssign = (seatNum: string, passenger: { id: string, name: string, bookingId: string }) => {
         if (isSeatOccupied(seatNum)) {
@@ -515,21 +514,35 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             {/* Sidebar */}
             <div className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
                 <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({unassignedPassengers.length})</h4>
+                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedSet.size}/{allPassengers.length})</h4>
                     <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded"><Plus size={18}/></button>
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                     {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                    {unassignedPassengers.map(p => (
-                        <div key={p.id} draggable onDragStart={(e) => handleDragStart(e, p)} onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} className={`p-3 rounded-lg border text-sm cursor-grab active:cursor-grabbing flex items-center justify-between group select-none ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md ring-2 ring-primary-100' : 'bg-white border-gray-200 hover:border-primary-300'}`}>
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                <div className="min-w-0"><span className="font-medium truncate block">{p.name}</span>{p.isManual && <span className="text-[10px] opacity-70 block">Manual</span>}</div>
+                    {allPassengers.map(p => {
+                        const isAssigned = assignedSet.has(p.id);
+                        return (
+                            <div 
+                                key={p.id} 
+                                draggable={!isAssigned} 
+                                onDragStart={(e) => handleDragStart(e, p)} 
+                                onClick={() => !isAssigned && setSelectedPassenger(selectedPassenger?.id === p.id ? null : p)} 
+                                className={`
+                                    p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all
+                                    ${isAssigned ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
+                                    ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white border-primary-600 shadow-md ring-2 ring-primary-100' : ''}
+                                `}
+                            >
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    {!isAssigned && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                    {isAssigned && <CheckCircle size={14} className="text-green-600"/>}
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
+                                    <div className="min-w-0"><span className="font-medium truncate block">{p.name}</span>{p.isManual && <span className="text-[10px] opacity-70 block">Manual</span>}</div>
+                                </div>
+                                {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">OK</span>}
                             </div>
-                            {selectedPassenger?.id === p.id && <CheckCircle size={16}/>}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
                 <div className="p-3 bg-gray-50 border-t text-[10px] text-gray-400 text-center">Arraste para o assento ou clique para selecionar.</div>
             </div>
@@ -586,11 +599,11 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         return [...booked, ...manual];
     }, [bookings, clients, manualPassengers, nameOverrides]);
 
-    const unassignedPassengers = useMemo(() => {
-        const assignedIds = new Set();
-        rooms.forEach(r => r.guests.forEach(g => assignedIds.add(g.bookingId)));
-        return allPassengers.filter(p => !assignedIds.has(p.id));
-    }, [allPassengers, rooms]);
+    const assignedMap = useMemo(() => {
+        const map = new Map<string, string>();
+        rooms.forEach(r => r.guests.forEach(g => map.set(g.bookingId, r.name)));
+        return map;
+    }, [rooms]);
 
     // Actions
     const handleBatchCreate = () => {
@@ -676,21 +689,35 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                 {/* Left List */}
                 <div className="w-80 border-r bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
                     <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Sem Quarto ({unassignedPassengers.length})</h4>
+                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedMap.size}/{allPassengers.length})</h4>
                         <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded"><Plus size={18}/></button>
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                          {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                         {unassignedPassengers.map(p => (
-                             <div key={p.id} draggable onDragStart={(e) => handleDragStart(e, p)} onClick={() => setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} className={`p-3 rounded-lg border text-sm cursor-grab active:cursor-grabbing transition-all flex items-center justify-between group ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : 'bg-white border-gray-200 hover:border-primary-300'}`}>
-                                 <div className="flex items-center gap-3 overflow-hidden">
-                                     <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>
-                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
-                                     <span className="truncate font-medium">{p.name}</span>
+                         {allPassengers.map(p => {
+                             const assignedRoom = assignedMap.get(p.id);
+                             return (
+                                 <div 
+                                    key={p.id} 
+                                    draggable={!assignedRoom} 
+                                    onDragStart={(e) => handleDragStart(e, p)} 
+                                    onClick={() => !assignedRoom && setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: p.name, bookingId: p.bookingId})} 
+                                    className={`
+                                        p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
+                                        ${assignedRoom ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing'}
+                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 text-white shadow-md scale-[1.02]' : ''}
+                                    `}
+                                 >
+                                     <div className="flex items-center gap-3 overflow-hidden">
+                                         {!assignedRoom && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
+                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedPassenger?.id === p.id ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{p.name.charAt(0).toUpperCase()}</div>
+                                         <span className="truncate font-medium">{p.name}</span>
+                                     </div>
+                                     {selectedPassenger?.id === p.id && <CheckCircle size={16}/>}
+                                     {assignedRoom && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{assignedRoom}</span>}
                                  </div>
-                                 {selectedPassenger?.id === p.id && <CheckCircle size={16}/>}
-                             </div>
-                         ))}
+                             );
+                         })}
                     </div>
                     <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">Arraste para o quarto ou clique para selecionar.</div>
                 </div>
