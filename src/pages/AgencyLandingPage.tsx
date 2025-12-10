@@ -101,7 +101,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ onSubmit, isSubmitting, initial
 
 const AgencyLandingPage: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug: string }>();
-  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData, agencyReviews: allAgencyReviews } = useData();
+  const { getAgencyBySlug, getAgencyPublicTrips, getReviewsByAgencyId, loading, getAgencyTheme, bookings, addAgencyReview, updateAgencyReview, refreshData, agencyReviews: allAgencyReviews, fetchTripImages, trips: allTripsFromContext } = useData();
   const { setAgencyTheme } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -142,6 +142,17 @@ const AgencyLandingPage: React.FC = () => {
       if (!agency) return;
       const trips = getAgencyPublicTrips(agency.agencyId).filter(t => t.is_active);
       
+      // FIX: Load images for hero trips
+      if (trips.length > 0 && fetchTripImages) {
+          trips.forEach(trip => {
+              if (!trip.images || trip.images.length === 0) {
+                  fetchTripImages(trip.id).catch(err => {
+                      console.error(`[AgencyLandingPage] Error fetching images for hero trip ${trip.id}:`, err);
+                  });
+              }
+          });
+      }
+      
       setHeroTrips(prev => {
           // If we already have trips for this agency, preserve order to avoid shuffle jump
           if (prev.length > 0 && prev[0].agencyId === agency.agencyId) return prev;
@@ -157,7 +168,7 @@ const AgencyLandingPage: React.FC = () => {
           
           return combined.slice(0, 5);
       });
-  }, [agency?.agencyId, getAgencyPublicTrips]);
+  }, [agency?.agencyId, getAgencyPublicTrips, fetchTripImages]);
 
   // 3. Carousel Logic (Standardized)
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -173,7 +184,12 @@ const AgencyLandingPage: React.FC = () => {
   const currentHeroTrip = heroTrips.length > 0 ? heroTrips[currentIndex] : null;
 
   // Other Data
-  const allTrips = useMemo(() => agency ? getAgencyPublicTrips(agency.agencyId) : [], [agency, getAgencyPublicTrips]);
+  // Other Data - FIX: Depend on trips from context to ensure updates when images are loaded
+  const allTrips = useMemo(() => {
+      if (!agency) return [];
+      // Filter trips directly from context to ensure we get updated trips with images
+      return allTripsFromContext.filter(t => t.agencyId === agency.agencyId && t.is_active);
+  }, [agency?.agencyId, allTripsFromContext]);
   // Fix: Depend on allAgencyReviews directly to ensure updates are reflected immediately
   const agencyReviews = useMemo(() => {
     if (!agency) return [];
@@ -245,6 +261,9 @@ const AgencyLandingPage: React.FC = () => {
   };
 
   const filteredTrips = allTrips.filter(t => {
+      // Only show trips from this agency
+      if (agency && t.agencyId !== agency.agencyId) return false;
+      
       const matchesSearch = 
           t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.destination.toLowerCase().includes(searchTerm.toLowerCase());
@@ -260,6 +279,20 @@ const AgencyLandingPage: React.FC = () => {
           return t.tags.some(tag => normalizeText(tag).includes(cleanInterest));
       });
   });
+  
+  // FIX: Load images for trips that don't have them yet
+  useEffect(() => {
+      if (filteredTrips.length > 0 && fetchTripImages && agency) {
+          filteredTrips.forEach(trip => {
+              // Only fetch if images array is empty or invalid
+              if (!trip.images || trip.images.length === 0) {
+                  fetchTripImages(trip.id).catch(err => {
+                      console.error(`[AgencyLandingPage] Error fetching images for trip ${trip.id}:`, err);
+                  });
+              }
+          });
+      }
+  }, [filteredTrips.length, fetchTripImages, agency?.agencyId]); // Re-run when trips change or agency changes
 
   const toggleInterest = (label: string) => {
     if (label === 'Todos') {
