@@ -221,6 +221,11 @@ export interface Trip {
   featuredInHero?: boolean;
   popularNearSP?: boolean;
   operationalData?: OperationalData;
+  // Geolocation and capacity fields
+  latitude?: number;
+  longitude?: number;
+  maxGuests?: number;
+  allowChildren?: boolean;
 }
 
 export interface Booking {
@@ -293,6 +298,14 @@ export interface AgencyTheme {
   agencyId: string;
   colors: ThemeColors;
   updatedAt?: string;
+  // Smart Site Builder fields
+  fontPair?: 'modern' | 'classic' | 'playful';
+  borderRadius?: 'none' | 'soft' | 'full';
+  buttonStyle?: 'solid' | 'outline' | 'ghost';
+  headerStyle?: 'transparent' | 'solid';
+  backgroundImage?: string;
+  backgroundBlur?: number; // 0-20
+  backgroundOpacity?: number; // 0-1
 }
 
 export interface AuditLog {

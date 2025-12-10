@@ -20,6 +20,16 @@ export interface SearchTripsParams {
   minPrice?: number;
   maxPrice?: number;
   sort?: 'RELEVANCE' | 'LOW_PRICE' | 'HIGH_PRICE' | 'DATE_ASC' | 'RATING';
+  // Date range filtering
+  startDate?: string; // ISO date string
+  endDate?: string; // ISO date string
+  // Guest filtering
+  adults?: number;
+  children?: number;
+  // Geolocation
+  latitude?: number;
+  longitude?: number;
+  radius?: number; // in kilometers
 }
 
 export interface SearchAgenciesParams {
@@ -96,9 +106,10 @@ interface DataContextType {
   getReviewsByClientId: (clientId: string) => AgencyReview[];
   getAgencyStats: (agencyId: string) => Promise<DashboardStats>;
   getAgencyTheme: (agencyId: string) => Promise<AgencyTheme | null>;
-  saveAgencyTheme: (agencyId: string, colors: ThemeColors) => Promise<boolean>;
+  saveAgencyTheme: (agencyId: string, theme: Partial<AgencyTheme>) => Promise<boolean>;
   refreshUserData: () => Promise<void>; // Alias for _fetchBookingsForCurrentUser or specific user data refresh
   incrementTripViews: (tripId: string) => Promise<void>;
+  fetchTripImages: (tripId: string) => Promise<string[]>; // Load images on-demand
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -159,9 +170,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     try {
-        // 1. Fetch Agencies (exclude soft-deleted)
+        // 1. Fetch Agencies (exclude soft-deleted) (OPTIMIZED: only needed fields)
         const { data: agenciesData } = await sb.from('agencies')
-          .select('*')
+          .select('id, user_id, name, email, slug, whatsapp, cnpj, description, logo_url, is_active, hero_mode, hero_banner_url, hero_title, hero_subtitle, custom_settings, subscription_status, subscription_plan, subscription_expires_at, website, phone, address, bank_info, deleted_at')
           .is('deleted_at', null); // FIX: Only fetch non-deleted agencies
         if (agenciesData) {
             const mappedAgencies: Agency[] = agenciesData.map((a: any) => ({
@@ -170,24 +181,37 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setAgencies(mappedAgencies);
         }
 
-        // 2. Fetch Trips (and images)
-        const { data: tripsData } = await sb.from('trips').select('*, trip_images(*)');
+        // 2. Fetch Trips (OPTIMIZED: without images to reduce egress)
+        // Images will be loaded on-demand when needed
+        const { data: tripsData } = await sb.from('trips')
+          .select(`
+            id, agency_id, title, slug, description, destination, price,
+            start_date, end_date, duration_days, category, tags, traveler_types,
+            itinerary, boarding_points, payment_methods, is_active,
+            trip_rating, trip_total_reviews, included, not_included,
+            views_count, sales_count, featured, featured_in_hero,
+            popular_near_sp, operational_data, created_at, updated_at
+          `);
         if (tripsData) {
             const mappedTrips: Trip[] = tripsData.map((t: any) => ({
-                id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: t.trip_images?.sort((a:any,b:any) => a.position - b.position).map((i:any) => i.image_url) || [], category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
+                id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: [], // Images loaded on-demand via fetchTripImages
+                category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
             }));
             setTrips(mappedTrips);
         }
 
-        // 3. Fetch all Favorites
-        const { data: favsData, error: favsError } = await sb.from('favorites').select('*');
+        // 3. Fetch all Favorites (OPTIMIZED: only needed fields)
+        const { data: favsData, error: favsError } = await sb.from('favorites')
+          .select('user_id, trip_id');
         if (favsError) {
             console.error("[DataContext] Error fetching favorites:", favsError);
         }
         const allFavorites = favsData || [];
 
-        // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients
-        const { data: profilesData } = await sb.from('profiles').select('*').eq('role', UserRole.CLIENT);
+        // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients (OPTIMIZED: only needed fields)
+        const { data: profilesData } = await sb.from('profiles')
+          .select('id, full_name, email, role, avatar_url, cpf, phone, birth_date, address, status, created_at')
+          .eq('role', UserRole.CLIENT);
         if (profilesData) {
             const mappedClients: Client[] = profilesData.map((c: any) => ({
                 id: c.id, 
@@ -207,9 +231,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setClients(mappedClients);
         }
 
-        // 5. Fetch Agency Reviews (JOIN with profiles to get name/avatar)
+        // 5. Fetch Agency Reviews (JOIN with profiles to get name/avatar) (OPTIMIZED: only needed fields)
         const { data: reviewsData } = await sb.from('agency_reviews')
-          .select('*, client:client_id(full_name, avatar_url)'); // Join with profiles
+          .select('id, agency_id, client_id, booking_id, trip_id, rating, comment, tags, created_at, response, client:client_id(full_name, avatar_url)'); // Join with profiles
         
         if (reviewsData) {
             setAgencyReviews(reviewsData.map((r: any) => ({
@@ -231,16 +255,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             })));
         }
         
-        // 6. Fetch Audit Logs
-        const { data: auditLogsData } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false });
+        // 6. Fetch Audit Logs (OPTIMIZED: only needed fields)
+        const { data: auditLogsData } = await sb.from('audit_logs')
+          .select('id, admin_email, action, details, created_at')
+          .order('created_at', { ascending: false });
         if (auditLogsData) {
             setAuditLogs(auditLogsData.map((log: any) => ({
                 id: log.id, adminEmail: log.admin_email, action: log.action, details: log.details, createdAt: log.created_at
             })));
         }
 
-        // 7. Fetch Activity Logs
-        const { data: activityLogsData } = await sb.from('activity_logs').select('*').order('created_at', { ascending: false });
+        // 7. Fetch Activity Logs (OPTIMIZED: only needed fields)
+        const { data: activityLogsData } = await sb.from('activity_logs')
+          .select('id, user_id, action_type, details, created_at')
+          .order('created_at', { ascending: false });
         if (activityLogsData) {
             setActivityLogs(activityLogsData.map((log: any) => ({
                 id: log.id, userId: log.user_id, actionType: log.action_type, details: log.details, createdAt: log.created_at
@@ -1549,13 +1577,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       console.log("[DataContext] Fetching agency theme for ID:", agencyId); // Debug Log
       try {
-          const { data, error } = await sb.from('agency_themes').select('*').eq('agency_id', agencyId).maybeSingle();
+          const { data, error } = await sb.from('agency_themes')
+            .select('agency_id, colors, font_pair, border_radius, button_style, header_style, background_image, background_blur, background_opacity, updated_at')
+            .eq('agency_id', agencyId)
+            .maybeSingle();
           if (error) throw error;
           if (data) {
               console.log("[DataContext] Agency theme loaded:", data); // Debug Log
               return {
                   agencyId: data.agency_id,
                   colors: data.colors as ThemeColors,
+                  fontPair: data.font_pair as 'modern' | 'classic' | 'playful' | undefined,
+                  borderRadius: data.border_radius as 'none' | 'soft' | 'full' | undefined,
+                  buttonStyle: data.button_style as 'solid' | 'outline' | 'ghost' | undefined,
+                  headerStyle: data.header_style as 'transparent' | 'solid' | undefined,
+                  backgroundImage: data.background_image || undefined,
+                  backgroundBlur: data.background_blur || undefined,
+                  backgroundOpacity: data.background_opacity || undefined,
                   updatedAt: data.updated_at,
               };
           }
@@ -1567,17 +1605,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
   }, [guardSupabase]);
 
-  const saveAgencyTheme = useCallback(async (agencyId: string, colors: ThemeColors): Promise<boolean> => {
+  const saveAgencyTheme = useCallback(async (agencyId: string, theme: Partial<AgencyTheme>): Promise<boolean> => {
       const sb = guardSupabase();
       if (!sb) {
           console.warn("[DataContext] Supabase not configured, cannot save agency theme."); // Debug Log
           return false;
       }
-      console.log("[DataContext] Saving agency theme for ID:", agencyId, "Colors:", colors); // Debug Log
+      console.log("[DataContext] Saving agency theme for ID:", agencyId, "Theme:", theme); // Debug Log
       try {
           const { error } = await sb.from('agency_themes').upsert({
               agency_id: agencyId,
-              colors: colors,
+              colors: theme.colors,
+              font_pair: theme.fontPair,
+              border_radius: theme.borderRadius,
+              button_style: theme.buttonStyle,
+              header_style: theme.headerStyle,
+              background_image: theme.backgroundImage,
+              background_blur: theme.backgroundBlur,
+              background_opacity: theme.backgroundOpacity,
           }, { onConflict: 'agency_id' }); // If a theme for this agency already exists, update it
 
           if (error) throw error;
@@ -1603,6 +1648,51 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log("[DataContext] Trip views incremented successfully:", tripId); // Debug Log
     } catch (error: any) {
         console.error("[DataContext] Error incrementing trip views:", error.message); // Debug Log
+    }
+  }, [guardSupabase]);
+
+  // Load trip images on-demand to reduce egress
+  const fetchTripImages = useCallback(async (tripId: string): Promise<string[]> => {
+    const sb = guardSupabase();
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot fetch trip images."); // Debug Log
+        return [];
+    }
+    
+    // Check if trip already has images cached
+    const trip = tripsRef.current.find(t => t.id === tripId);
+    if (trip && trip.images && trip.images.length > 0) {
+        return trip.images;
+    }
+    
+    console.log("[DataContext] Fetching images for trip ID:", tripId); // Debug Log
+    try {
+        const { data, error } = await sb
+            .from('trip_images')
+            .select('image_url, position')
+            .eq('trip_id', tripId)
+            .order('position', { ascending: true });
+        
+        if (error) throw error;
+        
+        const imageUrls = (data || []).map((img: any) => img.image_url);
+        
+        // Update trip in state with images
+        if (trip) {
+            setTrips(prevTrips => 
+                prevTrips.map(t => 
+                    t.id === tripId 
+                        ? { ...t, images: imageUrls }
+                        : t
+                )
+            );
+        }
+        
+        console.log("[DataContext] Trip images fetched successfully:", tripId, "Count:", imageUrls.length); // Debug Log
+        return imageUrls;
+    } catch (error: any) {
+        console.error("[DataContext] Error fetching trip images:", error.message); // Debug Log
+        return [];
     }
   }, [guardSupabase]);
 
@@ -1637,6 +1727,73 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (params.agencyId) result = result.filter(t => t.agencyId === params.agencyId);
     if (params.minPrice) result = result.filter(t => t.price >= params.minPrice!);
     if (params.maxPrice) result = result.filter(t => t.price <= params.maxPrice!);
+
+    // Date range filtering: trips that overlap with or are within the search date range
+    if (params.startDate || params.endDate) {
+        const searchStart = params.startDate ? new Date(params.startDate) : null;
+        const searchEnd = params.endDate ? new Date(params.endDate) : null;
+        
+        result = result.filter(t => {
+            const tripStart = new Date(t.startDate);
+            const tripEnd = new Date(t.endDate);
+            
+            // Trip overlaps with search range if:
+            // - Trip starts before search ends AND trip ends after search starts
+            if (searchStart && searchEnd) {
+                return tripStart <= searchEnd && tripEnd >= searchStart;
+            }
+            // If only start date provided, show trips that start on or after that date
+            if (searchStart && !searchEnd) {
+                return tripStart >= searchStart;
+            }
+            // If only end date provided, show trips that end on or before that date
+            if (!searchStart && searchEnd) {
+                return tripEnd <= searchEnd;
+            }
+            return true;
+        });
+    }
+
+    // Guest filtering
+    if (params.children !== undefined && params.children > 0) {
+        // If children are included, filter trips that allow children
+        result = result.filter(t => t.allowChildren !== false);
+    }
+    
+    if (params.adults !== undefined || params.children !== undefined) {
+        const totalGuests = (params.adults || 0) + (params.children || 0);
+        if (totalGuests > 0) {
+            result = result.filter(t => {
+                // If trip has maxGuests defined, check if it can accommodate
+                if (t.maxGuests !== undefined) {
+                    return t.maxGuests >= totalGuests;
+                }
+                // If no maxGuests defined, allow the trip (assume it can accommodate)
+                return true;
+            });
+        }
+    }
+
+    // Geolocation filtering (simple distance-based, can be improved with Haversine formula)
+    if (params.latitude !== undefined && params.longitude !== undefined && params.radius) {
+        const searchLat = params.latitude;
+        const searchLng = params.longitude;
+        const radiusKm = params.radius || 50; // Default 50km radius
+        
+        result = result.filter(t => {
+            if (t.latitude === undefined || t.longitude === undefined) {
+                // If trip has no coordinates, include it (or exclude based on preference)
+                return true; // Include trips without coordinates for now
+            }
+            
+            // Simple distance calculation (Haversine would be more accurate)
+            const latDiff = (t.latitude - searchLat) * 111; // 1 degree ≈ 111 km
+            const lngDiff = (t.longitude - searchLng) * 111 * Math.cos(searchLat * Math.PI / 180);
+            const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+            
+            return distance <= radiusKm;
+        });
+    }
 
     if (params.sort) {
         switch (params.sort) {
@@ -1710,7 +1867,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
       updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction, sendPasswordReset, updateUserAvatarByAdmin,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, getAgencyStats, getAgencyTheme, saveAgencyTheme,
-      refreshUserData, incrementTripViews
+      refreshUserData, incrementTripViews, fetchTripImages
     }}>
       {children}
     </DataContext.Provider>

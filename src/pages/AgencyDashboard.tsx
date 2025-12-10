@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { usePlanPermissions } from '../hooks/usePlanPermissions';
 import { 
-  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance, HotelInstance
+  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, AgencyTheme, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance, HotelInstance
 } from '../types'; 
 import { PLANS } from '../services/mockData';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
@@ -17,6 +17,7 @@ import { jsPDF } from 'jspdf';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
 import BusVisualizer from '../components/agency/BusVisualizer';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
 import { slugify } from '../utils/slugify';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
@@ -1778,7 +1779,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 setActiveVehicleId(updatedVehicles[0]?.id || null);
             }
             showToast('Veículo removido com sucesso', 'success');
-            setVehicleToDelete(null);
+            // Don't close modal here - ConfirmDialog will handle it via onClose()
         } catch (error: any) {
             console.error('Error deleting vehicle:', error);
             showToast(`Erro ao remover veículo: ${error.message || 'Erro desconhecido'}`, 'error');
@@ -3964,8 +3965,9 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                                                     <img 
                                                         src={trip.images[0]} 
                                                         alt={trip.title}
-                                                        className="w-full h-full object-cover"
                                                         loading="lazy"
+                                                        decoding="async"
+                                                        className="w-full h-full object-cover"
                                                         onError={(e) => {
                                                             (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=IMG';
                                                         }}
@@ -4202,7 +4204,7 @@ const AgencyDashboard: React.FC = () => {
       subscriptionPlan: 'BASIC', // FIX: Added default
       subscriptionExpiresAt: new Date().toISOString(), // FIX: Added default
   }));
-  const [themeForm, setThemeForm] = useState<ThemeColors>(() => ({ primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' }));
+  const [currentTheme, setCurrentTheme] = useState<AgencyTheme | null>(null);
   const [heroForm, setHeroForm] = useState(() => ({ heroMode: 'TRIPS' as 'TRIPS' | 'STATIC', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' })); // FIX: Explicit type for heroMode
 
   const [loading, setLoading] = useState(false);
@@ -4270,8 +4272,10 @@ const AgencyDashboard: React.FC = () => {
         if (currentAgency?.agencyId) { // Ensure agencyId exists before fetching theme
             const savedTheme = await getAgencyTheme(currentAgency.agencyId); 
             if (savedTheme) { 
-                setThemeForm(savedTheme.colors); 
-            } 
+                setCurrentTheme(savedTheme); 
+            } else {
+                setCurrentTheme(null);
+            }
         } 
     }; 
     fetchTheme(); 
@@ -4369,18 +4373,36 @@ const AgencyDashboard: React.FC = () => {
           setLoading(false); 
       } 
   };
-  const handleSaveTheme = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
+  const handleSaveTheme = async (theme: Partial<AgencyTheme>) => { 
       setLoading(true); 
       try { 
-          await saveAgencyTheme(currentAgency!.agencyId, themeForm); 
-          setGlobalAgencyTheme(themeForm); 
-          showToast('Tema da agência atualizado!', 'success'); 
+          const success = await saveAgencyTheme(currentAgency!.agencyId, theme); 
+          if (success) {
+              setGlobalAgencyTheme(theme.colors || { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
+              // Refresh theme
+              const updatedTheme = await getAgencyTheme(currentAgency!.agencyId);
+              if (updatedTheme) setCurrentTheme(updatedTheme);
+          } else {
+              throw new Error('Falha ao salvar tema');
+          }
       } catch (err: any) { 
-          showToast('Erro ao salvar tema: ' + err.message, 'error'); // FIX: Added error message
+          showToast('Erro ao salvar tema: ' + err.message, 'error');
+          throw err;
       } finally { 
-          setLoading(false); 
+          setLoading(false);
       } 
+  };
+
+  const handleLogoUpload = async (file: File): Promise<string> => {
+      try {
+          const url = await uploadImage(file, 'agencies');
+          await updateUser({ logo: url });
+          showToast('Logo atualizado com sucesso!', 'success');
+          return url;
+      } catch (error: any) {
+          showToast('Erro ao fazer upload do logo: ' + error.message, 'error');
+          throw error;
+      }
   };
   const handleLogout = async () => { await logout(); navigate('/'); };
   
@@ -4887,7 +4909,13 @@ const AgencyDashboard: React.FC = () => {
                         <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
                             {/* Trip Image & Actions */}
                             <div className="relative h-48 w-full">
-                                <img src={trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem'} alt={trip.title} className="w-full h-full object-cover"/>
+                                <img 
+                                  src={trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem'} 
+                                  alt={trip.title} 
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-full h-full object-cover"
+                                />
                                 <div className="absolute top-3 left-3">
                                     <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
                                 </div>
@@ -5168,132 +5196,14 @@ const AgencyDashboard: React.FC = () => {
           </div>
       )}
 
-      {activeTab === 'THEME' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-              <div className="mb-8">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Personalizar Tema</h2>
-                  <p className="text-gray-500">Customize as cores do seu microsite de forma rápida e fácil</p>
-              </div>
-              
-              <form onSubmit={handleSaveTheme} className="space-y-8">
-                  {/* Preset Colors - Improved */}
-                  <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-4">🎨 Cores Pré-definidas</label>
-                      <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                          {[
-                              {p: '#3b82f6', s: '#f97316', name: 'Azul/Laranja'},
-                              {p: '#10b981', s: '#3b82f6', name: 'Verde/Azul'},
-                              {p: '#8b5cf6', s: '#ec4899', name: 'Roxo/Rosa'},
-                              {p: '#f59e0b', s: '#ef4444', name: 'Amarelo/Vermelho'},
-                              {p: '#06b6d4', s: '#10b981', name: 'Ciano/Verde'},
-                              {p: '#6366f1', s: '#8b5cf6', name: 'Índigo/Roxo'},
-                          ].map((c, i) => (
-                              <button 
-                                key={i}
-                                type="button"
-                                onClick={() => setThemeForm({ ...themeForm, primary: c.p, secondary: c.s })}
-                                className="group relative p-4 rounded-xl border-2 border-gray-200 hover:border-primary-500 transition-all hover:shadow-lg bg-white"
-                              >
-                                  <div className="flex items-center gap-3 mb-2">
-                                      <div className="w-12 h-12 rounded-lg overflow-hidden shadow-sm ring-1 ring-gray-200">
-                                          <div className="absolute left-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.p }}></div>
-                                          <div className="absolute right-0 top-0 bottom-0 w-1/2" style={{ backgroundColor: c.s }}></div>
-                                      </div>
-                                  </div>
-                                  <p className="text-xs font-bold text-gray-700 text-center">{c.name}</p>
-                                  {(themeForm.primary === c.p && themeForm.secondary === c.s) && (
-                                      <div className="absolute top-2 right-2 w-5 h-5 bg-primary-600 rounded-full flex items-center justify-center">
-                                          <Check size={12} className="text-white"/>
-                                      </div>
-                                  )}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
-
-                  {/* Custom Colors - Improved */}
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200">
-                      <h3 className="text-lg font-bold text-gray-900 mb-6">🎨 Cores Personalizadas</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="bg-white p-5 rounded-xl border border-gray-200">
-                              <label className="block text-sm font-bold text-gray-700 mb-3">Cor Primária</label>
-                              <div className="flex items-center gap-3">
-                                  <div className="relative">
-                                      <input 
-                                          type="color" 
-                                          value={themeForm.primary} 
-                                          onChange={e => setThemeForm({...themeForm, primary: e.target.value})} 
-                                          className="w-16 h-16 rounded-xl border-2 border-gray-300 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
-                                      />
-                                  </div>
-                                  <div className="flex-1">
-                                      <input 
-                                          value={themeForm.primary} 
-                                          onChange={e => setThemeForm({...themeForm, primary: e.target.value})} 
-                                          className="w-full border-2 border-gray-200 p-3 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase bg-gray-50"
-                                          placeholder="#3b82f6"
-                                      />
-                                      <p className="text-xs text-gray-500 mt-1">Usada em botões e destaques</p>
-                                  </div>
-                              </div>
-                          </div>
-                          <div className="bg-white p-5 rounded-xl border border-gray-200">
-                              <label className="block text-sm font-bold text-gray-700 mb-3">Cor Secundária</label>
-                              <div className="flex items-center gap-3">
-                                  <div className="relative">
-                                      <input 
-                                          type="color" 
-                                          value={themeForm.secondary} 
-                                          onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} 
-                                          className="w-16 h-16 rounded-xl border-2 border-gray-300 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
-                                      />
-                                  </div>
-                                  <div className="flex-1">
-                                      <input 
-                                          value={themeForm.secondary} 
-                                          onChange={e => setThemeForm({...themeForm, secondary: e.target.value})} 
-                                          className="w-full border-2 border-gray-200 p-3 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 uppercase bg-gray-50"
-                                          placeholder="#f97316"
-                                      />
-                                      <p className="text-xs text-gray-500 mt-1">Usada em elementos complementares</p>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Preview */}
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">👁️ Preview</h3>
-                      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                          <div className="flex items-center gap-4 mb-4">
-                              <div className="w-12 h-12 rounded-full" style={{ backgroundColor: themeForm.primary }}></div>
-                              <div>
-                                  <div className="h-4 rounded mb-2 w-32" style={{ backgroundColor: themeForm.primary }}></div>
-                                  <div className="h-3 rounded w-24" style={{ backgroundColor: themeForm.secondary }}></div>
-                              </div>
-                          </div>
-                          <button 
-                              type="button"
-                              className="px-6 py-3 rounded-lg font-bold text-white transition-all hover:scale-105 shadow-lg"
-                              style={{ backgroundColor: themeForm.primary }}
-                          >
-                              Botão de Exemplo
-                          </button>
-                      </div>
-                  </div>
-
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-blue-700 flex items-start gap-3">
-                      <Info size={20} className="flex-shrink-0 mt-0.5"/>
-                      <p className="text-sm">
-                          Estas cores serão aplicadas apenas na sua página de agência (microsite). O tema padrão da ViajaStore permanecerá o mesmo no marketplace principal.
-                      </p>
-                  </div>
-                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg transition-all hover:scale-[1.02]">
-                      {loading ? <Loader size={20} className="animate-spin" /> : <><Save size={20} /> Salvar Tema</>}
-                  </button>
-              </form>
-          </div>
+      {activeTab === 'THEME' && currentAgency && (
+          <AgencyThemeManager
+              agencyId={currentAgency.agencyId}
+              currentTheme={currentTheme}
+              onSave={handleSaveTheme}
+              onLogoUpload={handleLogoUpload}
+              currentLogoUrl={currentAgency.logo}
+          />
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { TripCard } from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
-import { AgencyReview, Trip } from '../types';
+import { AgencyReview, Trip, AgencyTheme } from '../types';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -175,11 +175,18 @@ const AgencyLandingPage: React.FC = () => {
     }
   }, [initialTab]);
   
+  const [fullTheme, setFullTheme] = useState<AgencyTheme | null>(null);
+
   useEffect(() => {
       if (agency) {
           const loadTheme = async () => {
               const theme = await getAgencyTheme(agency.agencyId);
-              if (theme) setAgencyTheme(theme.colors);
+              if (theme) {
+                  setAgencyTheme(theme.colors);
+                  setFullTheme(theme);
+              } else {
+                  setFullTheme(null);
+              }
           };
           loadTheme();
       }
@@ -300,12 +307,67 @@ const AgencyLandingPage: React.FC = () => {
     }
   };
 
+  // Font pairs configuration
+  const FONT_PAIRS = {
+    modern: { primary: 'Inter, system-ui, sans-serif', secondary: 'Inter, system-ui, sans-serif' },
+    classic: { primary: '"Playfair Display", serif', secondary: '"Lora", serif' },
+    playful: { primary: '"Comfortaa", cursive', secondary: '"Nunito", sans-serif' }
+  };
+
+  const fontConfig = fullTheme?.fontPair ? FONT_PAIRS[fullTheme.fontPair] : FONT_PAIRS.modern;
+  const borderRadiusMap = {
+    none: '0px',
+    soft: '8px',
+    full: '24px'
+  };
+  const borderRadius = fullTheme?.borderRadius ? borderRadiusMap[fullTheme.borderRadius] : '8px';
+  const buttonStyle = fullTheme?.buttonStyle || 'solid';
+  const headerStyle = fullTheme?.headerStyle || 'solid';
+  const primaryColor = fullTheme?.colors?.primary || '#3b82f6';
+  const secondaryColor = fullTheme?.colors?.secondary || '#f97316';
+
+  // CSS Variables for dynamic styling
+  const themeStyles: React.CSSProperties = {
+    '--agency-primary': primaryColor,
+    '--agency-secondary': secondaryColor,
+    '--agency-font-primary': fontConfig.primary,
+    '--agency-font-secondary': fontConfig.secondary,
+    '--agency-border-radius': borderRadius,
+  } as React.CSSProperties;
+
+  // Helper function to get button styles
+  const getButtonStyle = () => {
+    const baseStyle: React.CSSProperties = {
+      borderRadius: borderRadius,
+      fontFamily: fontConfig.primary,
+    };
+    
+    if (buttonStyle === 'solid') {
+      return { ...baseStyle, backgroundColor: primaryColor, color: 'white', border: 'none' };
+    } else if (buttonStyle === 'outline') {
+      return { ...baseStyle, backgroundColor: 'transparent', color: primaryColor, border: `2px solid ${primaryColor}` };
+    } else {
+      return { ...baseStyle, backgroundColor: 'transparent', color: primaryColor, border: 'none' };
+    }
+  };
+
   return (
-    <div className="space-y-10 animate-[fadeIn_0.3s] pb-12">
+    <div 
+      className="space-y-10 animate-[fadeIn_0.3s] pb-12"
+      style={{ fontFamily: fontConfig.primary, ...themeStyles }}
+    >
       
       {/* Hero Section */}
       <div 
         className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] md:min-h-[580px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
+        style={{ 
+          borderRadius: headerStyle === 'transparent' ? borderRadius : undefined,
+          backgroundImage: fullTheme?.backgroundImage ? `url(${fullTheme.backgroundImage})` : undefined,
+          backgroundSize: fullTheme?.backgroundImage ? 'cover' : undefined,
+          backgroundPosition: fullTheme?.backgroundImage ? 'center' : undefined,
+          filter: fullTheme?.backgroundBlur ? `blur(${fullTheme.backgroundBlur}px)` : undefined,
+          opacity: fullTheme?.backgroundOpacity !== undefined ? fullTheme.backgroundOpacity : undefined,
+        }}
       >
           {agency.heroMode === 'STATIC' ? (
               <>
@@ -341,7 +403,11 @@ const AgencyLandingPage: React.FC = () => {
                           <p className="text-gray-200 text-lg md:text-xl font-light leading-relaxed mb-8 drop-shadow-md">
                               {agency.heroSubtitle || agency.description || "As melhores experiências de viagem você encontra aqui."}
                           </p>
-                          <button onClick={scrollToPackages} className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95">
+                          <button 
+                            onClick={scrollToPackages} 
+                            className="px-8 py-3.5 font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                            style={getButtonStyle()}
+                          >
                               Ver Pacotes <ArrowDown size={18}/>
                           </button>
                       </div>
@@ -384,7 +450,14 @@ const AgencyLandingPage: React.FC = () => {
                               {/* Left Text */}
                               <div className="text-white pt-8 lg:pt-0">
                                   <div className="flex flex-wrap items-center gap-3 mb-4">
-                                      <span className="px-3 py-1 rounded-full bg-primary-600 text-white text-xs font-bold uppercase tracking-wide border border-primary-500 shadow-lg shadow-primary-900/20">
+                                      <span 
+                                        className="px-3 py-1 rounded-full text-white text-xs font-bold uppercase tracking-wide shadow-lg"
+                                        style={{ 
+                                          backgroundColor: primaryColor, 
+                                          borderColor: primaryColor,
+                                          borderRadius: borderRadius,
+                                        }}
+                                      >
                                           {currentHeroTrip.category.replace('_', ' ')}
                                       </span>
                                       <span className="flex items-center text-gray-300 text-xs font-bold bg-black/30 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
@@ -397,14 +470,15 @@ const AgencyLandingPage: React.FC = () => {
                                   </h1>
                                   
                                   <div className="flex items-center text-gray-200 text-lg font-medium mb-8 drop-shadow-md">
-                                      <MapPin size={20} className="mr-2 text-primary-400"/> 
+                                      <MapPin size={20} className="mr-2" style={{ color: secondaryColor }}/> 
                                       {currentHeroTrip.destination}
                                   </div>
 
                                   <div className="flex flex-wrap gap-4">
                                       <Link 
                                         to={`/${agencySlug}/viagem/${currentHeroTrip.slug}`}
-                                        className="bg-white text-gray-900 hover:bg-gray-100 px-8 py-3.5 rounded-full font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                        className="px-8 py-3.5 font-bold shadow-xl flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                        style={getButtonStyle()}
                                       >
                                           Ver Detalhes <ArrowRight size={18}/>
                                       </Link>

@@ -132,7 +132,10 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const navigate = useNavigate();
     
     const [activeTab, setActiveTab] = useState<'CLIENT' | 'AGENCY'>('CLIENT');
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '', cnpj: '', cpf: '', phone: '' });
+    const [partnerType, setPartnerType] = useState<'AGENCY' | 'GUIDE'>('AGENCY'); // Tipo de parceiro: Agência ou Guia
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', cnpj: '', phone: '' });
+    const [showPassword, setShowPassword] = useState(false);
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     
@@ -140,14 +143,36 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
         setError('');
     };
+
+    // Mask functions for CNPJ/Cadastur
+    const applyCnpjMask = (value: string) => {
+        const numbers = value.replace(/\D/g, '');
+        if (numbers.length <= 14) {
+            return numbers
+                .replace(/(\d{2})(\d)/, '$1.$2')
+                .replace(/(\d{3})(\d)/, '$1.$2')
+                .replace(/(\d{3})(\d)/, '$1/$2')
+                .replace(/(\d{4})(\d)/, '$1-$2');
+        }
+        return value;
+    };
+
+    const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const masked = applyCnpjMask(e.target.value);
+        setFormData({ ...formData, cnpj: masked });
+        setError('');
+    };
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (formData.password !== formData.confirmPassword) {
-            setError('As senhas não coincidem.');
+
+        // Validate terms acceptance
+        if (!acceptedTerms) {
+            setError('Você precisa aceitar os Termos de Uso e Política de Privacidade.');
             return;
         }
+
         if (formData.password.length < 6) {
             setError('A senha deve ter no mínimo 6 caracteres.');
             return;
@@ -157,7 +182,14 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
         const role = activeTab === 'CLIENT' ? UserRole.CLIENT : UserRole.AGENCY;
 
         try {
-            const result = await register(formData, role);
+            // Prepare registration data
+            const registrationData = {
+                ...formData,
+                // For partners, include partner type in customSettings if needed
+                ...(activeTab === 'AGENCY' && partnerType === 'GUIDE' ? { partnerType: 'GUIDE' } : {})
+            };
+            
+            const result = await register(registrationData, role);
             
             if (result.success) {
                 // Show toast based on message
@@ -215,9 +247,40 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             <p className="text-center text-sm text-gray-500 mt-2 mb-6">É rápido e fácil.</p>
             
             <div className="flex bg-gray-100 p-1 rounded-lg mb-6">
-              <button onClick={() => setActiveTab('CLIENT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><User size={16}/> Sou Viajante</button>
-              <button onClick={() => setActiveTab('AGENCY')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><Building size={16}/> Sou Agência</button>
+              <button onClick={() => setActiveTab('CLIENT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'CLIENT' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><User size={16}/> Quero Viajar</button>
+              <button onClick={() => setActiveTab('AGENCY')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${activeTab === 'AGENCY' ? 'bg-white shadow text-primary-600' : 'text-gray-500'}`}><Building size={16}/> Sou Parceiro</button>
             </div>
+
+            {/* Partner Type Selection (only for AGENCY tab) */}
+            {activeTab === 'AGENCY' && (
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Qual seu tipo de negócio?</label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setPartnerType('AGENCY')}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                                partnerType === 'AGENCY'
+                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                            }`}
+                        >
+                            Agência de Viagens
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPartnerType('GUIDE')}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                                partnerType === 'GUIDE'
+                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                            }`}
+                        >
+                            Guia de Turismo
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Pass the handler that knows the active tab */}
             <GoogleButton 
@@ -231,26 +294,108 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
             </div>
             
             <form onSubmit={handleSubmit} className="space-y-4">
-                <input name="name" type="text" placeholder={activeTab === 'CLIENT' ? 'Nome Completo' : 'Nome da Agência'} required value={formData.name} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
-                <input name="email" type="email" placeholder="Email" required value={formData.email} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                <input 
+                    name="name" 
+                    type="text" 
+                    placeholder={activeTab === 'CLIENT' ? 'Nome Completo' : (partnerType === 'GUIDE' ? 'Nome do Guia' : 'Nome da Agência')} 
+                    required 
+                    value={formData.name} 
+                    onChange={handleInputChange} 
+                    className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"
+                />
+                <input 
+                    name="email" 
+                    type="email" 
+                    placeholder="Email" 
+                    required 
+                    value={formData.email} 
+                    onChange={handleInputChange} 
+                    className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"
+                />
                 
                 {/* Phone field added for both roles */}
                 <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input name="phone" type="text" placeholder="Telefone / WhatsApp" value={formData.phone} onChange={handleInputChange} className="w-full border p-3 pl-10 rounded-lg outline-none focus:border-primary-500"/>
+                    <input 
+                        name="phone" 
+                        type="text" 
+                        placeholder="Telefone / WhatsApp" 
+                        value={formData.phone} 
+                        onChange={handleInputChange} 
+                        className="w-full border p-3 pl-10 rounded-lg outline-none focus:border-primary-500"
+                    />
                 </div>
 
-                {activeTab === 'CLIENT' && (
-                    <input name="cpf" type="text" placeholder="CPF" required value={formData.cpf} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                {/* Partner Identification Field (CNPJ or Cadastur) */}
+                {activeTab === 'AGENCY' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {partnerType === 'GUIDE' ? 'Cadastur' : 'CNPJ'}
+                        </label>
+                        <input 
+                            name="cnpj" 
+                            type="text" 
+                            placeholder={partnerType === 'GUIDE' ? 'Número do Cadastur' : '00.000.000/0000-00'} 
+                            required 
+                            value={formData.cnpj} 
+                            onChange={handleCnpjChange} 
+                            maxLength={18}
+                            className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"
+                        />
+                    </div>
                 )}
                 
-                
-                <input name="password" type="password" placeholder="Senha (mínimo 6 caracteres)" required value={formData.password} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
-                <input name="confirmPassword" type="password" placeholder="Confirmar Senha" required value={formData.confirmPassword} onChange={handleInputChange} className="w-full border p-3 rounded-lg outline-none focus:border-primary-500"/>
+                {/* Password field with show/hide toggle */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input 
+                            name="password" 
+                            type={showPassword ? 'text' : 'password'} 
+                            placeholder="Mínimo 6 caracteres" 
+                            required 
+                            value={formData.password} 
+                            onChange={handleInputChange} 
+                            className="w-full border p-3 pl-10 pr-10 rounded-lg outline-none focus:border-primary-500"
+                        />
+                        <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)} 
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" 
+                            aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}
+                        >
+                            {showPassword ? <Eye size={18}/> : <EyeOff size={18}/>}
+                        </button>
+                    </div>
+                </div>
                 
                 {error && <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle size={16}/> {error}</p>}
 
-                <button type="submit" disabled={isLoading} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                {/* Terms and Privacy Checkbox */}
+                <div className="flex items-start gap-2 pt-2">
+                    <input
+                        type="checkbox"
+                        id="accept-terms"
+                        checked={acceptedTerms}
+                        onChange={(e) => setAcceptedTerms(e.target.checked)}
+                        className="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        required
+                    />
+                    <label htmlFor="accept-terms" className="text-sm text-gray-600 cursor-pointer">
+                        Li e concordo com os <a href="/terms" target="_blank" className="text-primary-600 hover:underline font-medium">Termos de Uso</a> e <a href="/privacy" target="_blank" className="text-primary-600 hover:underline font-medium">Política de Privacidade</a>.
+                    </label>
+                </div>
+
+                <button 
+                    type="submit" 
+                    disabled={isLoading || !acceptedTerms} 
+                    className={`w-full py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2 ${
+                        acceptedTerms && !isLoading
+                            ? 'bg-primary-600 text-white hover:bg-primary-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                    }`}
+                >
                     {isLoading ? 'Criando...' : 'Criar Conta'} <ArrowRight size={16}/>
                 </button>
             </form>

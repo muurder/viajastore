@@ -2,8 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // Fix: Add useData import
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
+import TripListItem from '../components/TripListItem';
+import TripMap from '../components/TripMap';
+import AdvancedSearchBar from '../components/AdvancedSearchBar';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
-import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin } from 'lucide-react';
+import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin, Grid3x3, List, Map } from 'lucide-react';
 import { debounce } from '../utils/debounce';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
@@ -31,42 +34,12 @@ const seededShuffle = <T,>(array: T[], seed: number): T[] => {
   return shuffled;
 };
 
-// Generate a deterministic seed from filter state
-const generateSeed = (filters: {
-  q: string | null;
-  categoryParam: string | null;
-  selectedTags: string[];
-  selectedTravelerTypes: string[];
-  durationParam: string | null;
-  priceParam: string | null;
-}): number => {
-  // Create a hash from all filter values
-  const filterString = JSON.stringify({
-    q: filters.q || '',
-    category: filters.categoryParam || '',
-    tags: filters.selectedTags.sort().join(','),
-    travelers: filters.selectedTravelerTypes.sort().join(','),
-    duration: filters.durationParam || '',
-    price: filters.priceParam || ''
-  });
-  
-  // Simple hash function to convert string to number
-  let hash = 0;
-  for (let i = 0; i < filterString.length; i++) {
-    const char = filterString.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  
-  // If no filters, use date-based seed (changes once per day)
-  if (!filters.q && !filters.categoryParam && filters.selectedTags.length === 0 && 
-      filters.selectedTravelerTypes.length === 0 && !filters.durationParam && !filters.priceParam) {
-    const today = new Date();
-    const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-    return Math.abs(daySeed);
-  }
-  
-  return Math.abs(hash);
+// Generate a stable seed based on current day (for shuffle when no filters)
+// This ensures the same order is maintained throughout the same day
+const getDayBasedSeed = (): number => {
+  const today = new Date();
+  const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  return Math.abs(daySeed);
 };
 
 // @FIX: Changed from default export to named export
@@ -95,6 +68,16 @@ export const TripList: React.FC = () => {
   const [openFilterSections, setOpenFilterSections] = useState<Record<string, boolean>>({
      traveler: true, style: true, duration: true, price: true, dest: true
   });
+  
+  // View mode: 'grid' | 'list' | 'map'
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
+  const [highlightedTripId, setHighlightedTripId] = useState<string | null>(null);
+  
+  // Search params from AdvancedSearchBar
+  const startDateParam = searchParams.get('startDate');
+  const endDateParam = searchParams.get('endDate');
+  const adultsParam = searchParams.get('adults');
+  const childrenParam = searchParams.get('children');
 
   // Extract URL Params
   const q = searchParams.get('q') || '';
@@ -250,6 +233,52 @@ export const TripList: React.FC = () => {
         });
     }
 
+    // 7. Date Range Filtering (from AdvancedSearchBar)
+    if (startDateParam || endDateParam) {
+        const searchStart = startDateParam ? new Date(startDateParam) : null;
+        const searchEnd = endDateParam ? new Date(endDateParam) : null;
+        
+        result = result.filter(t => {
+            const tripStart = new Date(t.startDate);
+            const tripEnd = new Date(t.endDate);
+            
+            // Trip overlaps with search range if:
+            // - Trip starts before search ends AND trip ends after search starts
+            if (searchStart && searchEnd) {
+                return tripStart <= searchEnd && tripEnd >= searchStart;
+            }
+            // If only start date provided, show trips that start on or after that date
+            if (searchStart && !searchEnd) {
+                return tripStart >= searchStart;
+            }
+            // If only end date provided, show trips that end on or before that date
+            if (!searchStart && searchEnd) {
+                return tripEnd <= searchEnd;
+            }
+            return true;
+        });
+    }
+
+    // 8. Guest Filtering (from AdvancedSearchBar)
+    if (childrenParam && parseInt(childrenParam) > 0) {
+        // If children are included, filter trips that allow children
+        result = result.filter(t => t.allowChildren !== false);
+    }
+    
+    if (adultsParam || childrenParam) {
+        const totalGuests = (adultsParam ? parseInt(adultsParam) : 0) + (childrenParam ? parseInt(childrenParam) : 0);
+        if (totalGuests > 0) {
+            result = result.filter(t => {
+                // If trip has maxGuests defined, check if it can accommodate
+                if (t.maxGuests !== undefined) {
+                    return t.maxGuests >= totalGuests;
+                }
+                // If no maxGuests defined, allow the trip (assume it can accommodate)
+                return true;
+            });
+        }
+    }
+
     // Sorting
     switch (sortParam) {
         case 'LOW_PRICE': result.sort((a, b) => a.price - b.price); break;
@@ -257,19 +286,23 @@ export const TripList: React.FC = () => {
         case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
         case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
         default: // RELEVANCE
-           // Shuffle for random order when no filters are applied (deterministic based on day)
-           if (!q && !categoryParam && selectedTags.length === 0 && selectedTravelerTypes.length === 0 && !durationParam && !priceParam) {
-               // Use deterministic shuffle with day-based seed (changes once per day)
-               const seed = generateSeed({ q, categoryParam, selectedTags, selectedTravelerTypes, durationParam, priceParam });
-               result = seededShuffle(result, seed);
+           // Only shuffle when no filters are applied AND no search params exist
+           // Use stable seed based on current day to ensure consistent ordering within the same day
+           if (!q && !categoryParam && selectedTags.length === 0 && selectedTravelerTypes.length === 0 && 
+               !durationParam && !priceParam && !startDateParam && !endDateParam && !adultsParam && !childrenParam) {
+               // Use deterministic shuffle with day-based seed (changes once per day, stable within same day)
+               const today = new Date();
+               const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+               const stableSeed = Math.abs(daySeed);
+               result = seededShuffle(result, stableSeed);
            } else {
-               // When filters are applied, use relevance sorting
+               // When filters are applied, use relevance sorting (stable, not random)
                result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
            }
     }
 
     return result;
-  }, [sourceTrips, q, categoryParam, selectedTags, selectedTravelerTypes, durationParam, priceParam, sortParam, isResolvingAgency]);
+  }, [sourceTrips, q, categoryParam, selectedTags, selectedTravelerTypes, durationParam, priceParam, sortParam, isResolvingAgency, startDateParam, endDateParam, adultsParam, childrenParam]);
 
   const clearFilters = () => {
       setSearchParams({});
@@ -338,23 +371,32 @@ export const TripList: React.FC = () => {
                 </div>
              </div>
 
-             <div className="w-full lg:w-auto min-w-[320px]">
-                <div className="relative group/search">
-                   <div className="absolute inset-0 bg-white/20 backdrop-blur-md rounded-2xl transform transition-transform group-hover/search:scale-[1.02]"></div>
-                   <div className="relative bg-white rounded-2xl shadow-xl p-2 flex items-center">
-                       <MapPin className="text-primary-500 ml-3 shrink-0" size={20} />
-                       <input 
-                         type="text" 
-                         value={searchInput}
-                         onChange={handleSearchChange}
-                         placeholder="Qual seu próximo destino?"
-                         className="w-full pl-3 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium outline-none bg-transparent rounded-xl"
-                       />
-                       <button className="bg-primary-600 hover:bg-primary-700 text-white p-3 rounded-xl transition-colors shadow-lg shadow-primary-500/30">
-                           <Search size={20} />
-                       </button>
-                   </div>
-                </div>
+             <div className="w-full lg:w-auto">
+                <AdvancedSearchBar
+                  initialDestination={q}
+                  initialDateRange={{
+                    start: startDateParam ? new Date(startDateParam) : null,
+                    end: endDateParam ? new Date(endDateParam) : null,
+                  }}
+                  initialGuests={{
+                    adults: adultsParam ? parseInt(adultsParam) : 2,
+                    children: childrenParam ? parseInt(childrenParam) : 0,
+                  }}
+                  onSearch={(params) => {
+                    const newParams = new URLSearchParams(searchParams);
+                    if (params.destination) newParams.set('q', params.destination);
+                    else newParams.delete('q');
+                    if (params.dateRange.start) newParams.set('startDate', params.dateRange.start.toISOString().split('T')[0]);
+                    else newParams.delete('startDate');
+                    if (params.dateRange.end) newParams.set('endDate', params.dateRange.end.toISOString().split('T')[0]);
+                    else newParams.delete('endDate');
+                    if (params.guests.adults > 0) newParams.set('adults', params.guests.adults.toString());
+                    else newParams.delete('adults');
+                    if (params.guests.children > 0) newParams.set('children', params.guests.children.toString());
+                    else newParams.delete('children');
+                    setSearchParams(newParams);
+                  }}
+                />
              </div>
          </div>
       </div>
@@ -517,29 +559,98 @@ export const TripList: React.FC = () => {
             <Filter size={20}/> Filtros
         </button>
 
-        {/* Trip Cards */}
+        {/* Trip Cards/List/Map */}
         <div className="flex-1">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
             <h2 className="text-xl font-bold text-gray-900">
               {currentAgency ? `Pacotes de ${currentAgency.name}` : 'Todas as Viagens'} ({filteredTrips.length})
             </h2>
-            <select 
-              value={sortParam} 
-              onChange={(e) => updateUrl('sort', e.target.value)} 
-              className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer font-medium text-gray-700"
-            >
-              <option value="RELEVANCE">Relevância</option>
-              <option value="DATE_ASC">Próximas Saídas</option>
-              <option value="LOW_PRICE">Menor Preço</option>
-              <option value="HIGH_PRICE">Maior Preço</option>
-              <option value="RATING">Melhor Avaliação</option>
-            </select>
+            <div className="flex items-center gap-3">
+              {/* View Mode Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    viewMode === 'grid' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Visualização em grade"
+                >
+                  <Grid3x3 size={18} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    viewMode === 'list' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Visualização em lista"
+                >
+                  <List size={18} />
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`p-2 rounded-lg transition-colors ${
+                    viewMode === 'map' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Visualização no mapa"
+                >
+                  <Map size={18} />
+                </button>
+              </div>
+              
+              <select 
+                value={sortParam} 
+                onChange={(e) => updateUrl('sort', e.target.value)} 
+                className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer font-medium text-gray-700"
+              >
+                <option value="RELEVANCE">Relevância</option>
+                <option value="DATE_ASC">Próximas Saídas</option>
+                <option value="LOW_PRICE">Menor Preço</option>
+                <option value="HIGH_PRICE">Maior Preço</option>
+                <option value="RATING">Melhor Avaliação</option>
+              </select>
+            </div>
           </div>
 
           {filteredTrips.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 animate-[fadeInUp_0.5s]">
-              {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
-            </div>
+            <>
+              {viewMode === 'map' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+                  {/* List on left, Map on right */}
+                  <div className="overflow-y-auto space-y-4 pr-2 scrollbar-thin">
+                    {filteredTrips.map(trip => (
+                      <TripListItem
+                        key={trip.id}
+                        trip={trip}
+                        onHover={setHighlightedTripId}
+                        highlighted={trip.id === highlightedTripId}
+                        adults={adultsParam ? parseInt(adultsParam) : 1}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden lg:block">
+                    <TripMap
+                      trips={filteredTrips}
+                      highlightedTripId={highlightedTripId}
+                      onMarkerClick={setHighlightedTripId}
+                    />
+                  </div>
+                </div>
+              ) : viewMode === 'list' ? (
+                <div className="space-y-4 animate-[fadeInUp_0.5s]">
+                  {filteredTrips.map(trip => (
+                    <TripListItem
+                      key={trip.id}
+                      trip={trip}
+                      adults={adultsParam ? parseInt(adultsParam) : 1}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 animate-[fadeInUp_0.5s]">
+                  {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
                 <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -116,6 +116,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         included: [],
         notIncluded: [],
         operationalData: DEFAULT_OPERATIONAL_DATA,
+        latitude: undefined,
+        longitude: undefined,
+        maxGuests: undefined,
+        allowChildren: true,
         ...initialTripData
       };
     }
@@ -446,6 +450,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           featuredInHero: tripData.featuredInHero || false,
           popularNearSP: tripData.popularNearSP || false,
           operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
+          latitude: tripData.latitude,
+          longitude: tripData.longitude,
+          maxGuests: tripData.maxGuests,
+          allowChildren: tripData.allowChildren !== false,
         };
 
         // 5. Save to DB with timeout
@@ -702,6 +710,69 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 />
             </div>
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+        </div>
+
+        {/* Geolocation Fields */}
+        <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Latitude (opcional)</label>
+                <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                    <input
+                        type="number"
+                        step="any"
+                        value={tripData.latitude || ''}
+                        onChange={e => setTripData({ ...tripData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
+                        placeholder="Ex: -23.5505"
+                    />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Para exibir no mapa</p>
+            </div>
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Longitude (opcional)</label>
+                <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                    <input
+                        type="number"
+                        step="any"
+                        value={tripData.longitude || ''}
+                        onChange={e => setTripData({ ...tripData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
+                        placeholder="Ex: -46.6333"
+                    />
+                </div>
+            </div>
+        </div>
+
+        {/* Capacity and Children Fields */}
+        <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Máximo de Hóspedes</label>
+                <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                    <input
+                        type="number"
+                        value={tripData.maxGuests || ''}
+                        onChange={e => setTripData({ ...tripData, maxGuests: e.target.value ? parseInt(e.target.value) : undefined })}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
+                        placeholder="Ex: 4"
+                        min="1"
+                    />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Capacidade máxima por reserva</p>
+            </div>
+            <div className="flex items-end">
+                <label className="flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={tripData.allowChildren !== false}
+                        onChange={e => setTripData({ ...tripData, allowChildren: e.target.checked })}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="ml-2 text-sm font-bold text-gray-700">Aceita Crianças</span>
+                </label>
+            </div>
         </div>
 
         <div>

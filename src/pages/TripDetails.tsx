@@ -13,7 +13,7 @@ const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const activeSlug = tripSlug || slug;
   
-  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies } = useData();
+  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies, fetchTripImages } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -56,6 +56,16 @@ const TripDetails: React.FC = () => {
   const [passengers, setPassengers] = useState(1);
   const [showPassengerModal, setShowPassengerModal] = useState(false);
   const [passengerData, setPassengerData] = useState<PassengerDetail[]>([]);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // Load images on-demand when trip is loaded
+  useEffect(() => {
+    if (trip && trip.images.length === 0 && !imagesLoaded) {
+      fetchTripImages(trip.id).then(() => {
+        setImagesLoaded(true);
+      });
+    }
+  }, [trip, fetchTripImages, imagesLoaded]);
 
   // Favorites logic
   const currentUserData = user ? clients.find(c => c.id === user.id) : undefined;
@@ -200,8 +210,10 @@ const TripDetails: React.FC = () => {
               <div className="space-y-4">
                   <div className="aspect-video w-full rounded-3xl overflow-hidden bg-gray-100 shadow-sm relative group">
                       <img 
-                        src={trip.images[activeImageIndex]} 
+                        src={trip.images[activeImageIndex] || 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop'} 
                         alt={trip.title} 
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                       <div className="absolute top-4 left-4">
@@ -218,7 +230,7 @@ const TripDetails: React.FC = () => {
                                 onClick={() => setActiveImageIndex(idx)}
                                 className={`relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
                               >
-                                  <img src={img} alt="" className="w-full h-full object-cover" />
+                                  <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                               </button>
                           ))}
                       </div>
@@ -321,7 +333,7 @@ const TripDetails: React.FC = () => {
 
               {/* Agency Info */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6">
-                  <img src={agency.logo} alt={agency.name} className="w-20 h-20 rounded-full object-cover border-4 border-gray-50 shadow-sm" />
+                  <img src={agency.logo} alt={agency.name} loading="lazy" decoding="async" className="w-20 h-20 rounded-full object-cover border-4 border-gray-50 shadow-sm" />
                   <div className="text-center sm:text-left flex-1">
                       <h4 className="font-bold text-lg text-gray-900 mb-1">{agency.name}</h4>
                       <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-500 mb-3">
