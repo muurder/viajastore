@@ -4,7 +4,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlanPermissions } from '../../hooks/usePlanPermissions';
-import { extractColorsFromImage, extractColorsFromUrl } from '../../utils/colorExtractor';
+import { extractColorsFromImage, extractColorsFromUrl, generateColorPalettes, ColorPalette } from '../../utils/colorExtractor';
 import { 
   Palette, Sparkles, Type, Square, Circle, Lock, 
   Image as ImageIcon, Upload, Save, Loader, 
@@ -72,9 +72,17 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
   const [loading, setLoading] = useState(false);
   const [extractingColors, setExtractingColors] = useState(false);
   const [showColorSuggestion, setShowColorSuggestion] = useState(false);
-  const [suggestedColors, setSuggestedColors] = useState<{ dominant: string; secondary: string } | null>(null);
+  const [suggestedPalettes, setSuggestedPalettes] = useState<ColorPalette[]>([]);
+  const [selectedPaletteIndex, setSelectedPaletteIndex] = useState<number>(0);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['identity']));
   const [previewLogo, setPreviewLogo] = useState<string | null>(currentLogoUrl || null);
+  
+  // Update preview when currentLogoUrl changes (e.g., after instant upload)
+  useEffect(() => {
+    if (currentLogoUrl) {
+      setPreviewLogo(currentLogoUrl);
+    }
+  }, [currentLogoUrl]);
 
   // Update form when theme changes
   useEffect(() => {
@@ -98,41 +106,53 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
       showToast('Upload de logo não configurado', 'error');
       return;
     }
-
+    
+    setLoading(true);
     setExtractingColors(true);
+    
     try {
-      // Upload logo
+      // Upload logo (this now updates immediately via updateUser in AgencyDashboard)
       const logoUrl = await onLogoUpload(file);
+      
+      // Update preview immediately
       setPreviewLogo(logoUrl);
 
       // Extract colors
       const colors = await extractColorsFromImage(file);
-      setSuggestedColors(colors);
-      setShowColorSuggestion(true);
+      if (colors) {
+        // Generate 3 palettes from dominant color
+        const palettes = generateColorPalettes(colors.dominant);
+        setSuggestedPalettes(palettes);
+        setSelectedPaletteIndex(0); // Default to first palette (Vibrant)
+        setShowColorSuggestion(true);
+      }
 
-      showToast('Logo enviado! Cores extraídas com sucesso.', 'success');
+      // Toast is already shown by the parent component, so we don't need to show it here
     } catch (error: any) {
-      console.error('Error extracting colors:', error);
+      console.error('Error uploading logo or extracting colors:', error);
       showToast('Erro ao processar logo. Tente novamente.', 'error');
     } finally {
       setExtractingColors(false);
+      setLoading(false);
     }
   };
 
   // Apply suggested colors
   const applySuggestedColors = () => {
-    if (!suggestedColors) return;
+    if (suggestedPalettes.length === 0 || selectedPaletteIndex < 0 || selectedPaletteIndex >= suggestedPalettes.length) return;
+    
+    const selectedPalette = suggestedPalettes[selectedPaletteIndex];
     
     setThemeForm(prev => ({
       ...prev,
       colors: {
         ...prev.colors!,
-        primary: suggestedColors.dominant,
-        secondary: suggestedColors.secondary,
+        primary: selectedPalette.primary,
+        secondary: selectedPalette.secondary,
       }
     }));
     setShowColorSuggestion(false);
-    showToast('Cores aplicadas automaticamente!', 'success');
+    showToast('Cores aplicadas! Ajuste se necessário e clique em Salvar.', 'success');
   };
 
   // Extract colors from existing logo URL
@@ -145,7 +165,10 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
     setExtractingColors(true);
     try {
       const colors = await extractColorsFromUrl(currentLogoUrl);
-      setSuggestedColors(colors);
+      // Generate 3 palettes from dominant color
+      const palettes = generateColorPalettes(colors.dominant);
+      setSuggestedPalettes(palettes);
+      setSelectedPaletteIndex(0); // Default to first palette (Vibrant)
       setShowColorSuggestion(true);
       showToast('Cores extraídas do logo atual!', 'success');
     } catch (error: any) {
@@ -309,14 +332,14 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
       </div>
 
       {/* Color Suggestion Modal */}
-      {showColorSuggestion && suggestedColors && (
+      {showColorSuggestion && suggestedPalettes.length > 0 && (
         <div className="bg-gradient-to-r from-primary-50 to-secondary-50 border-2 border-primary-200 rounded-2xl p-6 mb-6 animate-[fadeIn_0.3s]">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
               <Wand2 className="text-primary-600" size={24} />
               <div>
                 <h3 className="font-bold text-gray-900 mb-1">Cores extraídas do seu logo!</h3>
-                <p className="text-sm text-gray-600">Deseja aplicar essas cores automaticamente?</p>
+                <p className="text-sm text-gray-600">Escolha uma das paletas abaixo para aplicar:</p>
               </div>
             </div>
             <button
@@ -326,28 +349,40 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
               <X size={20} />
             </button>
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <div 
-                className="w-12 h-12 rounded-lg shadow-md"
-                style={{ backgroundColor: suggestedColors.dominant }}
-              />
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Cor Dominante</div>
-                <div className="font-mono text-sm font-bold">{suggestedColors.dominant}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div 
-                className="w-12 h-12 rounded-lg shadow-md"
-                style={{ backgroundColor: suggestedColors.secondary }}
-              />
-              <div>
-                <div className="text-xs text-gray-500 mb-1">Cor Secundária</div>
-                <div className="font-mono text-sm font-bold">{suggestedColors.secondary}</div>
-              </div>
-            </div>
+          
+          {/* Palette Selection Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {suggestedPalettes.map((palette, index) => (
+              <button
+                key={index}
+                onClick={() => setSelectedPaletteIndex(index)}
+                className={`p-4 rounded-xl border-2 transition-all text-left ${
+                  selectedPaletteIndex === index
+                    ? 'border-primary-500 ring-2 ring-primary-500 ring-offset-2 bg-white shadow-lg'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex gap-2">
+                    <div
+                      className="w-10 h-10 rounded-full border-2 border-white shadow-md"
+                      style={{ backgroundColor: palette.primary }}
+                    />
+                    <div
+                      className="w-10 h-10 rounded-full border-2 border-white shadow-md"
+                      style={{ backgroundColor: palette.secondary }}
+                    />
+                  </div>
+                  <span className="font-bold text-gray-900">{palette.name}</span>
+                </div>
+                <div className="text-xs text-gray-500 space-y-1">
+                  <div className="font-mono">{palette.primary}</div>
+                  <div className="font-mono">{palette.secondary}</div>
+                </div>
+              </button>
+            ))}
           </div>
+          
           <div className="flex gap-3">
             <button
               onClick={applySuggestedColors}

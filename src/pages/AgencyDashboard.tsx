@@ -13,6 +13,8 @@ import {
   Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
   LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone, Briefcase, Edit3, CreditCard as CreditCardIcon, QrCode, CheckCircle2
 } from 'lucide-react';
+import SubscriptionModal from '../components/SubscriptionModal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { jsPDF } from 'jspdf';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
 import BusVisualizer from '../components/agency/BusVisualizer';
@@ -4266,7 +4268,7 @@ const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
 
 const AgencyDashboard: React.FC = () => {
   const { user, logout, loading: authLoading, updateUser, uploadImage } = useAuth(); // Import uploadImage
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview, refreshData } = useData(); // Import updateAgencyReview and refreshData
+  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview, refreshData, fetchTripImages } = useData(); // Import fetchTripImages for image loading
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
@@ -4310,6 +4312,7 @@ const AgencyDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
   const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
+  const [showPaymentManagementDialog, setShowPaymentManagementDialog] = useState(false);
   const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
@@ -4343,6 +4346,20 @@ const AgencyDashboard: React.FC = () => {
                             tripStatusFilter === 'ACTIVE' ? trip.is_active : !trip.is_active;
       return matchesSearch && matchesStatus;
   });
+  
+  // FIX: Load images for trips that don't have them yet
+  useEffect(() => {
+      if (myTrips.length > 0 && fetchTripImages) {
+          myTrips.forEach(trip => {
+              // Only fetch if images array is empty or invalid
+              if (!trip.images || trip.images.length === 0) {
+                  fetchTripImages(trip.id).catch(err => {
+                      console.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
+                  });
+              }
+          });
+      }
+  }, [myTrips.length, fetchTripImages]); // Only re-run when trip count changes
 
   useEffect(() => { 
     if (currentAgency) { 
@@ -4493,28 +4510,68 @@ const AgencyDashboard: React.FC = () => {
       } 
   };
 
+  // FIX: Instant logo upload - updates immediately without needing to save
+  const handleLogoUploadInstant = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files?.[0] || !currentAgency) return;
+      
+      const file = e.target.files[0];
+      setLoading(true);
+      
+      try {
+          // Upload image immediately
+          const url = await uploadImage(file, 'agency-logos');
+          
+          if (url) {
+              // Update local form state
+              setProfileForm(prev => ({ ...prev, logo: url }));
+              
+              // Update in AuthContext and database immediately (this updates the header automatically)
+              const result = await updateUser({ logo: url });
+              
+              if (result.success) {
+                  // Refresh data to update currentAgency with new logo
+                  await refreshData();
+                  showToast('Logo atualizada com sucesso!', 'success');
+              } else {
+                  throw new Error(result.error || 'Erro ao atualizar logo');
+              }
+          }
+      } catch (error: any) {
+          showToast('Erro ao fazer upload do logo: ' + (error.message || 'Erro desconhecido'), 'error');
+      } finally {
+          setLoading(false);
+          // Reset input to allow selecting the same file again
+          e.target.value = '';
+      }
+  };
+
+  // Legacy function for AgencyThemeManager (also uses instant update)
   const handleLogoUpload = async (file: File): Promise<string> => {
       try {
           if (!currentAgency) {
               throw new Error('Agência não encontrada');
           }
           const url = await uploadImage(file, 'agency-logos');
-          // Update agency logo in the database
-          const { supabase } = await import('../services/supabase');
-          if (supabase) {
-              const { error } = await supabase
-                  .from('agencies')
-                  .update({ logo: url })
-                  .eq('id', currentAgency.agencyId);
+          
+          if (url) {
+              // Update in AuthContext and database immediately
+              const result = await updateUser({ logo: url });
               
-              if (error) throw error;
+              if (!result.success) {
+                  throw new Error(result.error || 'Erro ao atualizar logo');
+              }
+              
+              // Update local state
+              setProfileForm(prev => ({ ...prev, logo: url }));
+              
+              // Refresh data to update currentAgency with new logo
+              await refreshData();
+              
+              showToast('Logo atualizada com sucesso!', 'success');
+              
+              return url;
           }
-          // Update local state
-          setProfileForm(prev => ({ ...prev, logo: url }));
-          showToast('Logo atualizado com sucesso!', 'success');
-          // Refresh data to get updated agency
-          refreshData();
-          return url;
+          throw new Error('URL não retornada do upload');
       } catch (error: any) {
           showToast('Erro ao fazer upload do logo: ' + error.message, 'error');
           throw error;
@@ -4522,24 +4579,16 @@ const AgencyDashboard: React.FC = () => {
   };
   const handleLogout = async () => { await logout(); navigate('/'); };
   
-  const handleSelectPlan = (plan: Plan) => setShowConfirmSubscription(plan);
-  const confirmSubscription = async () => { 
-      if (!showConfirmSubscription || !currentAgency) return; 
-      setActivatingPlanId(showConfirmSubscription.id); 
-      try { 
-          // FIX: Add 30 days to current date for expiration
-          const nextMonth = new Date();
-          nextMonth.setDate(nextMonth.getDate() + 30);
-          
-          await updateAgencySubscription(currentAgency.agencyId, 'ACTIVE', showConfirmSubscription.id as 'STARTER' | 'BASIC' | 'PREMIUM', nextMonth.toISOString()); 
-          showToast(`Plano ${showConfirmSubscription.name} ativado com sucesso!`, 'success'); 
-          window.location.reload(); 
-      } catch (error: any) { 
-          showToast('Erro ao ativar plano: ' + error.message, 'error'); // FIX: Added error message
-      } finally { 
-          setActivatingPlanId(null); 
-          setShowConfirmSubscription(null); 
-      } 
+  const handleSelectPlan = (plan: Plan) => {
+      // Only show modal if it's not the current plan
+      if (currentAgency && currentAgency.subscriptionPlan !== plan.id) {
+          setShowConfirmSubscription(plan);
+      }
+  };
+  
+  const handleOpenSupportWhatsApp = () => {
+      const message = encodeURIComponent('Olá, preciso de ajuda com minha assinatura.');
+      window.open(`https://wa.me/5511987697684?text=${message}`, '_blank');
   };
 
   // Reusable Action Menu Generator
@@ -4659,25 +4708,36 @@ const AgencyDashboard: React.FC = () => {
                               <p className="text-gray-500 text-sm">Gerencie sua assinatura e cobranças.</p>
                           </div>
                           <div className="flex gap-3">
-                              <button 
-                                  onClick={() => showToast('Funcionalidade em desenvolvimento. Em breve você poderá gerenciar seus pagamentos aqui.', 'info')}
-                                  className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm cursor-pointer"
-                              >
-                                  Gerenciar Pagamento
-                              </button>
-                              {/* FIX: Hide "Renovar Agora" button for STARTER (free plan) */}
+                              {/* FIX: Hide "Gerenciar Pagamento" and "Renovar Agora" for STARTER plan */}
                               {!isStarter && (
-                                  <button 
-                                      onClick={() => {
-                                          if (currentAgency) {
-                                              const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
-                                              setShowConfirmSubscription(currentPlan);
-                                          }
-                                      }}
-                                      className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
-                                  >
-                                      Renovar Agora
-                                  </button>
+                                  <>
+                                      <button 
+                                          onClick={() => {
+                                              // Show alert dialog for active subscriptions
+                                              setShowPaymentManagementDialog(true);
+                                          }}
+                                          className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm cursor-pointer"
+                                      >
+                                          Gerenciar Pagamento
+                                      </button>
+                                      <button 
+                                          onClick={() => {
+                                              if (currentAgency) {
+                                                  const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
+                                                  setShowConfirmSubscription(currentPlan);
+                                              }
+                                          }}
+                                          className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
+                                      >
+                                          Renovar Agora
+                                      </button>
+                                  </>
+                              )}
+                              {/* Show badge for STARTER plan */}
+                              {isStarter && (
+                                  <div className="bg-gray-100 text-gray-600 font-bold py-2.5 px-5 rounded-xl text-sm border border-gray-200">
+                                      Plano Gratuito
+                                  </div>
                               )}
                           </div>
                       </div>
@@ -4972,13 +5032,29 @@ const AgencyDashboard: React.FC = () => {
           />
       )}
 
-      {showConfirmSubscription && (
-        <SubscriptionConfirmationModal 
-          plan={showConfirmSubscription} 
-          onClose={() => setShowConfirmSubscription(null)} 
-          onConfirm={confirmSubscription} 
-          isSubmitting={!!activatingPlanId}
-          agencyName={currentAgency?.name}
+      {/* New Subscription Modal for PIX Payment */}
+      {showConfirmSubscription && currentAgency && (
+        <SubscriptionModal 
+          plan={showConfirmSubscription}
+          agency={currentAgency}
+          onClose={() => setShowConfirmSubscription(null)}
+        />
+      )}
+      
+      {/* Payment Management Dialog */}
+      {showPaymentManagementDialog && (
+        <ConfirmDialog
+          isOpen={showPaymentManagementDialog}
+          title="Assinatura Ativa"
+          message="Seu plano é renovado via PIX mensalmente. Para cancelar ou alterar dados, entre em contato com nosso suporte financeiro."
+          confirmText="Falar com Suporte"
+          cancelText="Fechar"
+          onConfirm={() => {
+              handleOpenSupportWhatsApp();
+              setShowPaymentManagementDialog(false);
+          }}
+          onClose={() => setShowPaymentManagementDialog(false)}
+          variant="info"
         />
       )}
       
@@ -5111,16 +5187,25 @@ const AgencyDashboard: React.FC = () => {
                         <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
                             {/* Trip Image & Actions */}
                             <div className="relative h-48 w-full bg-gray-100">
-                                <img 
-                                  src={trip.images && trip.images.length > 0 ? trip.images[0] : 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem'} 
-                                  alt={trip.title} 
-                                  loading="lazy"
-                                  decoding="async"
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
-                                  }}
-                                />
+                                {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
+                                    <img 
+                                      src={trip.images[0]} 
+                                      alt={trip.title} 
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
+                                      }}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                        <div className="text-center">
+                                            <Plane size={32} className="text-gray-400 mx-auto mb-2"/>
+                                            <p className="text-xs text-gray-500 font-medium">Sem Imagem</p>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="absolute top-3 left-3">
                                     <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
                                 </div>
@@ -5170,7 +5255,20 @@ const AgencyDashboard: React.FC = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                                <img src={trip.images[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
+                                                {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
+                                                    <img 
+                                                        src={trip.images[0]} 
+                                                        className="w-full h-full object-cover" 
+                                                        alt={trip.title}
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/e2e8f0/94a3b8?text=IMG';
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                                        <Plane size={20} className="text-gray-400"/>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="truncate">
                                                 {/* Clickable Title in List */}
@@ -5317,17 +5415,24 @@ const AgencyDashboard: React.FC = () => {
                           {profileForm.logo && (
                               <img src={profileForm.logo} alt="Logo" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
                           )}
-                          <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
-                              <Upload size={16}/> {profileForm.logo ? 'Alterar Logo' : 'Fazer Upload'}
-                              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                  if(e.target.files?.[0]) {
-                                      const url = await uploadImage(e.target.files[0], 'agency-logos');
-                                      if(url) {
-                                          setProfileForm({...profileForm, logo: url});
-                                          showToast('Logo atualizado! Salve o perfil para confirmar.', 'success');
-                                      }
-                                  }
-                              }}/>
+                          <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                              {loading ? (
+                                  <>
+                                      <Loader size={16} className="animate-spin"/>
+                                      Carregando...
+                                  </>
+                              ) : (
+                                  <>
+                                      <Upload size={16}/> {profileForm.logo ? 'Alterar Logo' : 'Fazer Upload'}
+                                  </>
+                              )}
+                              <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={handleLogoUploadInstant}
+                                  disabled={loading}
+                              />
                           </label>
                       </div>
                   </div>

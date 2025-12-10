@@ -9,6 +9,14 @@ export interface ExtractedColors {
   secondary: string; // Hex color
 }
 
+export interface ColorPalette {
+  name: string;
+  primary: string;
+  secondary: string;
+}
+
+export type PaletteVariant = 'vibrant' | 'soft' | 'professional';
+
 /**
  * Extract colors from an image file
  * @param file - Image file to analyze
@@ -148,6 +156,90 @@ const colorDistance = (color1: [number, number, number], color2: [number, number
 const getComplementaryColor = (rgb: [number, number, number]): [number, number, number] => {
   const [r, g, b] = rgb;
   return [255 - r, 255 - g, 255 - b];
+};
+
+/**
+ * Convert hex to RGB
+ */
+const hexToRgb = (hex: string): [number, number, number] => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+      ]
+    : [0, 0, 0];
+};
+
+/**
+ * Lighten a color by mixing with white
+ */
+const lightenColor = (rgb: [number, number, number], amount: number): [number, number, number] => {
+  const [r, g, b] = rgb;
+  return [
+    Math.round(r + (255 - r) * amount),
+    Math.round(g + (255 - g) * amount),
+    Math.round(b + (255 - b) * amount)
+  ];
+};
+
+/**
+ * Darken a color by mixing with black
+ */
+const darkenColor = (rgb: [number, number, number], amount: number): [number, number, number] => {
+  const [r, g, b] = rgb;
+  return [
+    Math.round(r * (1 - amount)),
+    Math.round(g * (1 - amount)),
+    Math.round(b * (1 - amount))
+  ];
+};
+
+/**
+ * Desaturate a color (convert to grayscale mix)
+ */
+const desaturateColor = (rgb: [number, number, number], amount: number): [number, number, number] => {
+  const [r, g, b] = rgb;
+  const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+  return [
+    Math.round(r + (gray - r) * amount),
+    Math.round(g + (gray - g) * amount),
+    Math.round(b + (gray - b) * amount)
+  ];
+};
+
+/**
+ * Generate 3 intelligent color palettes from a base color
+ */
+export const generateColorPalettes = (baseColor: string): ColorPalette[] => {
+  const baseRgb = hexToRgb(baseColor);
+  
+  // 1. Vibrant (Default) - Base color + complementary
+  const complementary = getComplementaryColor(baseRgb);
+  const vibrant: ColorPalette = {
+    name: 'Vibrante',
+    primary: baseColor,
+    secondary: rgbToHex(complementary[0], complementary[1], complementary[2])
+  };
+  
+  // 2. Soft (Pastel/Monochromatic) - Lightened base + neutral gray
+  const lightened = lightenColor(baseRgb, 0.4); // 40% lighter
+  const soft: ColorPalette = {
+    name: 'Suave',
+    primary: rgbToHex(lightened[0], lightened[1], lightened[2]),
+    secondary: '#6B7280' // Neutral gray
+  };
+  
+  // 3. Professional (Dark) - Darkened base + dark gray/black
+  const darkened = darkenColor(baseRgb, 0.3); // 30% darker
+  const professional: ColorPalette = {
+    name: 'Profissional',
+    primary: rgbToHex(darkened[0], darkened[1], darkened[2]),
+    secondary: '#111827' // Dark gray/black
+  };
+  
+  return [vibrant, soft, professional];
 };
 
 /**

@@ -7,7 +7,7 @@ import { Trip, TripCategory, OperationalData, Agency, BoardingPoint } from '../.
 import { 
   X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, Image as ImageIcon,
-  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw, Search
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
@@ -87,6 +87,11 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   // Local state for raw files - strictly used only in handlePublish
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
+  
+  // Geolocation state
+  const [locationQuery, setLocationQuery] = useState('');
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   
   // Initialize tripData with draft restoration
   const [tripData, setTripData] = useState<Partial<Trip>>(() => {
@@ -213,6 +218,67 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       }
     }
   }, [tripData.startDate, tripData.endDate]);
+
+  // Initialize location query from destination or initial data
+  useEffect(() => {
+    if (initialTripData?.destination) {
+      setLocationQuery(initialTripData.destination);
+    } else if (tripData.destination) {
+      setLocationQuery(tripData.destination);
+    }
+    if (initialTripData?.latitude && initialTripData?.longitude) {
+      setLocationCoords({ lat: initialTripData.latitude, lng: initialTripData.longitude });
+    }
+  }, []);
+  
+  // Search location using OpenStreetMap Nominatim API
+  const searchLocation = async (query: string) => {
+    if (!query || query.trim().length < 3) {
+      setLocationCoords(null);
+      return;
+    }
+    
+    setIsSearchingLocation(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'ViajaStore/1.0'
+          }
+        }
+      );
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const result = data[0];
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        setLocationCoords({ lat, lng });
+        setTripData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+      } else {
+        setLocationCoords(null);
+        setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
+      }
+    } catch (error) {
+      console.error('Error searching location:', error);
+      showToast('Erro ao buscar localização. Tente novamente.', 'error');
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+  
+  // Debounced location search when destination or location query changes
+  useEffect(() => {
+    const query = locationQuery || tripData.destination || '';
+    if (query.trim().length >= 3) {
+      const timeoutId = setTimeout(() => {
+        searchLocation(query);
+      }, 1000); // 1 second debounce
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [locationQuery, tripData.destination]);
 
   // Initialize data for editing
   useEffect(() => {
@@ -452,7 +518,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
           latitude: tripData.latitude,
           longitude: tripData.longitude,
-          maxGuests: tripData.maxGuests,
           allowChildren: tripData.allowChildren !== false,
         };
 
@@ -712,67 +777,67 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
         </div>
 
-        {/* Geolocation Fields */}
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Latitude (opcional)</label>
-                <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                    <input
-                        type="number"
-                        step="any"
-                        value={tripData.latitude || ''}
-                        onChange={e => setTripData({ ...tripData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
-                        placeholder="Ex: -23.5505"
+        {/* Location Search (Google Maps Style) */}
+        <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Localização no Mapa</label>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                    type="text"
+                    value={locationQuery}
+                    onChange={e => {
+                        setLocationQuery(e.target.value);
+                        if (!e.target.value) {
+                            setLocationCoords(null);
+                            setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
+                        }
+                    }}
+                    onBlur={() => {
+                        // If location query is empty, use destination
+                        if (!locationQuery && tripData.destination) {
+                            setLocationQuery(tripData.destination);
+                        }
+                    }}
+                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-10 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
+                />
+                {isSearchingLocation && (
+                    <Loader className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" size={18}/>
+                )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+                {locationCoords 
+                    ? `Localização encontrada: ${locationCoords.lat.toFixed(6)}, ${locationCoords.lng.toFixed(6)}`
+                    : 'Digite o nome do local para buscar no mapa (ex: cidade, bairro, ponto turístico)'}
+            </p>
+            
+            {/* Map Preview */}
+            {locationCoords && (
+                <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                    <iframe
+                        width="100%"
+                        height="300"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        allowFullScreen
+                        referrerPolicy="no-referrer-when-downgrade"
+                        src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6U4c37ZJMTI&q=${locationCoords.lat},${locationCoords.lng}&zoom=13`}
                     />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Para exibir no mapa</p>
-            </div>
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Longitude (opcional)</label>
-                <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                    <input
-                        type="number"
-                        step="any"
-                        value={tripData.longitude || ''}
-                        onChange={e => setTripData({ ...tripData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
-                        placeholder="Ex: -46.6333"
-                    />
-                </div>
-            </div>
+            )}
         </div>
 
-        {/* Capacity and Children Fields */}
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Máximo de Hóspedes</label>
-                <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                    <input
-                        type="number"
-                        value={tripData.maxGuests || ''}
-                        onChange={e => setTripData({ ...tripData, maxGuests: e.target.value ? parseInt(e.target.value) : undefined })}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none"
-                        placeholder="Ex: 4"
-                        min="1"
-                    />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Capacidade máxima por reserva</p>
-            </div>
-            <div className="flex items-end">
-                <label className="flex items-center cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={tripData.allowChildren !== false}
-                        onChange={e => setTripData({ ...tripData, allowChildren: e.target.checked })}
-                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    />
-                    <span className="ml-2 text-sm font-bold text-gray-700">Aceita Crianças</span>
-                </label>
-            </div>
+        {/* Allow Children Field */}
+        <div>
+            <label className="flex items-center cursor-pointer">
+                <input
+                    type="checkbox"
+                    checked={tripData.allowChildren !== false}
+                    onChange={e => setTripData({ ...tripData, allowChildren: e.target.checked })}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="ml-2 text-sm text-gray-700 font-medium">Permitir crianças</span>
+            </label>
         </div>
 
         <div>
@@ -1120,6 +1185,35 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                             />
                         </div>
                     ))}
+                    
+                    {/* Add Next Day Button - Below Last Day */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const currentDays = tripData.itinerary?.length || 0;
+                            const newDay = {
+                                day: currentDays + 1,
+                                title: `Dia ${currentDays + 1}`,
+                                description: ''
+                            };
+                            setTripData(prev => ({
+                                ...prev,
+                                itinerary: [...(prev.itinerary || []), newDay]
+                            }));
+                            // Focus on the new day's title input after a brief delay
+                            setTimeout(() => {
+                                const lastInput = document.querySelector(`input[placeholder*="Dia ${currentDays + 1}"]`) as HTMLInputElement;
+                                if (lastInput) {
+                                    lastInput.focus();
+                                    lastInput.select();
+                                }
+                            }, 100);
+                        }}
+                        className="w-full mt-4 py-3 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border-2 border-dashed border-primary-200 hover:border-primary-300"
+                    >
+                        <Plus size={16}/>
+                        Adicionar Dia Seguinte
+                    </button>
                 </div>
             ) : (
                 <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
