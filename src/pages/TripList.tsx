@@ -347,8 +347,8 @@ export const TripList: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10"></div>
          </div>
 
-         {/* Content */}
-         <div className="relative z-20 w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+         {/* Content - FIX: Higher z-index to prevent clipping */}
+         <div className="relative z-[100] w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
              <div className="flex-1 text-center lg:text-left">
                 {currentAgency && (
                     <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">

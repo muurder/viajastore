@@ -57,7 +57,8 @@ const Layout: React.FC = () => {
   const reservedRoutes = [
     'trips', 'viagem', 'agencies', 'agency', 'about', 'contact', 'terms', 
     'privacy', 'help', 'blog', 'careers', 'press', 'checkout', 'unauthorized', 
-    'forgot-password', 'login', 'signup', 'admin', 'client'
+    'forgot-password', 'login', 'signup', 'admin', 'client',
+    'guides', 'guias' // FIX: Added to prevent routes from being interpreted as agency slugs
   ];
   
   const isReserved = reservedRoutes.includes(potentialSlug);
@@ -308,6 +309,9 @@ const Layout: React.FC = () => {
                           </Link>
                           <Link to={`/${currentAgency.slug}/trips`} className={getLinkClasses(`/${currentAgency.slug}/trips`)}>
                               <Map size={16} className="mr-1"/> Pacotes
+                          </Link>
+                          <Link to={`/${currentAgency.slug}/guides`} className={getLinkClasses(`/${currentAgency.slug}/guides`)}>
+                              <Compass size={16} className="mr-1"/> Guias
                           </Link>
                         </>
                   )}

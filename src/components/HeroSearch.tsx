@@ -102,37 +102,65 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     return days;
   };
 
-  // Check if date is in range
+  // Check if date is in range - FIX: Normalize dates for accurate comparison
   const isDateInRange = (date: Date): boolean => {
     if (!dateRange.start || !dateRange.end) return false;
-    return date >= dateRange.start && date <= dateRange.end;
+    
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    const normalizedStart = new Date(dateRange.start);
+    normalizedStart.setHours(0, 0, 0, 0);
+    
+    const normalizedEnd = new Date(dateRange.end);
+    normalizedEnd.setHours(0, 0, 0, 0);
+    
+    return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
   };
 
-  // Check if date is selected
+  // Check if date is selected - FIX: Normalize dates for accurate comparison
   const isDateSelected = (date: Date): boolean => {
-    if (dateRange.start && dateRange.end) {
-      return date.getTime() === dateRange.start.getTime() || date.getTime() === dateRange.end.getTime();
+    if (!dateRange.start) return false;
+    
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    const normalizedStart = new Date(dateRange.start);
+    normalizedStart.setHours(0, 0, 0, 0);
+    
+    if (dateRange.end) {
+      const normalizedEnd = new Date(dateRange.end);
+      normalizedEnd.setHours(0, 0, 0, 0);
+      return normalizedDate.getTime() === normalizedStart.getTime() || normalizedDate.getTime() === normalizedEnd.getTime();
     }
-    if (dateRange.start) {
-      return date.getTime() === dateRange.start.getTime();
-    }
-    return false;
+    
+    return normalizedDate.getTime() === normalizedStart.getTime();
   };
 
-  // Handle date click
+  // Handle date click - FIX: Normalize date comparison to avoid time issues
   const handleDateClick = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (date < today) return;
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    if (normalizedDate < today) return;
+
+    // Normalize existing dates for comparison
+    const normalizedStart = dateRange.start ? new Date(dateRange.start) : null;
+    if (normalizedStart) normalizedStart.setHours(0, 0, 0, 0);
 
     if (!dateRange.start || (dateRange.start && dateRange.end)) {
-      setDateRange({ start: date, end: null });
+      // Start new selection
+      setDateRange({ start: normalizedDate, end: null });
     } else if (dateRange.start && !dateRange.end) {
-      if (date >= dateRange.start) {
-        setDateRange({ start: dateRange.start, end: date });
+      // Complete the range
+      if (normalizedDate >= normalizedStart!) {
+        setDateRange({ start: dateRange.start, end: normalizedDate });
         setShowDatePicker(false);
       } else {
-        setDateRange({ start: date, end: null });
+        // Selected date is before start, so make it the new start
+        setDateRange({ start: normalizedDate, end: null });
       }
     }
   };
@@ -238,7 +266,9 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                   
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
-                  const isPast = date < today;
+                  const normalizedDate = new Date(date);
+                  normalizedDate.setHours(0, 0, 0, 0);
+                  const isPast = normalizedDate < today;
                   const isSelected = isDateSelected(date);
                   const isInRange = isDateInRange(date);
                   
@@ -246,13 +276,17 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                     <button
                       key={idx}
                       type="button"
-                      onClick={() => handleDateClick(date)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDateClick(date);
+                      }}
                       onMouseEnter={() => setHoveredDate(date)}
                       onMouseLeave={() => setHoveredDate(null)}
                       disabled={isPast}
                       className={`
-                        aspect-square text-sm font-medium rounded-lg transition-colors
-                        ${isPast ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}
+                        aspect-square text-sm font-medium rounded-lg transition-colors relative z-[120]
+                        ${isPast ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-700 hover:bg-gray-100 cursor-pointer'}
                         ${isSelected ? 'bg-primary-600 text-white hover:bg-primary-700' : ''}
                         ${isInRange && !isSelected ? 'bg-primary-50 text-primary-700' : ''}
                       `}
@@ -294,16 +328,24 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }))}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }));
+                      }}
+                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[120] cursor-pointer"
                     >
                       <Minus size={14} className="text-gray-600" />
                     </button>
                     <span className="font-bold text-gray-900 w-8 text-center">{guests.adults}</span>
                     <button
                       type="button"
-                      onClick={() => setGuests(prev => ({ ...prev, adults: prev.adults + 1 }))}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setGuests(prev => ({ ...prev, adults: prev.adults + 1 }));
+                      }}
+                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[120] cursor-pointer"
                     >
                       <Plus size={14} className="text-gray-600" />
                     </button>
@@ -319,16 +361,24 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }));
+                        }}
+                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[120] cursor-pointer"
                       >
                         <Minus size={14} className="text-gray-600" />
                       </button>
                       <span className="font-bold text-gray-900 w-8 text-center">{guests.children}</span>
                       <button
                         type="button"
-                        onClick={() => setGuests(prev => ({ ...prev, children: prev.children + 1 }))}
-                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setGuests(prev => ({ ...prev, children: prev.children + 1 }));
+                        }}
+                        className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[120] cursor-pointer"
                       >
                         <Plus size={14} className="text-gray-600" />
                       </button>

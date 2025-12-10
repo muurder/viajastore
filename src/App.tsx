@@ -61,6 +61,7 @@ const App: React.FC = () => {
                   {/* Captura /:agencySlug e suas sub-rotas */}
                   <Route path=":agencySlug" element={<AgencyLandingPage />} />
                   <Route path=":agencySlug/trips" element={<TripList />} />
+                  <Route path=":agencySlug/guides" element={<GuideList />} />
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
                   <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
                   
