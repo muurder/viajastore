@@ -156,9 +156,22 @@ const GuideList: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters and Sort */}
+      {/* Filters and Sort - FIX: Premium scrollable pills */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide w-full md:w-auto">
+          <button
+            onClick={() => {
+              setSelectedSpecialty(null);
+              setCurrentPage(1);
+            }}
+            className={`whitespace-nowrap px-6 py-2 rounded-full border transition-all text-sm font-medium ${
+              !selectedSpecialty
+                ? 'bg-primary-600 border-primary-600 text-white shadow-md'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
+            }`}
+          >
+            Todos
+          </button>
           {GUIDE_SPECIALTIES.map(specialty => (
             <button
               key={specialty}
@@ -166,10 +179,10 @@ const GuideList: React.FC = () => {
                 setSelectedSpecialty(selectedSpecialty === specialty ? null : specialty);
                 setCurrentPage(1);
               }}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`whitespace-nowrap px-6 py-2 rounded-full border transition-all text-sm font-medium ${
                 selectedSpecialty === specialty
-                  ? 'bg-primary-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-primary-600 border-primary-600 text-white shadow-md'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
               }`}
             >
               {specialty}

@@ -55,7 +55,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Format date for display
+  // Format date for display - FIX: Simplified format for better readability
   const formatDate = (date: Date | null): string => {
     if (!date) return '';
     const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };

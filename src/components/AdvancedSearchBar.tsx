@@ -55,10 +55,10 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Format date for display
+  // Format date for display - FIX: Simplified format for better readability
   const formatDate = (date: Date | null): string => {
     if (!date) return '';
-    const options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
     return date.toLocaleDateString('pt-BR', options);
   };
 
@@ -104,40 +104,65 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
     return days;
   };
 
-  // Check if date is in range
+  // Check if date is in range - FIX: Normalize dates for accurate comparison
   const isDateInRange = (date: Date): boolean => {
     if (!dateRange.start || !dateRange.end) return false;
-    return date >= dateRange.start && date <= dateRange.end;
+    
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    const normalizedStart = new Date(dateRange.start);
+    normalizedStart.setHours(0, 0, 0, 0);
+    
+    const normalizedEnd = new Date(dateRange.end);
+    normalizedEnd.setHours(0, 0, 0, 0);
+    
+    return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
   };
 
-  // Check if date is selected
+  // Check if date is selected - FIX: Normalize dates for accurate comparison
   const isDateSelected = (date: Date): boolean => {
-    if (dateRange.start && dateRange.end) {
-      return date.getTime() === dateRange.start.getTime() || date.getTime() === dateRange.end.getTime();
+    if (!dateRange.start) return false;
+    
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    const normalizedStart = new Date(dateRange.start);
+    normalizedStart.setHours(0, 0, 0, 0);
+    
+    if (dateRange.end) {
+      const normalizedEnd = new Date(dateRange.end);
+      normalizedEnd.setHours(0, 0, 0, 0);
+      return normalizedDate.getTime() === normalizedStart.getTime() || normalizedDate.getTime() === normalizedEnd.getTime();
     }
-    if (dateRange.start) {
-      return date.getTime() === dateRange.start.getTime();
-    }
-    return false;
+    
+    return normalizedDate.getTime() === normalizedStart.getTime();
   };
 
-  // Handle date click
+  // Handle date click - FIX: Normalize dates to avoid time comparison issues
   const handleDateClick = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (date < today) return; // Can't select past dates
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+    
+    if (normalizedDate < today) return; // Can't select past dates
+
+    // Normalize existing dates for comparison
+    const normalizedStart = dateRange.start ? new Date(dateRange.start) : null;
+    if (normalizedStart) normalizedStart.setHours(0, 0, 0, 0);
 
     if (!dateRange.start || (dateRange.start && dateRange.end)) {
       // Start new selection
-      setDateRange({ start: date, end: null });
+      setDateRange({ start: normalizedDate, end: null });
     } else if (dateRange.start && !dateRange.end) {
       // Complete selection
-      if (date >= dateRange.start) {
-        setDateRange({ start: dateRange.start, end: date });
+      if (normalizedDate >= normalizedStart!) {
+        setDateRange({ start: dateRange.start, end: normalizedDate });
         setShowDatePicker(false);
       } else {
         // If clicked date is before start, make it the new start
-        setDateRange({ start: date, end: null });
+        setDateRange({ start: normalizedDate, end: null });
       }
     }
   };
@@ -185,7 +210,7 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-2 flex flex-col md:flex-row gap-2">
+    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-2 flex flex-wrap lg:flex-nowrap gap-2 w-full">
       {/* Destination Input */}
       <div className="flex-1 relative">
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
@@ -201,15 +226,15 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         />
       </div>
 
-      {/* Date Range Picker */}
-      <div className="relative" ref={datePickerRef}>
+      {/* Date Range Picker - FIX: Responsive width */}
+      <div className="relative w-full md:w-auto md:min-w-[200px]" ref={datePickerRef}>
         <button
           type="button"
           onClick={() => {
             setShowDatePicker(!showDatePicker);
             setShowGuestsPicker(false);
           }}
-          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors min-w-[200px]"
+          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[200px]"
         >
           <Calendar size={18} className="text-gray-400" />
           <span className="text-sm">{getDateRangeText()}</span>
@@ -217,7 +242,7 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         </button>
 
         {showDatePicker && (
-          <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[320px]">
+          <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[120] min-w-[320px]">
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={prevMonth}
@@ -261,13 +286,17 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleDateClick(date)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDateClick(date);
+                    }}
                     onMouseEnter={() => setHoveredDate(date)}
                     onMouseLeave={() => setHoveredDate(null)}
                     disabled={isPast}
                     className={`
-                      aspect-square text-sm font-medium rounded-lg transition-colors
-                      ${isPast ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'}
+                      aspect-square text-sm font-medium rounded-lg transition-colors relative z-[130]
+                      ${isPast ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-700 hover:bg-gray-100 cursor-pointer'}
                       ${isSelected ? 'bg-primary-600 text-white hover:bg-primary-700' : ''}
                       ${isInRange && !isSelected ? 'bg-primary-50 text-primary-700' : ''}
                       ${isHovered && dateRange.start && !dateRange.end && date > dateRange.start ? 'bg-primary-100' : ''}
@@ -282,15 +311,15 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         )}
       </div>
 
-      {/* Guests Picker */}
-      <div className="relative" ref={guestsPickerRef}>
+      {/* Guests Picker - FIX: Responsive width */}
+      <div className="relative w-full md:w-auto md:min-w-[180px]" ref={guestsPickerRef}>
         <button
           type="button"
           onClick={() => {
             setShowGuestsPicker(!showGuestsPicker);
             setShowDatePicker(false);
           }}
-          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors min-w-[180px]"
+          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[180px]"
         >
           <Users size={18} className="text-gray-400" />
           <span className="text-sm">{getGuestsText()}</span>
@@ -298,7 +327,7 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         </button>
 
         {showGuestsPicker && (
-          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[240px]">
+          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[120] min-w-[240px]">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -308,16 +337,24 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }))}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }));
+                    }}
+                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[130] cursor-pointer"
                   >
                     <Minus size={14} className="text-gray-600" />
                   </button>
                   <span className="font-bold text-gray-900 w-8 text-center">{guests.adults}</span>
                   <button
                     type="button"
-                    onClick={() => setGuests(prev => ({ ...prev, adults: prev.adults + 1 }))}
-                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setGuests(prev => ({ ...prev, adults: prev.adults + 1 }));
+                    }}
+                    className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[130] cursor-pointer"
                   >
                     <Plus size={14} className="text-gray-600" />
                   </button>
@@ -333,16 +370,24 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }))}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }));
+                      }}
+                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[130] cursor-pointer"
                     >
                       <Minus size={14} className="text-gray-600" />
                     </button>
                     <span className="font-bold text-gray-900 w-8 text-center">{guests.children}</span>
                     <button
                       type="button"
-                      onClick={() => setGuests(prev => ({ ...prev, children: prev.children + 1 }))}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setGuests(prev => ({ ...prev, children: prev.children + 1 }));
+                      }}
+                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[130] cursor-pointer"
                     >
                       <Plus size={14} className="text-gray-600" />
                     </button>
@@ -354,10 +399,10 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         )}
       </div>
 
-      {/* Search Button */}
+      {/* Search Button - FIX: Responsive width */}
       <button
         onClick={handleSearch}
-        className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl transition-colors shadow-lg shadow-primary-500/30 font-bold flex items-center justify-center gap-2"
+        className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl transition-colors shadow-lg shadow-primary-500/30 font-bold flex items-center justify-center gap-2 w-full md:w-auto"
       >
         <Search size={20} />
         <span className="hidden md:inline">Pesquisar</span>
