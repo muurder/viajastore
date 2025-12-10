@@ -90,6 +90,18 @@ const Layout: React.FC = () => {
   } else if (activeSlug) {
       currentAgency = getAgencyBySlug(activeSlug);
   }
+  
+  // FIX: Refined logic - only show agency header if:
+  // 1. We have an activeSlug (not a reserved route)
+  // 2. AND we're either in agency mode OR agency dashboard
+  // 3. AND we're not in a reserved route (double check)
+  const showAgencyHeader = !!activeSlug && 
+                            (isAgencyMode || isAgencyDashboard) && 
+                            !isReserved &&
+                            !location.pathname.startsWith('/client') &&
+                            !location.pathname.startsWith('/admin') &&
+                            !location.pathname.startsWith('/login') &&
+                            !location.pathname.startsWith('/signup');
 
   // --- THEME APPLICATION LOGIC ---
   useEffect(() => {
@@ -179,7 +191,6 @@ const Layout: React.FC = () => {
     }
   };
 
-  const showAgencyHeader = isAgencyMode || isAgencyDashboard;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300 pb-16 md:pb-0">
@@ -218,6 +229,7 @@ const Layout: React.FC = () => {
               <div className="flex items-center">
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!showAgencyHeader ? (
+                    // FIX: Show ViajaStore logo immediately for global pages (no loading state)
                     <>
                       <svg 
                         xmlns="http://www.w3.org/2000/svg" 
@@ -235,6 +247,7 @@ const Layout: React.FC = () => {
                       <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
                     </>
                   ) : (
+                    // FIX: Only show skeleton if we're actually in agency mode AND loading
                     <div className="flex items-center animate-[fadeIn_0.3s]">
                       {currentAgency ? (
                         <>
@@ -248,17 +261,30 @@ const Layout: React.FC = () => {
                               </span>
                           </div>
                         </>
-                      ) : (
+                      ) : dataLoading ? (
+                        // FIX: Only show skeleton if actually loading agency data
                         <div className="flex items-center">
-                            {!dataLoading ? (
-                              <span className="font-bold text-xl tracking-tight text-gray-800 capitalize">{activeSlug}</span>
-                            ) : (
-                              <>
-                                <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
-                                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                              </>
-                            )}
+                          <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse mr-3"></div>
+                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
                         </div>
+                      ) : (
+                        // FIX: Fallback to ViajaStore logo if agency not found (instead of showing slug)
+                        <>
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform"
+                          >
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                          </svg>
+                          <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
+                        </>
                       )}
                     </div>
                   )}
@@ -342,14 +368,24 @@ const Layout: React.FC = () => {
                             </Link>
                             
                             {user.role === 'AGENCY' && (
-                              <Link
-                                to={themeLink}
-                                onClick={() => setIsUserDropdownOpen(false)}
-                                className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                              >
-                                <Palette size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
-                                <span className="font-medium">Aparência</span>
-                              </Link>
+                              <>
+                                <Link
+                                  to="/agency/dashboard"
+                                  onClick={() => setIsUserDropdownOpen(false)}
+                                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                >
+                                  <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                  <span className="font-medium">Acessar Painel da Agência</span>
+                                </Link>
+                                <Link
+                                  to={themeLink}
+                                  onClick={() => setIsUserDropdownOpen(false)}
+                                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                >
+                                  <Palette size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                  <span className="font-medium">Aparência</span>
+                                </Link>
+                              </>
                             )}
                             
                             <div className="border-t border-gray-100 my-1"></div>
