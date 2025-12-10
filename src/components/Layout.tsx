@@ -297,7 +297,7 @@ const Layout: React.FC = () => {
                           <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
                           <Link to="/guides" className={getLinkClasses('/guides')}>
                             <Compass size={16} className="inline mr-1" />
-                            Guias
+                            Guias Turísticos
                           </Link>
                           <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                       </>

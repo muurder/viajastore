@@ -55,6 +55,7 @@ export interface Agency extends User {
   description: string;
   logo: string;
   is_active?: boolean;
+  isGuide?: boolean; // Flag to identify tour guides
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;
