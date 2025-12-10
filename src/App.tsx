@@ -36,7 +36,6 @@ const App: React.FC = () => {
                   <Route path="agencies" element={<AgencyList />} />
                   <Route path="guides" element={<GuideList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
-                  <Route path="guides" element={<AgencyList />} /> {/* Temporariamente usando AgencyList, será substituído por GuideList */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
