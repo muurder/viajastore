@@ -13,42 +13,90 @@ const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const activeSlug = tripSlug || slug;
   
-  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies, fetchTripImages } = useData();
+  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies, fetchTripImages, loading } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [tripLoading, setTripLoading] = useState(true);
+  const [tripError, setTripError] = useState<string | null>(null);
+  const [trip, setTrip] = useState<Trip | undefined>(undefined);
+  const [currentAgency, setCurrentAgency] = useState(agencySlug ? getAgencyBySlug(agencySlug) : undefined);
 
-  // FIX: When in agency microsite context, search trips within that agency first
-  // This prevents issues with duplicate slugs across different agencies
-  const currentAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
-  
-  let trip: Trip | undefined = undefined;
-  
-  if (activeSlug) {
-    if (currentAgency) {
-      // In agency microsite: search within agency's trips first
-      const agencyTrips = getAgencyPublicTrips(currentAgency.agencyId);
-      trip = agencyTrips.find(t => t.slug === activeSlug);
-      
-      // If not found by slug, try by ID (fallback for old links)
-      if (!trip && activeSlug.length === 36) { // UUIDs are 36 chars
-        trip = getTripById(activeSlug);
-        // Verify it belongs to this agency
-        if (trip && trip.agencyId !== currentAgency.agencyId) {
-          trip = undefined;
-        }
-      }
-    } else {
-      // Global context: search all trips
-      trip = getTripBySlug(activeSlug);
-      
-      // If not found by slug, try by ID (fallback for old links)
-      if (!trip && activeSlug.length === 36) { // UUIDs are 36 chars
-        trip = getTripById(activeSlug);
-      }
+  // Enhanced trip loading with timeout and retry
+  useEffect(() => {
+    if (!activeSlug) {
+      setTripLoading(false);
+      return;
     }
-  }
-  
+
+    let timeoutId: NodeJS.Timeout;
+    const loadTrip = async () => {
+      setTripLoading(true);
+      setTripError(null);
+      
+      try {
+        // Wait for agency to load if in microsite context
+        let agency = currentAgency;
+        if (agencySlug && !agency) {
+          // Retry getting agency
+          agency = getAgencyBySlug(agencySlug);
+          setCurrentAgency(agency);
+        }
+
+        let foundTrip: Trip | undefined = undefined;
+
+        if (agency) {
+          // In agency microsite: search within agency's trips first
+          const agencyTrips = getAgencyPublicTrips(agency.agencyId);
+          foundTrip = agencyTrips.find(t => t.slug === activeSlug);
+          
+          // If not found by slug, try by ID (fallback for old links)
+          if (!foundTrip) {
+            foundTrip = getTripById(activeSlug);
+            // Verify it belongs to this agency
+            if (foundTrip && foundTrip.agencyId !== agency.agencyId) {
+              foundTrip = undefined;
+            }
+          }
+        } else {
+          // Global context: search all trips
+          foundTrip = getTripBySlug(activeSlug);
+          
+          // If not found by slug, try by ID (fallback for old links)
+          if (!foundTrip) {
+            foundTrip = getTripById(activeSlug);
+          }
+        }
+
+        if (foundTrip) {
+          setTrip(foundTrip);
+          setTripError(null);
+        } else {
+          setTripError('Viagem não encontrada');
+        }
+      } catch (error: any) {
+        console.error('Error loading trip:', error);
+        setTripError('Erro ao carregar viagem');
+      } finally {
+        setTripLoading(false);
+      }
+    };
+
+    loadTrip();
+
+    // Timeout after 5 seconds
+    timeoutId = setTimeout(() => {
+      if (tripLoading) {
+        setTripLoading(false);
+        setTripError('Tempo de carregamento excedido. Tente novamente.');
+      }
+    }, 5000);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [activeSlug, agencySlug, getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, currentAgency]);
+
   const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : currentAgency;
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -71,20 +119,61 @@ const TripDetails: React.FC = () => {
   const currentUserData = user ? clients.find(c => c.id === user.id) : undefined;
   const isFavorite = user?.role === 'CLIENT' && trip && currentUserData?.favorites.includes(trip.id);
 
-  if (!trip) {
+  // Loading state with timeout
+  if (tripLoading || (loading && !trip)) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
+        <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-600 font-medium">Carregando viagem...</p>
+      </div>
+    );
+  }
+
+  // Error state with retry
+  if (tripError || !trip) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
+        <AlertTriangle size={48} className="text-red-500 mb-4" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Viagem não encontrada</h2>
         <p className="text-gray-500 mb-4 text-center max-w-md">
-          {activeSlug ? `A viagem com slug "${activeSlug}" não foi encontrada.` : 'Nenhuma viagem especificada.'}
+          {tripError || (activeSlug ? `A viagem com slug "${activeSlug}" não foi encontrada.` : 'Nenhuma viagem especificada.')}
           {currentAgency && ' Verifique se a viagem pertence a esta agência.'}
         </p>
-        <Link 
-          to={currentAgency ? `/${currentAgency.slug}/trips` : '/trips'} 
-          className="text-primary-600 hover:underline font-medium"
-        >
-          {currentAgency ? `Voltar para pacotes de ${currentAgency.name}` : 'Voltar para lista de viagens'}
-        </Link>
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setTripLoading(true);
+              setTripError(null);
+              // Retry loading
+              const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+              if (agency) {
+                const agencyTrips = getAgencyPublicTrips(agency.agencyId);
+                const foundTrip = agencyTrips.find(t => t.slug === activeSlug) || getTripById(activeSlug);
+                if (foundTrip && foundTrip.agencyId === agency.agencyId) {
+                  setTrip(foundTrip);
+                  setTripLoading(false);
+                  return;
+                }
+              }
+              const foundTrip = getTripBySlug(activeSlug) || getTripById(activeSlug);
+              if (foundTrip) {
+                setTrip(foundTrip);
+              } else {
+                setTripError('Viagem não encontrada');
+              }
+              setTripLoading(false);
+            }}
+            className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-primary-700 transition-colors"
+          >
+            Tentar Novamente
+          </button>
+          <Link 
+            to={currentAgency ? `/${currentAgency.slug}/trips` : '/trips'} 
+            className="bg-gray-100 text-gray-700 px-6 py-2.5 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+          >
+            {currentAgency ? `Voltar para pacotes de ${currentAgency.name}` : 'Voltar para lista de viagens'}
+          </Link>
+        </div>
       </div>
     );
   }

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
-import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle } from 'lucide-react';
+import HeroSearch from '../components/HeroSearch';
+import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle, TrendingUp } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { Trip } from '../types';
@@ -25,12 +26,15 @@ const DEFAULT_HERO_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef2
 const Home: React.FC = () => {
   const { searchTrips, agencies } = useData();
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
   
   // Hero Data
   const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [heroLoading, setHeroLoading] = useState(true);
+
+  // Featured Dock Trips (Top 4 by views or featured)
+  const [featuredDockTrips, setFeaturedDockTrips] = useState<Trip[]>([]);
+  const [dockLoading, setDockLoading] = useState(true);
 
   // Grid Data
   const [gridTrips, setGridTrips] = useState<Trip[]>([]);
@@ -66,9 +70,43 @@ const Home: React.FC = () => {
         setHeroLoading(false);
     };
     loadHero();
-  }, []);
+  }, [searchTrips]);
 
-  // 2. Fetch Grid Trips when Interest Changes
+  // 2. Load Featured Dock Trips (Top 4 by views or featured)
+  useEffect(() => {
+    const loadFeaturedDock = async () => {
+        setDockLoading(true);
+        try {
+            // First try to get featured trips sorted by views
+            const { data: featuredData } = await searchTrips({ 
+                limit: 10, 
+                featured: true, 
+                sort: 'RATING' // Will sort by rating, but we'll re-sort by views
+            });
+            
+            let dockTrips: Trip[] = [];
+            if (featuredData && featuredData.length > 0) {
+                dockTrips = featuredData;
+            } else {
+                // Fallback: Get all trips and sort by views
+                const { data: allData } = await searchTrips({ limit: 20, sort: 'RATING' });
+                dockTrips = allData || [];
+            }
+
+            // Sort by views (descending) and take top 4
+            dockTrips.sort((a, b) => (b.views || 0) - (a.views || 0));
+            setFeaturedDockTrips(dockTrips.slice(0, 4));
+        } catch (error) {
+            console.error('Error loading featured dock trips:', error);
+            setFeaturedDockTrips([]);
+        } finally {
+            setDockLoading(false);
+        }
+    };
+    loadFeaturedDock();
+  }, [searchTrips]);
+
+  // 3. Fetch Grid Trips when Interest Changes
   useEffect(() => {
     const loadGrid = async () => {
         setGridLoading(true);
@@ -93,7 +131,7 @@ const Home: React.FC = () => {
         setGridLoading(false);
     };
     loadGrid();
-  }, [selectedInterests]);
+  }, [selectedInterests, searchTrips]);
 
 
   // Carousel Logic
@@ -151,13 +189,8 @@ const Home: React.FC = () => {
      e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate(`/trips?q=${search}`);
-  };
 
   const clearFilters = () => {
-    setSearch('');
     setSelectedInterests([]);
   };
 
@@ -166,9 +199,10 @@ const Home: React.FC = () => {
 
   return (
     <div className="space-y-12 pb-12">
-      {/* HERO SECTION */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[500px] md:min-h-[580px] flex items-center group bg-gray-900">
+      {/* HERO SECTION - IMERSIVA */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[600px] md:min-h-[700px] flex flex-col group bg-gray-900">
         
+        {/* Background Images Carousel */}
         {heroTrips.length > 0 ? (
             heroTrips.map((trip, index) => (
                 <div 
@@ -187,62 +221,91 @@ const Home: React.FC = () => {
             <div className="absolute inset-0 z-0"><img src={DEFAULT_HERO_IMG} alt="Hero background" className="w-full h-full object-cover"/></div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-20 pointer-events-none"></div>
+        {/* Enhanced Gradient Overlay - Stronger at bottom for dock readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90 z-20 pointer-events-none"></div>
         
-        <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left Side: Text and Search */}
-            <div className="text-center lg:text-left">
-              <div className="animate-[fadeInUp_0.8s_ease-out]">
-                  <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-6 drop-shadow-xl">Encontre sua <br/>próxima viagem.</h1>
-                  <p className="text-lg text-gray-200 mb-10 max-w-lg mx-auto lg:mx-0 font-light leading-relaxed drop-shadow-md">Compare pacotes das melhores agências e compre com segurança.</p>
-              </div>
+        {/* Main Content - Centered */}
+        <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 flex-1 flex flex-col justify-center py-12 md:py-20">
+          {/* Centered Typography */}
+          <div className="text-center mb-10 animate-[fadeInUp_0.8s_ease-out]">
+            <h1 className="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-6 drop-shadow-2xl">
+              Descubra o Brasil
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-200 max-w-2xl mx-auto font-light leading-relaxed drop-shadow-lg">
+              As melhores experiências de viagem você encontra aqui
+            </p>
+          </div>
 
-              <div className="animate-[fadeInUp_1.1s]">
-                <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-xl mx-auto lg:mx-0 transform transition-transform hover:scale-[1.01]">
-                  <div className="flex-1 flex items-center px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus-within:border-primary-300 focus-within:bg-white transition-all">
-                    <MapPin className="text-primary-500 mr-3" />
-                    <input type="text" placeholder="Para onde você quer ir?" className="bg-transparent w-full outline-none text-gray-800 placeholder-gray-400 font-medium" value={search} onChange={(e) => setSearch(e.target.value)} />
-                  </div>
-                  <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg flex items-center justify-center"><Search size={20} className="mr-2 md:hidden" /> Buscar</button>
-                </form>
-              </div>
-            </div>
-
-            {/* Right Side: Featured Trip Carousel */}
-            <div className="hidden lg:flex justify-center items-center h-full relative">
-              {heroLoading ? (
-                 <div className="w-full max-w-sm h-96 bg-gray-800/50 backdrop-blur-sm rounded-3xl animate-pulse border border-white/10"></div>
-              ) : currentHeroTrip ? (
-                <Link to={`/viagem/${currentHeroTrip.slug || currentHeroTrip.id}`} key={currentHeroTrip.id} className="block w-full max-w-sm bg-black/30 backdrop-blur-xl border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-black/40 hover:scale-[1.02] transition-all duration-300 animate-[fadeIn_0.5s_ease-out] group/card relative z-10">
-                    <div className="relative h-52 w-full rounded-2xl overflow-hidden mb-5 shadow-md">
-                        <img src={currentHeroTrip.images[0] || DEFAULT_HERO_IMG} alt={currentHeroTrip.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" />
-                        <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10">{currentHeroTrip.category.replace('_', ' ')}</div>
-                    </div>
-                    <h3 className="font-bold text-white text-2xl leading-tight line-clamp-2 min-h-[3.5rem] mb-3 group-hover/card:text-primary-400 transition-colors drop-shadow-sm">{currentHeroTrip.title}</h3>
-                    <div className="flex items-center text-sm text-gray-300 mb-6 pb-4 border-b border-white/10">
-                        <MapPin size={14} className="mr-1.5 text-gray-400" /><span className="truncate max-w-[150px] font-medium">{currentHeroTrip.destination}</span>
-                        <span className="mx-2 opacity-30">|</span>
-                        <Clock size={14} className="mr-1.5 text-gray-400" /><span className="font-medium">{currentHeroTrip.durationDays} dias</span>
-                    </div>
-                    <div className="flex justify-between items-end">
-                        <div className="flex flex-col"><p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5 tracking-wider">A partir de</p><div className="flex items-baseline gap-1"><span className="text-xs font-semibold text-gray-400">R$</span><p className="text-3xl font-extrabold text-white drop-shadow-sm">{currentHeroTrip.price.toLocaleString('pt-BR')}</p></div></div>
-                        <div className="flex gap-2">
-                             {heroWhatsAppLink && (<button onClick={(e) => { e.preventDefault(); window.open(heroWhatsAppLink, '_blank'); }} className="p-3 bg-green-500/80 hover:bg-green-600 text-white rounded-xl shadow-lg transition-colors backdrop-blur-sm flex items-center justify-center border border-green-400/30"><MessageCircle size={20} /></button>)}
-                            <div className="px-5 py-3 bg-primary-600 text-white rounded-xl text-sm font-bold flex items-center group-hover/card:bg-primary-500 transition-colors shadow-lg">Ver Pacote <ArrowRight size={16} className="ml-2 group-hover/card:translate-x-1 transition-transform" /></div>
-                        </div>
-                    </div>
-                </Link>
-              ) : null}
-              {heroTrips.length > 1 && (
-                <>
-                  <button onClick={prevSlide} className="absolute -left-16 top-1/2 -translate-y-1/2 z-30 text-white/50 hover:text-white p-3 rounded-full hover:bg-white/10"><ChevronLeft size={48}/></button>
-                  <button onClick={nextSlide} className="absolute -right-16 top-1/2 -translate-y-1/2 z-30 text-white/50 hover:text-white p-3 rounded-full hover:bg-white/10"><ChevronRight size={48}/></button>
-                </>
-              )}
-            </div>
+          {/* Hero Search Bar */}
+          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s]">
+            <HeroSearch />
           </div>
         </div>
+
+        {/* Featured Dock - Bottom Overlap */}
+        <div className="relative z-40 w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
+          {dockLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl animate-pulse">
+                  <div className="w-full h-24 bg-gray-200 rounded-xl mb-3"></div>
+                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-6 bg-gray-200 rounded w-2/3"></div>
+                </div>
+              ))}
+            </div>
+          ) : featuredDockTrips.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {featuredDockTrips.map((trip) => (
+                <Link
+                  key={trip.id}
+                  to={`/viagem/${trip.slug || trip.id}`}
+                  className="group/dock bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                >
+                  <div className="relative w-full h-24 rounded-xl overflow-hidden mb-3">
+                    <img
+                      src={trip.images?.[0] || DEFAULT_HERO_IMG}
+                      alt={trip.title}
+                      className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                      onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
+                    />
+                    {(trip.featured || (trip.views || 0) > 100) && (
+                      <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg">
+                        <TrendingUp size={10} />
+                        {trip.featured ? 'Em Alta' : 'Oferta'}
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 mb-2 group-hover/dock:text-primary-600 transition-colors">
+                    {trip.title}
+                  </h3>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xs text-gray-500 font-semibold">R$</span>
+                    <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Carousel Navigation */}
+        {heroTrips.length > 1 && (
+          <>
+            <button 
+              onClick={prevSlide} 
+              className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
+            >
+              <ChevronLeft size={32}/>
+            </button>
+            <button 
+              onClick={nextSlide} 
+              className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
+            >
+              <ChevronRight size={32}/>
+            </button>
+          </>
+        )}
       </div>
 
       {/* FILTERS & GRID */}

@@ -19,6 +19,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { slugify } from '../utils/slugify';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
@@ -110,7 +111,8 @@ export const AdminDashboard: React.FC = () => {
       updateClientProfile, updateTrip, deleteTrip, updateMultipleUsersStatus, updateMultipleAgenciesStatus,
       logAuditAction, refreshData, updateAgencyReview, updateAgencyProfileByAdmin,
       softDeleteEntity, restoreEntity, sendPasswordReset, updateUserAvatarByAdmin,
-      toggleAgencyStatus
+      toggleAgencyStatus, adminChangePlan, adminBulkDeleteAgencies, adminBulkArchiveAgencies,
+      adminBulkChangePlan, adminSuspendAgency, getAgencyStats
   } = useData();
   // Access previewMode from useTheme()
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, previewMode } = useTheme();
@@ -126,7 +128,9 @@ export const AdminDashboard: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [newThemeForm, setNewThemeForm] = useState({ name: '', primary: '#3b82f6', secondary: '#f97316' });
 
-  const [modalType, setModalType] = useState<'DELETE' | 'EDIT_USER' | 'MANAGE_SUB' | 'EDIT_REVIEW' | 'EDIT_AGENCY' | 'EDIT_TRIP' | 'VIEW_STATS' | null>(null);
+  const [modalType, setModalType] = useState<'DELETE' | 'EDIT_USER' | 'MANAGE_SUB' | 'EDIT_REVIEW' | 'EDIT_AGENCY' | 'EDIT_TRIP' | 'VIEW_STATS' | 'CHANGE_PLAN' | 'VIEW_AGENCY_DETAILS' | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; variant?: 'danger' | 'warning' | 'info'; confirmText?: string }>({ isOpen: false, title: '', message: '', onConfirm: () => {}, variant: 'danger' });
+  const [agencyDetails, setAgencyDetails] = useState<{ agency: Agency | null; stats: any; trips: Trip[] }>({ agency: null, stats: null, trips: [] });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
@@ -360,9 +364,101 @@ export const AdminDashboard: React.FC = () => {
   const handleToggleAllAgencies = () => setSelectedAgencies(prev => prev.length === filteredAgencies.length && filteredAgencies.length > 0 ? [] : filteredAgencies.map(a => a.agencyId));
 
   const handleMassDeleteUsers = async () => { if (window.confirm(`Excluir ${selectedUsers.length} usuários?`)) { await deleteMultipleUsers(selectedUsers); setSelectedUsers([]); showToast('Usuários excluídos.', 'success'); } };
-  const handleMassDeleteAgencies = async () => { if (window.confirm(`Excluir ${selectedAgencies.length} agências?`)) { await deleteMultipleAgencies(selectedAgencies); setSelectedAgencies([]); showToast('Agências excluídas.', 'success'); } };
+  
+  const handleMassDeleteAgencies = async () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Confirmar Exclusão',
+      message: `Tem certeza que deseja excluir permanentemente ${selectedAgencies.length} agência(s)? Esta ação não pode ser desfeita.`,
+      variant: 'danger',
+      confirmText: 'Excluir Permanentemente',
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await adminBulkDeleteAgencies(selectedAgencies);
+          setSelectedAgencies([]);
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        } catch (error) {
+          console.error('Error deleting agencies:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
+  const handleMassArchiveAgencies = async () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Arquivar Agências',
+      message: `Deseja arquivar ${selectedAgencies.length} agência(s)? Elas serão movidas para a lixeira.`,
+      variant: 'warning',
+      confirmText: 'Arquivar',
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await adminBulkArchiveAgencies(selectedAgencies);
+          setSelectedAgencies([]);
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        } catch (error) {
+          console.error('Error archiving agencies:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
+  const handleMassChangePlan = async (newPlan: 'BASIC' | 'PREMIUM') => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Alterar Plano',
+      message: `Deseja alterar o plano de ${selectedAgencies.length} agência(s) para ${newPlan}?`,
+      variant: 'info',
+      confirmText: 'Alterar Plano',
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          await adminBulkChangePlan(selectedAgencies, newPlan);
+          setSelectedAgencies([]);
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        } catch (error) {
+          console.error('Error changing plans:', error);
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
   const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus(selectedUsers, status); setSelectedUsers([]); showToast('Status atualizado.', 'success'); };
   const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => { await updateMultipleAgenciesStatus(selectedAgencies, status); setSelectedAgencies([]); showToast('Status atualizado.', 'success'); };
+
+  const handleViewAgencyDetails = async (agency: Agency) => {
+    setIsProcessing(true);
+    try {
+      const stats = await getAgencyStats(agency.agencyId);
+      const agencyTrips = trips.filter(t => t.agencyId === agency.agencyId);
+      setAgencyDetails({ agency, stats, trips: agencyTrips });
+      setModalType('VIEW_AGENCY_DETAILS');
+    } catch (error) {
+      showToast('Erro ao carregar detalhes da agência', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChangePlan = async (agencyId: string, newPlan: 'BASIC' | 'PREMIUM') => {
+    setIsProcessing(true);
+    try {
+      await adminChangePlan(agencyId, newPlan);
+      setModalType(null);
+    } catch (error) {
+      console.error('Error changing plan:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   const handleViewStats = async () => { const stats = await getUsersStats(selectedUsers); setUserStats(stats); setModalType('VIEW_STATS'); };
   
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -513,11 +609,12 @@ export const AdminDashboard: React.FC = () => {
                                 {label: 'Restaurar', icon: ArchiveRestore, onClick: () => handleRestore(agency.id, 'agency')}, 
                                 {label: 'Excluir Perm.', icon: Trash, onClick: () => handlePermanentDelete(agency.id, agency.role), variant: 'danger'}
                             ] : [
+                                { label: 'Ver Detalhes', icon: Eye, onClick: () => handleViewAgencyDetails(agency) },
                                 { label: 'Editar Dados', icon: Edit3, onClick: () => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }},
-                                { label: 'Gerenciar Assinatura', icon: CreditCard, onClick: () => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus, expiresAt: agency.subscriptionExpiresAt }); setModalType('MANAGE_SUB'); } },
-                                { label: agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência', icon: agency.subscriptionStatus === 'ACTIVE' ? Ban : CheckCircle, onClick: () => toggleAgencyStatus(agency.agencyId) },
-                                { label: 'Ver Perfil', icon: Eye, onClick: () => window.open(`/#/${agency.slug}`, '_blank') },
-                                { label: 'Mover para Lixeira', icon: Trash2, onClick: () => handleSoftDelete(agency.id, 'agency'), variant: 'danger' }
+                                { label: 'Mudar Plano', icon: CreditCard, onClick: () => { setSelectedItem(agency); setModalType('CHANGE_PLAN'); } },
+                                { label: agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar', icon: agency.subscriptionStatus === 'ACTIVE' ? Ban : CheckCircle, onClick: () => adminSuspendAgency(agency.agencyId) },
+                                { label: 'Ver Perfil', icon: ExternalLink, onClick: () => window.open(`/#/${agency.slug}`, '_blank') },
+                                { label: 'Arquivar', icon: Trash2, onClick: () => handleSoftDelete(agency.id, 'agency'), variant: 'danger' }
                             ]} 
                         />
                     </div>
@@ -537,9 +634,67 @@ export const AdminDashboard: React.FC = () => {
             ) : (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-gray-50/50"><tr><th className="w-10 px-6 py-4"><input type="checkbox" onChange={handleToggleAllAgencies} checked={selectedAgencies.length === filteredAgencies.length && filteredAgencies.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Expira em</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th></tr></thead>
+                        <thead className="bg-gray-50/50">
+                          <tr>
+                            <th className="w-10 px-6 py-4">
+                              <input type="checkbox" onChange={handleToggleAllAgencies} checked={selectedAgencies.length === filteredAgencies.length && filteredAgencies.length > 0} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
+                            </th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Vendas Totais</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data Cadastro</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                          </tr>
+                        </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                            {filteredAgencies.map(agency => { const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)); return (<tr key={agency.id} className="hover:bg-gray-50 transition-colors"><td className="px-6 py-4"><input type="checkbox" checked={selectedAgencies.includes(agency.agencyId)} onChange={() => handleToggleAgency(agency.agencyId)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/></td><td className="px-6 py-4"><div className="flex items-center gap-3"><img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-10 h-10 rounded-full" alt=""/><div className="truncate"><p className="font-bold text-gray-900 text-sm truncate max-w-[200px]">{agency.name}</p><a href={`/#/${agency.slug}`} target="_blank" className="text-xs text-primary-600 hover:underline flex items-center gap-1 font-mono">{`/${agency.slug}`} <ExternalLink size={10}/></a></div></div></td><td className="px-6 py-4"><Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{agency.subscriptionPlan}</Badge></td><td className="px-6 py-4"><Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge></td><td className="px-6 py-4 text-sm text-gray-500 font-mono">{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</td><td className="px-6 py-4 text-right">
+                            {filteredAgencies.map(agency => { 
+                              const daysLeft = Math.round((new Date(agency.subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                              const agencyBookings = bookings.filter(b => {
+                                const trip = trips.find(t => t.id === b.tripId);
+                                return trip && trip.agencyId === agency.agencyId;
+                              });
+                              const totalSales = agencyBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+                              const createdAt = agency.createdAt ? new Date(agency.createdAt).toLocaleDateString('pt-BR') : 'N/A';
+                              
+                              return (
+                                <tr key={agency.id} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <input type="checkbox" checked={selectedAgencies.includes(agency.agencyId)} onChange={() => handleToggleAgency(agency.agencyId)} className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500"/>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                      <img src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} className="w-10 h-10 rounded-full" alt=""/>
+                                      <div className="truncate">
+                                        <p 
+                                          className="font-bold text-gray-900 text-sm truncate max-w-[200px] cursor-pointer hover:text-primary-600 transition-colors"
+                                          onClick={() => handleViewAgencyDetails(agency)}
+                                        >
+                                          {agency.name}
+                                        </p>
+                                        <a href={`/#/${agency.slug}`} target="_blank" className="text-xs text-primary-600 hover:underline flex items-center gap-1 font-mono">
+                                          {`/${agency.slug}`} <ExternalLink size={10}/>
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>
+                                      {agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>
+                                      {agency.subscriptionPlan}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                                    R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-500">
+                                    {createdAt}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                     {showAgencyTrash ? (
                                         <>
@@ -552,16 +707,19 @@ export const AdminDashboard: React.FC = () => {
                                         </>
                                     ) : (
                                         <>
+                                            <button title="Ver Detalhes" onClick={() => handleViewAgencyDetails(agency)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                <Eye size={18} />
+                                            </button>
                                             <button title="Editar" onClick={() => { setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
                                                 <Edit3 size={18} />
                                             </button>
-                                            <button title="Gerenciar Assinatura" onClick={() => { setSelectedItem(agency); setEditFormData({ plan: agency.subscriptionPlan, status: agency.subscriptionStatus, expiresAt: agency.subscriptionExpiresAt }); setModalType('MANAGE_SUB'); }} className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors">
+                                            <button title="Mudar Plano" onClick={() => { setSelectedItem(agency); setModalType('CHANGE_PLAN'); }} className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
                                                 <CreditCard size={18} />
                                             </button>
-                                            <button title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender Agência' : 'Reativar Agência'} onClick={() => toggleAgencyStatus(agency.agencyId)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                                            <button title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'} onClick={() => adminSuspendAgency(agency.agencyId)} className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
                                                 {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={18}/> : <CheckCircle size={18}/>}
                                             </button>
-                                            <button title="Mover para Lixeira" onClick={() => handleSoftDelete(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                            <button title="Arquivar" onClick={() => handleSoftDelete(agency.id, 'agency')} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                                                 <Trash2 size={18} />
                                             </button>
                                         </>
@@ -858,10 +1016,13 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                 )}
                 {activeTab === 'AGENCIES' && selectedAgencies.length > 0 && (
-                    <div className="flex gap-2">
-                        <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100">Ativar</button>
-                        <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100">Inativar</button>
-                        <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100">Excluir</button>
+                    <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors">Ativar</button>
+                        <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors">Inativar</button>
+                        <button onClick={() => handleMassChangePlan('BASIC')} className="bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors">Plano Básico</button>
+                        <button onClick={() => handleMassChangePlan('PREMIUM')} className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors">Plano Premium</button>
+                        <button onClick={() => handleMassArchiveAgencies()} className="bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors">Arquivar</button>
+                        <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors">Excluir</button>
                     </div>
                 )}
             </div>
@@ -1114,6 +1275,160 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal: Change Plan */}
+      {modalType === 'CHANGE_PLAN' && selectedItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Mudar Plano</h2>
+            <p className="text-sm text-gray-600 mb-6">{selectedItem.name}</p>
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Plano Atual</p>
+                <Badge color={selectedItem.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{selectedItem.subscriptionPlan}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleChangePlan(selectedItem.agencyId, 'BASIC')}
+                  disabled={isProcessing || selectedItem.subscriptionPlan === 'BASIC'}
+                  className="p-4 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <p className="font-bold text-gray-900">Básico</p>
+                  <p className="text-xs text-gray-500 mt-1">R$ 99,90/mês</p>
+                </button>
+                <button
+                  onClick={() => handleChangePlan(selectedItem.agencyId, 'PREMIUM')}
+                  disabled={isProcessing || selectedItem.subscriptionPlan === 'PREMIUM'}
+                  className="p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <p className="font-bold text-gray-900">Premium</p>
+                  <p className="text-xs text-gray-500 mt-1">R$ 199,90/mês</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: View Agency Details (Full Screen) */}
+      {modalType === 'VIEW_AGENCY_DETAILS' && agencyDetails.agency && (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto animate-[fadeIn_0.2s]">
+          <div className="max-w-7xl mx-auto p-8">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
+              <div className="flex items-center gap-4">
+                <img src={agencyDetails.agency.logo || `https://ui-avatars.com/api/?name=${agencyDetails.agency.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt=""/>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">{agencyDetails.agency.name}</h1>
+                  <p className="text-sm text-gray-500 font-mono">/{agencyDetails.agency.slug}</p>
+                </div>
+              </div>
+              <button onClick={() => setModalType(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full"><X size={24}/></button>
+            </div>
+
+            {/* Stats Grid */}
+            {agencyDetails.stats && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <p className="text-sm text-gray-500 mb-1">Receita Total</p>
+                  <p className="text-2xl font-bold text-gray-900">R$ {agencyDetails.stats.totalRevenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <p className="text-sm text-gray-500 mb-1">Vendas</p>
+                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalSales || 0}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <p className="text-sm text-gray-500 mb-1">Visualizações</p>
+                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalViews || 0}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <p className="text-sm text-gray-500 mb-1">Avaliação Média</p>
+                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.averageRating?.toFixed(1) || '-'}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Trips List */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Pacotes Ativos ({agencyDetails.trips.length})</h2>
+              <div className="space-y-3">
+                {agencyDetails.trips.length > 0 ? (
+                  agencyDetails.trips.map(trip => (
+                    <div key={trip.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <img src={trip.images?.[0] || 'https://placehold.co/80x60'} className="w-20 h-15 rounded-lg object-cover" alt=""/>
+                        <div>
+                          <p className="font-bold text-gray-900">{trip.title}</p>
+                          <p className="text-sm text-gray-500">{trip.destination}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</p>
+                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Inativo'}</Badge>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-8">Nenhum pacote cadastrado.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Activity Logs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Histórico de Atividades</h2>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).length > 0 ? (
+                  auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).map(log => (
+                    <div key={log.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <p className="text-sm font-bold text-gray-900">{log.action}</p>
+                      <p className="text-xs text-gray-600 mt-1">{log.details}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-8">Nenhuma atividade registrada.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Actions Bar */}
+      {activeTab === 'AGENCIES' && selectedAgencies.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 animate-[fadeIn_0.3s] transform transition-all">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-bold text-gray-700">
+              {selectedAgencies.length} Agência(s) selecionada(s)
+            </span>
+            <div className="flex gap-2">
+              <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors">Ativar</button>
+              <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors">Inativar</button>
+              <button onClick={() => handleMassChangePlan('BASIC')} className="bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors">Plano Básico</button>
+              <button onClick={() => handleMassChangePlan('PREMIUM')} className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors">Plano Premium</button>
+              <button onClick={() => handleMassArchiveAgencies()} className="bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors">Arquivar</button>
+              <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors">Excluir</button>
+              <button onClick={() => setSelectedAgencies([])} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                <X size={14}/>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        confirmText={confirmDialog.confirmText}
+        isConfirming={isProcessing}
+      />
     </div>
   );
 };

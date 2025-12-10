@@ -99,6 +99,12 @@ interface DataContextType {
   logAuditAction: (action: string, details: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updateUserAvatarByAdmin: (userId: string, file: File) => Promise<string | null>;
+  // Admin-specific functions
+  adminChangePlan: (agencyId: string, newPlan: 'BASIC' | 'PREMIUM') => Promise<void>;
+  adminBulkDeleteAgencies: (agencyIds: string[]) => Promise<void>;
+  adminBulkArchiveAgencies: (agencyIds: string[]) => Promise<void>;
+  adminBulkChangePlan: (agencyIds: string[], newPlan: 'BASIC' | 'PREMIUM') => Promise<void>;
+  adminSuspendAgency: (agencyId: string) => Promise<void>;
   
   // Helpers
   getReviewsByTripId: (tripId: string) => AgencyReview[];
@@ -1372,6 +1378,85 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used here too
 
+  // Admin-specific functions
+  const adminChangePlan = useCallback(async (agencyId: string, newPlan: 'BASIC' | 'PREMIUM') => {
+    const sb = guardSupabase();
+    if (!sb) {
+      console.warn("[DataContext] Supabase not configured, cannot change plan.");
+      return;
+    }
+    try {
+      await sb.from('agencies').update({ subscription_plan: newPlan }).eq('id', agencyId);
+      showToast(`Plano alterado para ${newPlan}`, 'success');
+      logActivity(ActivityActionType.AGENCY_SUBSCRIPTION_UPDATED, { agencyId, newPlan });
+      _fetchGlobalAndClientProfiles();
+    } catch (error: any) {
+      console.error("[DataContext] Error changing plan:", error.message);
+      showToast(`Erro ao alterar plano: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+
+  const adminBulkDeleteAgencies = useCallback(async (agencyIds: string[]) => {
+    // Alias for deleteMultipleAgencies
+    await deleteMultipleAgencies(agencyIds);
+  }, [deleteMultipleAgencies]);
+
+  const adminBulkArchiveAgencies = useCallback(async (agencyIds: string[]) => {
+    const sb = guardSupabase();
+    if (!sb) {
+      console.warn("[DataContext] Supabase not configured, cannot archive agencies.");
+      return;
+    }
+    try {
+      const now = new Date().toISOString();
+      await sb.from('agencies').update({ deleted_at: now }).in('id', agencyIds);
+      showToast(`${agencyIds.length} agência(s) arquivada(s)`, 'success');
+      logActivity(ActivityActionType.SOFT_DELETE_ENTITY, { table: 'agencies', ids: agencyIds });
+      _fetchGlobalAndClientProfiles();
+    } catch (error: any) {
+      console.error("[DataContext] Error archiving agencies:", error.message);
+      showToast(`Erro ao arquivar agências: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+
+  const adminBulkChangePlan = useCallback(async (agencyIds: string[], newPlan: 'BASIC' | 'PREMIUM') => {
+    const sb = guardSupabase();
+    if (!sb) {
+      console.warn("[DataContext] Supabase not configured, cannot bulk change plan.");
+      return;
+    }
+    try {
+      await sb.from('agencies').update({ subscription_plan: newPlan }).in('id', agencyIds);
+      showToast(`${agencyIds.length} agência(s) atualizada(s) para ${newPlan}`, 'success');
+      logActivity(ActivityActionType.AGENCY_SUBSCRIPTION_UPDATED, { agencyIds, newPlan, bulk: true });
+      _fetchGlobalAndClientProfiles();
+    } catch (error: any) {
+      console.error("[DataContext] Error bulk changing plan:", error.message);
+      showToast(`Erro ao alterar planos: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+
+  const adminSuspendAgency = useCallback(async (agencyId: string) => {
+    const sb = guardSupabase();
+    if (!sb) {
+      console.warn("[DataContext] Supabase not configured, cannot suspend agency.");
+      return;
+    }
+    try {
+      await sb.from('agencies').update({ subscription_status: 'INACTIVE', is_active: false }).eq('id', agencyId);
+      showToast('Agência suspensa', 'success');
+      logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, status: 'SUSPENDED' });
+      _fetchGlobalAndClientProfiles();
+    } catch (error: any) {
+      console.error("[DataContext] Error suspending agency:", error.message);
+      showToast(`Erro ao suspender agência: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+
   const getUsersStats = useCallback(async (userIds: string[]): Promise<UserStats[]> => {
     const sb = guardSupabase();
     if (!sb) {
@@ -1866,6 +1951,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus, updateTripOperationalData,
       softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
       updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction, sendPasswordReset, updateUserAvatarByAdmin,
+      adminChangePlan, adminBulkDeleteAgencies, adminBulkArchiveAgencies, adminBulkChangePlan, adminSuspendAgency,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, getAgencyStats, getAgencyTheme, saveAgencyTheme,
       refreshUserData, incrementTripViews, fetchTripImages
     }}>

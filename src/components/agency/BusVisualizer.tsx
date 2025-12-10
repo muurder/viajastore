@@ -96,7 +96,7 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                             className={`
                                 transition-all 
                                 ${occupant 
-                                    ? 'fill-primary-100 stroke-primary-600' 
+                                    ? 'fill-blue-600 stroke-blue-700' 
                                     : isTarget 
                                         ? 'fill-green-50 stroke-green-500' 
                                         : 'fill-white stroke-current'
@@ -107,8 +107,8 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                         {/* Content: Number for free, Initials for occupied */}
                         {occupant ? (
                             <span 
-                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-primary-700 leading-none"
-                                style={{ fontSize: '11px' }}
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white leading-none z-10"
+                                style={{ fontSize: '12px', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                             >
                                 {getInitials(occupant.passengerName)}
                             </span>

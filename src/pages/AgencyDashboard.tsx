@@ -1910,7 +1910,16 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     
     // Drag & Drop Handlers
     const handleDragStart = (e: React.DragEvent, passenger: any) => {
-        e.dataTransfer.setData('application/json', JSON.stringify(passenger));
+        // Ensure passenger object has complete data for drag&drop
+        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
+        const passengerWithData = {
+            ...passenger,
+            name: dbPassenger?.full_name || passenger.details?.name || passenger.name || 'Passageiro (Sem nome)',
+            document: dbPassenger?.cpf || passenger.details?.document || '',
+            phone: dbPassenger?.whatsapp || passenger.details?.phone || '',
+            birthDate: dbPassenger?.birth_date || passenger.details?.birthDate || ''
+        };
+        e.dataTransfer.setData('application/json', JSON.stringify(passengerWithData));
         e.dataTransfer.effectAllowed = 'move';
     };
 
@@ -2038,17 +2047,48 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
     // Helper to get passenger details for tooltip
     const getPassengerDetails = (seat: PassengerSeat) => {
-        const passenger = allPassengers.find(p => p.id === seat.bookingId || `${p.bookingId}-${p.passengerIndex}` === seat.bookingId);
-        if (!passenger) return null;
+        // Try multiple matching strategies
+        let passenger = allPassengers.find(p => p.id === seat.bookingId);
+        
+        // If not found, try with bookingId-passengerIndex format
+        if (!passenger) {
+            const parts = seat.bookingId.split('-');
+            if (parts.length >= 2) {
+                const bookingId = parts[0];
+                const passengerIndex = parseInt(parts[1]) || 0;
+                passenger = allPassengers.find(p => 
+                    p.bookingId === bookingId && 
+                    (p.passengerIndex === passengerIndex || p.id === seat.bookingId)
+                );
+            }
+        }
+        
+        // If still not found, try searching in manual passengers
+        if (!passenger) {
+            passenger = allPassengers.find(p => p.id === seat.bookingId || p.name === seat.passengerName);
+        }
+        
+        // Fallback: create a minimal passenger object
+        if (!passenger) {
+            console.warn('[TransportManager] Passenger not found for seat:', seat.bookingId, 'Name:', seat.passengerName);
+            return {
+                name: seat.passengerName || 'Passageiro (Sem nome)',
+                avatar: undefined,
+                status: 'Desconhecido'
+            };
+        }
         
         const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
         const booking = bookings.find(b => b.id === passenger.bookingId);
         const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
         
+        // Use database name if available, otherwise use seat name, otherwise use passenger name
+        const finalName = dbPassenger?.full_name || passenger.details?.name || seat.passengerName || passenger.name || 'Passageiro (Sem nome)';
+        
         return {
-            name: seat.passengerName,
-            avatar: client?.avatar || dbPassenger?.avatar || undefined,
-            status: passenger.isMain ? 'Titular' : passenger.isAccompaniment ? `Acompanhante ${passenger.passengerIndex}` : 'Manual'
+            name: finalName,
+            avatar: client?.avatar || dbPassenger?.avatar || passenger.details?.avatar || undefined,
+            status: passenger.isMain ? 'Titular' : passenger.isAccompaniment ? `Acompanhante ${passenger.passengerIndex}` : passenger.isManual ? 'Manual' : 'Desconhecido'
         };
     };
 
@@ -2485,7 +2525,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     ))}
                     
                     {/* Add Vehicle Button - Always show dropdown menu */}
-                    <div className="relative">
+                    <div className="relative z-[100]">
                         <button 
                             onClick={(e) => {
                                 e.preventDefault();
@@ -2511,8 +2551,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                 />
                                 {/* Dropdown Menu */}
                                 <div 
-                                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 p-3 animate-[scaleIn_0.15s]"
-                                    style={{ zIndex: 1000 }}
+                                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 p-3 animate-[scaleIn_0.15s] z-[100]"
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
@@ -2978,7 +3017,16 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
 
     // Drag Handlers
     const handleDragStart = (e: React.DragEvent, passenger: any) => {
-        e.dataTransfer.setData('application/json', JSON.stringify(passenger));
+        // Ensure passenger object has complete data for drag&drop
+        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
+        const passengerWithData = {
+            ...passenger,
+            name: dbPassenger?.full_name || passenger.details?.name || passenger.name || 'Passageiro (Sem nome)',
+            document: dbPassenger?.cpf || passenger.details?.document || '',
+            phone: dbPassenger?.whatsapp || passenger.details?.phone || '',
+            birthDate: dbPassenger?.birth_date || passenger.details?.birthDate || ''
+        };
+        e.dataTransfer.setData('application/json', JSON.stringify(passengerWithData));
         e.dataTransfer.effectAllowed = 'move';
     };
 
@@ -3781,51 +3829,103 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             // DESENHO VISUAL DOS QUARTOS
             if (opData.hotels && opData.hotels.length > 0) {
                 opData.hotels.forEach((hotel, hIndex) => {
-                    doc.addPage();
+                    // Check if we need a new page before starting hotel section
+                    let currentY = 20;
+                    if (currentY < 40) {
+                        doc.addPage();
+                        currentY = 20;
+                    }
+                    
+                    // Hotel Header with background
+                    doc.setFillColor(100, 100, 100); // Dark gray background
+                    doc.rect(15, currentY, 180, 12, 'F');
+                    doc.setTextColor(255, 255, 255);
                     doc.setFontSize(16);
                     doc.setFont(undefined, 'bold');
-                    doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 15, 20);
+                    doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 20, currentY + 8);
                     doc.setFont(undefined, 'normal');
+                    currentY += 18;
                     
-                    let currentY = 35;
-                    const roomWidth = 60;
-                    const roomHeight = 40;
-                    const roomSpacing = 10;
-                    let currentX = 15;
-                    let roomsPerRow = 0;
-                    const maxRoomsPerRow = 3;
+                    // Table header for rooms
+                    doc.setFillColor(59, 130, 246); // Blue header
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFontSize(10);
+                    doc.setFont(undefined, 'bold');
+                    const headerY = currentY;
+                    doc.rect(15, headerY, 180, 8, 'F');
+                    doc.text('Quarto', 20, headerY + 5.5);
+                    doc.text('Tipo', 60, headerY + 5.5);
+                    doc.text('Hóspedes', 100, headerY + 5.5);
+                    doc.text('Capacidade', 150, headerY + 5.5);
+                    currentY += 10;
+                    
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(9);
                     
                     hotel.rooms?.forEach((room, rIndex) => {
-                        if (yPos > 270) {
+                        // Check page break before each room
+                        if (currentY > 270) {
                             doc.addPage();
-                            yPos = 20;
+                            // Redraw header on new page
+                            doc.setFillColor(100, 100, 100);
+                            doc.rect(15, 20, 180, 12, 'F');
+                            doc.setTextColor(255, 255, 255);
+                            doc.setFontSize(16);
+                            doc.setFont(undefined, 'bold');
+                            doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 20, 28);
+                            doc.setFont(undefined, 'normal');
+                            
+                            // Redraw table header
+                            doc.setFillColor(59, 130, 246);
+                            doc.rect(15, 35, 180, 8, 'F');
+                            doc.setFontSize(10);
+                            doc.setFont(undefined, 'bold');
+                            doc.text('Quarto', 20, 40.5);
+                            doc.text('Tipo', 60, 40.5);
+                            doc.text('Hóspedes', 100, 40.5);
+                            doc.text('Capacidade', 150, 40.5);
+                            currentY = 45;
+                            doc.setTextColor(0, 0, 0);
+                            doc.setFont(undefined, 'normal');
+                            doc.setFontSize(9);
                         }
                         
+                        // Alternate row background
                         const isEven = rIndex % 2 === 0;
                         if (isEven) {
                             doc.setFillColor(245, 245, 245);
-                            doc.rect(15, yPos, 190, rowHeight, 'F');
+                            doc.rect(15, currentY, 180, 8, 'F');
                         }
                         
-                        xOffset = 15;
+                        // Room border
+                        doc.setDrawColor(200, 200, 200);
+                        doc.setLineWidth(0.1);
+                        doc.rect(15, currentY, 180, 8, 'S');
+                        
                         // Quarto
-                        doc.text(room.name, xOffset + 2, yPos + 5.5);
-                        xOffset += colWidths[0];
+                        doc.text(room.name || `Quarto ${rIndex + 1}`, 20, currentY + 5.5);
                         
                         // Tipo
-                        doc.text(room.type, xOffset + 2, yPos + 5.5);
-                        xOffset += colWidths[1];
+                        doc.text(room.type || 'Padrão', 60, currentY + 5.5);
                         
-                        // Hóspedes (lista de nomes)
-                        const guestNames = room.guests.map(g => g.name).join(', ') || 'Vazio';
-                        const truncatedGuests = guestNames.length > 50 ? guestNames.substring(0, 48) + '...' : guestNames;
-                        doc.text(truncatedGuests, xOffset + 2, yPos + 5.5);
-                        xOffset += colWidths[2];
+                        // Hóspedes (lista de nomes) - with fallback
+                        const guestNames = room.guests && room.guests.length > 0 
+                            ? room.guests.map(g => {
+                                // Try to get name from database or details
+                                const guestId = g.id || g.bookingId || '';
+                                const dbGuest = bookingPassengersMap.get(guestId);
+                                return dbGuest?.full_name || g.name || 'Hóspede (Sem nome)';
+                            }).join(', ')
+                            : 'Vazio';
+                        const truncatedGuests = guestNames.length > 40 ? guestNames.substring(0, 38) + '...' : guestNames;
+                        doc.text(truncatedGuests, 100, currentY + 5.5);
                         
                         // Capacidade
-                        doc.text(`${room.guests.length}/${room.capacity}`, xOffset + 2, yPos + 5.5);
+                        const guestCount = room.guests ? room.guests.length : 0;
+                        doc.text(`${guestCount}/${room.capacity || 0}`, 150, currentY + 5.5);
                         
-                        yPos += rowHeight;
+                        currentY += 9; // Row height
                     });
                 });
             } else if (opData.rooming && opData.rooming.length > 0) {
@@ -4166,7 +4266,7 @@ const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
 
 const AgencyDashboard: React.FC = () => {
   const { user, logout, loading: authLoading, updateUser, uploadImage } = useAuth(); // Import uploadImage
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview } = useData(); // Import updateAgencyReview
+  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview, refreshData } = useData(); // Import updateAgencyReview and refreshData
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
@@ -4395,9 +4495,25 @@ const AgencyDashboard: React.FC = () => {
 
   const handleLogoUpload = async (file: File): Promise<string> => {
       try {
-          const url = await uploadImage(file, 'agencies');
-          await updateUser({ logo: url });
+          if (!currentAgency) {
+              throw new Error('Agência não encontrada');
+          }
+          const url = await uploadImage(file, 'agency-logos');
+          // Update agency logo in the database
+          const { supabase } = await import('../services/supabase');
+          if (supabase) {
+              const { error } = await supabase
+                  .from('agencies')
+                  .update({ logo: url })
+                  .eq('id', currentAgency.agencyId);
+              
+              if (error) throw error;
+          }
+          // Update local state
+          setProfileForm(prev => ({ ...prev, logo: url }));
           showToast('Logo atualizado com sucesso!', 'success');
+          // Refresh data to get updated agency
+          refreshData();
           return url;
       } catch (error: any) {
           showToast('Erro ao fazer upload do logo: ' + error.message, 'error');
@@ -4908,13 +5024,16 @@ const AgencyDashboard: React.FC = () => {
                     {myTrips.map(trip => (
                         <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
                             {/* Trip Image & Actions */}
-                            <div className="relative h-48 w-full">
+                            <div className="relative h-48 w-full bg-gray-100">
                                 <img 
-                                  src={trip.images[0] || 'https://placehold.co/800x600?text=Sem+Imagem'} 
+                                  src={trip.images && trip.images.length > 0 ? trip.images[0] : 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem'} 
                                   alt={trip.title} 
                                   loading="lazy"
                                   decoding="async"
                                   className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
+                                  }}
                                 />
                                 <div className="absolute top-3 left-3">
                                     <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
