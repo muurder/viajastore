@@ -209,7 +209,8 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 setTimeout(() => {
                     if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
                         if (result.role === UserRole.AGENCY) {
-                            navigate('/agency/dashboard');
+                            // FIX: Redirect new agencies to Plans tab for onboarding
+                            navigate('/agency/dashboard?tab=PLAN&new=true');
                         } else if (result.role === UserRole.CLIENT) {
                             navigate('/client/dashboard/PROFILE');
                         }

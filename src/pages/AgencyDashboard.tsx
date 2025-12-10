@@ -4598,9 +4598,52 @@ const AgencyDashboard: React.FC = () => {
       const planColor = isPremium ? 'bg-purple-600' : isBasic ? 'bg-blue-600' : 'bg-gray-600';
       const planName = currentPlanObj.name;
       const planPrice = isStarter ? 'Grátis' : `R$ ${currentPlanObj.price.toFixed(2).replace('.', ',')}`;
+      
+      // FIX: Check if this is a new agency (onboarding)
+      const isNewAgency = searchParams.get('new') === 'true';
 
       return (
           <div className="space-y-8 animate-[fadeIn_0.3s]">
+              {/* Welcome Message for New Agencies */}
+              {isNewAgency && (
+                  <div className="bg-gradient-to-r from-primary-50 via-blue-50 to-purple-50 border-2 border-primary-200 rounded-2xl p-6 shadow-lg">
+                      <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0">
+                              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-purple-600 rounded-full flex items-center justify-center">
+                                  <Rocket size={24} className="text-white" />
+                              </div>
+                          </div>
+                          <div className="flex-1">
+                              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                  🎉 Parabéns! Sua agência foi criada com sucesso!
+                              </h3>
+                              <p className="text-gray-700 leading-relaxed mb-3">
+                                  Você está no <strong>plano Grátis (STARTER)</strong>. Veja o que você ganha ao fazer o upgrade:
+                              </p>
+                              <ul className="space-y-2 text-sm text-gray-600">
+                                  <li className="flex items-center gap-2">
+                                      <Check size={16} className="text-green-500 flex-shrink-0" />
+                                      <span><strong>Gestão de Frota Visual:</strong> Visualize e gerencie assentos de ônibus em tempo real</span>
+                                  </li>
+                                  <li className="flex items-center gap-2">
+                                      <Check size={16} className="text-green-500 flex-shrink-0" />
+                                      <span><strong>Mapa de Assentos/Quartos:</strong> Controle total sobre ocupação e distribuição</span>
+                                  </li>
+                                  <li className="flex items-center gap-2">
+                                      <Check size={16} className="text-green-500 flex-shrink-0" />
+                                      <span><strong>Viagens Ilimitadas:</strong> Publique quantas viagens quiser</span>
+                                  </li>
+                              </ul>
+                          </div>
+                          <button
+                              onClick={() => setSearchParams({ tab: 'PLAN' })}
+                              className="flex-shrink-0 text-primary-600 hover:text-primary-700"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
+                  </div>
+              )}
               {/* Subscription Status Card */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                   <div className={`h-2 ${planColor}`}></div>
@@ -4687,14 +4730,17 @@ const AgencyDashboard: React.FC = () => {
                       const isPremium = plan.id === 'PREMIUM';
                       const isStarter = plan.id === 'STARTER';
                       
+                      // Determine card styling based on plan
+                      const cardClasses = isStarter
+                          ? 'bg-gray-50 border-gray-300' // STARTER: Simple gray
+                          : plan.id === 'BASIC'
+                          ? 'bg-white border-blue-200' // BASIC: Blue accent
+                          : 'bg-white md:scale-105 border-2 border-purple-500 ring-4 ring-purple-200/50 shadow-2xl shadow-purple-500/20'; // PREMIUM: Highlighted
+                      
                       return (
                           <div 
                               key={plan.id} 
-                              className={`bg-white rounded-2xl shadow-lg border transition-all hover:shadow-xl relative ${
-                                  isPremium 
-                                      ? 'md:scale-105 border-2 border-gradient-to-b from-purple-500 to-pink-500 ring-4 ring-purple-200/50 shadow-2xl shadow-purple-500/20' 
-                                      : 'border-gray-200'
-                              } ${isCurrentPlan ? 'ring-2 ring-primary-500' : ''}`}
+                              className={`rounded-2xl shadow-lg border transition-all hover:shadow-xl relative ${cardClasses} ${isCurrentPlan && !isPremium ? 'ring-2 ring-primary-500' : ''}`}
                           >
                               {/* Premium Badge */}
                               {isPremium && (
@@ -4704,8 +4750,12 @@ const AgencyDashboard: React.FC = () => {
                               )}
                               
                               {/* Current Plan Badge */}
-                              {isCurrentPlan && !isPremium && (
-                                  <div className="absolute top-4 right-4 bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-100">
+                              {isCurrentPlan && (
+                                  <div className={`absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full border ${
+                                      isStarter 
+                                          ? 'bg-gray-200 text-gray-700 border-gray-300' 
+                                          : 'bg-primary-50 text-primary-700 border-primary-100'
+                                  }`}>
                                       Plano Atual
                                   </div>
                               )}
@@ -4741,12 +4791,41 @@ const AgencyDashboard: React.FC = () => {
                                   
                                   {/* Features */}
                                   <ul className="space-y-3 mb-8 min-h-[280px]">
-                                      {plan.features.map((feature, i) => (
-                                          <li key={i} className="flex items-start text-sm text-gray-700">
-                                              <Check size={18} className={`mr-3 flex-shrink-0 mt-0.5 ${isPremium ? 'text-purple-600' : 'text-green-500'}`} />
-                                              <span className="leading-relaxed">{feature}</span>
-                                          </li>
-                                      ))}
+                                      {plan.features.map((feature, i) => {
+                                          // Highlight premium-exclusive features
+                                          const isExclusiveFeature = isPremium && (
+                                              feature.includes('Frota') || 
+                                              feature.includes('Assentos') || 
+                                              feature.includes('Quartos')
+                                          );
+                                          
+                                          return (
+                                              <li key={i} className={`flex items-start text-sm ${
+                                                  isStarter ? 'text-gray-600' : 'text-gray-700'
+                                              }`}>
+                                                  <Check 
+                                                      size={18} 
+                                                      className={`mr-3 flex-shrink-0 mt-0.5 ${
+                                                          isExclusiveFeature 
+                                                              ? 'text-purple-600' 
+                                                              : isPremium 
+                                                              ? 'text-purple-500' 
+                                                              : 'text-green-500'
+                                                      }`} 
+                                                  />
+                                                  <span className={`leading-relaxed ${
+                                                      isExclusiveFeature ? 'font-semibold text-purple-700' : ''
+                                                  }`}>
+                                                      {feature}
+                                                      {isExclusiveFeature && (
+                                                          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                                                              EXCLUSIVO
+                                                          </span>
+                                                      )}
+                                                  </span>
+                                              </li>
+                                          );
+                                      })}
                                   </ul>
                                   
                                   {/* CTA Button */}
@@ -4755,13 +4834,17 @@ const AgencyDashboard: React.FC = () => {
                                       disabled={isCurrentPlan}
                                       className={`w-full py-4 rounded-xl font-bold transition-all ${
                                           isCurrentPlan
-                                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                              ? isStarter
+                                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                               : isPremium
-                                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40'
-                                              : 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg shadow-primary-500/20'
+                                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transform hover:scale-105'
+                                              : plan.id === 'BASIC'
+                                              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                                              : 'bg-gray-400 text-white hover:bg-gray-500'
                                       }`}
                                   >
-                                      {isCurrentPlan ? 'Plano Atual' : isStarter ? 'Começar Grátis' : 'Assinar Agora'}
+                                      {isCurrentPlan ? 'Plano Atual' : isStarter ? 'Começar Grátis' : isPremium ? 'Assinar Agora' : 'Assinar Agora'}
                                   </button>
                               </div>
                           </div>

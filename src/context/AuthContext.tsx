@@ -553,26 +553,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // 2b. Insert Agency Record (If applicable)
       if (role === UserRole.AGENCY) {
         // Generate unique slug based on agency name (without random numbers)
-        const baseSlug = generateSlugFromName(data.name);
+        let baseSlug = generateSlugFromName(data.name);
+        
+        // FIX: Fallback se slug estiver vazio (nome com caracteres especiais)
+        if (!baseSlug || baseSlug.trim() === '') {
+          console.warn("[AuthContext] Generated slug is empty, using fallback");
+          baseSlug = `agencia-${Date.now()}`;
+        }
+        
         const uniqueSlug = await generateUniqueSlug(baseSlug, 'agencies');
         
-        // Use RPC to bypass potential REST Schema Cache issues
-        const { error: agencyError } = await supabase.rpc('create_agency', {
-            p_user_id: userId,
-            p_name: data.name,
-            p_email: data.email,
-            p_phone: data.phone,
-            p_whatsapp: data.phone,
-            p_slug: uniqueSlug
-        });
-        
-        if (agencyError) {
-            console.error("[AuthContext] Supabase Agency RPC Insert Error:", agencyError); // Debug Log
-            throw agencyError;
+        // FIX: Validação final do slug antes de enviar
+        if (!uniqueSlug || uniqueSlug.trim() === '') {
+          console.error("[AuthContext] Unique slug generation failed, using timestamp fallback");
+          const fallbackSlug = `agencia-${Date.now()}`;
+          
+          // Use RPC to bypass potential REST Schema Cache issues
+          const { error: agencyError } = await supabase.rpc('create_agency', {
+              p_user_id: userId,
+              p_name: data.name,
+              p_email: data.email,
+              p_phone: data.phone,
+              p_whatsapp: data.phone,
+              p_slug: fallbackSlug
+          });
+          
+          if (agencyError) {
+              console.error("[AuthContext] Supabase Agency RPC Insert Error:", agencyError); // Debug Log
+              throw agencyError;
+          }
+        } else {
+          // Use RPC to bypass potential REST Schema Cache issues
+          const { error: agencyError } = await supabase.rpc('create_agency', {
+              p_user_id: userId,
+              p_name: data.name,
+              p_email: data.email,
+              p_phone: data.phone,
+              p_whatsapp: data.phone,
+              p_slug: uniqueSlug
+          });
+          
+          if (agencyError) {
+              console.error("[AuthContext] Supabase Agency RPC Insert Error:", agencyError); // Debug Log
+              throw agencyError;
+          }
         }
       }
 
       // If we reach here, DB operations succeeded
+      // FIX: Wait for database propagation before fetching user data
+      console.log("[AuthContext] Waiting for database propagation (1s)...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // FIX: Force fetch the user data immediately with retry logic to avoid loading loop
       const fetchWithRetry = async (attempt: number = 1): Promise<void> => {
         const maxAttempts = 3;
@@ -585,9 +617,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Use a small delay to allow state update to propagate
           await new Promise(resolve => setTimeout(resolve, 200));
           
+          // FIX: For agencies, verify slug is present before redirecting
+          if (role === UserRole.AGENCY && user) {
+            const agencyUser = user as Agency;
+            if (!agencyUser.slug || agencyUser.slug.trim() === '') {
+              console.error("[AuthContext] Agency created but slug is missing!");
+              if (attempt < maxAttempts) {
+                console.log(`[AuthContext] Retrying fetch to get slug (attempt ${attempt + 1}/${maxAttempts})...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return fetchWithRetry(attempt + 1);
+              } else {
+                console.error("[AuthContext] Failed to get agency slug after all retries");
+                // Don't redirect if slug is missing - let user see error
+                return;
+              }
+            }
+          }
+          
           // Check if user was set by verifying against current user state
           // If still null and we haven't exceeded max attempts, retry
-          if (attempt < maxAttempts) {
+          if (attempt < maxAttempts && !user) {
             // Give it one more try after a delay
             console.log(`[AuthContext] Waiting before verification (attempt ${attempt})...`);
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -603,7 +652,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Retry on error if we haven't exceeded max attempts
           if (attempt < maxAttempts) {
             console.log(`[AuthContext] Retrying fetch after error (attempt ${attempt + 1}/${maxAttempts})...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             return fetchWithRetry(attempt + 1);
           }
           
@@ -613,9 +662,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       
       // Start fetch immediately (don't use setTimeout to avoid race conditions)
-      fetchWithRetry();
+      await fetchWithRetry();
       
       console.log("[AuthContext] Registration successful, DB records created."); // Debug Log
+      
+      // FIX: Redirect new agencies to plan selection tab ONLY if slug is present
+      if (role === UserRole.AGENCY) {
+        if (user && (user as Agency).slug && (user as Agency).slug.trim() !== '') {
+          // Use setTimeout to ensure state is updated before navigation
+          setTimeout(() => {
+            window.location.href = '/agency/dashboard?tab=PLAN&new=true';
+          }, 300);
+        } else {
+          console.error("[AuthContext] Cannot redirect: Agency slug is missing");
+          // Return error message instead of redirecting
+          return { 
+            success: true, 
+            message: 'Conta criada, mas houve um erro ao gerar seu site. Entre em contato com o suporte.', 
+            role: role, 
+            userId: userId, 
+            email: data.email 
+          };
+        }
+      }
       
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 

@@ -5,12 +5,11 @@ import { slugify } from '../utils/slugify';
 export const PLANS: Plan[] = [
   { 
     id: 'STARTER', 
-    name: 'Plano Grátis', 
+    name: 'Starter', 
     price: 0, 
     features: [
       '1 Viagem Ativa',
-      'Página da Agência',
-      'Suporte Básico'
+      'Página Web Básica'
     ] 
   },
   { 
@@ -18,11 +17,9 @@ export const PLANS: Plan[] = [
     name: 'Básico', 
     price: 99.90, 
     features: [
-      'Até 5 viagens ativas',
-      'Página Web (Slug)',
+      '5 Viagens Ativas',
       'Personalização de Tema',
-      '0% de taxa sobre vendas',
-      'Suporte por e-mail'
+      'Suporte por Email'
     ] 
   },
   { 
@@ -30,13 +27,11 @@ export const PLANS: Plan[] = [
     name: 'Premium', 
     price: 199.90, 
     features: [
-      'Viagens ilimitadas',
-      'Gestão Operacional Completa',
+      'Viagens Ilimitadas',
+      'Gestão de Frota (Visual)',
       'Mapa de Assentos/Quartos',
       'Destaque na Home',
-      'Suporte 24h',
-      '0% de taxa sobre vendas',
-      'Sem anúncios'
+      'Suporte 24/7'
     ] 
   },
 ];

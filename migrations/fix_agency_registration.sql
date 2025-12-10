@@ -10,6 +10,7 @@
 -- =====================================================
 
 -- Atualiza a função para criar agências já ATIVAS e no plano STARTER
+-- CORREÇÃO: Garante que slug nunca seja NULL ou vazio
 CREATE OR REPLACE FUNCTION public.create_agency(
   p_user_id uuid,
   p_name text,
@@ -19,7 +20,17 @@ CREATE OR REPLACE FUNCTION public.create_agency(
   p_slug text
 )
 RETURNS void AS $$
+DECLARE
+  v_slug text;
 BEGIN
+  -- FIX: Garantir que slug nunca seja NULL ou vazio
+  v_slug := COALESCE(NULLIF(TRIM(p_slug), ''), 'agencia-' || floor(random() * 100000)::text);
+  
+  -- Se o slug ainda estiver vazio após COALESCE, usar timestamp
+  IF v_slug IS NULL OR v_slug = '' THEN
+    v_slug := 'agencia-' || extract(epoch from now())::bigint::text;
+  END IF;
+  
   INSERT INTO public.agencies (
     user_id,
     name,
@@ -27,10 +38,10 @@ BEGIN
     phone,
     whatsapp,
     slug,
-    is_active,             -- MUDANÇA 1: Já nasce ativa (true)
+    is_active,             -- CORREÇÃO: Já nasce ativa (true)
     hero_mode,
-    subscription_status,   -- MUDANÇA 2: Status Ativo
-    subscription_plan,     -- MUDANÇA 3: Plano Starter
+    subscription_status,   -- CORREÇÃO: Status Ativo
+    subscription_plan,     -- CORREÇÃO: Plano Starter
     subscription_expires_at
   ) VALUES (
     p_user_id,
@@ -38,7 +49,7 @@ BEGIN
     p_email,
     p_phone,
     p_whatsapp,
-    p_slug,
+    v_slug,                -- Usar slug validado
     true,                  -- true (ativa desde o cadastro)
     'TRIPS',
     'ACTIVE',              -- ACTIVE (não mais INACTIVE)
