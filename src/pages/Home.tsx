@@ -24,7 +24,7 @@ const INTEREST_CHIPS = [
 const DEFAULT_HERO_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop";
 
 const Home: React.FC = () => {
-  const { searchTrips, agencies, loading: dataLoading } = useData();
+  const { searchTrips, agencies, loading: dataLoading, fetchTripImages } = useData();
   const navigate = useNavigate();
   
   // Hero Data
@@ -72,7 +72,18 @@ const Home: React.FC = () => {
                 tripsData.sort(() => 0.5 - Math.random());
             }
             
-            setHeroTrips(tripsData);
+            // FIX: Load images on-demand for each trip
+            const tripsWithImages = await Promise.all(
+                tripsData.map(async (trip) => {
+                    if (!trip.images || trip.images.length === 0) {
+                        const images = await fetchTripImages(trip.id);
+                        return { ...trip, images };
+                    }
+                    return trip;
+                })
+            );
+            
+            setHeroTrips(tripsWithImages);
         } catch (error) {
             console.error('Error loading hero trips:', error);
             setHeroTrips([]);
@@ -81,7 +92,7 @@ const Home: React.FC = () => {
         }
     };
     loadHero();
-  }, [searchTrips, dataLoading]);
+  }, [searchTrips, dataLoading, fetchTripImages]);
 
   // 2. Load Featured Dock Trips (Top 4 by views or featured)
   useEffect(() => {
@@ -111,7 +122,20 @@ const Home: React.FC = () => {
 
             // Sort by views (descending) and take top 4
             dockTrips.sort((a, b) => (b.views || 0) - (a.views || 0));
-            setFeaturedDockTrips(dockTrips.slice(0, 4));
+            const top4Trips = dockTrips.slice(0, 4);
+            
+            // FIX: Load images on-demand for each trip
+            const dockTripsWithImages = await Promise.all(
+                top4Trips.map(async (trip) => {
+                    if (!trip.images || trip.images.length === 0) {
+                        const images = await fetchTripImages(trip.id);
+                        return { ...trip, images };
+                    }
+                    return trip;
+                })
+            );
+            
+            setFeaturedDockTrips(dockTripsWithImages);
         } catch (error) {
             console.error('Error loading featured dock trips:', error);
             setFeaturedDockTrips([]);
@@ -120,7 +144,7 @@ const Home: React.FC = () => {
         }
     };
     loadFeaturedDock();
-  }, [searchTrips, dataLoading]);
+  }, [searchTrips, dataLoading, fetchTripImages]);
 
   // 3. Fetch Grid Trips when Interest Changes
   useEffect(() => {
@@ -150,7 +174,19 @@ const Home: React.FC = () => {
             if (data && data.length > 0) {
                 // Shuffle the results for the grid as well
                 const shuffled = [...data].sort(() => 0.5 - Math.random()).slice(0, 9);
-                setGridTrips(shuffled);
+                
+                // FIX: Load images on-demand for each trip
+                const gridTripsWithImages = await Promise.all(
+                    shuffled.map(async (trip) => {
+                        if (!trip.images || trip.images.length === 0) {
+                            const images = await fetchTripImages(trip.id);
+                            return { ...trip, images };
+                        }
+                        return trip;
+                    })
+                );
+                
+                setGridTrips(gridTripsWithImages);
             } else {
                 // If no data, set empty array
                 setGridTrips([]);
@@ -165,7 +201,7 @@ const Home: React.FC = () => {
     
     // FIX: Ensure loadGrid runs on mount and when dependencies change
     loadGrid();
-  }, [selectedInterests, searchTrips, dataLoading]);
+  }, [selectedInterests, searchTrips, dataLoading, fetchTripImages]);
 
 
   // Carousel Logic
