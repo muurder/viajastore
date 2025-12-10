@@ -226,19 +226,19 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         />
       </div>
 
-      {/* Date Range Picker - FIX: Responsive width */}
-      <div className="relative w-full md:w-auto md:min-w-[200px]" ref={datePickerRef}>
+      {/* Date Range Picker - FIX: Responsive width with proper text display */}
+      <div className="relative w-full md:w-auto md:min-w-[240px]" ref={datePickerRef}>
         <button
           type="button"
           onClick={() => {
             setShowDatePicker(!showDatePicker);
             setShowGuestsPicker(false);
           }}
-          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[200px]"
+          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[240px]"
         >
-          <Calendar size={18} className="text-gray-400" />
-          <span className="text-sm">{getDateRangeText()}</span>
-          <ChevronDown size={16} className={`text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
+          <Calendar size={18} className="text-gray-400 flex-shrink-0" />
+          <span className="text-sm flex-1 min-w-0 text-left truncate">{getDateRangeText()}</span>
+          <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showDatePicker ? 'rotate-180' : ''}`} />
         </button>
 
         {showDatePicker && (
@@ -311,19 +311,19 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
         )}
       </div>
 
-      {/* Guests Picker - FIX: Responsive width */}
-      <div className="relative w-full md:w-auto md:min-w-[180px]" ref={guestsPickerRef}>
+      {/* Guests Picker - FIX: Responsive width with proper text display */}
+      <div className="relative w-full md:w-auto md:min-w-[220px]" ref={guestsPickerRef}>
         <button
           type="button"
           onClick={() => {
             setShowGuestsPicker(!showGuestsPicker);
             setShowDatePicker(false);
           }}
-          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[180px]"
+          className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[220px]"
         >
-          <Users size={18} className="text-gray-400" />
-          <span className="text-sm">{getGuestsText()}</span>
-          <ChevronDown size={16} className={`text-gray-400 transition-transform ${showGuestsPicker ? 'rotate-180' : ''}`} />
+          <Users size={18} className="text-gray-400 flex-shrink-0" />
+          <span className="text-sm flex-1 min-w-0 text-left truncate">{getGuestsText()}</span>
+          <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
         </button>
 
         {showGuestsPicker && (

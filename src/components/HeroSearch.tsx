@@ -227,7 +227,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
         <div className="w-px h-8 bg-gray-200"></div>
 
-        {/* Date Range - FIX: High z-index for dropdown */}
+        {/* Date Range - FIX: High z-index for dropdown and proper text display */}
         <div className="relative z-[110]" ref={datePickerRef}>
           <button
             type="button"
@@ -235,11 +235,11 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               setShowDatePicker(!showDatePicker);
               setShowGuestsPicker(false);
             }}
-            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[240px]"
+            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[260px]"
           >
-            <Calendar size={20} className="text-gray-400" />
-            <span className="text-sm">{getDateRangeText()}</span>
-            <ChevronDown size={16} className={`text-gray-400 transition-transform ml-auto ${showDatePicker ? 'rotate-180' : ''}`} />
+            <Calendar size={20} className="text-gray-400 flex-shrink-0" />
+            <span className="text-sm flex-1 min-w-0 text-left truncate">{getDateRangeText()}</span>
+            <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showDatePicker ? 'rotate-180' : ''}`} />
           </button>
 
           {showDatePicker && (
@@ -302,7 +302,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
         <div className="w-px h-8 bg-gray-200"></div>
 
-        {/* Guests - FIX: High z-index for dropdown */}
+        {/* Guests - FIX: High z-index for dropdown and proper text display */}
         <div className="relative z-[110]" ref={guestsPickerRef}>
           <button
             type="button"
@@ -310,11 +310,11 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               setShowGuestsPicker(!showGuestsPicker);
               setShowDatePicker(false);
             }}
-            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[200px]"
+            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[240px]"
           >
-            <Users size={20} className="text-gray-400" />
-            <span className="text-sm">{getGuestsText()}</span>
-            <ChevronDown size={16} className={`text-gray-400 transition-transform ml-auto ${showGuestsPicker ? 'rotate-180' : ''}`} />
+            <Users size={20} className="text-gray-400 flex-shrink-0" />
+            <span className="text-sm flex-1 min-w-0 text-left truncate">{getGuestsText()}</span>
+            <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
           </button>
 
           {showGuestsPicker && (
