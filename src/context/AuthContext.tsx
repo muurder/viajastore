@@ -666,25 +666,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       console.log("[AuthContext] Registration successful, DB records created."); // Debug Log
       
-      // FIX: Redirect new agencies to plan selection tab ONLY if slug is present
-      if (role === UserRole.AGENCY) {
-        if (user && (user as Agency).slug && (user as Agency).slug.trim() !== '') {
-          // Use setTimeout to ensure state is updated before navigation
-          setTimeout(() => {
-            window.location.href = '/agency/dashboard?tab=PLAN&new=true';
-          }, 300);
-        } else {
-          console.error("[AuthContext] Cannot redirect: Agency slug is missing");
-          // Return error message instead of redirecting
-          return { 
-            success: true, 
-            message: 'Conta criada, mas houve um erro ao gerar seu site. Entre em contato com o suporte.', 
-            role: role, 
-            userId: userId, 
-            email: data.email 
-          };
-        }
-      }
+      // FIX: Don't redirect here - let AuthModal handle navigation
+      // The AuthModal will handle the redirect after showing success message
+      // This prevents double redirects and allows proper state management
       
       return { success: true, message: 'Conta criada com sucesso!', role: role, userId: userId, email: data.email };
 

@@ -135,7 +135,9 @@ const Layout: React.FC = () => {
     }`;
   };
 
-  const homeLink = (isAgencyMode || isAgencyDashboard) && currentAgency?.slug ? `/${currentAgency.slug}` : '/';
+  // FIX: Only use agency slug if agency is actually loaded
+  // This prevents navigation to non-existent agency pages
+  const homeLink = (isAgencyMode || isAgencyDashboard) && currentAgency?.slug && currentAgency?.agencyId ? `/${currentAgency.slug}` : '/';
   
   // Logic for the "User Pill" link in header
   const getUserProfileLink = () => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { UserRole, Agency } from '../types';
 import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -128,6 +129,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
 // --- SIGNUP VIEW ---
 const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
     const { register, loginWithGoogle } = useAuth();
+    const { refreshData } = useData();
     const { showToast } = useToast();
     const navigate = useNavigate();
     
@@ -201,11 +203,24 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                     showToast('Conta criada com sucesso!', 'success');
                 }
 
+                // FIX: Refresh DataContext to load the newly created agency
+                if (result.userId && result.role === UserRole.AGENCY) {
+                    // Wait a bit for database propagation, then refresh
+                    setTimeout(async () => {
+                        try {
+                            await refreshData();
+                            console.log("[AuthModal] DataContext refreshed after agency registration");
+                        } catch (error) {
+                            console.error("[AuthModal] Error refreshing DataContext:", error);
+                        }
+                    }, 1500);
+                }
+
                 // Close modal first
                 setIsLoading(false);
                 onClose();
 
-                // Then navigate after a small delay to ensure modal closes
+                // Then navigate after a small delay to ensure modal closes and data is refreshed
                 setTimeout(() => {
                     if (result.userId && result.role) { // Only navigate if user is signed in AND role is determined
                         if (result.role === UserRole.AGENCY) {
@@ -218,7 +233,7 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                         // If not immediately signed in (e.g., email verification needed), navigate to home
                         navigate('/');
                     }
-                }, 100);
+                }, 2000); // Increased delay to allow DataContext refresh
             } else {
                 setError(result.error || 'Erro ao criar conta.');
                 setIsLoading(false);

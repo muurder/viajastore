@@ -116,6 +116,23 @@ const AgencyLandingPage: React.FC = () => {
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
   const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+  
+  // FIX: Try to refresh data if agency is not found but we have a slug
+  useEffect(() => {
+      if (agencySlug && !agency && !loading) {
+          // Wait a bit, then try refreshing data once
+          const timeoutId = setTimeout(async () => {
+              console.log("[AgencyLandingPage] Agency not found, attempting to refresh data...");
+              try {
+                  await refreshData();
+              } catch (error) {
+                  console.error("[AgencyLandingPage] Error refreshing data:", error);
+              }
+          }, 2000);
+          
+          return () => clearTimeout(timeoutId);
+      }
+  }, [agencySlug, agency, loading, refreshData]);
 
   // 1. Stable Hero Trips State
   const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
@@ -192,11 +209,15 @@ const AgencyLandingPage: React.FC = () => {
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
 
+  // FIX: Wait for data to load before showing error
+  // If we're still loading and don't have agency yet, show loading spinner
   if (loading && !agency) {
       return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
-  if (!agency) {
+  // FIX: Only show error if we're not loading AND agency is not found
+  // This prevents showing error prematurely while data is still being fetched
+  if (!agency && !loading) {
       return (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
             <div className="bg-gray-100 p-6 rounded-full mb-6">
@@ -209,6 +230,12 @@ const AgencyLandingPage: React.FC = () => {
             </Link>
           </div>
       );
+  }
+
+  // FIX: If agency is still not found after loading, show error
+  // But give it a bit more time in case data is still propagating
+  if (!agency) {
+      return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
   const agencyStats = {
