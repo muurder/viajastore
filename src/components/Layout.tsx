@@ -5,7 +5,7 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
@@ -267,6 +267,10 @@ const Layout: React.FC = () => {
                       <>
                           <Link to="/trips" className={getLinkClasses('/trips')}>Explorar Viagens</Link>
                           <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
+                          <Link to="/guides" className={getLinkClasses('/guides')}>
+                            <Compass size={16} className="inline mr-1" />
+                            Guias
+                          </Link>
                           <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                       </>
                   ) : currentAgency && (
@@ -417,6 +421,7 @@ const Layout: React.FC = () => {
                   <ul className="space-y-2">
                     <li><Link to="/trips" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Viagens</Link></li>
                     <li><Link to="/agencies" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Agências</Link></li>
+                    <li><Link to="/guides" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Guias</Link></li>
                     <li><Link to="/blog" className="text-gray-500 hover:text-primary-600 text-sm transition-colors">Blog</Link></li>
                   </ul>
                 </div>

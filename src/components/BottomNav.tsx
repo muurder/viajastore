@@ -3,7 +3,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, Compass, Building, User } from 'lucide-react';
+import { Home, Compass, Building, User, MapPin } from 'lucide-react';
 
 const BottomNav: React.FC = () => {
   const { user } = useAuth();
@@ -44,7 +44,7 @@ const BottomNav: React.FC = () => {
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-4 h-[64px]">
+      <div className="grid grid-cols-5 h-[64px]">
         {/* 1. Home - Discovery */}
         <NavItem
           to="/"
@@ -70,7 +70,15 @@ const BottomNav: React.FC = () => {
           active={pathname.startsWith('/agencies') || pathname.startsWith('/agency/')}
         />
 
-        {/* 4. Conta - Personal Area */}
+        {/* 4. Guias - Tour Guides */}
+        <NavItem
+          to="/guides"
+          icon={MapPin}
+          label="Guias"
+          active={pathname.startsWith('/guides')}
+        />
+
+        {/* 5. Conta - Personal Area */}
         <NavItem
           to={getAccountLink()}
           icon={User}

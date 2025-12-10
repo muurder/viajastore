@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import { TripList } from './pages/TripList';
 import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
+import GuideList from './pages/GuideList';
 import AgencyProfile from './pages/AgencyProfile';
 // Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
@@ -33,7 +34,9 @@ const App: React.FC = () => {
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
+                  <Route path="guides" element={<GuideList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
+                  <Route path="guides" element={<AgencyList />} /> {/* Temporariamente usando AgencyList, será substituído por GuideList */}
                   
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
