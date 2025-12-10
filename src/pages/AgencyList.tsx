@@ -8,14 +8,14 @@ import { Agency, TripCategory } from '../types';
 const ITEMS_PER_PAGE = 9;
 
 const AgencyList: React.FC = () => {
-  const { searchAgencies } = useData();
+  const { searchAgencies, loading: dataLoading } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<'RELEVANCE' | 'NAME' | 'RATING'>('RELEVANCE');
   const [currentPage, setCurrentPage] = useState(1);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // FIX: Start as true to show loading on initial mount
   
   // View Mode State
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
@@ -28,25 +28,37 @@ const AgencyList: React.FC = () => {
 
   // Debounce logic for search
   useEffect(() => {
+    // FIX: Wait for data to be loaded before searching
+    if (dataLoading) {
+      return; // Don't search while data is still loading
+    }
+
     const timer = setTimeout(() => {
       fetchData();
     }, 500); // 500ms delay
 
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedSpecialty, sortOption, currentPage]);
+  }, [searchTerm, selectedSpecialty, sortOption, currentPage, dataLoading]);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data, count } = await searchAgencies({
-      page: currentPage,
-      limit: ITEMS_PER_PAGE,
-      query: searchTerm,
-      specialty: selectedSpecialty || undefined,
-      sort: sortOption
-    });
-    setAgencies(data);
-    setTotalCount(count);
-    setLoading(false);
+    try {
+      const { data, count } = await searchAgencies({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        query: searchTerm,
+        specialty: selectedSpecialty || undefined,
+        sort: sortOption
+      });
+      setAgencies(data || []);
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error loading agencies:', error);
+      setAgencies([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Specialties hardcoded or fetched separately if needed for filter UI

@@ -8,14 +8,14 @@ import { Agency, TripCategory } from '../types';
 const ITEMS_PER_PAGE = 9;
 
 const GuideList: React.FC = () => {
-  const { searchAgencies } = useData();
+  const { searchAgencies, loading: dataLoading } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<'RELEVANCE' | 'NAME' | 'RATING'>('RELEVANCE');
   const [currentPage, setCurrentPage] = useState(1);
   const [guides, setGuides] = useState<Agency[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // FIX: Start as true to show loading on initial mount
   
   // View Mode State
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
@@ -28,42 +28,54 @@ const GuideList: React.FC = () => {
 
   // Debounce logic for search
   useEffect(() => {
+    // FIX: Wait for data to be loaded before searching
+    if (dataLoading) {
+      return; // Don't search while data is still loading
+    }
+
     const timer = setTimeout(() => {
       fetchData();
     }, 500); // 500ms delay
 
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedSpecialty, sortOption, currentPage]);
+  }, [searchTerm, selectedSpecialty, sortOption, currentPage, dataLoading]);
 
   const fetchData = async () => {
     setLoading(true);
-    const { data, count } = await searchAgencies({
-      page: currentPage,
-      limit: ITEMS_PER_PAGE,
-      query: searchTerm,
-      specialty: selectedSpecialty || undefined,
-      sort: sortOption
-    });
-    
-    // Filter for guides (for now, filter on frontend - can be moved to backend later)
-    // Assuming guides are agencies with a specific tag or type
-    // For now, we'll filter by checking if the agency has guide-related tags
-    const guideData = data.filter(agency => {
-      // Check if agency has guide-related tags or description
-      const tags = agency.customSettings?.tags || [];
-      const hasGuideTag = tags.some(tag => 
-        ['guia', 'guide', 'turismo', 'tour', 'especialista'].some(keyword => 
-          tag.toLowerCase().includes(keyword)
-        )
-      );
-      const hasGuideInDescription = agency.description?.toLowerCase().includes('guia') || 
-                                    agency.description?.toLowerCase().includes('guide');
-      return hasGuideTag || hasGuideInDescription;
-    });
-    
-    setGuides(guideData);
-    setTotalCount(guideData.length);
-    setLoading(false);
+    try {
+      const { data, count } = await searchAgencies({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        query: searchTerm,
+        specialty: selectedSpecialty || undefined,
+        sort: sortOption
+      });
+      
+      // Filter for guides (for now, filter on frontend - can be moved to backend later)
+      // Assuming guides are agencies with a specific tag or type
+      // For now, we'll filter by checking if the agency has guide-related tags
+      const guideData = (data || []).filter(agency => {
+        // Check if agency has guide-related tags or description
+        const tags = agency.customSettings?.tags || [];
+        const hasGuideTag = tags.some(tag => 
+          ['guia', 'guide', 'turismo', 'tour', 'especialista'].some(keyword => 
+            tag.toLowerCase().includes(keyword)
+          )
+        );
+        const hasGuideInDescription = agency.description?.toLowerCase().includes('guia') || 
+                                      agency.description?.toLowerCase().includes('guide');
+        return hasGuideTag || hasGuideInDescription;
+      });
+      
+      setGuides(guideData);
+      setTotalCount(guideData.length);
+    } catch (error) {
+      console.error('Error loading guides:', error);
+      setGuides([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Specialties for guides (different from agencies)

@@ -24,7 +24,7 @@ const INTEREST_CHIPS = [
 const DEFAULT_HERO_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop";
 
 const Home: React.FC = () => {
-  const { searchTrips, agencies } = useData();
+  const { searchTrips, agencies, loading: dataLoading } = useData();
   const navigate = useNavigate();
   
   // Hero Data
@@ -39,7 +39,7 @@ const Home: React.FC = () => {
   // Grid Data
   const [gridTrips, setGridTrips] = useState<Trip[]>([]);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [gridLoading, setGridLoading] = useState(false);
+  const [gridLoading, setGridLoading] = useState(true); // FIX: Start as true to show loading on initial mount
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -47,33 +47,49 @@ const Home: React.FC = () => {
 
   // 1. Initial Load: Fetch Hero Trips (Random/Featured)
   useEffect(() => {
+    // FIX: Wait for data to be loaded before searching
+    if (dataLoading) {
+      return; // Don't search while data is still loading
+    }
+
     const loadHero = async () => {
         setHeroLoading(true);
-        let tripsData: Trip[] = [];
-        
-        // Try to fetch a larger pool of featured trips
-        const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
-        if (featuredData && featuredData.length > 0) {
-            tripsData = featuredData;
-        } else {
-            // Fallback: If no featured trips, get general active trips
-            const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
-            tripsData = generalData;
-        }
+        try {
+            let tripsData: Trip[] = [];
+            
+            // Try to fetch a larger pool of featured trips
+            const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
+            if (featuredData && featuredData.length > 0) {
+                tripsData = featuredData;
+            } else {
+                // Fallback: If no featured trips, get general active trips
+                const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
+                tripsData = generalData || [];
+            }
 
-        // Shuffle the results to randomize the hero
-        if (tripsData.length > 0) {
-            tripsData.sort(() => 0.5 - Math.random());
+            // Shuffle the results to randomize the hero
+            if (tripsData.length > 0) {
+                tripsData.sort(() => 0.5 - Math.random());
+            }
+            
+            setHeroTrips(tripsData);
+        } catch (error) {
+            console.error('Error loading hero trips:', error);
+            setHeroTrips([]);
+        } finally {
+            setHeroLoading(false);
         }
-        
-        setHeroTrips(tripsData);
-        setHeroLoading(false);
     };
     loadHero();
-  }, [searchTrips]);
+  }, [searchTrips, dataLoading]);
 
   // 2. Load Featured Dock Trips (Top 4 by views or featured)
   useEffect(() => {
+    // FIX: Wait for data to be loaded before searching
+    if (dataLoading) {
+      return; // Don't search while data is still loading
+    }
+
     const loadFeaturedDock = async () => {
         setDockLoading(true);
         try {
@@ -104,34 +120,52 @@ const Home: React.FC = () => {
         }
     };
     loadFeaturedDock();
-  }, [searchTrips]);
+  }, [searchTrips, dataLoading]);
 
   // 3. Fetch Grid Trips when Interest Changes
   useEffect(() => {
+    // FIX: Wait for data to be loaded before searching
+    if (dataLoading) {
+      return; // Don't search while data is still loading
+    }
+
     const loadGrid = async () => {
         setGridLoading(true);
-        // If 'Todos' or empty, just fetch generic latest
-        const category = selectedInterests.length > 0 && selectedInterests[0] !== 'Todos' 
-            ? selectedInterests[0].toUpperCase().replace(' ', '_') // Simple mapping
-            : undefined;
+        try {
+            // If 'Todos' or empty, just fetch generic latest
+            const category = selectedInterests.length > 0 && selectedInterests[0] !== 'Todos' 
+                ? selectedInterests[0].toUpperCase().replace(' ', '_') // Simple mapping
+                : undefined;
 
-        // Map UI labels to API enum if needed, or rely on fuzzy search
-        const { data } = await searchTrips({ 
-            limit: 20, // Fetch more to allow for random shuffling
-            // If mapping fails, the search might return empty, so ideally we map correctly or use tags
-            // For now, simpler implementation:
-            category: category === 'VIAGEM_BARATA' ? 'VIAGEM_BARATA' : undefined,
-            // Fallback for tags if category not strict
-            query: !category ? undefined : undefined 
-        });
+            // Map UI labels to API enum if needed, or rely on fuzzy search
+            const { data } = await searchTrips({ 
+                limit: 20, // Fetch more to allow for random shuffling
+                // If mapping fails, the search might return empty, so ideally we map correctly or use tags
+                // For now, simpler implementation:
+                category: category === 'VIAGEM_BARATA' ? 'VIAGEM_BARATA' : undefined,
+                // Fallback for tags if category not strict
+                query: !category ? undefined : undefined 
+            });
 
-        // Shuffle the results for the grid as well
-        const shuffled = data.sort(() => 0.5 - Math.random()).slice(0, 9);
-        setGridTrips(shuffled);
-        setGridLoading(false);
+            if (data && data.length > 0) {
+                // Shuffle the results for the grid as well
+                const shuffled = [...data].sort(() => 0.5 - Math.random()).slice(0, 9);
+                setGridTrips(shuffled);
+            } else {
+                // If no data, set empty array
+                setGridTrips([]);
+            }
+        } catch (error) {
+            console.error('Error loading grid trips:', error);
+            setGridTrips([]);
+        } finally {
+            setGridLoading(false);
+        }
     };
+    
+    // FIX: Ensure loadGrid runs on mount and when dependencies change
     loadGrid();
-  }, [selectedInterests, searchTrips]);
+  }, [selectedInterests, searchTrips, dataLoading]);
 
 
   // Carousel Logic
@@ -216,6 +250,7 @@ const Home: React.FC = () => {
                     >
                         {displayImage ? (
                             <img 
+                                key={`hero-img-${trip.id}-${index}`} // FIX: Unique key to prevent image cache issues
                                 src={displayImage}
                                 alt={trip.title} 
                                 className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
@@ -227,6 +262,7 @@ const Home: React.FC = () => {
                         ) : (
                             // Show default only if no valid image exists
                             <img 
+                                key={`hero-default-${trip.id}-${index}`}
                                 src={DEFAULT_HERO_IMG}
                                 alt="Hero background" 
                                 className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
@@ -283,6 +319,7 @@ const Home: React.FC = () => {
                   <div className="relative w-full h-24 rounded-xl overflow-hidden mb-3">
                     {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
                       <img
+                        key={`dock-img-${trip.id}`} // FIX: Unique key to prevent image cache issues
                         src={trip.images[0]}
                         alt={trip.title}
                         className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
@@ -290,6 +327,7 @@ const Home: React.FC = () => {
                       />
                     ) : (
                       <img
+                        key={`dock-default-${trip.id}`}
                         src={DEFAULT_HERO_IMG}
                         alt={trip.title}
                         className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
