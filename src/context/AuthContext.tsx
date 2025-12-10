@@ -791,7 +791,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).description !== undefined) updates.description = (userData as Agency).description; 
         if ((userData as Agency).cnpj !== undefined) updates.cnpj = (userData as Agency).cnpj;
         if ((userData as Agency).phone) updates.phone = (userData as Agency).phone;
-        if ((userData as Agency).logo) updates.logo_url = (userData as Agency).logo;
+        // FIX: Ensure logo is mapped to logo_url (database column name)
+        if ((userData as Agency).logo !== undefined) {
+          updates.logo_url = (userData as Agency).logo;
+          // Explicitly remove 'logo' if it exists to prevent conflicts
+          delete (updates as any).logo;
+        }
         if ((userData as Agency).address) updates.address = (userData as Agency).address;
         if ((userData as Agency).bankInfo) updates.bank_info = (userData as Agency).bankInfo;
         if ((userData as Agency).whatsapp) updates.whatsapp = (userData as Agency).whatsapp;
@@ -804,12 +809,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if ((userData as Agency).customSettings) updates.custom_settings = (userData as Agency).customSettings;
         if ((userData as Agency).subscriptionExpiresAt) updates.subscription_expires_at = (userData as Agency).subscriptionExpiresAt;
 
+        // FIX: Ensure no 'logo' field exists in updates object (only logo_url should be present)
+        delete (updates as any).logo;
 
         const { error } = await supabase.from('agencies').update(updates).eq('user_id', user.id); 
         if (error) {
              // Fallback: If update fails, maybe the record was never created (rare). Try Upsert.
              console.warn("[AuthContext] Agency update failed, trying upsert...", error); // Debug Log
-             await supabase.from('agencies').upsert({ user_id: user.id, ...updates }, { onConflict: 'user_id' });
+             // FIX: Ensure logo_url is used and logo is not included in upsert
+             const upsertData: any = { user_id: user.id, ...updates };
+             delete upsertData.logo; // Remove logo if it exists
+             await supabase.from('agencies').upsert(upsertData, { onConflict: 'user_id' });
         }
         console.log("[AuthContext] Agency DB profile updated."); // Debug Log
         
