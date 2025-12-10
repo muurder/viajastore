@@ -335,14 +335,14 @@ const Home: React.FC = () => {
             </p>
           </div>
 
-          {/* Hero Search Bar */}
-          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[50]">
+          {/* Hero Search Bar - FIX: High z-index to ensure dropdowns appear above cards */}
+          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[100]">
             <HeroSearch />
           </div>
         </div>
 
-        {/* Featured Dock - Bottom Overlap */}
-        <div className="relative z-40 w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
+        {/* Featured Dock - Bottom Overlap - FIX: Lower z-index than search bar */}
+        <div className="relative z-[20] w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
           {dockLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((n) => (

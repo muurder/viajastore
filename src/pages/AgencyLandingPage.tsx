@@ -512,8 +512,8 @@ const AgencyLandingPage: React.FC = () => {
                           </div>
                       </div>
 
-                      {/* Content Overlay */}
-                      <div className="relative z-20 w-full max-w-[1600px] mx-auto px-6 md:px-12 pt-20 md:pt-0 h-full flex items-center">
+                      {/* Content Overlay - FIX: Lower z-index to allow search dropdowns above */}
+                      <div className="relative z-[20] w-full max-w-[1600px] mx-auto px-6 md:px-12 pt-20 md:pt-0 h-full flex items-center">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
                               {/* Left Text */}
                               <div className="text-white pt-8 lg:pt-0">
@@ -561,8 +561,8 @@ const AgencyLandingPage: React.FC = () => {
                                   </div>
                               </div>
                               
-                              {/* Right Card */}
-                              <div className="hidden lg:flex justify-end">
+                              {/* Right Card - FIX: Lower z-index to allow search dropdowns above */}
+                              <div className="hidden lg:flex justify-end relative z-[20]">
                                   <Link 
                                     to={`/${agencySlug}/viagem/${currentHeroTrip.slug}`}
                                     className="block w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-5 shadow-2xl hover:bg-white/20 hover:scale-[1.02] transition-all duration-300 group/card"
