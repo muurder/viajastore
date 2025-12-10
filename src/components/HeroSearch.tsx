@@ -179,9 +179,9 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full relative z-[50]">
       {/* Desktop: Horizontal Bar */}
-      <div className="hidden md:flex bg-white rounded-full shadow-2xl border border-gray-100 p-2 items-center gap-2">
+      <div className="hidden md:flex bg-white rounded-full shadow-2xl border border-gray-100 p-2 items-center gap-2 relative">
         {/* Destination */}
         <div className="flex-1 relative min-w-[200px]">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10">
@@ -200,7 +200,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
         <div className="w-px h-8 bg-gray-200"></div>
 
         {/* Date Range */}
-        <div className="relative" ref={datePickerRef}>
+        <div className="relative z-[100]" ref={datePickerRef}>
           <button
             type="button"
             onClick={() => {
@@ -215,7 +215,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           </button>
 
           {showDatePicker && (
-            <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[320px]">
+            <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[9999] min-w-[320px]">
               <div className="flex items-center justify-between mb-4">
                 <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                   <ChevronDown size={16} className="rotate-90 text-gray-600" />
@@ -269,7 +269,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
         <div className="w-px h-8 bg-gray-200"></div>
 
         {/* Guests */}
-        <div className="relative" ref={guestsPickerRef}>
+        <div className="relative z-[100]" ref={guestsPickerRef}>
           <button
             type="button"
             onClick={() => {
@@ -284,7 +284,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           </button>
 
           {showGuestsPicker && (
-            <div className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-50 min-w-[240px]">
+            <div className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[9999] min-w-[240px]">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -351,7 +351,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
       </div>
 
       {/* Mobile: Vertical Stack */}
-      <div className="md:hidden bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 space-y-3">
+      <div className="md:hidden bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 space-y-3 relative z-[50]">
         <div className="relative">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
             <MapPin size={18} />
@@ -367,7 +367,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="relative" ref={datePickerRef}>
+          <div className="relative z-[100]" ref={datePickerRef}>
             <button
               type="button"
               onClick={() => {
@@ -381,9 +381,10 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               <ChevronDown size={14} className={`text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
             </button>
             {/* Date picker modal for mobile would go here - simplified for now */}
+            {/* If implemented, use z-[9999] for the dropdown */}
           </div>
 
-          <div className="relative" ref={guestsPickerRef}>
+          <div className="relative z-[100]" ref={guestsPickerRef}>
             <button
               type="button"
               onClick={() => {
@@ -397,6 +398,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               <ChevronDown size={14} className={`text-gray-400 transition-transform ${showGuestsPicker ? 'rotate-180' : ''}`} />
             </button>
             {/* Guests picker modal for mobile would go here - simplified for now */}
+            {/* If implemented, use z-[9999] for the dropdown */}
           </div>
         </div>
 

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useToast } from '../context/ToastContext';
 import { buildWhatsAppLink } from '../utils/whatsapp';
+import { NoImagePlaceholder } from './NoImagePlaceholder';
 
 interface TripCardProps {
   trip: Trip;
@@ -96,35 +97,28 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
     }
   };
 
-  // Fallback images by category if the main image fails
-  const categoryImages: Record<string, string> = {
-    'PRAIA': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
-    'AVENTURA': 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80',
-    'FAMILIA': 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=800&q=80',
-    'ROMANTICO': 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=800&q=80',
-    'URBANO': 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?auto=format&fit=crop&w=800&q=80',
-    'NATUREZA': 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80',
-    'CULTURA': 'https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?auto=format&fit=crop&w=800&q=80',
-    'GASTRONOMICO': 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80',
-    'VIDA_NOTURNA': 'https://images.unsplash.com/photo-1514525253440-b393452e233e?auto=format&fit=crop&w=800&q=80',
-    'VIAGEM_BARATA': 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=800&q=80',
-    'ARTE': 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=800&q=80',
-  };
-
-  const displayImage = (imgError || !trip.images || !trip.images[0])
-    ? (categoryImages[trip.category] || categoryImages['PRAIA'])
-    : trip.images[0];
+  // FIX: Rigorously check if trip has valid images
+  const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
+  const shouldShowPlaceholder = !hasValidImages || imgError;
 
   return (
     <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
       <div className="relative h-48 w-full overflow-hidden bg-gray-100">
-        <img 
-          src={displayImage} 
-          alt={trip.title} 
-          loading="lazy"
-          onError={() => setImgError(true)}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-        />
+        {shouldShowPlaceholder ? (
+          <NoImagePlaceholder 
+            title={trip.title} 
+            category={trip.category}
+            size="medium"
+          />
+        ) : (
+          <img 
+            src={trip.images[0]} 
+            alt={trip.title} 
+            loading="lazy"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          />
+        )}
         
         <div className="absolute top-3 right-3 z-10">
         <button 

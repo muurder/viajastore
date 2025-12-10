@@ -204,19 +204,37 @@ const Home: React.FC = () => {
         
         {/* Background Images Carousel */}
         {heroTrips.length > 0 ? (
-            heroTrips.map((trip, index) => (
-                <div 
-                    key={trip.id} 
-                    className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                >
-                    <img 
-                        src={trip.images?.[0] || DEFAULT_HERO_IMG}
-                        alt="" 
-                        className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
-                        onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
-                    />
-                </div>
-            ))
+            heroTrips.map((trip, index) => {
+                // FIX: Rigorously check if trip has valid images before using fallback
+                const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
+                const displayImage = hasValidImages ? trip.images[0] : null;
+                
+                return (
+                    <div 
+                        key={trip.id} 
+                        className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                    >
+                        {displayImage ? (
+                            <img 
+                                src={displayImage}
+                                alt={trip.title} 
+                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
+                                onError={(e) => { 
+                                    // If image fails to load, show default
+                                    e.currentTarget.src = DEFAULT_HERO_IMG; 
+                                }}
+                            />
+                        ) : (
+                            // Show default only if no valid image exists
+                            <img 
+                                src={DEFAULT_HERO_IMG}
+                                alt="Hero background" 
+                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
+                            />
+                        )}
+                    </div>
+                );
+            })
         ) : (
             <div className="absolute inset-0 z-0"><img src={DEFAULT_HERO_IMG} alt="Hero background" className="w-full h-full object-cover"/></div>
         )}
@@ -237,7 +255,7 @@ const Home: React.FC = () => {
           </div>
 
           {/* Hero Search Bar */}
-          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s]">
+          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[50]">
             <HeroSearch />
           </div>
         </div>
@@ -263,12 +281,20 @@ const Home: React.FC = () => {
                   className="group/dock bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300"
                 >
                   <div className="relative w-full h-24 rounded-xl overflow-hidden mb-3">
-                    <img
-                      src={trip.images?.[0] || DEFAULT_HERO_IMG}
-                      alt={trip.title}
-                      className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
-                      onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
-                    />
+                    {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
+                      <img
+                        src={trip.images[0]}
+                        alt={trip.title}
+                        className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                        onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
+                      />
+                    ) : (
+                      <img
+                        src={DEFAULT_HERO_IMG}
+                        alt={trip.title}
+                        className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                      />
+                    )}
                     {(trip.featured || (trip.views || 0) > 100) && (
                       <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg">
                         <TrendingUp size={10} />
