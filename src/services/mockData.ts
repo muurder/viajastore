@@ -5,13 +5,12 @@ import { slugify } from '../utils/slugify';
 export const PLANS: Plan[] = [
   { 
     id: 'STARTER', 
-    name: 'Starter', 
+    name: 'Plano Grátis', 
     price: 0, 
     features: [
-      '1 Viagem ativa',
-      'Página Web (Slug)',
-      '0% de taxa sobre vendas',
-      'Suporte por e-mail'
+      '1 Viagem Ativa',
+      'Página da Agência',
+      'Suporte Básico'
     ] 
   },
   { 

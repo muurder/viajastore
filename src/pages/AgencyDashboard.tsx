@@ -4622,17 +4622,20 @@ const AgencyDashboard: React.FC = () => {
                               >
                                   Gerenciar Pagamento
                               </button>
-                              <button 
-                                  onClick={() => {
-                                      if (currentAgency) {
-                                          const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
-                                          setShowConfirmSubscription(currentPlan);
-                                      }
-                                  }}
-                                  className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
-                              >
-                                  Renovar Agora
-                              </button>
+                              {/* FIX: Hide "Renovar Agora" button for STARTER (free plan) */}
+                              {!isStarter && (
+                                  <button 
+                                      onClick={() => {
+                                          if (currentAgency) {
+                                              const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
+                                              setShowConfirmSubscription(currentPlan);
+                                          }
+                                      }}
+                                      className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
+                                  >
+                                      Renovar Agora
+                                  </button>
+                              )}
                           </div>
                       </div>
 

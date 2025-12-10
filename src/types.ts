@@ -66,7 +66,7 @@ export interface Agency extends User {
     paymentMethods?: string[];
   };
   subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'PENDING';
-  subscriptionPlan: 'BASIC' | 'PREMIUM';
+  subscriptionPlan: 'STARTER' | 'BASIC' | 'PREMIUM';
   subscriptionExpiresAt: string;
   website?: string;
   phone?: string;

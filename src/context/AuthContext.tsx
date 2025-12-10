@@ -131,8 +131,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             heroTitle: agencyData.hero_title,
             heroSubtitle: agencyData.hero_subtitle,
             customSettings: agencyData.custom_settings || {},
-            subscriptionStatus: agencyData.is_active ? 'ACTIVE' : 'INACTIVE', // Derive from is_active
-            subscriptionPlan: 'BASIC', // Placeholder until joined with subscriptions table
+            subscriptionStatus: agencyData.subscription_status || (agencyData.is_active ? 'ACTIVE' : 'INACTIVE'),
+            subscriptionPlan: agencyData.subscription_plan || 'STARTER',
             subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(), 
             website: agencyData.website,
             phone: agencyData.phone,
@@ -573,16 +573,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // If we reach here, DB operations succeeded
-      // Force fetch the user data so the context updates immediately
-      // Use a timeout to avoid blocking the response
-      setTimeout(async () => {
+      // FIX: Force fetch the user data immediately with retry logic to avoid loading loop
+      const fetchWithRetry = async (attempt: number = 1): Promise<void> => {
+        const maxAttempts = 3;
+        
         try {
+          console.log(`[AuthContext] Fetching user data after registration (attempt ${attempt}/${maxAttempts})...`);
           await fetchUserData(userId, data.email);
+          
+          // Verify user was loaded by checking if user state was updated
+          // Use a small delay to allow state update to propagate
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Check if user was set by verifying against current user state
+          // If still null and we haven't exceeded max attempts, retry
+          if (attempt < maxAttempts) {
+            // Give it one more try after a delay
+            console.log(`[AuthContext] Waiting before verification (attempt ${attempt})...`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Try fetching again
+            return fetchWithRetry(attempt + 1);
+          }
+          
+          console.log("[AuthContext] User data fetch completed after registration.");
         } catch (fetchError) {
           console.error("[AuthContext] Error fetching user data after registration:", fetchError);
-          // Don't fail registration if fetch fails - user can refresh
+          
+          // Retry on error if we haven't exceeded max attempts
+          if (attempt < maxAttempts) {
+            console.log(`[AuthContext] Retrying fetch after error (attempt ${attempt + 1}/${maxAttempts})...`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return fetchWithRetry(attempt + 1);
+          }
+          
+          // Don't fail registration if fetch fails after all retries - user can refresh
+          console.warn("[AuthContext] Failed to fetch user data after all retries. User may need to refresh.");
         }
-      }, 100);
+      };
+      
+      // Start fetch immediately (don't use setTimeout to avoid race conditions)
+      fetchWithRetry();
       
       console.log("[AuthContext] Registration successful, DB records created."); // Debug Log
       
@@ -614,8 +645,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 description: '',
                 logo: '',
                 heroMode: 'TRIPS',
-                subscriptionStatus: 'INACTIVE',
-                subscriptionPlan: 'BASIC',
+                subscriptionStatus: 'ACTIVE',
+                subscriptionPlan: 'STARTER',
                 subscriptionExpiresAt: new Date().toISOString(),
             };
             setUser(fallbackAgency);
