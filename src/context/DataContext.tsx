@@ -996,11 +996,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     console.log("[DataContext] Creating trip:", trip.title); // Debug Log
     
     try {
+        // FIX: Validate and generate unique slug before inserting
+        const { normalizeSlug, validateSlug, generateUniqueSlug } = await import('../utils/slugUtils');
+        const normalizedSlug = normalizeSlug(trip.slug, trip.title);
+        const slugValidation = validateSlug(normalizedSlug);
+        
+        if (!slugValidation.valid) {
+            throw new Error(`Slug inválido: ${slugValidation.error}`);
+        }
+        
+        const uniqueSlug = await generateUniqueSlug(normalizedSlug, 'trips');
+        console.log("[DataContext] Generated unique slug for trip:", uniqueSlug); // Debug Log
+        
         // Timeout protection: 15 seconds for trip creation
         const insertPromise = sb.from('trips').insert({
             agency_id: trip.agencyId,
             title: trip.title,
-            slug: trip.slug,
+            slug: uniqueSlug,
             description: trip.description,
             destination: trip.destination,
             price: trip.price,

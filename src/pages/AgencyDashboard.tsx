@@ -4461,9 +4461,20 @@ const AgencyDashboard: React.FC = () => {
   const handleDuplicateTrip = async (trip: Trip) => {
     setIsDuplicatingTrip(trip.id);
     try {
-      const newTrip = { ...trip, title: `${trip.title} (Cópia)`, is_active: false };
-      const { id, ...tripData } = newTrip;
-      await createTrip({ ...tripData, agencyId: currentAgency!.agencyId } as Trip);
+      // FIX: Generate new unique slug for duplicated trip
+      const { generateSlugFromName, generateUniqueSlug } = await import('../utils/slugUtils');
+      const newTitle = `${trip.title} (Cópia)`;
+      const baseSlug = generateSlugFromName(newTitle);
+      const uniqueSlug = await generateUniqueSlug(baseSlug, 'trips');
+      
+      const { id, ...tripData } = trip;
+      const newTrip = { 
+        ...tripData, 
+        title: newTitle,
+        slug: uniqueSlug, // FIX: New unique slug
+        is_active: false 
+      };
+      await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
       showToast('Pacote duplicado com sucesso!', 'success');
     } catch (error: any) {
       console.error('Error duplicating trip:', error);
