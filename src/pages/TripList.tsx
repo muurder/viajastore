@@ -330,9 +330,9 @@ export const TripList: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Premium Hero Section */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[300px] flex items-center group mx-0 lg:mx-0">
-         {/* Background Image */}
+      {/* Premium Hero Section - FIX: z-index below header (z-50) so header stays on top when scrolling */}
+      <div className="relative rounded-3xl overflow-visible shadow-2xl min-h-[300px] flex items-center group mx-0 lg:mx-0 z-[30]">
+         {/* Background Image - FIX: Lower z-index to stay behind content */}
          <div className="absolute inset-0 z-0">
             {headerImage ? (
                 <img 
@@ -343,13 +343,13 @@ export const TripList: React.FC = () => {
             ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
             )}
-            {/* Gradient Overlay for Readability */}
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10"></div>
+            {/* Gradient Overlay for Readability - FIX: Above background but below content */}
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-[1]"></div>
          </div>
 
-         {/* Content - FIX: Higher z-index to prevent clipping */}
-         <div className="relative z-[100] w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
-             <div className="flex-1 text-center lg:text-left">
+         {/* Content - FIX: z-index below header (header is z-50) so header stays on top when scrolling */}
+         <div className="relative z-[40] w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
+             <div className="relative z-[41] flex-1 text-center lg:text-left">
                 {currentAgency && (
                     <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
                         <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
@@ -364,7 +364,7 @@ export const TripList: React.FC = () => {
                             className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg object-cover"
                         />
                     )}
-                    <div>
+                    <div className="relative z-[42]">
                         <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">
                             {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
                         </h1>
@@ -375,7 +375,7 @@ export const TripList: React.FC = () => {
                 </div>
              </div>
 
-             <div className="w-full lg:w-auto">
+             <div className="w-full lg:w-auto relative z-[45]">
                 <AdvancedSearchBar
                   initialDestination={q}
                   initialDateRange={{
@@ -383,7 +383,7 @@ export const TripList: React.FC = () => {
                     end: endDateParam ? new Date(endDateParam) : null,
                   }}
                   initialGuests={{
-                    adults: adultsParam ? parseInt(adultsParam) : 2,
+                    adults: adultsParam ? parseInt(adultsParam) : 1,
                     children: childrenParam ? parseInt(childrenParam) : 0,
                   }}
                   onSearch={(params) => {
@@ -476,19 +476,19 @@ export const TripList: React.FC = () => {
                 {openFilterSections['duration'] && (
                     <div className="space-y-2">
                         {durationOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                            <div 
+                                key={opt.id} 
+                                onClick={() => {
+                                    // Toggle: if already selected, deselect; otherwise select
+                                    updateUrl('duration', durationParam === opt.id ? null : opt.id);
+                                }}
+                                className="flex items-center cursor-pointer group"
+                            >
                                 <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${durationParam === opt.id ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
                                     {durationParam === opt.id && <div className="w-2 h-2 bg-white rounded-full" />}
                                 </div>
-                                <input 
-                                  type="radio" 
-                                  name="duration"
-                                  className="hidden" 
-                                  checked={durationParam === opt.id} 
-                                  onChange={() => updateUrl('duration', opt.id)} 
-                                />
                                 <span className={`text-sm ${durationParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
-                            </label>
+                            </div>
                         ))}
                     </div>
                 )}
@@ -503,19 +503,19 @@ export const TripList: React.FC = () => {
                 {openFilterSections['price'] && (
                     <div className="space-y-2">
                         {priceOptions.map(opt => (
-                            <label key={opt.id} className="flex items-center cursor-pointer group">
+                            <div 
+                                key={opt.id} 
+                                onClick={() => {
+                                    // Toggle: if already selected, deselect; otherwise select
+                                    updateUrl('price', priceParam === opt.id ? null : opt.id);
+                                }}
+                                className="flex items-center cursor-pointer group"
+                            >
                                 <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-all ${priceParam === opt.id ? 'bg-primary-600 border-primary-600' : 'border-gray-300 group-hover:border-primary-400 bg-white'}`}>
                                     {priceParam === opt.id && <div className="w-2 h-2 bg-white rounded-full" />}
                                 </div>
-                                <input 
-                                  type="radio" 
-                                  name="price"
-                                  className="hidden" 
-                                  checked={priceParam === opt.id} 
-                                  onChange={() => updateUrl('price', opt.id)} 
-                                />
                                 <span className={`text-sm ${priceParam === opt.id ? 'text-primary-700 font-bold' : 'text-gray-600'}`}>{opt.label}</span>
-                            </label>
+                            </div>
                         ))}
                     </div>
                 )}
@@ -533,7 +533,10 @@ export const TripList: React.FC = () => {
                            {popularDestinations.map(dest => (
                                <button 
                                  key={dest}
-                                 onClick={() => updateUrl('q', dest)} // Set search term as destination filter
+                                 onClick={() => {
+                                   // Toggle: if already selected, deselect; otherwise select
+                                   updateUrl('q', q === dest ? null : dest);
+                                 }}
                                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${q === dest ? 'bg-primary-50 text-primary-700 border-primary-200 font-bold' : 'bg-gray-50 text-gray-600 border-gray-100 hover:bg-gray-100'}`}
                                >
                                    {dest}

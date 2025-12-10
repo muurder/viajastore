@@ -18,7 +18,6 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { jsPDF } from 'jspdf';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
 import BusVisualizer from '../components/agency/BusVisualizer';
-import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
 import { slugify } from '../utils/slugify';
 

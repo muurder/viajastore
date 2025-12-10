@@ -598,6 +598,46 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               throw agencyError;
           }
         }
+
+        // FIX: If this is a guide (partnerType === 'GUIDE'), update custom_settings to include 'GUIA' tag
+        if (data.partnerType === 'GUIDE') {
+          // Get the agency_id from the created agency
+          const { data: agencyData, error: agencyFetchError } = await supabase
+            .from('agencies')
+            .select('id')
+            .eq('user_id', userId)
+            .single();
+
+          if (!agencyFetchError && agencyData) {
+            // Update custom_settings to include 'GUIA' tag
+            const { data: currentAgency } = await supabase
+              .from('agencies')
+              .select('custom_settings')
+              .eq('id', agencyData.id)
+              .single();
+
+            const currentSettings = currentAgency?.custom_settings || {};
+            const currentTags = currentSettings.tags || [];
+            
+            // Add 'GUIA' tag if not already present
+            if (!currentTags.includes('GUIA')) {
+              const updatedSettings = {
+                ...currentSettings,
+                tags: [...currentTags, 'GUIA']
+              };
+
+              const { error: updateError } = await supabase
+                .from('agencies')
+                .update({ custom_settings: updatedSettings })
+                .eq('id', agencyData.id);
+
+              if (updateError) {
+                console.warn("[AuthContext] Failed to update guide tag:", updateError);
+                // Don't throw - guide creation succeeded, tag update is optional
+              }
+            }
+          }
+        }
       }
 
       // If we reach here, DB operations succeeded

@@ -11,6 +11,7 @@ import TripDetails from './pages/TripDetails';
 import AgencyList from './pages/AgencyList';
 import GuideList from './pages/GuideList';
 import AgencyProfile from './pages/AgencyProfile';
+import TestAccounts from './pages/TestAccounts';
 // Corrected import path for AdminDashboard component
 import { AdminDashboard } from './pages/AdminDashboard'; 
 import { AgencyDashboard } from './pages/AgencyDashboard';
@@ -51,6 +52,10 @@ const App: React.FC = () => {
                   <Route path="checkout/success" element={<CheckoutSuccess />} />
                   <Route path="unauthorized" element={<Unauthorized />} />
                   <Route path="forgot-password" element={<ForgotPassword />} />
+                  {/* DEV ONLY: Test accounts page - Protected by component-level checks */}
+                  {import.meta.env.DEV && (
+                    <Route path="test-accounts" element={<TestAccounts />} />
+                  )}
                   
                   {/* Protected Routes */}
                   <Route path="agency/dashboard" element={<AgencyDashboard />} />
