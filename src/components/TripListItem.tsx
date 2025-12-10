@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trip } from '../types';
 import { MapPin, Star, ChevronRight, Check } from 'lucide-react';
+import { NoImagePlaceholder } from './NoImagePlaceholder';
 
 interface TripListItemProps {
   trip: Trip;
@@ -57,7 +58,8 @@ const TripListItem: React.FC<TripListItemProps> = ({ trip, onHover, highlighted,
                 decoding="async"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 onError={(e) => {
-                  e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop';
+                  // Hide image on error - will show placeholder below
+                  e.currentTarget.style.display = 'none';
                 }}
               />
               {trip.images.length > 1 && (
@@ -72,9 +74,12 @@ const TripListItem: React.FC<TripListItemProps> = ({ trip, onHover, highlighted,
               />
             </>
           ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-400">Sem imagem</span>
-            </div>
+            <NoImagePlaceholder 
+              title={trip.title}
+              category={trip.category}
+              size="medium"
+              className="w-full h-full"
+            />
           )}
         </div>
 

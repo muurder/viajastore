@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import HeroSearch from '../components/HeroSearch';
+import { NoImagePlaceholder } from '../components/NoImagePlaceholder';
 import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle, TrendingUp } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';
@@ -21,7 +22,7 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
-const DEFAULT_HERO_IMG = "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=2070&auto=format&fit=crop";
+// Removed DEFAULT_HERO_IMG - using NoImagePlaceholder instead
 
 const Home: React.FC = () => {
   const { searchTrips, agencies, loading: dataLoading, fetchTripImages } = useData();
@@ -284,31 +285,39 @@ const Home: React.FC = () => {
                         key={trip.id} 
                         className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
                     >
-                        {displayImage ? (
+                        {hasValidImages ? (
                             <img 
-                                key={`hero-img-${trip.id}-${index}`} // FIX: Unique key to prevent image cache issues
-                                src={displayImage}
+                                key={`hero-img-${trip.id}-${index}`}
+                                src={trip.images[0]}
                                 alt={trip.title} 
                                 className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
                                 onError={(e) => { 
-                                    // If image fails to load, show default
-                                    e.currentTarget.src = DEFAULT_HERO_IMG; 
+                                    // Hide image on error, placeholder will show
+                                    e.currentTarget.style.display = 'none';
                                 }}
                             />
-                        ) : (
-                            // Show default only if no valid image exists
-                            <img 
-                                key={`hero-default-${trip.id}-${index}`}
-                                src={DEFAULT_HERO_IMG}
-                                alt="Hero background" 
-                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
-                            />
+                        ) : null}
+                        {/* Show placeholder only if no valid image */}
+                        {!hasValidImages && (
+                            <div className="w-full h-full">
+                                <NoImagePlaceholder 
+                                    title={trip.title}
+                                    category={trip.category}
+                                    size="large"
+                                    className="w-full h-full"
+                                />
+                            </div>
                         )}
                     </div>
                 );
             })
         ) : (
-            <div className="absolute inset-0 z-0"><img src={DEFAULT_HERO_IMG} alt="Hero background" className="w-full h-full object-cover"/></div>
+            <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="text-6xl font-bold text-gray-300 mb-4">ViajaStore</div>
+                    <div className="text-gray-400">Carregando viagens...</div>
+                </div>
+            </div>
         )}
 
         {/* Enhanced Gradient Overlay - Stronger at bottom for dock readability */}
@@ -355,18 +364,21 @@ const Home: React.FC = () => {
                   <div className="relative w-full h-24 rounded-xl overflow-hidden mb-3">
                     {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
                       <img
-                        key={`dock-img-${trip.id}`} // FIX: Unique key to prevent image cache issues
+                        key={`dock-img-${trip.id}`}
                         src={trip.images[0]}
                         alt={trip.title}
                         className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
-                        onError={(e) => { e.currentTarget.src = DEFAULT_HERO_IMG; }}
+                        onError={(e) => { 
+                            // Hide image on error, placeholder will show
+                            e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
-                      <img
-                        key={`dock-default-${trip.id}`}
-                        src={DEFAULT_HERO_IMG}
-                        alt={trip.title}
-                        className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                      <NoImagePlaceholder 
+                        title={trip.title}
+                        category={trip.category}
+                        size="small"
+                        className="w-full h-full"
                       />
                     )}
                     {(trip.featured || (trip.views || 0) > 100) && (

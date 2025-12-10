@@ -372,11 +372,15 @@ const AgencyLandingPage: React.FC = () => {
           {agency.heroMode === 'STATIC' ? (
               <>
                   <div className="absolute inset-0 z-0">
-                      <img 
-                        src={agency.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"}
-                        className="w-full h-full object-cover" 
-                        alt="Cover"
-                      />
+                      {agency.heroBannerUrl ? (
+                          <img 
+                            src={agency.heroBannerUrl}
+                            className="w-full h-full object-cover" 
+                            alt="Cover"
+                          />
+                      ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
+                      )}
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent z-10 pointer-events-none"></div>
                   
@@ -419,11 +423,15 @@ const AgencyLandingPage: React.FC = () => {
                   <div key={currentHeroTrip.id} className="absolute inset-0 w-full h-full animate-[fadeIn_0.4s_ease-out]">
                       {/* Background Image */}
                       <div className="absolute inset-0 z-0">
-                          <img 
-                            src={currentHeroTrip.images[0] || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"} 
-                            className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
-                            alt={currentHeroTrip.title} 
-                          />
+                          {currentHeroTrip.images && currentHeroTrip.images.length > 0 && currentHeroTrip.images[0] ? (
+                              <img 
+                                src={currentHeroTrip.images[0]} 
+                                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110" 
+                                alt={currentHeroTrip.title} 
+                              />
+                          ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
+                          )}
                       </div>
                       
                       {/* Gradient */}

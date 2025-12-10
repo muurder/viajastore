@@ -334,11 +334,15 @@ export const TripList: React.FC = () => {
       <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[300px] flex items-center group mx-0 lg:mx-0">
          {/* Background Image */}
          <div className="absolute inset-0 z-0">
-            <img 
-                src={headerImage}
-                alt="Background" 
-                className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110"
-            />
+            {headerImage ? (
+                <img 
+                    src={headerImage}
+                    alt="Background" 
+                    className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110"
+                />
+            ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
+            )}
             {/* Gradient Overlay for Readability */}
             <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10"></div>
          </div>
