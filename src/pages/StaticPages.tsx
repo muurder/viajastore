@@ -67,28 +67,169 @@ export const Contact: React.FC = () => (
 );
 
 export const Terms: React.FC = () => (
-  <div className="max-w-3xl mx-auto py-12 prose prose-blue prose-lg">
-    <h1>Termos de Uso</h1>
-    <p>Última atualização: {new Date().toLocaleDateString()}</p>
-    <h3>1. Aceitação dos Termos</h3>
-    <p>Ao acessar e usar a ViajaStore, você aceita e concorda em estar vinculado aos termos e disposições deste acordo.</p>
-    <h3>2. Descrição do Serviço</h3>
-    <p>A ViajaStore é uma plataforma intermediária que conecta agências de viagens a consumidores finais.</p>
-    <h3>3. Cancelamentos e Reembolsos</h3>
-    <p>As políticas variam por agência e pacote. Leia atentamente as condições na página de cada viagem.</p>
+  <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="prose prose-blue max-w-none text-gray-700">
+      <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Termos de Uso</h1>
+      <p className="text-sm text-gray-500 mb-8">Última atualização: {new Date().toLocaleDateString('pt-BR')}</p>
+      
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">1. Aceitação dos Termos</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Ao acessar e usar a plataforma ViajaStore, você aceita e concorda em estar vinculado aos termos e disposições deste acordo. 
+        Se você não concorda com algum dos termos aqui estabelecidos, não deve utilizar nossos serviços.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">2. Descrição do Serviço</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        A ViajaStore é uma plataforma intermediária que conecta agências de viagens, guias turísticos e prestadores de serviços 
+        turísticos a consumidores finais. Não somos responsáveis pela prestação direta dos serviços de viagem, mas facilitamos 
+        a conexão entre as partes.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">3. Cadastro e Conta de Usuário</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Para utilizar nossos serviços, você precisa criar uma conta fornecendo informações precisas e atualizadas. 
+        Você é responsável por manter a confidencialidade de suas credenciais e por todas as atividades que ocorram em sua conta.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">4. Reservas e Pagamentos</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Ao realizar uma reserva através da ViajaStore, você concorda em pagar o valor total indicado. Os pagamentos são processados 
+        de forma segura através de gateways certificados. A confirmação da reserva está sujeita à disponibilidade e aprovação do prestador.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">5. Cancelamentos e Reembolsos</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        As políticas de cancelamento e reembolso variam conforme a agência e o pacote contratado. Leia atentamente as condições 
+        específicas na página de cada viagem antes de confirmar sua reserva. A ViajaStore atua como intermediária e não se responsabiliza 
+        por políticas de cancelamento definidas pelos prestadores.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">6. Responsabilidades</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        A ViajaStore não se responsabiliza por atrasos, cancelamentos, mudanças de itinerário ou qualquer problema relacionado aos 
+        serviços prestados pelas agências parceiras. Nossa responsabilidade limita-se à intermediação da transação.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">7. Propriedade Intelectual</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Todo o conteúdo da plataforma, incluindo textos, imagens, logotipos e design, é propriedade da ViajaStore ou de seus 
+        licenciadores e está protegido por leis de propriedade intelectual.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">8. Modificações dos Termos</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Reservamos o direito de modificar estes termos a qualquer momento. As alterações entrarão em vigor imediatamente após 
+        sua publicação. O uso continuado da plataforma após as modificações constitui sua aceitação dos novos termos.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">9. Contato</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Para questões relacionadas a estes termos, entre em contato conosco através do email: <strong>legal@viajastore.com</strong>
+      </p>
+    </div>
   </div>
 );
 
 export const Privacy: React.FC = () => (
-  <div className="max-w-3xl mx-auto py-12 prose prose-blue prose-lg">
-    <h1>Política de Privacidade</h1>
-    <p>Na ViajaStore, levamos sua privacidade a sério.</p>
-    <h3>1. Coleta de Dados</h3>
-    <p>Coletamos apenas dados necessários para a prestação dos serviços (Nome, CPF, Email, Telefone).</p>
-    <h3>2. Uso de Informações</h3>
-    <p>Seus dados são usados exclusivamente para processar reservas e melhorar sua experiência no site.</p>
-    <h3>3. Segurança</h3>
-    <p>Implementamos medidas de segurança técnicas e organizacionais para proteger seus dados pessoais.</p>
+  <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="prose prose-blue max-w-none text-gray-700">
+      <h1 className="text-4xl font-extrabold text-gray-900 mb-4">Política de Privacidade</h1>
+      <p className="text-sm text-gray-500 mb-8">Última atualização: {new Date().toLocaleDateString('pt-BR')}</p>
+      
+      <p className="text-gray-700 leading-relaxed mb-6">
+        Na ViajaStore, levamos sua privacidade a sério. Esta política descreve como coletamos, usamos, armazenamos e protegemos 
+        suas informações pessoais.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">1. Coleta de Dados</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Coletamos apenas os dados necessários para a prestação dos nossos serviços, incluindo:
+      </p>
+      <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
+        <li>Nome completo</li>
+        <li>CPF (para emissão de vouchers e documentos fiscais)</li>
+        <li>Email (para comunicação e confirmações)</li>
+        <li>Telefone/WhatsApp (para contato e suporte)</li>
+        <li>Data de nascimento (quando necessário para reservas)</li>
+        <li>Endereço (quando necessário para entrega de documentos)</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">2. Uso de Informações</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Seus dados são utilizados exclusivamente para:
+      </p>
+      <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
+        <li>Processar e confirmar suas reservas</li>
+        <li>Comunicar informações sobre sua viagem</li>
+        <li>Melhorar sua experiência na plataforma</li>
+        <li>Enviar ofertas e promoções (apenas com seu consentimento)</li>
+        <li>Cumprir obrigações legais e regulatórias</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">3. Compartilhamento de Dados</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Compartilhamos seus dados apenas com:
+      </p>
+      <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
+        <li>Agências parceiras responsáveis pela prestação dos serviços contratados</li>
+        <li>Provedores de serviços de pagamento (para processar transações)</li>
+        <li>Autoridades competentes quando exigido por lei</li>
+      </ul>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Nunca vendemos seus dados pessoais a terceiros.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">4. Segurança</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Implementamos medidas de segurança técnicas e organizacionais para proteger seus dados pessoais, incluindo:
+      </p>
+      <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
+        <li>Criptografia SSL/TLS para transmissão de dados</li>
+        <li>Armazenamento seguro em servidores protegidos</li>
+        <li>Controles de acesso restritos</li>
+        <li>Monitoramento contínuo de segurança</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">5. Seus Direitos (LGPD)</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        De acordo com a Lei Geral de Proteção de Dados (LGPD), você tem direito a:
+      </p>
+      <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
+        <li>Confirmar a existência de tratamento de dados</li>
+        <li>Acessar seus dados pessoais</li>
+        <li>Corrigir dados incompletos ou desatualizados</li>
+        <li>Solicitar anonimização ou exclusão de dados</li>
+        <li>Solicitar portabilidade dos dados</li>
+        <li>Revogar consentimento a qualquer momento</li>
+      </ul>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">6. Cookies</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Utilizamos cookies para melhorar sua experiência na plataforma, analisar o uso do site e personalizar conteúdo. 
+        Você pode gerenciar suas preferências de cookies nas configurações do seu navegador.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">7. Retenção de Dados</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Mantemos seus dados pessoais apenas pelo tempo necessário para cumprir as finalidades descritas nesta política, 
+        ou conforme exigido por lei.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">8. Alterações nesta Política</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Podemos atualizar esta política periodicamente. Notificaremos você sobre mudanças significativas através do email 
+        cadastrado ou por aviso na plataforma.
+      </p>
+
+      <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">9. Contato</h3>
+      <p className="text-gray-700 leading-relaxed mb-4">
+        Para exercer seus direitos ou esclarecer dúvidas sobre esta política, entre em contato conosco:
+      </p>
+      <ul className="list-none pl-0 text-gray-700 mb-4 space-y-2">
+        <li><strong>Email:</strong> privacidade@viajastore.com</li>
+        <li><strong>Telefone:</strong> 0800 123 4567</li>
+      </ul>
+    </div>
   </div>
 );
 

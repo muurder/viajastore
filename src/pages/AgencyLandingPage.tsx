@@ -864,9 +864,18 @@ const AgencyLandingPage: React.FC = () => {
       </div>
 
       <div className="text-center pt-12 pb-4 border-t border-gray-200">
-          <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold transition-colors text-xs uppercase tracking-widest">
-              <Globe size={12} className="mr-2" /> Voltar para ViajaStore
-          </Link>
+          <div className="flex flex-col items-center justify-center gap-4">
+            <Link 
+              to="/" 
+              className="inline-flex items-center gap-3 px-6 py-3 bg-primary-50 hover:bg-primary-100 text-primary-700 hover:text-primary-800 font-bold rounded-xl transition-all shadow-sm hover:shadow-md border border-primary-200 text-sm uppercase tracking-wider"
+            >
+              <Globe size={16} className="text-primary-600" />
+              Voltar para ViajaStore
+            </Link>
+            <p className="text-xs text-gray-500 text-center max-w-md">
+              Explore mais destinos e experiências incríveis no marketplace ViajaStore
+            </p>
+          </div>
       </div>
     </div>
   );

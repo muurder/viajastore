@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Trip, PassengerDetail } from '../types';
-import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { PassengerDataModal } from '../components/PassengerDataModal';
 
@@ -20,28 +20,43 @@ const TripDetails: React.FC = () => {
   const [tripLoading, setTripLoading] = useState(true);
   const [tripError, setTripError] = useState<string | null>(null);
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
-  const [currentAgency, setCurrentAgency] = useState(agencySlug ? getAgencyBySlug(agencySlug) : undefined);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
-  // Enhanced trip loading with timeout and retry
+  // Enhanced trip loading with timeout, retry, and proper data loading wait
   useEffect(() => {
     if (!activeSlug) {
       setTripLoading(false);
+      setTripError('Nenhuma viagem especificada.');
       return;
     }
 
-    let timeoutId: NodeJS.Timeout;
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    // Reset retry count when slug changes
+    retryCountRef.current = 0;
+
     const loadTrip = async () => {
       setTripLoading(true);
       setTripError(null);
       
       try {
-        // Wait for agency to load if in microsite context
-        let agency = currentAgency;
-        if (agencySlug && !agency) {
-          // Retry getting agency
-          agency = getAgencyBySlug(agencySlug);
-          setCurrentAgency(agency);
+        // Wait for DataContext to finish loading if it's still loading
+        // Check loading state from DataContext by checking if trips array is empty
+        let waitCount = 0;
+        const maxWait = 20; // 20 * 500ms = 10 seconds
+        while (loading && waitCount < maxWait) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          waitCount++;
         }
+
+        // Get agency if in microsite context
+        const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
 
         let foundTrip: Trip | undefined = undefined;
 
@@ -71,32 +86,57 @@ const TripDetails: React.FC = () => {
         if (foundTrip) {
           setTrip(foundTrip);
           setTripError(null);
+          setTripLoading(false);
+          // Clear timeout if trip was found
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
         } else {
+          // Retry logic: if we haven't exceeded max retries, retry after a delay
+          // This helps when data is still loading in the background
+          if (retryCountRef.current < maxRetries) {
+            retryCountRef.current++;
+            // Retry after a short delay (increasing delay with each retry)
+            const retryDelay = 1000 * retryCountRef.current;
+            timeoutRef.current = setTimeout(() => {
+              loadTrip();
+            }, retryDelay);
+            return;
+          }
           setTripError('Viagem não encontrada');
+          setTripLoading(false);
         }
       } catch (error: any) {
         console.error('Error loading trip:', error);
         setTripError('Erro ao carregar viagem');
-      } finally {
         setTripLoading(false);
       }
     };
 
     loadTrip();
 
-    // Timeout after 5 seconds
-    timeoutId = setTimeout(() => {
-      if (tripLoading) {
-        setTripLoading(false);
-        setTripError('Tempo de carregamento excedido. Tente novamente.');
-      }
-    }, 5000);
+    // Timeout after 15 seconds (increased from 5 to give more time for data loading)
+    timeoutRef.current = setTimeout(() => {
+      // Use a function to check current state, not the closure value
+      setTripLoading(prevLoading => {
+        if (prevLoading) {
+          setTripError('Tempo de carregamento excedido. Tente novamente.');
+          return false;
+        }
+        return prevLoading;
+      });
+    }, 15000);
 
     return () => {
-      clearTimeout(timeoutId);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
-  }, [activeSlug, agencySlug, getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, currentAgency]);
+  }, [activeSlug, agencySlug, getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, loading]);
 
+  const currentAgency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
   const agency = trip ? agencies.find(a => a.agencyId === trip.agencyId) : currentAgency;
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -141,23 +181,44 @@ const TripDetails: React.FC = () => {
         </p>
         <div className="flex gap-3">
           <button
-            onClick={() => {
+            onClick={async () => {
               setTripLoading(true);
               setTripError(null);
-              // Retry loading
-              const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
-              if (agency) {
-                const agencyTrips = getAgencyPublicTrips(agency.agencyId);
-                const foundTrip = agencyTrips.find(t => t.slug === activeSlug) || getTripById(activeSlug);
-                if (foundTrip && foundTrip.agencyId === agency.agencyId) {
-                  setTrip(foundTrip);
-                  setTripLoading(false);
-                  return;
+              retryCountRef.current = 0;
+              
+              // Wait for DataContext to finish loading if it's still loading
+              if (loading) {
+                let waitCount = 0;
+                const maxWait = 20;
+                while (loading && waitCount < maxWait) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  waitCount++;
                 }
               }
-              const foundTrip = getTripBySlug(activeSlug) || getTripById(activeSlug);
+
+              // Retry loading with full logic
+              const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+              let foundTrip: Trip | undefined = undefined;
+
+              if (agency) {
+                const agencyTrips = getAgencyPublicTrips(agency.agencyId);
+                foundTrip = agencyTrips.find(t => t.slug === activeSlug);
+                if (!foundTrip) {
+                  foundTrip = getTripById(activeSlug);
+                  if (foundTrip && foundTrip.agencyId !== agency.agencyId) {
+                    foundTrip = undefined;
+                  }
+                }
+              } else {
+                foundTrip = getTripBySlug(activeSlug);
+                if (!foundTrip) {
+                  foundTrip = getTripById(activeSlug);
+                }
+              }
+
               if (foundTrip) {
                 setTrip(foundTrip);
+                setTripError(null);
               } else {
                 setTripError('Viagem não encontrada');
               }
@@ -501,6 +562,24 @@ const TripDetails: React.FC = () => {
           </div>
 
       </div>
+
+      {/* Voltar para ViajaStore - Prominent button for agency microsite context */}
+      {agencySlug && (
+        <div className="mt-12 pt-8 border-t border-gray-200">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <Link 
+              to="/" 
+              className="inline-flex items-center gap-3 px-6 py-3 bg-primary-50 hover:bg-primary-100 text-primary-700 hover:text-primary-800 font-bold rounded-xl transition-all shadow-sm hover:shadow-md border border-primary-200 text-sm uppercase tracking-wider"
+            >
+              <Globe size={16} className="text-primary-600" />
+              Voltar para ViajaStore
+            </Link>
+            <p className="text-xs text-gray-500 text-center max-w-md">
+              Explore mais destinos e experiências incríveis no marketplace ViajaStore
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Passenger Data Modal */}
       {user && (
