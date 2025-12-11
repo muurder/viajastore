@@ -9,6 +9,7 @@ import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom'
 import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
 import { slugify } from '../utils/slugify';
+import { logger } from '../utils/logger';
 
 // Helper function to build the WhatsApp URL
 const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) => {
@@ -253,7 +254,7 @@ const ClientDashboard: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error('Error fetching passengers:', err);
+        logger.error('Error fetching passengers:', err);
         setBookingPassengers([]);
       }
     };
@@ -324,7 +325,7 @@ const ClientDashboard: React.FC = () => {
             showToast('CEP não encontrado.', 'warning');
         }
       } catch (error) {
-        console.error("Erro ao buscar CEP", error);
+        logger.error("Erro ao buscar CEP", error);
         showToast('Erro ao buscar CEP. Verifique a conexão.', 'error');
       } finally {
         setLoadingCep(false);
@@ -387,7 +388,7 @@ const ClientDashboard: React.FC = () => {
         }
       }
     } catch (error: any) {
-      console.error('Error saving profile:', error);
+      logger.error('Error saving profile:', error);
       showToast('Erro ao atualizar perfil. Tente novamente.', 'error');
       isSavingRef.current = false;
     } finally {
@@ -425,7 +426,7 @@ const ClientDashboard: React.FC = () => {
               showToast('Erro: ' + (res.error || 'Não foi possível alterar a senha. Tente novamente.'), 'error');
           }
       } catch (error: any) {
-          console.error('Error changing password:', error);
+          logger.error('Error changing password:', error);
           showToast('Erro ao alterar senha. Tente novamente.', 'error');
       } finally {
           setIsChangingPassword(false);
@@ -484,7 +485,7 @@ const ClientDashboard: React.FC = () => {
             }
           }
         } catch (err) {
-          console.error('Error fetching passengers:', err);
+          logger.error('Error fetching passengers:', err);
         }
 
         const doc = new jsPDF();
@@ -620,7 +621,7 @@ const ClientDashboard: React.FC = () => {
         doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
         doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
       } catch (error) {
-          console.error('Erro ao gerar PDF:', error);
+          logger.error('Erro ao gerar PDF:', error);
           showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
       }
   };
@@ -657,7 +658,7 @@ const ClientDashboard: React.FC = () => {
           setReviewForm({ rating: 5, comment: '', tags: [] });
           showToast('Avaliação enviada com sucesso!', 'success');
       } catch (error) {
-          console.error(error);
+          logger.error(error);
           showToast('Erro ao enviar avaliação.', 'error');
       } finally {
           setIsSubmitting(false);
@@ -678,7 +679,7 @@ const ClientDashboard: React.FC = () => {
         setReviewForm({ rating: 5, comment: '', tags: [] });
         showToast('Avaliação atualizada com sucesso!', 'success');
     } catch(err) {
-        console.error(err);
+        logger.error(err);
         showToast('Erro ao atualizar avaliação.', 'error');
     } finally {
         setIsSubmitting(false);

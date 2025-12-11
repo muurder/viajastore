@@ -1,21 +1,17 @@
 // Debug utility - Only logs in development
-const DEBUG = import.meta.env.DEV || import.meta.env.MODE === 'development';
+// Note: This file is deprecated in favor of logger.ts
+// Keeping for backward compatibility but using logger internally
+import { logger } from './logger';
 
 export const debugLog = (...args: any[]) => {
-  if (DEBUG) {
-    console.log(...args);
-  }
+  logger.log(...args);
 };
 
 export const debugError = (...args: any[]) => {
-  if (DEBUG) {
-    console.error(...args);
-  }
+  logger.error(...args);
 };
 
 export const debugWarn = (...args: any[]) => {
-  if (DEBUG) {
-    console.warn(...args);
-  }
+  logger.warn(...args);
 };
 

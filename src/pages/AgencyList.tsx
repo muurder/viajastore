@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
 import { Building, Star, Search, ArrowRight, CheckCircle, Shield, Users, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight, ArrowUpDown, LayoutGrid, List, X, Loader } from 'lucide-react';
 import { Agency, TripCategory } from '../types';
+import { logger } from '../utils/logger';
 
 const ITEMS_PER_PAGE = 9;
 
@@ -53,7 +54,7 @@ const AgencyList: React.FC = () => {
       setAgencies(data || []);
       setTotalCount(count || 0);
     } catch (error) {
-      console.error('Error loading agencies:', error);
+      logger.error('Error loading agencies:', error);
       setAgencies([]);
       setTotalCount(0);
     } finally {

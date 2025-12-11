@@ -4,6 +4,7 @@ import { useData } from '../context/DataContext';
 import { Link } from 'react-router-dom';
 import { User, Star, Search, ArrowRight, CheckCircle, Shield, MapPin, Filter, Sparkles, ChevronLeft, ChevronRight, ArrowUpDown, LayoutGrid, List, X, Loader, Compass, MessageCircle, Globe } from 'lucide-react';
 import { Agency } from '../types';
+import { GuideCardSkeleton, GuideListItemSkeleton } from '../components/GuideCardSkeleton';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -280,24 +281,19 @@ const GuideList: React.FC = () => {
 
       {/* Premium Loading State */}
       {dataLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden animate-pulse">
-              <div className="pt-10 pb-6 px-6 bg-gradient-to-br from-primary-200 to-primary-300">
-                <div className="w-28 h-28 rounded-full bg-white/50 mx-auto"></div>
-              </div>
-              <div className="px-6 py-4 space-y-3">
-                <div className="h-5 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
-                <div className="flex gap-2 justify-center">
-                  <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                  <div className="h-6 bg-gray-200 rounded-full w-16"></div>
-                </div>
-                <div className="h-10 bg-gray-200 rounded-xl mt-4"></div>
-              </div>
-            </div>
-          ))}
-        </div>
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <GuideCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <GuideListItemSkeleton key={i} />
+            ))}
+          </div>
+        )
       ) : paginatedGuides.length === 0 ? (
         <div className="text-center py-20 bg-gradient-to-br from-gray-50 to-white rounded-3xl border-2 border-dashed border-gray-300 shadow-lg">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-6">

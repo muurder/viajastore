@@ -26,3 +26,9 @@ dist-ssr
 # Supabase
 .env
 .env.local
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

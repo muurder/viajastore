@@ -23,6 +23,7 @@ import 'jspdf-autotable';
 import { slugify } from '../utils/slugify';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { logger } from '../utils/logger';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
@@ -529,7 +530,7 @@ const ClientDashboardPopup: React.FC<ClientDashboardPopupProps> = ({ isOpen, cli
                   }
                 } catch (err) {
                   // Cross-origin restrictions may prevent access
-                  console.warn('Could not intercept iframe navigation:', err);
+                  logger.warn('Could not intercept iframe navigation:', err);
                 }
               }}
             />
@@ -1685,7 +1686,7 @@ export const AdminDashboard: React.FC = () => {
           setSelectedAgencies([]);
           setConfirmDialog({ ...confirmDialog, isOpen: false });
         } catch (error) {
-          console.error('Error deleting agencies:', error);
+          logger.error('Error deleting agencies:', error);
         } finally {
           setIsProcessing(false);
         }
@@ -1707,7 +1708,7 @@ export const AdminDashboard: React.FC = () => {
           setSelectedAgencies([]);
           setConfirmDialog({ ...confirmDialog, isOpen: false });
         } catch (error) {
-          console.error('Error archiving agencies:', error);
+          logger.error('Error archiving agencies:', error);
         } finally {
           setIsProcessing(false);
         }
@@ -1729,7 +1730,7 @@ export const AdminDashboard: React.FC = () => {
           setSelectedAgencies([]);
           setConfirmDialog({ ...confirmDialog, isOpen: false });
         } catch (error) {
-          console.error('Error changing plans:', error);
+          logger.error('Error changing plans:', error);
         } finally {
           setIsProcessing(false);
         }
@@ -1853,7 +1854,7 @@ export const AdminDashboard: React.FC = () => {
       await adminChangePlan(agencyId, newPlan);
       setModalType(null);
     } catch (error) {
-      console.error('Error changing plan:', error);
+      logger.error('Error changing plan:', error);
     } finally {
       setIsProcessing(false);
     }

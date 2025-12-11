@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { usePlanPermissions } from '../../hooks/usePlanPermissions';
 import { extractColorsFromImage, extractColorsFromUrl, generateColorPalettes, ColorPalette } from '../../utils/colorExtractor';
+import { logger } from '../../utils/logger';
 import { 
   Palette, Sparkles, Type, Square, Circle, Lock, 
   Image as ImageIcon, Upload, Save, Loader, 
@@ -129,7 +130,7 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
 
       // Toast is already shown by the parent component, so we don't need to show it here
     } catch (error: any) {
-      console.error('Error uploading logo or extracting colors:', error);
+      logger.error('Error uploading logo or extracting colors:', error);
       showToast('Erro ao processar logo. Tente novamente.', 'error');
     } finally {
       setExtractingColors(false);
@@ -139,22 +140,22 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
 
   // Apply suggested colors
   const applySuggestedColors = () => {
-    console.log('applySuggestedColors called', { suggestedPalettes, selectedPaletteIndex });
+    logger.debug('applySuggestedColors called', { suggestedPalettes, selectedPaletteIndex });
     
     if (suggestedPalettes.length === 0) {
-      console.warn('No suggested palettes available');
+      logger.warn('No suggested palettes available');
       showToast('Nenhuma paleta disponível', 'error');
       return;
     }
     
     if (selectedPaletteIndex < 0 || selectedPaletteIndex >= suggestedPalettes.length) {
-      console.warn('Invalid palette index', selectedPaletteIndex);
+      logger.warn('Invalid palette index', selectedPaletteIndex);
       showToast('Paleta selecionada inválida', 'error');
       return;
     }
     
     const selectedPalette = suggestedPalettes[selectedPaletteIndex];
-    console.log('Applying palette:', selectedPalette);
+    logger.debug('Applying palette:', selectedPalette);
     
     setThemeForm(prev => {
       const updated = {
@@ -165,7 +166,7 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
           secondary: selectedPalette.secondary,
         }
       };
-      console.log('Updated themeForm:', updated);
+      logger.debug('Updated themeForm:', updated);
       return updated;
     });
     
@@ -190,7 +191,7 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
       setShowColorSuggestion(true);
       showToast('Cores extraídas do logo atual!', 'success');
     } catch (error: any) {
-      console.error('Error extracting colors:', error);
+      logger.error('Error extracting colors:', error);
       showToast('Erro ao extrair cores. Tente fazer upload de um novo logo.', 'error');
     } finally {
       setExtractingColors(false);

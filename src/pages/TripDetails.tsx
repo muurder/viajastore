@@ -8,6 +8,7 @@ import { Trip, PassengerDetail } from '../types';
 import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { PassengerDataModal } from '../components/PassengerDataModal';
+import { logger } from '../utils/logger';
 
 const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
@@ -108,7 +109,7 @@ const TripDetails: React.FC = () => {
           setTripLoading(false);
         }
       } catch (error: any) {
-        console.error('Error loading trip:', error);
+        logger.error('Error loading trip:', error);
         setTripError('Erro ao carregar viagem');
         setTripLoading(false);
       }
@@ -348,7 +349,7 @@ const TripDetails: React.FC = () => {
               title: trip.title,
               text: `Confira essa viagem incrível: ${trip.title}`,
               url: window.location.href,
-          }).catch(console.error);
+          }).catch((err) => logger.error(err));
       } else {
           navigator.clipboard.writeText(window.location.href);
           showToast('Link copiado!', 'success');

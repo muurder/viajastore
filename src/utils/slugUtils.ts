@@ -1,5 +1,6 @@
 import { slugify } from './slugify';
 import { supabase } from '../services/supabase';
+import { logger } from './logger';
 
 /**
  * Valida se um slug está no formato correto
@@ -42,7 +43,7 @@ export async function generateUniqueSlug(
   excludeId?: string
 ): Promise<string> {
   if (!supabase) {
-    console.warn('[slugUtils] Supabase não configurado, retornando slug base');
+    logger.warn('[slugUtils] Supabase não configurado, retornando slug base');
     return baseSlug;
   }
 
@@ -66,7 +67,7 @@ export async function generateUniqueSlug(
       const { data, error } = await query.maybeSingle();
       
       if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned (é o que queremos)
-        console.error(`[slugUtils] Erro ao verificar slug único:`, error);
+        logger.error(`[slugUtils] Erro ao verificar slug único:`, error);
         // Em caso de erro, retornar slug com contador para evitar duplicatas
         return counter > 1 ? `${baseSlug}-${counter}` : baseSlug;
       }
@@ -80,14 +81,14 @@ export async function generateUniqueSlug(
       slug = `${baseSlug}-${counter}`;
       counter++;
     } catch (error) {
-      console.error(`[slugUtils] Erro ao gerar slug único:`, error);
+      logger.error(`[slugUtils] Erro ao gerar slug único:`, error);
       // Em caso de erro, retornar slug com contador
       return counter > 1 ? `${baseSlug}-${counter}` : baseSlug;
     }
   }
   
   // Se chegou aqui, não conseguiu gerar slug único após muitas tentativas
-  console.warn(`[slugUtils] Não foi possível gerar slug único após ${maxAttempts} tentativas`);
+  logger.warn(`[slugUtils] Não foi possível gerar slug único após ${maxAttempts} tentativas`);
   return `${baseSlug}-${Date.now()}`;
 }
 

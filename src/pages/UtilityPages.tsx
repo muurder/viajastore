@@ -6,6 +6,7 @@ import { jsPDF } from 'jspdf';
 // Import jspdf-autotable to extend jsPDF prototype
 import 'jspdf-autotable';
 import { Booking, PassengerDetail } from '../types';
+import { logger } from '../utils/logger';
 
 export const NotFound: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
@@ -86,7 +87,7 @@ export const CheckoutSuccess: React.FC = () => {
           url: window.location.href,
         });
       } catch (error) {
-        console.error('Error sharing', error);
+        logger.error('Error sharing', error);
       }
     } else {
       navigator.clipboard.writeText(`Reservei minha viagem! Voucher: ${voucherCode}`);
@@ -102,7 +103,7 @@ export const CheckoutSuccess: React.FC = () => {
       
       // Set timeout to avoid hanging
       const timeout = setTimeout(() => {
-        console.warn("Image load timeout, using fallback");
+        logger.warn("Image load timeout, using fallback");
         resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
       }, 10000); // 10 second timeout
       
@@ -121,7 +122,7 @@ export const CheckoutSuccess: React.FC = () => {
             throw new Error("Could not get canvas context");
           }
         } catch (error) {
-          console.error("Error converting image to base64:", error);
+          logger.error("Error converting image to base64:", error);
           clearTimeout(timeout);
           // Fallback empty transparent pixel if fails
           resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
@@ -130,7 +131,7 @@ export const CheckoutSuccess: React.FC = () => {
       
       img.onerror = (error) => {
         clearTimeout(timeout);
-        console.error("Error loading image:", error);
+        logger.error("Error loading image:", error);
         // Fallback empty transparent pixel if fails
         resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
       };
@@ -147,7 +148,7 @@ export const CheckoutSuccess: React.FC = () => {
         // Verify autoTable is available
         const hasAutoTable = typeof (doc as any).autoTable === 'function';
         if (!hasAutoTable) {
-          console.warn("jspdf-autotable plugin not loaded, using manual table rendering");
+          logger.warn("jspdf-autotable plugin not loaded, using manual table rendering");
         }
         
         // --- 1. PREMIUM HEADER ---
@@ -258,7 +259,7 @@ export const CheckoutSuccess: React.FC = () => {
             finalY = (doc as any).lastAutoTable?.finalY || 95;
           } else {
             // Fallback: Manual table drawing if autoTable is not available
-            console.warn("autoTable not available, using manual table");
+            logger.warn("autoTable not available, using manual table");
             doc.setFontSize(10);
             doc.setTextColor(71, 85, 105);
             doc.setFont('helvetica', 'bold');
@@ -282,7 +283,7 @@ export const CheckoutSuccess: React.FC = () => {
             finalY += 5;
           }
         } catch (tableError: any) {
-          console.error("Error generating table:", tableError);
+          logger.error("Error generating table:", tableError);
           // Fallback: Simple text list
           doc.setFontSize(10);
           doc.setTextColor(30, 41, 59);
@@ -307,7 +308,7 @@ export const CheckoutSuccess: React.FC = () => {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(voucherCode)}`;
             qrBase64 = await getBase64ImageFromURL(qrUrl);
         } catch (qrError) {
-            console.warn("QR Code generation failed, continuing without QR code:", qrError);
+            logger.warn("QR Code generation failed, continuing without QR code:", qrError);
             // Continue without QR code - not critical
         }
         
@@ -316,7 +317,7 @@ export const CheckoutSuccess: React.FC = () => {
             try {
                 doc.addImage(qrBase64, 'PNG', 160, finalY, 35, 35);
             } catch (imgError) {
-                console.warn("Failed to add QR code image to PDF:", imgError);
+                logger.warn("Failed to add QR code image to PDF:", imgError);
             }
         } else {
             // Draw placeholder text if QR code failed
@@ -368,9 +369,9 @@ export const CheckoutSuccess: React.FC = () => {
         // Save the PDF
         try {
           doc.save(fileName);
-          console.log(`PDF gerado com sucesso: ${fileName}`);
+          logger.info(`PDF gerado com sucesso: ${fileName}`);
         } catch (saveError) {
-          console.error("Error saving PDF:", saveError);
+          logger.error("Error saving PDF:", saveError);
           // Try alternative method
           const pdfBlob = doc.output('blob');
           const url = URL.createObjectURL(pdfBlob);
@@ -381,11 +382,11 @@ export const CheckoutSuccess: React.FC = () => {
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          console.log(`PDF gerado via método alternativo: ${fileName}`);
+          logger.info(`PDF gerado via método alternativo: ${fileName}`);
         }
 
     } catch (error: any) {
-        console.error("PDF Generation Error:", error);
+        logger.error("PDF Generation Error:", error);
         alert(`Erro ao gerar PDF: ${error?.message || 'Erro desconhecido'}. Tente novamente.`);
     } finally {
         setIsGeneratingPdf(false);

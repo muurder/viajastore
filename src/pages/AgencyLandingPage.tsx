@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext';
 import { TripCard } from '../components/TripCard';
 import { MapPin, Mail, ShieldCheck, Search, Globe, Heart, Umbrella, Mountain, TreePine, Landmark, Utensils, Moon, Drama, Palette, Wallet, Smartphone, Clock, Info, Star, Award, ThumbsUp, Users, CheckCircle, ArrowDown, MessageCircle, ArrowRight, Send, Edit, Loader } from 'lucide-react';
 import { AgencyReview, Trip, AgencyTheme } from '../types';
+import { logger } from '../utils/logger';
 
 // Reuse Filters from Home
 const INTEREST_CHIPS = [
@@ -122,11 +123,11 @@ const AgencyLandingPage: React.FC = () => {
       if (agencySlug && !agency && !loading) {
           // Wait a bit, then try refreshing data once
           const timeoutId = setTimeout(async () => {
-              console.log("[AgencyLandingPage] Agency not found, attempting to refresh data...");
+              logger.info("[AgencyLandingPage] Agency not found, attempting to refresh data...");
               try {
                   await refreshData();
               } catch (error) {
-                  console.error("[AgencyLandingPage] Error refreshing data:", error);
+                  logger.error("[AgencyLandingPage] Error refreshing data:", error);
               }
           }, 2000);
           
@@ -147,7 +148,7 @@ const AgencyLandingPage: React.FC = () => {
           trips.forEach(trip => {
               if (!trip.images || trip.images.length === 0) {
                   fetchTripImages(trip.id).catch(err => {
-                      console.error(`[AgencyLandingPage] Error fetching images for hero trip ${trip.id}:`, err);
+                      logger.error(`[AgencyLandingPage] Error fetching images for hero trip ${trip.id}:`, err);
                   });
               }
           });
@@ -287,7 +288,7 @@ const AgencyLandingPage: React.FC = () => {
               // Only fetch if images array is empty or invalid
               if (!trip.images || trip.images.length === 0) {
                   fetchTripImages(trip.id).catch(err => {
-                      console.error(`[AgencyLandingPage] Error fetching images for trip ${trip.id}:`, err);
+                      logger.error(`[AgencyLandingPage] Error fetching images for trip ${trip.id}:`, err);
                   });
               }
           });
@@ -345,7 +346,7 @@ const AgencyLandingPage: React.FC = () => {
       showToast('Avaliação enviada com sucesso!', 'success');
     } catch (error) {
         showToast('Erro ao enviar avaliação.', 'error');
-        console.error(error);
+        logger.error(error);
     } finally {
       setIsSubmittingReview(false);
     }
@@ -361,7 +362,7 @@ const AgencyLandingPage: React.FC = () => {
       setIsEditingReview(false);
     } catch(err) {
         showToast('Erro ao atualizar avaliação.', 'error');
-        console.error(err);
+        logger.error(err);
     } finally {
       setIsSubmittingReview(false);
     }

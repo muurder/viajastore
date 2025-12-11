@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { ThemePalette, ThemeColors } from '../types';
 import { supabase } from '../services/supabase';
+import { logger } from '../utils/logger';
 
 // Helper to convert Hex to RGB Array [r, g, b]
 const hexToRgbArray = (hex: string): [number, number, number] => {
@@ -89,7 +90,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               if (currentActive) setActiveTheme(currentActive);
           }
       } catch (error: any) {
-          console.error("Error fetching themes:", error.message || error);
+          logger.error("Error fetching themes:", error.message || error);
           // Keep fallback
       } finally {
           setLoading(false);
@@ -103,7 +104,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const channel = supabase
           .channel('public:themes')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'themes' }, (payload) => {
-              console.log('Theme change detected!', payload);
+              logger.info('Theme change detected!', payload);
               fetchThemes();
           })
           .subscribe();
@@ -155,7 +156,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
           if (error) throw error;
       } catch (error) {
-          console.error("Error setting theme:", error);
+          logger.error("Error setting theme:", error);
           alert("Erro ao aplicar tema globalmente.");
       } finally {
           await fetchThemes(); // fetchThemes will set loading to false
@@ -176,7 +177,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           if (error) throw error;
           return data ? data.id : null;
       } catch (error) {
-          console.error("Error adding theme:", error);
+          logger.error("Error adding theme:", error);
           return null;
       } finally {
           await fetchThemes(); // fetchThemes will set loading to false
@@ -190,7 +191,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           if (error) throw error;
           await fetchThemes();
       } catch (error) {
-          console.error("Error deleting theme:", error);
+          logger.error("Error deleting theme:", error);
       }
   };
 

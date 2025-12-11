@@ -14,6 +14,8 @@ import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import imageCompression from 'browser-image-compression';
+import { logger } from '../../utils/logger';
+import GoogleLocationPicker from './GoogleLocationPicker';
 
 // Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
@@ -53,11 +55,11 @@ const compressImage = async (file: File): Promise<File> => {
     const compressedSizeMB = (compressedFile.size / (1024 * 1024)).toFixed(2);
     const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
     
-    console.log(`[ImageCompression] ${file.name}: ${originalSizeMB}MB → ${compressedSizeMB}MB (${reduction}% reduction)`);
+    logger.info(`[ImageCompression] ${file.name}: ${originalSizeMB}MB → ${compressedSizeMB}MB (${reduction}% reduction)`);
     
     return compressedFile;
   } catch (error) {
-    console.error('[ImageCompression] Error compressing image:', error);
+    logger.error('[ImageCompression] Error compressing image:', error);
     // If compression fails, return original file
     return file;
   }
@@ -93,7 +95,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   // Geolocation state
   const [locationQuery, setLocationQuery] = useState('');
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   
   // Initialize tripData with draft restoration
   const [tripData, setTripData] = useState<Partial<Trip>>(() => {
@@ -175,7 +176,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         }
       }
     } catch (err) {
-      console.error('Error restoring draft:', err);
+      logger.error('Error restoring draft:', err);
     }
     
     // Default empty state
@@ -238,58 +239,31 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       setLocationQuery(tripData.destination);
     }
     if (initialTripData?.latitude && initialTripData?.longitude) {
-      setLocationCoords({ lat: initialTripData.latitude, lng: initialTripData.longitude });
+      const coords = { lat: initialTripData.latitude, lng: initialTripData.longitude };
+      setLocationCoords(coords);
     }
   }, []);
-  
-  // Search location using OpenStreetMap Nominatim API
-  const searchLocation = async (query: string) => {
-    if (!query || query.trim().length < 3) {
-      setLocationCoords(null);
-      return;
-    }
-    
-    setIsSearchingLocation(true);
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
-        {
-          headers: {
-            'User-Agent': 'ViajaStore/1.0'
-          }
-        }
-      );
-      const data = await response.json();
-      
-      if (data && data.length > 0) {
-        const result = data[0];
-        const lat = parseFloat(result.lat);
-        const lng = parseFloat(result.lon);
-        setLocationCoords({ lat, lng });
-        setTripData(prev => ({ ...prev, latitude: lat, longitude: lng }));
-      } else {
-        setLocationCoords(null);
-        setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
-      }
-    } catch (error) {
-      console.error('Error searching location:', error);
-      showToast('Erro ao buscar localização. Tente novamente.', 'error');
-    } finally {
-      setIsSearchingLocation(false);
-    }
-  };
-  
-  // Debounced location search when destination or location query changes
-  useEffect(() => {
-    const query = locationQuery || tripData.destination || '';
-    if (query.trim().length >= 3) {
-      const timeoutId = setTimeout(() => {
-        searchLocation(query);
-      }, 1000); // 1 second debounce
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [locationQuery, tripData.destination]);
+
+  // Handle location change from GoogleLocationPicker
+  const handleLocationChange = useCallback((location: string, coords: { lat: number; lng: number }) => {
+    setLocationQuery(location);
+    setLocationCoords(coords);
+    setTripData(prev => ({ 
+      ...prev, 
+      latitude: coords.lat, 
+      longitude: coords.lng 
+    }));
+  }, []);
+
+  // Handle coordinates change (when marker is dragged)
+  const handleCoordinatesChange = useCallback((coords: { lat: number; lng: number }) => {
+    setLocationCoords(coords);
+    setTripData(prev => ({ 
+      ...prev, 
+      latitude: coords.lat, 
+      longitude: coords.lng 
+    }));
+  }, []);
 
   // Initialize data for editing
   useEffect(() => {
@@ -328,7 +302,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         }
       }
     } catch (err) {
-      console.error('Error checking draft:', err);
+      logger.error('Error checking draft:', err);
     }
   }, [isEditing, tripData.id, initialTripData]);
 
@@ -345,7 +319,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         };
         localStorage.setItem(draftKey, JSON.stringify(draftData));
       } catch (err) {
-        console.error('Error saving draft:', err);
+        logger.error('Error saving draft:', err);
       }
     }, 1000); // Debounce: save 1 second after last change
 
@@ -460,13 +434,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               const url = await Promise.race([uploadPromise, timeoutPromise]);
               if (url) {
                 uploadedUrls.push(url);
-                console.log(`[CreateTripWizard] Successfully uploaded: ${file.name}`);
+                logger.info(`[CreateTripWizard] Successfully uploaded: ${file.name}`);
               } else {
                 // This shouldn't happen now since uploadImage throws, but keeping as safety
                 failedUploads.push(file.name);
               }
             } catch (err: any) {
-              console.error("Falha no upload de arquivo individual:", err);
+              logger.error("Falha no upload de arquivo individual:", err);
               failedUploads.push(file.name);
               // Don't show toast for each failed upload - we'll ask user at the end
             }
@@ -595,7 +569,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       await Promise.race([publishPromise, timeoutPromise]);
 
     } catch (error: any) {
-      console.error("CreateTripWizard Error:", error);
+      logger.error("CreateTripWizard Error:", error);
       
       // Check if it's a timeout or network error
       const isTimeout = error.message === 'TIMEOUT' || error.message?.includes('timeout') || error.message?.includes('demorou muito');
@@ -634,7 +608,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         showToast('Rascunho restaurado com sucesso!', 'success');
       }
     } catch (err) {
-      console.error('Error restoring draft:', err);
+      logger.error('Error restoring draft:', err);
       showToast('Erro ao restaurar rascunho', 'error');
     }
   };
@@ -751,7 +725,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         onClose();
       }, 100);
     } catch (error: any) {
-      console.error("Error continuing with failed images:", error);
+      logger.error("Error continuing with failed images:", error);
       const isTimeout = error.message === 'TIMEOUT' || error.message?.includes('timeout');
       if (isTimeout) {
         setRetryMode(true);
@@ -806,7 +780,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           Informações Básicas
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* P1: MOBILE - Stack on mobile, side-by-side on tablet+ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="md:col-span-2">
             <label className="block text-sm font-bold text-gray-700 mb-2">Título da Viagem <span className="text-red-500">*</span></label>
             <input
@@ -835,54 +810,15 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
           </div>
 
-          {/* Location Search (Google Maps Style) */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Localização no Mapa</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-              <input
-                type="text"
-                value={locationQuery}
-                onChange={e => {
-                  setLocationQuery(e.target.value);
-                  if (!e.target.value) {
-                    setLocationCoords(null);
-                    setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
-                  }
-                }}
-                onBlur={() => {
-                  if (!locationQuery && tripData.destination) {
-                    setLocationQuery(tripData.destination);
-                  }
-                }}
-                className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
-              />
-              {isSearchingLocation && (
-                <Loader className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" size={18}/>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {locationCoords 
-                ? `✓ Localização encontrada: ${locationCoords.lat.toFixed(6)}, ${locationCoords.lng.toFixed(6)}`
-                : 'Digite o nome do local para buscar no mapa'}
-            </p>
-            
-            {/* Map Preview */}
-            {locationCoords && (
-              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-100">
-                <iframe
-                  width="100%"
-                  height="300"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  allowFullScreen
-                  referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6U4c37ZJMTI'}&q=${locationCoords.lat},${locationCoords.lng}&zoom=13`}
-                  title="Localização no mapa"
-                />
-              </div>
-            )}
+          {/* Location Search with Google Maps */}
+          <div className="md:col-span-2">
+            <GoogleLocationPicker
+              value={locationQuery || tripData.destination || ''}
+              coordinates={locationCoords || (tripData.latitude && tripData.longitude ? { lat: tripData.latitude, lng: tripData.longitude } : null)}
+              onChange={handleLocationChange}
+              onCoordinatesChange={handleCoordinatesChange}
+              placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
+            />
           </div>
         </div>
       </div>
@@ -894,7 +830,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           Preço e Datas
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* P1: MOBILE - Stack on mobile, side-by-side on tablet+ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
 
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
@@ -967,7 +904,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           Categoria e Classificação
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* P1: MOBILE - Stack on mobile, side-by-side on tablet+ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
             <select
@@ -1093,7 +1031,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                                 .eq('id', currentAgency.agencyId);
                         }
                     } catch (error) {
-                        console.error('Error saving custom tag:', error);
+                        logger.error('Error saving custom tag:', error);
                         // Don't show error to user, tag is still added to trip
                     }
                 }
@@ -1351,7 +1289,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const renderStep3 = () => (
     <div className="space-y-6 animate-[fadeIn_0.3s]">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* P1: MOBILE - Improved responsive grid for mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Left Column - Configuration Toggles */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">

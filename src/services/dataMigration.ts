@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS } from './mockData';
+import { logger } from '../utils/logger';
 
 // Função auxiliar para pausa (evitar rate limit do Auth)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -9,12 +10,12 @@ export const migrateData = async () => {
     alert('Cliente Supabase não está configurado. Verifique seu arquivo .env e as variáveis de ambiente.');
     return;
   }
-  console.log('🚀 Iniciando migração...');
+  logger.info('🚀 Iniciando migração...');
   const agencyIdMap: Record<string, string> = {};
   const logs: string[] = [];
 
   const log = (msg: string) => {
-    console.log(msg);
+    logger.info(msg);
     logs.push(msg);
   };
 

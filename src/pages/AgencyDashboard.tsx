@@ -20,6 +20,7 @@ import CreateTripWizard from '../components/agency/CreateTripWizard';
 import BusVisualizer from '../components/agency/BusVisualizer';
 import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
 import { slugify } from '../utils/slugify';
+import { logger } from '../utils/logger';
 
 // --- HELPER CONSTANTS & COMPONENTS ---
 
@@ -508,7 +509,7 @@ const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clien
                     }
                 }
             } catch (err) {
-                console.error('Error fetching passengers:', err);
+                logger.error('Error fetching passengers:', err);
             }
         };
 
@@ -736,7 +737,7 @@ const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clien
                     doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
                     showToast('Voucher baixado com sucesso!', 'success');
                 } catch (error) {
-                    console.error('Erro ao gerar PDF:', error);
+                    logger.error('Erro ao gerar PDF:', error);
                     showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
                 }
             };
@@ -973,7 +974,7 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                     }
                 }
             } catch (err) {
-                console.error('Error fetching passengers:', err);
+                logger.error('Error fetching passengers:', err);
             }
         };
 
@@ -1181,7 +1182,7 @@ const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, cli
                     doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
                     showToast('Voucher baixado com sucesso!', 'success');
                 } catch (error) {
-                    console.error('Erro ao gerar PDF:', error);
+                    logger.error('Erro ao gerar PDF:', error);
                     showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
                 }
             };
@@ -1497,7 +1498,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                     }
                 }
             } catch (err) {
-                console.error('Error fetching passengers:', err);
+                logger.error('Error fetching passengers:', err);
             }
         };
         fetchPassengers();
@@ -1766,7 +1767,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             const newlyAssigned = newSeats.length - cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats.length;
             showToast(`${newlyAssigned} passageiros atribuídos automaticamente!`, 'success');
         } catch (error: any) {
-            console.error('Error auto-filling seats:', error);
+            logger.error('Error auto-filling seats:', error);
             showToast(`Erro ao preencher assentos: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             setIsAutoFilling(false);
@@ -1817,7 +1818,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             showToast('Veículo removido com sucesso', 'success');
             // Don't close modal here - ConfirmDialog will handle it via onClose()
         } catch (error: any) {
-            console.error('Error deleting vehicle:', error);
+            logger.error('Error deleting vehicle:', error);
             showToast(`Erro ao remover veículo: ${error.message || 'Erro desconhecido'}`, 'error');
         }
     };
@@ -1834,8 +1835,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
 
     // Handlers for New Vehicle
     const handleSelectVehicleType = (type: VehicleType) => {
-        console.log('[TransportManager] handleSelectVehicleType called with type:', type);
-        
         if (type === 'CUSTOM') { 
             setEditingVehicleId(null);
             setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
@@ -1846,7 +1845,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         const config = VEHICLE_TYPES[type];
         if (!config) {
-            console.error('[TransportManager] Invalid vehicle type:', type);
+            logger.error('[TransportManager] Invalid vehicle type:', type);
             showToast('Tipo de veículo inválido', 'error');
             return;
         }
@@ -1865,8 +1864,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             seats: []
         };
         
-        console.log('[TransportManager] Creating new vehicle:', newVehicle);
-        
         const updatedVehicles = [...vehicles, newVehicle];
         
         // Save vehicles (updates local state AND saves to database)
@@ -1883,8 +1880,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         // Fechar menu
         setIsVehicleMenuOpen(false);
-        
-        console.log('[TransportManager] Vehicle created and set as active:', newVehicle.id);
     };
 
     const handleSaveCustomVehicle = (e: React.FormEvent) => {
@@ -2105,7 +2100,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         
         // Fallback: create a minimal passenger object
         if (!passenger) {
-            console.warn('[TransportManager] Passenger not found for seat:', seat.bookingId, 'Name:', seat.passengerName);
+            logger.warn('[TransportManager] Passenger not found for seat:', seat.bookingId, 'Name:', seat.passengerName);
             return {
                 name: seat.passengerName || 'Passageiro (Sem nome)',
                 avatar: undefined,
@@ -2409,21 +2404,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                         
                                         // Ensure we always have a valid name
                                         if (!passengerName || passengerName.trim() === '') {
-                                            console.warn('[TransportManager] Warning: passengerName is empty, using fallback');
+                                            logger.warn('[TransportManager] Warning: passengerName is empty, using fallback');
                                             passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                                         }
-                                        
-                                        // Debug: log the name being set
-                                        console.log('[TransportManager] Setting selected passenger:', { 
-                                            id: p.id, 
-                                            name: passengerName, 
-                                            bookingId: p.bookingId, 
-                                            dbPassenger: dbPassenger?.full_name, 
-                                            pName: p.name, 
-                                            pDetails: p.details?.name,
-                                            isAccompaniment: p.isAccompaniment,
-                                            passengerIndex: p.passengerIndex
-                                        });
                                         
                                         setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                     }
@@ -2558,7 +2541,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                console.log('[TransportManager] Add Vehicle button clicked. Current state:', isVehicleMenuOpen);
                                 setIsVehicleMenuOpen(!isVehicleMenuOpen);
                             }}
                             className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
@@ -2595,7 +2577,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        console.log('[TransportManager] Vehicle type selected:', v.type);
                                                         handleSelectVehicleType(v.type);
                                                     }} 
                                                     className="w-full text-left px-3 py-2.5 hover:bg-primary-50 text-sm text-gray-700 rounded-lg flex items-center gap-3 transition-colors group"
@@ -2828,7 +2809,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                     }
                 }
             } catch (err) {
-                console.error('Error fetching passengers:', err);
+                logger.error('Error fetching passengers:', err);
             }
         };
         fetchPassengers();
@@ -3232,21 +3213,9 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                             
                                             // Ensure we always have a valid name
                                             if (!passengerName || passengerName.trim() === '') {
-                                                console.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
+                                                logger.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
                                                 passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                                             }
-                                            
-                                            // Debug: log the name being set
-                                            console.log('[RoomingManager] Setting selected passenger:', { 
-                                                id: p.id, 
-                                                name: passengerName, 
-                                                bookingId: p.bookingId, 
-                                                dbPassenger: dbPassenger?.full_name, 
-                                                pName: p.name, 
-                                                pDetails: p.details?.name,
-                                                isAccompaniment: p.isAccompaniment,
-                                                passengerIndex: p.passengerIndex
-                                            });
                                             
                                             setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                         }
@@ -3422,7 +3391,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                 onSelectTrip(null);
             }
         } catch (error: any) {
-            console.error('Error deleting trip:', error);
+            logger.error('Error deleting trip:', error);
             showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             setIsDeletingTripInOps(false);
@@ -3499,7 +3468,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
                     }
                 }
             } catch (err) {
-                console.error('Error fetching passengers from DB:', err);
+                logger.error('Error fetching passengers from DB:', err);
             }
 
             // Helper to get detail completo - busca do banco primeiro
@@ -4022,7 +3991,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
             doc.save(`manifesto_${selectedTrip.slug}.pdf`);
             showToast('PDF gerado com sucesso!', 'success');
         } catch (e: any) { 
-            console.error(e); 
+            logger.error(e); 
             showToast('Erro ao gerar PDF: '+e.message, 'error'); 
         }
     };
@@ -4374,7 +4343,7 @@ const AgencyDashboard: React.FC = () => {
               // Force refresh if trip has no images (newly created/edited)
               const forceRefresh = !trip.images || trip.images.length === 0;
               fetchTripImages(trip.id, forceRefresh).catch(err => {
-                  console.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
+                  logger.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
               });
           });
       }
@@ -4468,7 +4437,7 @@ const AgencyDashboard: React.FC = () => {
         setSelectedOperationalTripId(null);
       }
     } catch (error: any) {
-      console.error('Error deleting trip:', error);
+      logger.error('Error deleting trip:', error);
       showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
     } finally {
       setIsDeletingTrip(false);
@@ -4495,7 +4464,7 @@ const AgencyDashboard: React.FC = () => {
       await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
       showToast('Pacote duplicado com sucesso!', 'success');
     } catch (error: any) {
-      console.error('Error duplicating trip:', error);
+      logger.error('Error duplicating trip:', error);
       showToast(`Erro ao duplicar pacote: ${error.message || 'Erro desconhecido'}`, 'error');
     } finally {
       setIsDuplicatingTrip(null);
@@ -4653,7 +4622,7 @@ const AgencyDashboard: React.FC = () => {
           setActiveReplyId(null);
           showToast('Resposta enviada com sucesso!', 'success');
       } catch (error: any) {
-          console.error('Error sending reply:', error);
+          logger.error('Error sending reply:', error);
           showToast(`Erro ao enviar resposta: ${error.message || 'Erro desconhecido'}`, 'error');
       } finally {
           setIsSendingReply(null);

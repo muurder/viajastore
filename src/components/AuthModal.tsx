@@ -5,6 +5,7 @@ import { UserRole, Agency } from '../types';
 import { User, Building, AlertCircle, ArrowRight, Lock, Mail, Eye, EyeOff, X, Phone, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
+import { logger } from '../utils/logger';
 
 interface AuthModalProps {
   initialView: 'login' | 'signup';
@@ -71,7 +72,7 @@ const LoginView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 setError(result.error || 'Falha no login.');
             }
         } catch (err) {
-            console.error("Login submission error:", err);
+            logger.error("Login submission error:", err);
             setError("Um erro inesperado ocorreu. Tente novamente.");
         } finally { // FIX: Ensure loading state is reset in both success and error paths
             setIsLoading(false);
@@ -217,9 +218,9 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                     setTimeout(async () => {
                         try {
                             await refreshData();
-                            console.log("[AuthModal] DataContext refreshed after agency registration");
+                            logger.info("[AuthModal] DataContext refreshed after agency registration");
                         } catch (error) {
-                            console.error("[AuthModal] Error refreshing DataContext:", error);
+                            logger.error("[AuthModal] Error refreshing DataContext:", error);
                         }
                     }, 1500);
                 }
@@ -247,7 +248,7 @@ const SignupView: React.FC<any> = ({ setView, onClose, agencyContext }) => {
                 setIsLoading(false);
             }
         } catch (err: any) {
-            console.error("Signup submission error:", err);
+            logger.error("Signup submission error:", err);
             setError(err.message || "Um erro inesperado ocorreu. Tente novamente.");
             setIsLoading(false);
         }

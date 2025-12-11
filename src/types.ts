@@ -56,6 +56,13 @@ export interface Agency extends User {
   logo: string;
   is_active?: boolean;
   isGuide?: boolean; // Flag to identify tour guides
+  // P1: Guide-specific fields (only populated when isGuide === true)
+  cadastur?: string; // Cadastur number (required for tour guides in Brazil)
+  languages?: string[]; // Languages spoken by the guide
+  specialties?: string[]; // Guide specialties (e.g., Historical, Ecological, Adventure)
+  certifications?: string[]; // Professional certifications
+  experienceYears?: number; // Years of experience as a tour guide
+  availability?: 'FULL_TIME' | 'PART_TIME' | 'ON_DEMAND'; // Guide availability
   heroMode: 'TRIPS' | 'STATIC';
   heroBannerUrl?: string;
   heroTitle?: string;

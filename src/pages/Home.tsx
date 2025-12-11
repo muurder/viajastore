@@ -7,6 +7,7 @@ import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon,
 import { useNavigate, Link } from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { Trip } from '../types';
+import { logger } from '../utils/logger';
 
 const INTEREST_CHIPS = [
   { label: 'Todos', icon: Globe, id: 'chip-all' },
@@ -86,7 +87,7 @@ const Home: React.FC = () => {
             
             setHeroTrips(tripsWithImages);
         } catch (error) {
-            console.error('Error loading hero trips:', error);
+            logger.error('Error loading hero trips:', error);
             setHeroTrips([]);
         } finally {
             setHeroLoading(false);
@@ -138,7 +139,7 @@ const Home: React.FC = () => {
             
             setFeaturedDockTrips(dockTripsWithImages);
         } catch (error) {
-            console.error('Error loading featured dock trips:', error);
+            logger.error('Error loading featured dock trips:', error);
             setFeaturedDockTrips([]);
         } finally {
             setDockLoading(false);
@@ -193,7 +194,7 @@ const Home: React.FC = () => {
                 setGridTrips([]);
             }
         } catch (error) {
-            console.error('Error loading grid trips:', error);
+            logger.error('Error loading grid trips:', error);
             setGridTrips([]);
         } finally {
             setGridLoading(false);
