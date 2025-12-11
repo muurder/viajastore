@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Lock, Search, Ticket, ArrowRight, Download, QrCode, Share2, Users, Home, Loader } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+// Import jspdf-autotable to extend jsPDF prototype
 import 'jspdf-autotable';
-import { Booking } from '../types';
+import { Booking, PassengerDetail } from '../types';
 
 export const NotFound: React.FC = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
@@ -36,7 +37,7 @@ export const CheckoutSuccess: React.FC = () => {
   const { agencySlug } = useParams<{ agencySlug?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { booking?: Booking; passengers?: {name: string, document: string}[] } | null;
+  const state = location.state as { booking?: Booking; passengers?: PassengerDetail[] } | null;
   
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
@@ -63,7 +64,10 @@ export const CheckoutSuccess: React.FC = () => {
       );
   }
 
-  const { booking, passengers = [] } = state;
+  const { booking, passengers: statePassengers } = state;
+  
+  // Use passengers from state, or fallback to booking.passengerDetails, or empty array
+  const passengers = statePassengers || booking?.passengerDetails || [];
   
   const linkDashboard = agencySlug ? `/${agencySlug}/client/BOOKINGS` : '/client/dashboard/BOOKINGS';
   const linkTrips = agencySlug ? `/${agencySlug}/trips` : '/trips';
@@ -94,21 +98,43 @@ export const CheckoutSuccess: React.FC = () => {
   const getBase64ImageFromURL = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.setAttribute("crossOrigin", "anonymous");
+      img.crossOrigin = "anonymous";
+      
+      // Set timeout to avoid hanging
+      const timeout = setTimeout(() => {
+        console.warn("Image load timeout, using fallback");
+        resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
+      }, 10000); // 10 second timeout
+      
       img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0);
-        const dataURL = canvas.toDataURL("image/png");
-        resolve(dataURL);
-      };
-      img.onerror = error => {
-          console.error("Error converting image", error);
+        clearTimeout(timeout);
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const dataURL = canvas.toDataURL("image/png");
+            resolve(dataURL);
+          } else {
+            throw new Error("Could not get canvas context");
+          }
+        } catch (error) {
+          console.error("Error converting image to base64:", error);
+          clearTimeout(timeout);
           // Fallback empty transparent pixel if fails
-          resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"); 
+          resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
+        }
       };
+      
+      img.onerror = (error) => {
+        clearTimeout(timeout);
+        console.error("Error loading image:", error);
+        // Fallback empty transparent pixel if fails
+        resolve("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7");
+      };
+      
       img.src = url;
     });
   };
@@ -117,6 +143,12 @@ export const CheckoutSuccess: React.FC = () => {
     setIsGeneratingPdf(true);
     try {
         const doc = new jsPDF();
+        
+        // Verify autoTable is available
+        const hasAutoTable = typeof (doc as any).autoTable === 'function';
+        if (!hasAutoTable) {
+          console.warn("jspdf-autotable plugin not loaded, using manual table rendering");
+        }
         
         // --- 1. PREMIUM HEADER ---
         // Blue Header Background
@@ -175,31 +207,124 @@ export const CheckoutSuccess: React.FC = () => {
         doc.setTextColor(30, 41, 59);
         doc.text('Lista de Passageiros', 15, 90);
 
-        // Prepare table data
+        // Prepare table data from passengers array
+        // If we have passenger details, use them; otherwise show a fallback
+        const getPassengerType = (p: any): string => {
+          if (p.type === 'child') return 'Criança';
+          if (p.age !== undefined) {
+            return p.age < 12 ? 'Criança' : 'Adulto';
+          }
+          if (p.birthDate) {
+            const today = new Date();
+            const birth = new Date(p.birthDate);
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+              age--;
+            }
+            return age < 12 ? 'Criança' : 'Adulto';
+          }
+          return 'Adulto';
+        };
+        
         const tableBody = passengers.length > 0 
-            ? passengers.map(p => [p.name, p.document || '---', 'Adulto']) 
-            : [['Passageiro Principal (Você)', '---', 'Adulto']];
+            ? passengers.map((p: any) => [
+                p.name || '---', 
+                p.document || '---', 
+                getPassengerType(p)
+              ]) 
+            : booking?.passengerDetails && booking.passengerDetails.length > 0
+            ? booking.passengerDetails.map((p: any) => [
+                p.name || '---', 
+                p.document || '---', 
+                getPassengerType(p)
+              ])
+            : [['Passageiro Principal', '---', 'Adulto']];
 
         // Generate Table
-        (doc as any).autoTable({
-            startY: 95,
-            head: [['Nome Completo', 'Documento', 'Tipo']],
-            body: tableBody,
-            theme: 'striped',
-            headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
-            styles: { fontSize: 10, cellPadding: 4 },
-            alternateRowStyles: { fillColor: [255, 255, 255] },
-        });
+        let finalY = 95;
+        try {
+          // Check if autoTable is available
+          if (hasAutoTable) {
+            (doc as any).autoTable({
+              startY: 95,
+              head: [['Nome Completo', 'Documento', 'Tipo']],
+              body: tableBody,
+              theme: 'striped',
+              headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
+              styles: { fontSize: 10, cellPadding: 4 },
+              alternateRowStyles: { fillColor: [255, 255, 255] },
+            });
+            finalY = (doc as any).lastAutoTable?.finalY || 95;
+          } else {
+            // Fallback: Manual table drawing if autoTable is not available
+            console.warn("autoTable not available, using manual table");
+            doc.setFontSize(10);
+            doc.setTextColor(71, 85, 105);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Nome Completo', 15, finalY);
+            doc.text('Documento', 80, finalY);
+            doc.text('Tipo', 140, finalY);
+            finalY += 5;
+            doc.setDrawColor(226, 232, 240);
+            doc.line(15, finalY, 195, finalY);
+            finalY += 8;
+            
+            tableBody.forEach((row: any[]) => {
+              doc.setFontSize(9);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(30, 41, 59);
+              doc.text((row[0] || '').substring(0, 30), 15, finalY);
+              doc.text((row[1] || '---').substring(0, 20), 80, finalY);
+              doc.text(row[2] || '', 140, finalY);
+              finalY += 7;
+            });
+            finalY += 5;
+          }
+        } catch (tableError: any) {
+          console.error("Error generating table:", tableError);
+          // Fallback: Simple text list
+          doc.setFontSize(10);
+          doc.setTextColor(30, 41, 59);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Lista de Passageiros:', 15, finalY);
+          finalY += 8;
+          doc.setFont('helvetica', 'normal');
+          tableBody.forEach((row: any[], index: number) => {
+            doc.setFontSize(9);
+            doc.text(`${index + 1}. ${row[0] || ''} - ${row[1] || '---'}`, 15, finalY);
+            finalY += 6;
+          });
+          finalY += 5;
+        }
 
         // --- 4. QR CODE & FOOTER ---
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        finalY += 10;
         
-        // Generate QR Code Base64
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(voucherCode)}`;
-        const qrBase64 = await getBase64ImageFromURL(qrUrl);
+        // Generate QR Code Base64 with error handling
+        let qrBase64: string | null = null;
+        try {
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(voucherCode)}`;
+            qrBase64 = await getBase64ImageFromURL(qrUrl);
+        } catch (qrError) {
+            console.warn("QR Code generation failed, continuing without QR code:", qrError);
+            // Continue without QR code - not critical
+        }
         
-        // Draw QR Code (Bottom Right area relative to table)
-        doc.addImage(qrBase64, 'PNG', 160, finalY, 35, 35);
+        // Draw QR Code if available (Bottom Right area relative to table)
+        if (qrBase64) {
+            try {
+                doc.addImage(qrBase64, 'PNG', 160, finalY, 35, 35);
+            } catch (imgError) {
+                console.warn("Failed to add QR code image to PDF:", imgError);
+            }
+        } else {
+            // Draw placeholder text if QR code failed
+            doc.setFontSize(8);
+            doc.setTextColor(156, 163, 175);
+            doc.text('QR Code', 177.5, finalY + 17.5, { align: 'center' });
+            doc.text('indisponível', 177.5, finalY + 22.5, { align: 'center' });
+        }
         
         // Instructions Text (Left side)
         doc.setFontSize(10);
@@ -232,11 +357,36 @@ export const CheckoutSuccess: React.FC = () => {
         doc.setTextColor(148, 163, 184); // Slate 400
         doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, pageHeight - 12, { align: 'center' });
 
-        doc.save(`voucher_${voucherCode}.pdf`);
+        // Save PDF - This should trigger download
+        const fileName = `voucher_${voucherCode || 'reserva'}.pdf`;
+        
+        // Ensure we have a valid voucher code
+        if (!voucherCode) {
+          throw new Error('Código do voucher não encontrado');
+        }
+        
+        // Save the PDF
+        try {
+          doc.save(fileName);
+          console.log(`PDF gerado com sucesso: ${fileName}`);
+        } catch (saveError) {
+          console.error("Error saving PDF:", saveError);
+          // Try alternative method
+          const pdfBlob = doc.output('blob');
+          const url = URL.createObjectURL(pdfBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          console.log(`PDF gerado via método alternativo: ${fileName}`);
+        }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("PDF Generation Error:", error);
-        alert("Erro ao gerar PDF. Tente novamente.");
+        alert(`Erro ao gerar PDF: ${error?.message || 'Erro desconhecido'}. Tente novamente.`);
     } finally {
         setIsGeneratingPdf(false);
     }
@@ -286,7 +436,16 @@ export const CheckoutSuccess: React.FC = () => {
                       />
                       <div className="text-left">
                           <p className="text-xs text-gray-500 leading-tight mb-1">Apresente este código ou acesse seu voucher digital no painel.</p>
-                          <button onClick={generateTicketPDF} disabled={isGeneratingPdf} className="text-xs font-bold text-primary-600 flex items-center hover:underline disabled:opacity-50">
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              generateTicketPDF();
+                            }} 
+                            disabled={isGeneratingPdf} 
+                            className="text-xs font-bold text-primary-600 flex items-center hover:underline disabled:opacity-50 cursor-pointer"
+                            type="button"
+                          >
                               {isGeneratingPdf ? <Loader size={12} className="animate-spin mr-1"/> : <Download size={12} className="mr-1"/>}
                               Baixar Voucher PDF
                           </button>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MapPin, Calendar, Users, Search, ChevronDown, Plus, Minus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -37,9 +37,137 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
   const [showGuestsPicker, setShowGuestsPicker] = useState(false);
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
   const clickInsideRef = useRef<boolean>(false);
+  const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const [guestsPickerPosition, setGuestsPickerPosition] = useState<{ top: number; right: number } | null>(null);
   
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const datePickerButtonRef = useRef<HTMLButtonElement>(null);
   const guestsPickerRef = useRef<HTMLDivElement>(null);
+  const guestsPickerButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Calculate position for date picker when it opens or scrolls
+  const updateDatePickerPosition = useCallback(() => {
+    if (datePickerButtonRef.current) {
+      const rect = datePickerButtonRef.current.getBoundingClientRect();
+      setDatePickerPosition({
+        top: rect.bottom + 8,
+        left: rect.left
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDatePicker) {
+      updateDatePickerPosition();
+      
+      // Close picker on scroll for better UX (common pattern)
+      let scrollTimeout: NodeJS.Timeout | null = null;
+      let lastScrollY = window.scrollY;
+      
+      const handleScroll = () => {
+        const currentScrollY = window.scrollY;
+        const scrollDelta = Math.abs(currentScrollY - lastScrollY);
+        
+        // If user scrolled significantly, close the picker
+        if (scrollDelta > 50) {
+          setShowDatePicker(false);
+          lastScrollY = currentScrollY;
+          return;
+        }
+        
+        lastScrollY = currentScrollY;
+        
+        // Throttle position updates using requestAnimationFrame
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(() => {
+          updateDatePickerPosition();
+        }, 16); // ~60fps
+      };
+      
+      // Use passive listeners for better performance
+      window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+      window.addEventListener('resize', () => {
+        updateDatePickerPosition();
+      }, { passive: true });
+      
+      return () => {
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        window.removeEventListener('scroll', handleScroll, { capture: true } as EventListenerOptions);
+        window.removeEventListener('resize', () => {
+          updateDatePickerPosition();
+        });
+      };
+    } else {
+      setDatePickerPosition(null);
+    }
+  }, [showDatePicker, updateDatePickerPosition]);
+
+  // Calculate position for guests picker when it opens or scrolls
+  const updateGuestsPickerPosition = useCallback(() => {
+    if (guestsPickerButtonRef.current) {
+      const rect = guestsPickerButtonRef.current.getBoundingClientRect();
+      setGuestsPickerPosition({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showGuestsPicker) {
+      updateGuestsPickerPosition();
+      
+      // Close picker on scroll for better UX (common pattern)
+      let scrollTimeout: NodeJS.Timeout | null = null;
+      let lastScrollY = window.scrollY;
+      
+      const handleScroll = () => {
+        const currentScrollY = window.scrollY;
+        const scrollDelta = Math.abs(currentScrollY - lastScrollY);
+        
+        // If user scrolled significantly, close the picker
+        if (scrollDelta > 50) {
+          setShowGuestsPicker(false);
+          lastScrollY = currentScrollY;
+          return;
+        }
+        
+        lastScrollY = currentScrollY;
+        
+        // Throttle position updates using setTimeout
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        
+        scrollTimeout = setTimeout(() => {
+          updateGuestsPickerPosition();
+        }, 16); // ~60fps
+      };
+      
+      // Use passive listeners for better performance
+      window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+      window.addEventListener('resize', () => {
+        updateGuestsPickerPosition();
+      }, { passive: true });
+      
+      return () => {
+        if (scrollTimeout) {
+          clearTimeout(scrollTimeout);
+        }
+        window.removeEventListener('scroll', handleScroll, { capture: true } as EventListenerOptions);
+        window.removeEventListener('resize', () => {
+          updateGuestsPickerPosition();
+        });
+      };
+    } else {
+      setGuestsPickerPosition(null);
+    }
+  }, [showGuestsPicker, updateGuestsPickerPosition]);
 
   // Close pickers on outside click - FIX: Use flag to track clicks inside dropdown
   useEffect(() => {
@@ -53,6 +181,15 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
       }
 
       const target = event.target as Node;
+      
+      // Check if click is on the button itself - if so, let the button's onClick handle it
+      if (showDatePicker && datePickerButtonRef.current && datePickerButtonRef.current.contains(target)) {
+        return; // Let the button's onClick handle the toggle
+      }
+      
+      if (showGuestsPicker && guestsPickerButtonRef.current && guestsPickerButtonRef.current.contains(target)) {
+        return; // Let the button's onClick handle the toggle
+      }
       
       // Check if click is outside date picker
       if (showDatePicker && datePickerRef.current && !datePickerRef.current.contains(target)) {
@@ -109,16 +246,16 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
     const total = guests.adults + guests.children;
     
     // If no guests selected (shouldn't happen, but fallback)
-    if (total === 0) return 'Viajantes';
+    if (total === 0) return 'Passageiros';
     
     // Solo traveler (1 adult, no children)
     if (guests.adults === 1 && guests.children === 0) {
-      return '1 Viajante';
+      return '1 Passageiro';
     }
     
     // Multiple adults, no children
     if (guests.adults > 1 && guests.children === 0) {
-      return `${guests.adults} Viajantes`;
+      return `${guests.adults} Passageiros`;
     }
     
     // With children - show detailed breakdown
@@ -279,14 +416,21 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
       </div>
 
       {/* Date Range Picker - FIX: Responsive width with proper text display and high z-index */}
-      <div className="relative w-full md:w-auto md:min-w-[280px]" ref={datePickerRef}>
+      <div className="relative w-full md:w-auto md:min-w-[280px]">
         <button
+          ref={datePickerButtonRef}
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            clickInsideRef.current = true; // Mark as inside click to prevent handleClickOutside from closing
             setShowDatePicker(!showDatePicker);
             setShowGuestsPicker(false);
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            clickInsideRef.current = true; // Mark as inside click
           }}
           className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[280px]"
         >
@@ -310,8 +454,18 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
           <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showDatePicker ? 'rotate-180' : ''}`} />
         </button>
 
-        {showDatePicker && (
-          <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[9999] min-w-[320px]">
+        {showDatePicker && datePickerPosition && (
+          <div 
+            ref={datePickerRef}
+            className="fixed bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[320px]"
+            style={{
+              top: `${datePickerPosition.top}px`,
+              left: `${datePickerPosition.left}px`,
+              maxWidth: 'calc(100vw - 2rem)',
+              maxHeight: 'calc(100vh - 2rem)',
+              overflow: 'auto'
+            }}
+          >
             <div className="flex items-center justify-between mb-4">
               <button
                 type="button"
@@ -409,14 +563,21 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
       </div>
 
       {/* Guests Picker - FIX: Responsive width with proper text display and high z-index */}
-      <div className="relative w-full md:w-auto md:min-w-[260px]" ref={guestsPickerRef}>
+      <div className="relative w-full md:w-auto md:min-w-[260px]">
         <button
+          ref={guestsPickerButtonRef}
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            clickInsideRef.current = true; // Mark as inside click to prevent handleClickOutside from closing
             setShowGuestsPicker(!showGuestsPicker);
             setShowDatePicker(false);
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            clickInsideRef.current = true; // Mark as inside click
           }}
           className="flex items-center gap-2 px-4 py-3 text-gray-700 font-medium rounded-xl border border-transparent hover:border-gray-200 focus:border-primary-500 transition-colors w-full md:w-auto md:min-w-[260px]"
         >
@@ -425,8 +586,18 @@ const AdvancedSearchBar: React.FC<AdvancedSearchBarProps> = ({
           <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
         </button>
 
-        {showGuestsPicker && (
-          <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[9999] min-w-[240px]">
+        {showGuestsPicker && guestsPickerPosition && (
+          <div 
+            ref={guestsPickerRef}
+            className="fixed bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[240px]"
+            style={{
+              top: `${guestsPickerPosition.top}px`,
+              right: `${guestsPickerPosition.right}px`,
+              maxWidth: 'calc(100vw - 2rem)',
+              maxHeight: 'calc(100vh - 2rem)',
+              overflow: 'auto'
+            }}
+          >
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>

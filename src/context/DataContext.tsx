@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType, PlatformSettings } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -56,6 +55,7 @@ interface DataContextType {
   clients: Client[];
   auditLogs: AuditLog[];
   activityLogs: ActivityLog[];
+  platformSettings: PlatformSettings | null;
   loading: boolean; 
 
   // Server-Side Search Methods 
@@ -115,7 +115,10 @@ interface DataContextType {
   saveAgencyTheme: (agencyId: string, theme: Partial<AgencyTheme>) => Promise<boolean>;
   refreshUserData: () => Promise<void>; // Alias for _fetchBookingsForCurrentUser or specific user data refresh
   incrementTripViews: (tripId: string) => Promise<void>;
-  fetchTripImages: (tripId: string) => Promise<string[]>; // Load images on-demand
+  fetchTripImages: (tripId: string, forceRefresh?: boolean) => Promise<string[]>; // Load images on-demand
+  updatePlatformSettings: (data: Partial<PlatformSettings>) => Promise<void>; // Admin only - Update platform settings
+  uploadPlatformLogo: (file: File) => Promise<string | null>; // Admin only - Upload platform logo
+  restoreDefaultSettings: () => Promise<void>; // Admin only - Restore default settings
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -140,6 +143,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [clients, setClients] = useState<Client[]>([]); // Now holds all client profiles
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Refs to hold latest state values without being useCallback dependencies
@@ -196,12 +200,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             itinerary, boarding_points, payment_methods, is_active,
             trip_rating, trip_total_reviews, included, not_included,
             views_count, sales_count, featured, featured_in_hero,
-            popular_near_sp, operational_data, created_at, updated_at
+            popular_near_sp, operational_data, latitude, longitude, passenger_config, created_at, updated_at
           `);
         if (tripsData) {
             const mappedTrips: Trip[] = tripsData.map((t: any) => ({
                 id: t.id, agencyId: t.agency_id, title: t.title, slug: t.slug, description: t.description, destination: t.destination, price: t.price, startDate: t.start_date, endDate: t.end_date, durationDays: t.duration_days, images: [], // Images loaded on-demand via fetchTripImages
-                category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {}
+                category: t.category, tags: t.tags || [], travelerTypes: t.traveler_types || [], itinerary: t.itinerary, boardingPoints: t.boarding_points, paymentMethods: t.payment_methods, is_active: t.is_active, tripRating: t.trip_rating || 0, tripTotalReviews: t.trip_total_reviews || 0, included: t.included || [], notIncluded: t.not_included || [], views: t.views_count, sales: t.sales_count, featured: t.featured, featuredInHero: t.featured_in_hero, popularNearSP: t.popular_near_sp, operationalData: t.operational_data || {},
+                latitude: t.latitude, longitude: t.longitude, passengerConfig: t.passenger_config
             }));
             setTrips(mappedTrips);
         }
@@ -280,6 +285,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 id: log.id, userId: log.user_id, actionType: log.action_type, details: log.details, createdAt: log.created_at
             })));
         }
+
+        // 8. Fetch Platform Settings (Singleton - always id = 1)
+        const { data: platformSettingsData, error: platformSettingsError } = await sb.from('platform_settings')
+          .select('*')
+          .eq('id', 1)
+          .single();
+        if (platformSettingsData && !platformSettingsError) {
+            setPlatformSettings({
+                id: platformSettingsData.id,
+                platform_name: platformSettingsData.platform_name || 'ViajaStore',
+                platform_logo_url: platformSettingsData.platform_logo_url,
+                maintenance_mode: platformSettingsData.maintenance_mode || false,
+                created_at: platformSettingsData.created_at,
+                updated_at: platformSettingsData.updated_at
+            });
+        } else {
+            // Fallback to default if not found
+            setPlatformSettings({
+                id: 1,
+                platform_name: 'ViajaStore',
+                platform_logo_url: null,
+                maintenance_mode: false
+            });
+        }
+        
         console.log("[DataContext] Global data loaded. Agencies:", agenciesData?.length, "Trips:", tripsData?.length, "Clients:", profilesData?.length); // Debug Log
 
     } catch (error: any) {
@@ -1032,6 +1062,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             featured_in_hero: trip.featuredInHero, // FIX: Corrected column name
             popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
             operational_data: trip.operationalData,
+            latitude: trip.latitude,
+            longitude: trip.longitude,
+            passenger_config: trip.passengerConfig,
         }).select().single();
 
         const timeoutPromise = new Promise<never>((_, reject) => 
@@ -1107,6 +1140,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             featured_in_hero: trip.featuredInHero, // FIX: Corrected column name
             popular_near_sp: trip.popularNearSP, // FIX: Corrected column name
             operational_data: trip.operationalData,
+            latitude: trip.latitude,
+            longitude: trip.longitude,
+            passenger_config: trip.passengerConfig,
         }).eq('id', trip.id);
 
         const timeoutPromise = new Promise<never>((_, reject) => 
@@ -1749,20 +1785,87 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [guardSupabase]);
 
   // Load trip images on-demand to reduce egress
-  const fetchTripImages = useCallback(async (tripId: string): Promise<string[]> => {
+  // Update Platform Settings (Admin Only)
+  const updatePlatformSettings = useCallback(async (data: Partial<PlatformSettings>) => {
+    const sb = guardSupabase();
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot update platform settings."); // Debug Log
+        showToast('Backend não configurado.', 'error');
+        return;
+    }
+
+    // Check if user is admin
+    if (!user || user.role !== UserRole.ADMIN) {
+        showToast('Apenas administradores podem alterar as configurações da plataforma.', 'error');
+        return;
+    }
+
+    console.log("[DataContext] Updating platform settings:", data); // Debug Log
+    try {
+        const updates: any = {};
+        if (data.platform_name !== undefined) updates.platform_name = data.platform_name;
+        if (data.platform_logo_url !== undefined) updates.platform_logo_url = data.platform_logo_url;
+        if (data.maintenance_mode !== undefined) updates.maintenance_mode = data.maintenance_mode;
+        if (data.layout_style !== undefined) updates.layout_style = data.layout_style;
+        if (data.background_color !== undefined) updates.background_color = data.background_color;
+        if (data.background_blur !== undefined) updates.background_blur = data.background_blur;
+        if (data.background_transparency !== undefined) updates.background_transparency = data.background_transparency;
+        if (data.default_settings !== undefined) updates.default_settings = data.default_settings;
+
+        const { error } = await sb
+            .from('platform_settings')
+            .update(updates)
+            .eq('id', 1);
+
+        if (error) throw error;
+
+        // Refresh platform settings
+        const { data: updatedSettings } = await sb
+            .from('platform_settings')
+            .select('*')
+            .eq('id', 1)
+            .single();
+
+        if (updatedSettings) {
+            setPlatformSettings({
+                id: updatedSettings.id,
+                platform_name: updatedSettings.platform_name || 'ViajaStore',
+                platform_logo_url: updatedSettings.platform_logo_url,
+                maintenance_mode: updatedSettings.maintenance_mode || false,
+                layout_style: updatedSettings.layout_style || 'rounded',
+                background_color: updatedSettings.background_color || '#ffffff',
+                background_blur: updatedSettings.background_blur || false,
+                background_transparency: updatedSettings.background_transparency || 1.0,
+                default_settings: updatedSettings.default_settings,
+                created_at: updatedSettings.created_at,
+                updated_at: updatedSettings.updated_at
+            });
+        }
+
+        showToast('Configurações da plataforma atualizadas!', 'success');
+        logActivity(ActivityActionType.UPDATE_SETTINGS, { settings: updates });
+        console.log("[DataContext] Platform settings updated successfully"); // Debug Log
+    } catch (error: any) {
+        console.error("[DataContext] Error updating platform settings:", error.message); // Debug Log
+        showToast(`Erro ao atualizar configurações: ${error.message}`, 'error');
+        throw error;
+    }
+  }, [user, showToast, logActivity, guardSupabase]);
+
+  const fetchTripImages = useCallback(async (tripId: string, forceRefresh: boolean = false): Promise<string[]> => {
     const sb = guardSupabase();
     if (!sb) {
         console.warn("[DataContext] Supabase not configured, cannot fetch trip images."); // Debug Log
         return [];
     }
     
-    // Check if trip already has images cached
+    // Check if trip already has images cached (unless force refresh)
     const trip = tripsRef.current.find(t => t.id === tripId);
-    if (trip && trip.images && trip.images.length > 0) {
+    if (!forceRefresh && trip && trip.images && trip.images.length > 0) {
         return trip.images;
     }
     
-    console.log("[DataContext] Fetching images for trip ID:", tripId); // Debug Log
+    console.log("[DataContext] Fetching images for trip ID:", tripId, forceRefresh ? "(force refresh)" : ""); // Debug Log
     try {
         const { data, error } = await sb
             .from('trip_images')
@@ -1775,15 +1878,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const imageUrls = (data || []).map((img: any) => img.image_url);
         
         // Update trip in state with images
-        if (trip) {
-            setTrips(prevTrips => 
-                prevTrips.map(t => 
-                    t.id === tripId 
-                        ? { ...t, images: imageUrls }
-                        : t
-                )
-            );
-        }
+        setTrips(prevTrips => 
+            prevTrips.map(t => 
+                t.id === tripId 
+                    ? { ...t, images: imageUrls }
+                    : t
+            )
+        );
         
         console.log("[DataContext] Trip images fetched successfully:", tripId, "Count:", imageUrls.length); // Debug Log
         return imageUrls;
@@ -1953,9 +2054,83 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { data: paginated, count: result.length };
   }, [agenciesRef]);
 
+  // Upload Platform Logo (Admin Only)
+  const uploadPlatformLogo = useCallback(async (file: File): Promise<string | null> => {
+    const sb = guardSupabase();
+    if (!sb) {
+        showToast('Backend não configurado.', 'error');
+        return null;
+    }
+    if (!user || user.role !== UserRole.ADMIN) {
+        showToast('Apenas administradores podem fazer upload de logos.', 'error');
+        return null;
+    }
+
+    const fileName = `platform/logo_${Date.now()}`;
+    console.log(`[DataContext] Uploading platform logo: ${fileName}`); // Debug Log
+
+    try {
+        const { data, error } = await sb.storage.from('agency-files').upload(fileName, file);
+        if (error) throw error;
+        
+        const { data: { publicUrl } } = sb.storage.from('agency-files').getPublicUrl(fileName);
+        console.log(`[DataContext] Logo uploaded successfully. URL: ${publicUrl}`); // Debug Log
+        
+        // Update platform settings with the new logo URL
+        await updatePlatformSettings({ platform_logo_url: publicUrl });
+
+        return publicUrl;
+    } catch (error: any) {
+        console.error("[DataContext] Error uploading platform logo:", error.message); // Debug Log
+        showToast(`Erro no upload: ${error.message}`, 'error');
+        return null;
+    }
+  }, [user, guardSupabase, updatePlatformSettings]);
+
+  // Restore Default Settings (Admin Only)
+  const restoreDefaultSettings = useCallback(async () => {
+    const sb = guardSupabase();
+    if (!sb) {
+        console.warn("[DataContext] Supabase not configured, cannot restore default settings."); // Debug Log
+        showToast('Backend não configurado.', 'error');
+        return;
+    }
+
+    // Check if user is admin
+    if (!user || user.role !== UserRole.ADMIN) {
+        showToast('Apenas administradores podem restaurar as configurações padrão.', 'error');
+        return;
+    }
+
+    try {
+        const { data, error } = await sb.from('platform_settings').select('*').eq('id', 1).single();
+        if (error) throw error;
+
+        // Restore default settings
+        await sb.from('platform_settings').update({
+            platform_name: 'ViajaStore',
+            platform_logo_url: null,
+            maintenance_mode: false,
+            layout_style: 'rounded',
+            background_color: '#ffffff',
+            background_blur: false,
+            background_transparency: 1.0,
+            default_settings: data.default_settings,
+        }).eq('id', 1);
+
+        showToast('Configurações da plataforma restauradas com sucesso!', 'success');
+        logActivity(ActivityActionType.RESTORE_DEFAULT_SETTINGS, {});
+        _fetchGlobalAndClientProfiles();
+        console.log("[DataContext] Default settings restored successfully."); // Debug Log
+    } catch (error: any) {
+        console.error("[DataContext] Error restoring default settings:", error.message); // Debug Log
+        showToast(`Erro ao restaurar configurações: ${error.message}`, 'error');
+    }
+  }, [user, showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
+
   return (
     <DataContext.Provider value={{
-      agencies, trips, bookings, reviews: [], agencyReviews, clients, auditLogs, activityLogs, loading,
+      agencies, trips, bookings, reviews: [], agencyReviews, clients, auditLogs, activityLogs, platformSettings, loading,
       searchTrips, searchAgencies,
       getTripBySlug, getAgencyBySlug, getTripById, getAgencyPublicTrips, getPublicTrips,
       refreshData, addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview,
@@ -1965,7 +2140,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction, sendPasswordReset, updateUserAvatarByAdmin,
       adminChangePlan, adminBulkDeleteAgencies, adminBulkArchiveAgencies, adminBulkChangePlan, adminSuspendAgency,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, getAgencyStats, getAgencyTheme, saveAgencyTheme,
-      refreshUserData, incrementTripViews, fetchTripImages
+      refreshUserData, incrementTripViews, fetchTripImages, updatePlatformSettings, uploadPlatformLogo, restoreDefaultSettings
     }}>
       {children}
     </DataContext.Provider>

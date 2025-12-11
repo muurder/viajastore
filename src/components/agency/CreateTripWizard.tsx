@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useData } from '../../context/DataContext';
+import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Trip, TripCategory, OperationalData, Agency, BoardingPoint } from '../../types';
 import { 
   X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, Image as ImageIcon,
-  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw, Search
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw, Search, AlertTriangle, User, PawPrint, FileText, Shield, Ban
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
@@ -27,7 +28,7 @@ const ALL_TRIP_CATEGORIES: TripCategory[] = [
     'VIAGEM_BARATA', 'ARTE'
 ];
 
-const SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
+const DEFAULT_SUGGESTED_TAGS = ['Praia', 'Montanha', 'Cidade', 'História', 'Relax', 'Ecoturismo', 'Luxo', 'Econômico', 'Bate-volta'];
 const MAX_IMAGES = 8; // Maximum number of images allowed
 
 /**
@@ -74,6 +75,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const { user, uploadImage } = useAuth(); 
   const { createTrip, updateTrip, agencies } = useData();
   const { showToast } = useToast();
+  const { guardSupabase } = useData();
   
   const currentAgency = useMemo(() => {
     return agencies.find(a => a.id === user?.id) as Agency;
@@ -125,6 +127,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         longitude: undefined,
         maxGuests: undefined,
         allowChildren: true,
+        passengerConfig: initialTripData?.passengerConfig || {
+          allowChildren: initialTripData?.allowChildren ?? true,
+          allowSeniors: true,
+          childAgeLimit: 12,
+          allowLapChild: false,
+          childPriceMultiplier: 0.7
+        },
         ...initialTripData
       };
     }
@@ -208,13 +217,15 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   // Auto-calculate duration, but respect user edits
   useEffect(() => {
     if (tripData.startDate && tripData.endDate) {
-      const start = new Date(tripData.startDate);
-      const end = new Date(tripData.endDate);
+      const start = new Date(tripData.startDate + 'T00:00:00');
+      const end = new Date(tripData.endDate + 'T00:00:00');
       const diffTime = end.getTime() - start.getTime();
       
-      if (!isNaN(diffTime)) {
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          setTripData(prev => ({ ...prev, durationDays: diffDays >= 0 ? diffDays + 1 : 1 }));
+      if (!isNaN(diffTime) && diffTime >= 0) {
+          // Calculate days: if start and end are the same, it's 1 day
+          // If end is after start, calculate the difference in days
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          setTripData(prev => ({ ...prev, durationDays: diffDays > 0 ? diffDays : 1 }));
       }
     }
   }, [tripData.startDate, tripData.endDate]);
@@ -368,6 +379,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       if (totalImages === 0) newErrors.images = "Adicione pelo menos uma imagem.";
       if (totalImages > MAX_IMAGES) newErrors.images = `Máximo de ${MAX_IMAGES} imagens permitidas. Você tem ${totalImages}.`;
       if (!tripData.description || tripData.description.length < 20) newErrors.description = "Escreva uma descrição (min 20 caracteres).";
+    } else if (currentStep === 2) { // Passenger Config (optional, no validation needed)
+      // Step 3 is optional, no validation required
     }
 
     setErrors(newErrors);
@@ -375,11 +388,20 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   }, [currentStep, tripData, filesToUpload.length]);
 
   const handleNext = () => {
-    if (validateStep()) setCurrentStep(prev => prev + 1);
-    else showToast("Verifique os campos obrigatórios.", "error");
+    if (validateStep()) {
+      setCurrentStep(prev => prev + 1);
+      // Scroll to top when changing steps
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      showToast("Verifique os campos obrigatórios.", "error");
+    }
   };
 
-  const handleBack = () => setCurrentStep(prev => prev - 1);
+  const handleBack = () => {
+    setCurrentStep(prev => prev - 1);
+    // Scroll to top when changing steps
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Store uploaded URLs for continuation after user decision
   const uploadedUrlsRef = useRef<string[]>([]);
@@ -518,7 +540,20 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
           latitude: tripData.latitude,
           longitude: tripData.longitude,
-          allowChildren: tripData.allowChildren !== false,
+          allowChildren: tripData.passengerConfig?.allowChildren ?? tripData.allowChildren ?? true, // Backward compatibility
+          passengerConfig: tripData.passengerConfig ? {
+            allowChildren: tripData.passengerConfig.allowChildren ?? true,
+            allowSeniors: tripData.passengerConfig.allowSeniors ?? true,
+            childAgeLimit: tripData.passengerConfig.childAgeLimit ?? 12,
+            allowLapChild: tripData.passengerConfig.allowLapChild ?? false,
+            childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 0.7
+          } : {
+            allowChildren: tripData.allowChildren !== false,
+            allowSeniors: true,
+            childAgeLimit: 12,
+            allowLapChild: false,
+            childPriceMultiplier: 0.7
+          },
         };
 
         // 5. Save to DB with timeout
@@ -668,6 +703,22 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         featuredInHero: tripData.featuredInHero || false,
         popularNearSP: tripData.popularNearSP || false,
         operationalData: tripData.operationalData || DEFAULT_OPERATIONAL_DATA,
+        latitude: tripData.latitude,
+        longitude: tripData.longitude,
+        allowChildren: tripData.passengerConfig?.allowChildren ?? tripData.allowChildren ?? true,
+        passengerConfig: tripData.passengerConfig ? {
+          allowChildren: tripData.passengerConfig.allowChildren ?? true,
+          allowSeniors: tripData.passengerConfig.allowSeniors ?? true,
+          childAgeLimit: tripData.passengerConfig.childAgeLimit ?? 12,
+          allowLapChild: tripData.passengerConfig.allowLapChild ?? false,
+          childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 0.7
+        } : {
+          allowChildren: tripData.allowChildren !== false,
+          allowSeniors: true,
+          childAgeLimit: 12,
+          allowLapChild: false,
+          childPriceMultiplier: 0.7
+        },
       };
 
       // Save to DB with timeout
@@ -748,204 +799,240 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const renderStep1 = () => (
     <div className="space-y-6 animate-[fadeIn_0.3s]">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="md:col-span-2">
+      {/* Main Info Section */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <Plane className="text-primary-600" size={20} />
+          Informações Básicas
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="md:col-span-2">
             <label className="block text-sm font-bold text-gray-700 mb-2">Título da Viagem <span className="text-red-500">*</span></label>
             <input
-                type="text"
-                value={tripData.title}
-                onChange={e => setTripData({ ...tripData, title: e.target.value, slug: slugify(e.target.value) })}
-                className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none`}
-                placeholder="Ex: Fim de Semana em Capitólio"
-                autoFocus
+              type="text"
+              value={tripData.title}
+              onChange={e => setTripData({ ...tripData, title: e.target.value, slug: slugify(e.target.value) })}
+              className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none`}
+              placeholder="Ex: Fim de Semana em Capitólio"
+              autoFocus
             />
             {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-        </div>
+          </div>
 
-        <div>
+          <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Destino <span className="text-red-500">*</span></label>
             <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="text"
-                    value={tripData.destination}
-                    onChange={e => setTripData({ ...tripData, destination: e.target.value })}
-                    className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
-                    placeholder="Cidade, UF"
-                />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+              <input
+                type="text"
+                value={tripData.destination}
+                onChange={e => setTripData({ ...tripData, destination: e.target.value })}
+                className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
+                placeholder="Cidade, UF"
+              />
             </div>
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
-        </div>
+          </div>
 
-        {/* Location Search (Google Maps Style) */}
-        <div>
+          {/* Location Search (Google Maps Style) */}
+          <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Localização no Mapa</label>
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="text"
-                    value={locationQuery}
-                    onChange={e => {
-                        setLocationQuery(e.target.value);
-                        if (!e.target.value) {
-                            setLocationCoords(null);
-                            setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
-                        }
-                    }}
-                    onBlur={() => {
-                        // If location query is empty, use destination
-                        if (!locationQuery && tripData.destination) {
-                            setLocationQuery(tripData.destination);
-                        }
-                    }}
-                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-10 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
-                />
-                {isSearchingLocation && (
-                    <Loader className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" size={18}/>
-                )}
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+              <input
+                type="text"
+                value={locationQuery}
+                onChange={e => {
+                  setLocationQuery(e.target.value);
+                  if (!e.target.value) {
+                    setLocationCoords(null);
+                    setTripData(prev => ({ ...prev, latitude: undefined, longitude: undefined }));
+                  }
+                }}
+                onBlur={() => {
+                  if (!locationQuery && tripData.destination) {
+                    setLocationQuery(tripData.destination);
+                  }
+                }}
+                className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
+              />
+              {isSearchingLocation && (
+                <Loader className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" size={18}/>
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-                {locationCoords 
-                    ? `Localização encontrada: ${locationCoords.lat.toFixed(6)}, ${locationCoords.lng.toFixed(6)}`
-                    : 'Digite o nome do local para buscar no mapa (ex: cidade, bairro, ponto turístico)'}
+              {locationCoords 
+                ? `✓ Localização encontrada: ${locationCoords.lat.toFixed(6)}, ${locationCoords.lng.toFixed(6)}`
+                : 'Digite o nome do local para buscar no mapa'}
             </p>
             
             {/* Map Preview */}
             {locationCoords && (
-                <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                    <iframe
-                        width="100%"
-                        height="300"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        allowFullScreen
-                        referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6U4c37ZJMTI&q=${locationCoords.lat},${locationCoords.lng}&zoom=13`}
-                    />
-                </div>
+              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-gray-100">
+                <iframe
+                  width="100%"
+                  height="300"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6U4c37ZJMTI'}&q=${locationCoords.lat},${locationCoords.lng}&zoom=13`}
+                  title="Localização no mapa"
+                />
+              </div>
             )}
-        </div>
-
-        {/* Allow Children Field */}
-        <div>
-            <label className="flex items-center cursor-pointer">
-                <input
-                    type="checkbox"
-                    checked={tripData.allowChildren !== false}
-                    onChange={e => setTripData({ ...tripData, allowChildren: e.target.checked })}
-                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                />
-                <span className="ml-2 text-sm text-gray-700 font-medium">Permitir crianças</span>
-            </label>
-        </div>
-
-        <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
-            <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="number"
-                    value={tripData.price || ''}
-                    onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
-                    className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
-                    placeholder="0.00"
-                    min="0"
-                />
-            </div>
-            {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
-        </div>
-
-        <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Início <span className="text-red-500">*</span></label>
-            <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="date"
-                    value={tripData.startDate}
-                    onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
-                    className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
-                />
-            </div>
-        </div>
-
-        <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Fim <span className="text-red-500">*</span></label>
-            <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="date"
-                    value={tripData.endDate}
-                    onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
-                    className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 outline-none`}
-                />
-            </div>
-        </div>
-
-        <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
-            <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                <input
-                    type="number"
-                    value={tripData.durationDays}
-                    onChange={e => setTripData({ ...tripData, durationDays: parseInt(e.target.value) || 1 })}
-                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 outline-none bg-white"
-                    min="1"
-                />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Calculado automaticamente, mas você pode ajustar.</p>
-        </div>
-
-        <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
-            <select
-                value={tripData.category}
-                onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
-                className="w-full border border-gray-300 rounded-lg p-3 outline-none bg-white"
-            >
-                {ALL_TRIP_CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
-                ))}
-            </select>
+          </div>
         </div>
       </div>
-      {errors.dates && <p className="text-red-500 text-sm font-bold bg-red-50 p-2 rounded">{errors.dates}</p>}
 
-      {/* Boarding Points Section - RESTORED */}
-      <div className="border-t border-gray-200 pt-6 mt-2">
-          <div className="flex justify-between items-center mb-4">
-              <label className="block text-sm font-bold text-gray-700">Locais de Embarque (Saídas)</label>
-              <button onClick={addBoardingPoint} className="text-xs font-bold text-primary-600 flex items-center hover:bg-primary-50 px-2 py-1 rounded transition-colors"><Plus size={14} className="mr-1"/> Adicionar Local</button>
+      {/* Pricing & Dates Section */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <DollarSign className="text-primary-600" size={20} />
+          Preço e Datas
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+              <input
+                type="number"
+                value={tripData.price || ''}
+                onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
+                className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
+                placeholder="0.00"
+                min="0"
+              />
+            </div>
+            {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
           </div>
-          
-          <div className="space-y-3">
-              {tripData.boardingPoints?.map((bp, idx) => (
-                  <div key={bp.id} className="flex gap-3 items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
-                      <div className="relative w-32 flex-shrink-0">
-                          <input 
-                              type="time" 
-                              value={bp.time} 
-                              onChange={e => updateBoardingPoint(bp.id, 'time', e.target.value)}
-                              className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
-                          />
-                      </div>
-                      <div className="relative flex-1">
-                          <input 
-                              type="text" 
-                              value={bp.location} 
-                              onChange={e => updateBoardingPoint(bp.id, 'location', e.target.value)}
-                              placeholder="Ex: Metrô Tatuapé - Rua A, 123"
-                              className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
-                          />
-                      </div>
-                      <button onClick={() => removeBoardingPoint(bp.id)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 size={16}/></button>
-                  </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18}/>
+              <input
+                type="date"
+                value={tripData.startDate}
+                onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
+                min={new Date().toISOString().split('T')[0]}
+                className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
+              />
+            </div>
+            {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Data de Fim <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18}/>
+              <input
+                type="date"
+                value={tripData.endDate}
+                onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
+                min={tripData.startDate || new Date().toISOString().split('T')[0]}
+                className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
+              />
+            </div>
+            {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+              <input
+                type="number"
+                value={tripData.durationDays}
+                onChange={e => setTripData({ ...tripData, durationDays: parseInt(e.target.value) || 1 })}
+                className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                min="1"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Calculado automaticamente</p>
+          </div>
+        </div>
+        {errors.dates && <p className="text-red-500 text-sm font-bold bg-red-50 p-3 rounded-lg mt-4">{errors.dates}</p>}
+      </div>
+
+      {/* Category & Additional Info */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+          <Tag className="text-primary-600" size={20} />
+          Categoria e Classificação
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
+            <select
+              value={tripData.category}
+              onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
+              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {ALL_TRIP_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
               ))}
-              {(!tripData.boardingPoints || tripData.boardingPoints.length === 0) && (
-                  <p className="text-xs text-gray-500 italic">Nenhum local de embarque definido.</p>
-              )}
+            </select>
           </div>
+        </div>
+      </div>
+
+      {/* Boarding Points Section */}
+      <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Bus className="text-primary-600" size={20} />
+            Locais de Embarque
+          </h3>
+          <button 
+            onClick={addBoardingPoint} 
+            className="text-sm font-bold text-primary-600 flex items-center hover:bg-primary-50 px-3 py-1.5 rounded-lg transition-colors border border-primary-200"
+          >
+            <Plus size={16} className="mr-1"/> Adicionar Local
+          </button>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">Defina os pontos de saída e horários de embarque</p>
+        
+        <div className="space-y-3">
+          {tripData.boardingPoints?.map((bp, idx) => (
+            <div key={bp.id} className="flex gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
+              <div className="relative w-32 flex-shrink-0">
+                <input 
+                  type="time" 
+                  value={bp.time} 
+                  onChange={e => updateBoardingPoint(bp.id, 'time', e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="relative flex-1">
+                <input 
+                  type="text" 
+                  value={bp.location} 
+                  onChange={e => updateBoardingPoint(bp.id, 'location', e.target.value)}
+                  placeholder="Ex: Metrô Tatuapé - Rua A, 123"
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <button 
+                onClick={() => removeBoardingPoint(bp.id)} 
+                className="text-gray-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={18}/>
+              </button>
+            </div>
+          ))}
+          {(!tripData.boardingPoints || tripData.boardingPoints.length === 0) && (
+            <p className="text-xs text-gray-500 italic text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              Nenhum local de embarque definido. Clique em "Adicionar Local" para começar.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -982,13 +1069,34 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         setFilesToUpload(prev => prev.filter((_, i) => i !== index));
     };
 
-    const addTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const addTag = async (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             const val = e.currentTarget.value.trim();
             if (val && !tripData.tags?.includes(val)) {
                 setTripData(prev => ({ ...prev, tags: [...(prev.tags || []), val] }));
                 e.currentTarget.value = '';
+                
+                // Save custom tag to agency's custom_settings
+                if (currentAgency?.agencyId && supabase) {
+                    try {
+                        // Get current custom settings
+                        const currentTags = currentAgency.customSettings?.tags || [];
+                        if (!currentTags.includes(val)) {
+                            // Update agency custom settings with new tag
+                            const updatedSettings = {
+                                ...currentAgency.customSettings,
+                                tags: [...currentTags, val]
+                            };
+                            await supabase.from('agencies')
+                                .update({ custom_settings: updatedSettings })
+                                .eq('id', currentAgency.agencyId);
+                        }
+                    } catch (error) {
+                        console.error('Error saving custom tag:', error);
+                        // Don't show error to user, tag is still added to trip
+                    }
+                }
             }
         }
     };
@@ -1063,7 +1171,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             <textarea
                 value={tripData.description}
                 onChange={e => setTripData({ ...tripData, description: e.target.value })}
-                className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 focus:ring-2 focus:ring-primary-500 outline-none h-32`}
+                className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none h-32`}
                 placeholder="Descreva o roteiro, o que está incluso e os diferenciais..."
             />
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
@@ -1075,7 +1183,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             
             {/* Tag Pills - RESTORED */}
             <div className="flex flex-wrap gap-2 mb-3">
-                {SUGGESTED_TAGS.map(tag => (
+                {[...DEFAULT_SUGGESTED_TAGS, ...(currentAgency?.customSettings?.tags || [])].map(tag => (
                     <button
                         key={tag}
                         onClick={() => toggleTag(tag)}
@@ -1095,7 +1203,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 <input
                     type="text"
                     onKeyDown={addTag}
-                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-2 focus:ring-primary-500 outline-none"
+                    className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none"
                     placeholder="Ou digite uma tag personalizada e aperte Enter..."
                 />
             </div>
@@ -1154,7 +1262,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                                                 updated[index] = { ...day, title: e.target.value };
                                                 setTripData(prev => ({ ...prev, itinerary: updated }));
                                             }}
-                                            className="w-full font-bold text-gray-900 border-b-2 border-transparent focus:border-primary-500 outline-none pb-1"
+                                            className="w-full font-bold text-gray-900 bg-white border-b-2 border-transparent focus:border-primary-500 outline-none pb-1"
                                             placeholder={`Dia ${day.day}`}
                                         />
                                     </div>
@@ -1179,7 +1287,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                                     updated[index] = { ...day, description: e.target.value };
                                     setTripData(prev => ({ ...prev, itinerary: updated }));
                                 }}
-                                className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                                className="w-full border border-gray-200 rounded-lg p-3 text-sm bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none resize-none"
                                 rows={3}
                                 placeholder="Descreva as atividades deste dia: horários, passeios, refeições, etc..."
                             />
@@ -1241,12 +1349,302 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     );
   };
 
+  const renderStep3 = () => (
+    <div className="space-y-6 animate-[fadeIn_0.3s]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column - Configuration Toggles */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <User className="text-primary-600" size={20} />
+              Configurações de Passageiros
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">Defina as regras para passageiros nesta viagem</p>
+            
+            <div className="space-y-4">
+              {/* Allow Children */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
+                <div className="flex-1">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tripData.passengerConfig?.allowChildren !== false}
+                      onChange={e => setTripData({ 
+                        ...tripData, 
+                        passengerConfig: {
+                          allowChildren: e.target.checked,
+                          allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                          childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                          allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                        }
+                      })}
+                      className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="ml-3 text-sm font-bold text-gray-700">Permitir crianças</span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-8 mt-1">Aceita passageiros menores de idade</p>
+                </div>
+              </div>
+
+              {/* Child Age Limit - Only show if allowChildren is true */}
+              {tripData.passengerConfig?.allowChildren !== false && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
+                    Idade limite para criança
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="0"
+                      max="18"
+                      value={tripData.passengerConfig?.childAgeLimit ?? 12}
+                      onChange={e => setTripData({ 
+                        ...tripData, 
+                        passengerConfig: {
+                          allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                          allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                          childAgeLimit: parseInt(e.target.value) || 12,
+                          allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                        }
+                      })}
+                      className="w-20 border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">anos (menores desta idade são considerados crianças)</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Allow Lap Child - Only show if allowChildren is true */}
+              {tripData.passengerConfig?.allowChildren !== false && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
+                  <div className="flex-1">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={tripData.passengerConfig?.allowLapChild ?? false}
+                        onChange={e => setTripData({ 
+                          ...tripData, 
+                          passengerConfig: {
+                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: e.target.checked,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                          }
+                        })}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="ml-3 text-sm font-bold text-gray-700">Permitir criança no colo</span>
+                    </label>
+                    <p className="text-xs text-gray-500 ml-8 mt-1">Crianças pequenas podem viajar sem assento próprio (geralmente até 2 anos)</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Child Price Multiplier - Only show if allowChildren is true */}
+              {tripData.passengerConfig?.allowChildren !== false && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
+                    Desconto para crianças (% do preço adulto)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
+                      onChange={e => {
+                        const percentage = parseInt(e.target.value) || 70;
+                        setTripData({ 
+                          ...tripData, 
+                          passengerConfig: {
+                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: percentage / 100
+                          }
+                        });
+                      }}
+                      className="w-20 border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-semibold"
+                    />
+                    <span className="text-sm text-gray-600">% (ex: 70% = crianças pagam 70% do preço adulto)</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Allow Seniors */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
+                <div className="flex-1">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tripData.passengerConfig?.allowSeniors !== false}
+                      onChange={e => setTripData({ 
+                        ...tripData, 
+                        passengerConfig: {
+                          allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                          allowSeniors: e.target.checked,
+                          childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                          allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                        }
+                      })}
+                      className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="ml-3 text-sm font-bold text-gray-700">Permitir idosos</span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-8 mt-1">Aceita passageiros da terceira idade (60+ anos)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column - Help Panel & Preview */}
+        <div className="space-y-6">
+          {/* Help Section */}
+          <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 shadow-sm">
+            <h4 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Info className="text-primary-600" size={20} />
+              Por que definir regras claras?
+            </h4>
+            
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <PawPrint className="text-amber-600" size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 mb-1">Animais & Crianças</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Evita surpresas no embarque e garante que o ambiente seja adequado para todos.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <FileText className="text-blue-600" size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 mb-1">Documentação</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Alerta o viajante sobre a necessidade de RG/CNH para viagens interestaduais.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <Shield className="text-green-600" size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 mb-1">Clareza</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Regras bem definidas reduzem cancelamentos e dúvidas no WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview Section */}
+          <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
+            <h5 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <Check className="text-primary-600" size={16} />
+              Como o viajante vê no site:
+            </h5>
+            <div className="space-y-2">
+              {/* Children Preview */}
+              {tripData.passengerConfig?.allowChildren === false ? (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
+                  <Ban className="text-red-500" size={14} />
+                  <span className="font-medium">Crianças não permitidas</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
+                  <Check className="text-green-600" size={14} />
+                  <span className="font-medium">Crianças permitidas</span>
+                  {tripData.passengerConfig?.childAgeLimit && (
+                    <span className="text-slate-500">
+                      (até {tripData.passengerConfig.childAgeLimit} anos)
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Seniors Preview */}
+              {tripData.passengerConfig?.allowSeniors === false ? (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
+                  <Ban className="text-red-500" size={14} />
+                  <span className="font-medium">Idosos não permitidos</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
+                  <Check className="text-green-600" size={14} />
+                  <span className="font-medium">Idosos permitidos</span>
+                </div>
+              )}
+
+              {/* Lap Child Preview */}
+              {tripData.passengerConfig?.allowLapChild && (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-blue-50 px-3 py-2.5 rounded-lg border border-blue-200">
+                  <Info className="text-blue-600" size={14} />
+                  <span className="font-medium">Criança no colo permitida</span>
+                </div>
+              )}
+
+              {/* Child Discount Preview */}
+              {tripData.passengerConfig?.allowChildren !== false && tripData.passengerConfig?.childPriceMultiplier && (
+                <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
+                  <DollarSign className="text-purple-600" size={14} />
+                  <span className="font-medium">
+                    Desconto para crianças: {Math.round((tripData.passengerConfig.childPriceMultiplier || 0.7) * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const steps = [
     { title: "Detalhes Principais", icon: Plane, content: renderStep1() },
     { title: "Mídia & Conteúdo", icon: ImageIcon, content: renderStep2() },
+    { title: "Regras de Passageiros", icon: User, content: renderStep3() },
   ];
 
-  const StepIcon = steps[currentStep].icon;
+  const StepIcon = steps[currentStep]?.icon || Plane;
+
+  // Safety check: ensure we have an agency
+  if (!currentAgency?.agencyId) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative">
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors">
+            <X size={20}/>
+          </button>
+          <div className="text-center">
+            <AlertTriangle className="text-amber-500 mx-auto mb-4" size={48} />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Erro ao Carregar</h2>
+            <p className="text-gray-600 mb-4">Não foi possível identificar sua agência. Por favor, recarregue a página.</p>
+            <button
+              onClick={onClose}
+              className="bg-primary-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1262,7 +1660,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         cancelText="Tentar Novamente"
       />
       
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
         <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
         

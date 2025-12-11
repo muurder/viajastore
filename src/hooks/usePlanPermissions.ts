@@ -33,7 +33,7 @@ export const usePlanPermissions = (): PlanPermissions => {
 
     // Define plan limits
     const maxTripsMap: Record<PlanType, number> = {
-      STARTER: 1,
+      STARTER: 2,
       BASIC: 5,
       PREMIUM: Infinity
     };

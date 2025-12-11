@@ -5,16 +5,18 @@ import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } fro
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
 
 
 const Layout: React.FC = () => {
-  const { user, logout } = useAuth();
-  const { getAgencyBySlug, getAgencyTheme, loading: dataLoading } = useData();
+  const { user, logout, login } = useAuth();
+  const { getAgencyBySlug, getAgencyTheme, loading: dataLoading, platformSettings } = useData();
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -125,12 +127,12 @@ const Layout: React.FC = () => {
   useEffect(() => {
     if (!location.pathname.includes('/viagem/')) {
         if ((isAgencyMode || isAgencyDashboard) && currentAgency) {
-            document.title = `${currentAgency.name} | ViajaStore`;
+            document.title = `${currentAgency.name} | ${platformSettings?.platform_name || 'ViajaStore'}`;
         } else {
-            document.title = 'ViajaStore | O maior marketplace de viagens';
+            document.title = `${platformSettings?.platform_name || 'ViajaStore'} | O maior marketplace de viagens`;
         }
     }
-  }, [location.pathname, isAgencyMode, isAgencyDashboard, currentAgency]);
+  }, [location.pathname, isAgencyMode, isAgencyDashboard, currentAgency, platformSettings]);
   
   const handleLogout = async () => {
     await logout();
@@ -173,9 +175,53 @@ const Layout: React.FC = () => {
   
   const themeLink = getThemeLink();
 
+  // Quick Account Switch (Admin Only)
+  interface QuickAccount {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    icon: any;
+    requiresPassword?: boolean;
+  }
+
+  const TEST_ACCOUNTS: QuickAccount[] = [
+    { name: 'Admin Teste', email: 'admin@teste.com', password: 'admin123', role: 'ADMIN', icon: ShieldCheck },
+    { name: 'Cliente Teste', email: 'cliente@teste.com', password: 'cliente123', role: 'CLIENT', icon: User },
+    { name: 'Agência Teste', email: 'agencia@teste.com', password: 'agencia123', role: 'AGENCY', icon: Building },
+    { name: 'Guia Turístico Teste', email: 'guia@teste.com', password: 'guia123', role: 'AGENCY', icon: Compass },
+    { name: 'Admin Real', email: 'juannicolas1@gmail.com', password: '', role: 'ADMIN', icon: ShieldCheck, requiresPassword: true },
+  ];
+
+  const handleQuickLogin = async (email: string, password: string, requiresPassword?: boolean) => {
+    let finalPassword = password;
+    
+    if (requiresPassword && !password) {
+      // Prompt for password
+      const userPassword = prompt(`Digite a senha para ${email}:`);
+      if (!userPassword) {
+        setIsUserDropdownOpen(false);
+        return;
+      }
+      finalPassword = userPassword;
+    }
+    
+    setIsUserDropdownOpen(false);
+    const result = await login(email, finalPassword);
+    if (result.success) {
+      showToast('Login realizado com sucesso!', 'success');
+    } else {
+      showToast(result.error || 'Erro ao fazer login', 'error');
+    }
+  };
+
   // Centralized Dashboard Route Logic
   const getDashboardRoute = () => {
     if (!user) return '/#login';
+    
+    // Check if user is a test admin account (for quick switching)
+    const isTestAdmin = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN');
+    const isTestAgency = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'AGENCY');
     
     switch (user.role) {
       case 'AGENCY':
@@ -183,6 +229,9 @@ const Layout: React.FC = () => {
       case 'ADMIN':
         return '/admin/dashboard';
       case 'CLIENT':
+        // If it's a test admin/agency account logged as client, allow access to their dashboard
+        if (isTestAdmin) return '/admin/dashboard';
+        if (isTestAgency) return '/agency/dashboard';
         if (isAgencyMode && activeSlug) {
             return `/${activeSlug}/client/BOOKINGS`;
         }
@@ -205,7 +254,15 @@ const Layout: React.FC = () => {
       )}
 
       {/* Navbar */}
-      <nav className="bg-white shadow-sm sticky top-0 z-50">
+      <nav 
+        className="bg-white shadow-sm sticky top-0 z-50"
+        style={{
+          backgroundColor: platformSettings?.background_color || '#ffffff',
+          opacity: platformSettings?.background_transparency || 1.0,
+          backdropFilter: platformSettings?.background_blur ? 'blur(10px)' : 'none',
+          WebkitBackdropFilter: platformSettings?.background_blur ? 'blur(10px)' : 'none'
+        }}
+      >
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           {isMicrositeClientArea && currentAgency ? (
              // Microsite Client Dashboard Header
@@ -245,7 +302,10 @@ const Layout: React.FC = () => {
                         <line x1="22" y1="2" x2="11" y2="13" />
                         <polygon points="22 2 15 22 11 13 2 9 22 2" />
                       </svg>
-                      <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
+                      {platformSettings?.platform_logo_url ? (
+                        <img src={platformSettings.platform_logo_url} alt={platformSettings.platform_name} className="h-8 w-auto mr-2" />
+                      ) : null}
+                      <span className="font-bold text-xl tracking-tight text-primary-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
                     </>
                   ) : (
                     // FIX: Only show skeleton if we're actually in agency mode AND loading
@@ -284,7 +344,10 @@ const Layout: React.FC = () => {
                             <line x1="22" y1="2" x2="11" y2="13" />
                             <polygon points="22 2 15 22 11 13 2 9 22 2" />
                           </svg>
-                          <span className="font-bold text-xl tracking-tight text-primary-600">ViajaStore</span>
+                          {platformSettings?.platform_logo_url ? (
+                        <img src={platformSettings.platform_logo_url} alt={platformSettings.platform_name} className="h-8 w-auto mr-2" />
+                      ) : null}
+                      <span className="font-bold text-xl tracking-tight text-primary-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
                         </>
                       )}
                     </div>
@@ -298,7 +361,7 @@ const Layout: React.FC = () => {
                           <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
                           <Link to="/guides" className={getLinkClasses('/guides')}>
                             <Compass size={16} className="inline mr-1" />
-                            Guias Turísticos
+                            Guias de Turismo
                           </Link>
                           <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
                       </>
@@ -323,12 +386,12 @@ const Layout: React.FC = () => {
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6 gap-3">
                     {/* Only show direct Dashboard link if user is Admin or Agency */}
-                    {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
+                    {(user.role === 'AGENCY' || user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && (acc.role === 'ADMIN' || acc.role === 'AGENCY'))) && (
                         <Link 
                             to={getDashboardRoute()}
                             className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${location.pathname.includes('/dashboard') ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'}`}
                         >
-                            <LayoutDashboard size={16}/> {user.role === 'ADMIN' ? 'Painel Master' : 'Meu Painel'}
+                            <LayoutDashboard size={16}/> {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')) ? 'Painel Master' : 'Meu Painel'}
                         </Link>
                     )}
                     
@@ -391,6 +454,54 @@ const Layout: React.FC = () => {
                                 </Link>
                               </>
                             )}
+
+                            {/* Quick Account Switch - Admin Only */}
+                            {/* Show Quick Switch for any test account or admin */}
+                            {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email)) && (
+                              <>
+                                <div className="border-t border-gray-100 my-1"></div>
+                                <div className="px-2 py-1.5">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Zap size={14} className="text-primary-600" />
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Troca Rápida</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {TEST_ACCOUNTS.map((account) => {
+                                      const Icon = account.icon;
+                                      const isCurrentUser = user.email === account.email;
+                                      const hasPassword = account.password || account.requiresPassword;
+                                      return (
+                                        <button
+                                          key={account.email}
+                                          onClick={() => !isCurrentUser && hasPassword && handleQuickLogin(account.email, account.password || '', account.requiresPassword)}
+                                          disabled={isCurrentUser || !hasPassword}
+                                          className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs rounded-lg transition-all ${
+                                            isCurrentUser
+                                              ? 'bg-primary-50 text-primary-700 cursor-not-allowed'
+                                              : !hasPassword
+                                              ? 'text-gray-400 cursor-not-allowed opacity-50'
+                                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                          }`}
+                                          title={
+                                            isCurrentUser 
+                                              ? 'Conta atual' 
+                                              : !hasPassword
+                                              ? 'Senha não configurada'
+                                              : `Fazer login como ${account.name}`
+                                          }
+                                        >
+                                          <Icon size={14} className={isCurrentUser ? 'text-primary-600' : 'text-gray-400'} />
+                                          <span className="font-medium truncate flex-1 text-left">{account.name}</span>
+                                          {isCurrentUser && (
+                                            <div className="w-1.5 h-1.5 rounded-full bg-primary-600"></div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
                             
                             <div className="border-t border-gray-100 my-1"></div>
                             
@@ -433,7 +544,7 @@ const Layout: React.FC = () => {
          {isMicrositeClientArea ? (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
-                  <Globe size={12} className="mr-2"/> Voltar para o Marketplace ViajaStore
+                  <Globe size={12} className="mr-2"/> Voltar para o Marketplace {platformSettings?.platform_name || 'ViajaStore'}
                </Link>
             </div>
          ) : (
@@ -447,7 +558,7 @@ const Layout: React.FC = () => {
                     </div>
                   ) : (
                     <div className="mb-4">
-                       <span className="text-xl font-bold text-gray-900">ViajaStore</span>
+                       <span className="text-xl font-bold text-gray-900">{platformSettings?.platform_name || 'ViajaStore'}</span>
                        <p className="text-gray-500 text-sm mt-2 max-w-sm">Conectando você às melhores experiências de viagem do Brasil.</p>
                     </div>
                   )}
@@ -480,11 +591,11 @@ const Layout: React.FC = () => {
               </div>
               <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center">
                 <p className="text-sm text-gray-400">
-                  &copy; {new Date().getFullYear()} ViajaStore. Todos os direitos reservados.
+                  &copy; {new Date().getFullYear()} {platformSettings?.platform_name || 'ViajaStore'}. Todos os direitos reservados.
                 </p>
                 <div className="flex items-center gap-2 mt-4 md:mt-0">
                    <span className="text-[10px] text-gray-400 uppercase font-bold">Powered by</span>
-                   <span className="text-xs font-extrabold text-gray-600">ViajaStore</span>
+                   <span className="text-xs font-extrabold text-gray-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
                 </div>
               </div>
             </div>

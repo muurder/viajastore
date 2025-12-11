@@ -140,25 +140,31 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [activeTheme, previewMode, overrideTheme]);
 
   const setTheme = async (themeId: string) => {
+      setLoading(true);
       const targetTheme = themes.find(t => t.id === themeId);
       if (targetTheme) setActiveTheme(targetTheme);
 
-      if (!supabase) return;
+      if (!supabase) {
+          setLoading(false);
+          return;
+      }
 
       try {
           // FIX: Deactivate all other themes by matching against the ID that is *not* the current one.
           await supabase.from('themes').update({ is_active: false }).neq('id', themeId); 
           const { error } = await supabase.from('themes').update({ is_active: true }).eq('id', themeId);
           if (error) throw error;
-          await fetchThemes();
       } catch (error) {
           console.error("Error setting theme:", error);
           alert("Erro ao aplicar tema globalmente.");
+      } finally {
+          await fetchThemes(); // fetchThemes will set loading to false
       }
   };
 
   const addTheme = async (theme: Partial<ThemePalette>): Promise<string | null> => {
       if (!supabase) return null;
+      setLoading(true);
       try {
           const { data, error } = await supabase.from('themes').insert({
               name: theme.name,
@@ -168,11 +174,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           }).select().single();
 
           if (error) throw error;
-          await fetchThemes(); 
           return data ? data.id : null;
       } catch (error) {
           console.error("Error adding theme:", error);
           return null;
+      } finally {
+          await fetchThemes(); // fetchThemes will set loading to false
       }
   };
 

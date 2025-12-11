@@ -286,7 +286,22 @@ const TestAccounts: React.FC = () => {
                         </div>
                         {error && (
                           <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg">
-                            <p className="text-sm text-red-700">{error}</p>
+                            <p className="text-sm text-red-700 font-semibold mb-2">{error}</p>
+                            {error.includes('Backend não configurado') && (
+                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+                                <p className="font-semibold mb-1">Como configurar:</p>
+                                <ol className="list-decimal list-inside space-y-1 ml-2">
+                                  <li>Crie um arquivo <code className="bg-red-100 px-1 rounded">.env</code> na raiz do projeto</li>
+                                  <li>Adicione as variáveis:
+                                    <pre className="mt-1 p-2 bg-red-100 rounded text-xs overflow-x-auto">
+{`VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui`}
+                                    </pre>
+                                  </li>
+                                  <li>Reinicie o servidor de desenvolvimento</li>
+                                </ol>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -347,6 +362,24 @@ const TestAccounts: React.FC = () => {
                 <li>Para contas ADMIN, você pode precisar atualizar manualmente o role no banco de dados.</li>
                 <li><strong>Nunca use essas senhas em produção!</strong> Elas são apenas para testes locais.</li>
               </ul>
+            </div>
+
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <h3 className="font-bold text-purple-900 mb-2">⚙️ Configuração do Supabase:</h3>
+              <p className="text-sm text-purple-800 mb-2">
+                Se você está vendo o erro "Backend não configurado", você precisa configurar o Supabase:
+              </p>
+              <ol className="text-sm text-purple-800 space-y-2 list-decimal list-inside ml-2">
+                <li>Crie um arquivo <code className="bg-purple-100 px-1.5 py-0.5 rounded font-mono">.env</code> na raiz do projeto (mesmo nível que <code className="bg-purple-100 px-1.5 py-0.5 rounded font-mono">package.json</code>)</li>
+                <li>Adicione suas credenciais do Supabase:
+                  <pre className="mt-2 p-3 bg-purple-100 rounded text-xs overflow-x-auto font-mono">
+{`VITE_SUPABASE_URL=https://seu-projeto-id.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-anon-key-aqui`}
+                  </pre>
+                </li>
+                <li>Você pode encontrar essas credenciais no painel do Supabase em: <strong>Settings → API</strong></li>
+                <li>Após criar o arquivo, <strong>reinicie o servidor de desenvolvimento</strong> (pare e inicie novamente com <code className="bg-purple-100 px-1.5 py-0.5 rounded font-mono">npm run dev</code>)</li>
+              </ol>
             </div>
           </div>
         </div>

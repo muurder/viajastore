@@ -141,10 +141,13 @@ const TripDetails: React.FC = () => {
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [passengers, setPassengers] = useState(1);
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
   const [showPassengerModal, setShowPassengerModal] = useState(false);
   const [passengerData, setPassengerData] = useState<PassengerDetail[]>([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  
+  const totalPassengers = adults + children;
 
   // Load images on-demand when trip is loaded
   useEffect(() => {
@@ -263,8 +266,8 @@ const TripDetails: React.FC = () => {
         return;
     }
 
-    // If more than 1 passenger, show modal to collect passenger data
-    if (passengers > 1) {
+    // If more than 1 passenger (total), show modal to collect passenger data
+    if (totalPassengers > 1) {
         setShowPassengerModal(true);
         return;
     }
@@ -276,14 +279,29 @@ const TripDetails: React.FC = () => {
   const processBooking = async (passengersData: PassengerDetail[]) => {
     setIsProcessing(true);
     try {
+        // Get passenger config from trip (with defaults)
+        const passengerConfig = trip.passengerConfig || {
+          allowChildren: trip.allowChildren !== false,
+          allowSeniors: true,
+          childAgeLimit: 12,
+          allowLapChild: false,
+          childPriceMultiplier: 0.7
+        };
+        
+        // Calculate price: adults pay full price, children pay configured multiplier
+        const childPriceMultiplier = passengerConfig.childPriceMultiplier || 0.7;
+        const adultPrice = trip.price * adults;
+        const childPrice = trip.price * childPriceMultiplier * children;
+        const totalPrice = adultPrice + childPrice;
+        
         const bookingData = {
             id: crypto.randomUUID(),
             tripId: trip.id,
             clientId: user!.id,
             date: new Date().toISOString(),
             status: 'CONFIRMED' as const,
-            totalPrice: trip.price * passengers,
-            passengers: passengers,
+            totalPrice: totalPrice,
+            passengers: totalPassengers,
             voucherCode: `VS-${trip.id.substring(0, 3).toUpperCase()}-${Math.floor(Math.random() * 10000)}`,
             paymentMethod: 'CREDIT_CARD' as const,
             passengerDetails: passengersData.length > 0 ? passengersData : undefined
@@ -292,9 +310,14 @@ const TripDetails: React.FC = () => {
         const newBooking = await addBooking(bookingData);
         
         if (newBooking) {
-            // Navigate to success page
+            // Navigate to success page with passenger data
             const successPath = agencySlug ? `/${agencySlug}/checkout/success` : '/checkout/success';
-            navigate(successPath, { state: { booking: newBooking } });
+            navigate(successPath, { 
+                state: { 
+                    booking: newBooking,
+                    passengers: passengersData.length > 0 ? passengersData : (newBooking.passengerDetails || [])
+                } 
+            });
         }
     } catch (error) {
         // Error handled in addBooking
@@ -460,6 +483,26 @@ const TripDetails: React.FC = () => {
                   </div>
               )}
 
+              {/* Map Location */}
+              {trip.latitude && trip.longitude && (
+                  <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                          <Globe size={24} className="text-primary-600"/> Localização no Mapa
+                      </h3>
+                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                          <iframe
+                              width="100%"
+                              height="400"
+                              style={{ border: 0 }}
+                              loading="lazy"
+                              allowFullScreen
+                              referrerPolicy="no-referrer-when-downgrade"
+                              src={`https://www.google.com/maps/embed/v1/place?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6U4c37ZJMTI'}&q=${trip.latitude},${trip.longitude}&zoom=13`}
+                          />
+                      </div>
+                  </div>
+              )}
+
               {/* Boarding Points */}
               {trip.boardingPoints && trip.boardingPoints.length > 0 && (
                   <div>
@@ -528,22 +571,127 @@ const TripDetails: React.FC = () => {
                                   </p>
                               </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                              <User className="text-primary-600" size={20}/>
-                              <div className="flex-1">
-                                  <p className="text-xs font-bold text-gray-500 uppercase">Passageiros</p>
-                                  <div className="flex items-center gap-3 mt-1">
-                                      <button onClick={() => setPassengers(Math.max(1, passengers - 1))} className="w-6 h-6 rounded-full bg-white border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-sm font-bold">-</button>
-                                      <span className="font-bold text-gray-900 w-4 text-center">{passengers}</span>
-                                      <button onClick={() => setPassengers(passengers + 1)} className="w-6 h-6 rounded-full bg-white border border-gray-300 flex items-center justify-center hover:bg-gray-100 text-sm font-bold">+</button>
+                          <div className="space-y-3">
+                              <p className="text-xs font-bold text-gray-500 uppercase">Passageiros</p>
+                              
+                              {/* Adultos */}
+                              <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="flex items-center gap-2">
+                                      <User className="text-primary-600" size={18}/>
+                                      <div>
+                                          <p className="text-sm font-bold text-gray-900">Adultos</p>
+                                          <p className="text-xs text-gray-500">12 anos ou mais</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <button 
+                                          onClick={() => setAdults(Math.max(1, adults - 1))} 
+                                          className="w-7 h-7 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center hover:bg-gray-200 text-sm font-bold transition-colors"
+                                      >
+                                          -
+                                      </button>
+                                      <span className="font-bold text-gray-900 w-6 text-center">{adults}</span>
+                                      <button 
+                                          onClick={() => setAdults(adults + 1)} 
+                                          className="w-7 h-7 rounded-full bg-gray-100 border border-gray-300 flex items-center justify-center hover:bg-gray-200 text-sm font-bold transition-colors"
+                                      >
+                                          +
+                                      </button>
                                   </div>
                               </div>
+
+                              {/* Crianças - Only show if trip allows children */}
+                              {(() => {
+                                const passengerConfig = trip.passengerConfig || {
+                                  allowChildren: trip.allowChildren !== false,
+                                  allowSeniors: true,
+                                  childAgeLimit: 12,
+                                  allowLapChild: false,
+                                  childPriceMultiplier: 0.7
+                                };
+                                
+                                if (passengerConfig.allowChildren === false) return null;
+                                
+                                return (
+                                  <div className="flex items-center justify-between bg-amber-50 rounded-lg p-3 border border-amber-200">
+                                      <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                                              <User className="text-amber-600" size={16}/>
+                                          </div>
+                                          <div>
+                                              <p className="text-sm font-bold text-gray-900">Crianças</p>
+                                              <p className="text-xs text-gray-500">
+                                                  Menores de {passengerConfig.childAgeLimit || 12} anos
+                                              </p>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          <button 
+                                              onClick={() => setChildren(Math.max(0, children - 1))} 
+                                              className="w-7 h-7 rounded-full bg-white border border-amber-300 flex items-center justify-center hover:bg-amber-100 text-sm font-bold transition-colors"
+                                          >
+                                              -
+                                          </button>
+                                          <span className="font-bold text-gray-900 w-6 text-center">{children}</span>
+                                          <button 
+                                              onClick={() => setChildren(children + 1)} 
+                                              className="w-7 h-7 rounded-full bg-white border border-amber-300 flex items-center justify-center hover:bg-amber-100 text-sm font-bold transition-colors"
+                                          >
+                                              +
+                                          </button>
+                                      </div>
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Resumo */}
+                              {totalPassengers > 0 && (
+                                  <div className="pt-2 border-t border-gray-200">
+                                      <div className="flex items-center justify-between text-xs">
+                                          <span className="text-gray-600">Total de passageiros:</span>
+                                          <span className="font-bold text-gray-900">{totalPassengers}</span>
+                                      </div>
+                                  </div>
+                              )}
                           </div>
                       </div>
 
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Total ({passengers}x)</span>
-                          <span className="font-bold text-gray-900">R$ {(trip.price * passengers).toLocaleString('pt-BR')}</span>
+                      <div className="space-y-2 pt-2 border-t border-gray-200">
+                          {(() => {
+                            // Get passenger config with defaults
+                            const passengerConfig = trip.passengerConfig || {
+                              allowChildren: trip.allowChildren !== false,
+                              allowSeniors: true,
+                              childAgeLimit: 12,
+                              allowLapChild: false,
+                              childPriceMultiplier: 0.7
+                            };
+                            const childPriceMultiplier = passengerConfig.childPriceMultiplier || 0.7;
+                            const adultPrice = trip.price * adults;
+                            const childPrice = trip.price * childPriceMultiplier * children;
+                            const totalPrice = adultPrice + childPrice;
+                            
+                            return (
+                              <>
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-gray-600">Adultos ({adults}x)</span>
+                                  <span className="font-bold text-gray-900">R$ {adultPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                {children > 0 && (
+                                  <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-600">Crianças ({children}x)</span>
+                                    <span className="font-bold text-amber-600">R$ {childPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                  <span className="text-gray-900 font-bold">Total</span>
+                                  <span className="font-bold text-lg text-primary-600">
+                                    R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </>
+                            );
+                          })()}
                       </div>
                   </div>
 
@@ -587,11 +735,20 @@ const TripDetails: React.FC = () => {
           isOpen={showPassengerModal}
           onClose={() => setShowPassengerModal(false)}
           onConfirm={handlePassengerDataConfirm}
-          passengerCount={passengers}
+          passengerCount={totalPassengers}
+          adultsCount={adults}
+          childrenCount={children}
           mainPassengerName={user.name || ''}
           mainPassengerCpf={currentUserData?.cpf}
           mainPassengerPhone={currentUserData?.phone}
           mainPassengerBirthDate={currentUserData?.birthDate}
+          passengerConfig={trip.passengerConfig || {
+            allowChildren: trip.allowChildren !== false,
+            allowSeniors: true,
+            childAgeLimit: 12,
+            allowLapChild: false,
+            childPriceMultiplier: 0.7
+          }}
         />
       )}
     </div>

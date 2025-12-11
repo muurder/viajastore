@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Calendar, Phone, CreditCard, ArrowRight } from 'lucide-react';
-import { PassengerDetail } from '../types';
+import { X, User, Calendar, Phone, CreditCard, ArrowRight, Baby } from 'lucide-react';
+import { PassengerDetail, PassengerConfig } from '../types';
+import { updatePassengerType, calculatePassengerType, getDefaultPassengerConfig } from '../utils/passengerUtils';
 
 interface PassengerDataModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (passengers: PassengerDetail[]) => void;
   passengerCount: number;
+  adultsCount?: number;
+  childrenCount?: number;
   mainPassengerName: string;
   mainPassengerCpf?: string;
   mainPassengerPhone?: string;
   mainPassengerBirthDate?: string;
+  passengerConfig?: PassengerConfig; // Configurações da viagem
 }
 
 export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
@@ -18,40 +22,60 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
   onClose,
   onConfirm,
   passengerCount,
+  adultsCount = 1,
+  childrenCount = 0,
   mainPassengerName,
   mainPassengerCpf,
   mainPassengerPhone,
-  mainPassengerBirthDate
+  mainPassengerBirthDate,
+  passengerConfig
 }) => {
+  const config = passengerConfig || getDefaultPassengerConfig();
   const [passengers, setPassengers] = useState<PassengerDetail[]>([]);
   const [errors, setErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (isOpen) {
-      // Initialize with main passenger data
+      // Initialize with main passenger data (always first, always adult)
       const initialPassengers: PassengerDetail[] = [
         {
           name: mainPassengerName,
           document: mainPassengerCpf || '',
           phone: mainPassengerPhone || '',
-          birthDate: mainPassengerBirthDate || ''
+          birthDate: mainPassengerBirthDate || '',
+          type: 'adult'
         },
-        // Add empty forms for additional passengers
-        ...Array.from({ length: passengerCount - 1 }, () => ({
+        // Add adults (excluding main passenger)
+        ...Array.from({ length: adultsCount - 1 }, () => ({
           name: '',
           document: '',
           phone: '',
-          birthDate: ''
+          birthDate: '',
+          type: 'adult' as const
+        })),
+        // Add children
+        ...Array.from({ length: childrenCount }, () => ({
+          name: '',
+          document: '',
+          phone: '',
+          birthDate: '',
+          type: 'child' as const
         }))
       ];
       setPassengers(initialPassengers);
       setErrors({});
     }
-  }, [isOpen, passengerCount, mainPassengerName, mainPassengerCpf, mainPassengerPhone, mainPassengerBirthDate]);
+  }, [isOpen, passengerCount, adultsCount, childrenCount, mainPassengerName, mainPassengerCpf, mainPassengerPhone, mainPassengerBirthDate]);
 
   const handleInputChange = (index: number, field: keyof PassengerDetail, value: string) => {
     const updated = [...passengers];
     updated[index] = { ...updated[index], [field]: value };
+    
+    // If birthDate changed, recalculate type and age using trip's age limit
+    if (field === 'birthDate' && value) {
+      updated[index] = updatePassengerType(updated[index], config.childAgeLimit);
+    }
+    
     setPassengers(updated);
     
     // Clear error for this field
@@ -87,7 +111,14 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onConfirm(passengers);
+      // Ensure all passengers have their type calculated before submitting
+      const passengersWithTypes = passengers.map(p => {
+        if (p.birthDate && !p.type) {
+          return updatePassengerType(p, config.childAgeLimit);
+        }
+        return p;
+      });
+      onConfirm(passengersWithTypes);
     }
   };
 
@@ -116,7 +147,8 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
           <div>
             <h2 className="text-2xl font-bold text-white">Dados dos Passageiros</h2>
             <p className="text-primary-100 text-sm mt-1">
-              Preencha os dados de todos os passageiros ({passengerCount} {passengerCount === 1 ? 'passageiro' : 'passageiros'})
+              Preencha os dados de todos os passageiros ({adultsCount} {adultsCount === 1 ? 'adulto' : 'adultos'}
+              {childrenCount > 0 && ` + ${childrenCount} ${childrenCount === 1 ? 'criança' : 'crianças'}`})
             </p>
           </div>
           <button
@@ -129,18 +161,60 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
-            {passengers.map((passenger, index) => (
-              <div key={index} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+            {passengers.map((passenger, index) => {
+              const passengerType = calculatePassengerType(passenger, config.childAgeLimit);
+              const isChild = passengerType === 'child';
+              const isMain = index === 0;
+              
+              return (
+              <div key={index} className={`rounded-xl p-6 border-2 ${
+                isChild 
+                  ? 'bg-amber-50 border-amber-200' 
+                  : 'bg-gray-50 border-gray-200'
+              }`}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                    isChild 
+                      ? 'bg-amber-500 text-white' 
+                      : 'bg-primary-600 text-white'
+                  }`}>
                     {index + 1}
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900">
-                      {index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}
-                    </h3>
-                    {index === 0 && (
-                      <p className="text-xs text-gray-500">Você (cliente logado)</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-gray-900">
+                        {isMain ? 'Passageiro Principal' : `Acompanhante ${index}`}
+                      </h3>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 ${
+                        isChild
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {isChild ? (
+                          <>
+                            <Baby size={12} />
+                            Criança
+                          </>
+                        ) : (
+                          <>
+                            <User size={12} />
+                            Adulto
+                          </>
+                        )}
+                      </span>
+                      {passenger.age !== undefined && (
+                        <span className="text-xs text-gray-500">
+                          ({passenger.age} {passenger.age === 1 ? 'ano' : 'anos'})
+                        </span>
+                      )}
+                    </div>
+                    {isMain && (
+                      <p className="text-xs text-gray-500 mt-0.5">Você (cliente logado)</p>
+                    )}
+                    {!isMain && passenger.type && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {isChild ? 'Menor de 12 anos' : '12 anos ou mais'}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -204,6 +278,14 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                       />
                     </div>
+                    {passenger.birthDate && passenger.age !== undefined && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {passenger.age < 12 
+                          ? `✓ Classificado como criança (${passenger.age} ${passenger.age === 1 ? 'ano' : 'anos'})`
+                          : `✓ Classificado como adulto (${passenger.age} ${passenger.age === 1 ? 'ano' : 'anos'})`
+                        }
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -227,7 +309,8 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">

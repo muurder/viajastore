@@ -245,8 +245,23 @@ const SubscriptionConfirmationModal: React.FC<{
   
   // PIX Configuration
   const PIX_KEY = '401.334.708-30';
-  const PIX_BENEFICIARY = 'Juan Galindo';
+  const PIX_BENEFICIARY = 'Juan Nicolas Galindo Primo';
   const WHATSAPP_NUMBER = '5511987697684';
+  
+  // Nubank PIX Links by Plan
+  const NUBANK_PIX_LINKS: Record<string, string> = {
+    'BASIC': 'https://nubank.com.br/cobrar/43zc9/693a4b0c-9628-4b2a-8cc3-a2606154b8ac', // R$ 59,90
+    'PREMIUM': 'https://nubank.com.br/cobrar/43zc9/693a4ae6-28e1-4e55-ba8d-e52d3a7ffbd0', // R$ 99,90
+  };
+  
+  // Get Nubank link for current plan
+  const nubankLink = NUBANK_PIX_LINKS[plan.id] || '';
+  const hasNubankLink = !!nubankLink;
+  
+  // QR Code: Use Nubank link if available, otherwise generate from PIX key
+  const qrCodeUrl = hasNubankLink 
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(nubankLink)}`
+    : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(PIX_KEY)}`;
   
   const handleCopyPixKey = async () => {
     try {
@@ -304,8 +319,31 @@ const SubscriptionConfirmationModal: React.FC<{
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 mb-3">
                 <QrCode size={20} className="text-green-600"/>
-                <span className="text-sm font-bold text-green-700 uppercase tracking-wide">Chave PIX (CPF)</span>
+                <span className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                  {hasNubankLink ? 'Pagamento via Nubank' : 'Chave PIX (CPF)'}
+                </span>
               </div>
+              
+              {/* QR Code Section */}
+              {hasNubankLink && (
+                <div className="bg-white rounded-lg p-4 border border-green-200 flex flex-col items-center gap-3">
+                  <img 
+                    src={qrCodeUrl} 
+                    alt="QR Code PIX Nubank" 
+                    className="w-40 h-40 rounded-lg"
+                  />
+                  <button
+                    onClick={() => window.open(nubankLink, '_blank')}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <QrCode size={16} className="text-white"/>
+                    Abrir QR Code
+                  </button>
+                  <p className="text-xs text-gray-500 text-center">
+                    Clique no botão para abrir o QR Code
+                  </p>
+                </div>
+              )}
               
               <div className="bg-white rounded-lg p-4 border border-green-200">
                 <div className="flex items-center justify-between gap-3">
@@ -431,7 +469,6 @@ interface BookingDetailsViewProps {
     bookings: Booking[];
     clients: any[];
 }
-
 const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clients }) => {
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
@@ -901,7 +938,6 @@ const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clien
         </>
     );
 };
-
 const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
@@ -1356,7 +1392,6 @@ interface TransportManagerProps {
     clients: any[]; 
     onSave: (data: OperationalData) => void; 
 }
-
 const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, clients, onSave }) => {
     // Legacy support: Check for old structure
     const legacyTransport = trip.operationalData?.transport;
@@ -2004,7 +2039,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         setPassengerEditId(null);
         showToast('Dados do passageiro salvos.', 'success');
     };
-
     const handleDeletePassenger = () => {
         if (!passengerToDelete) return;
         
@@ -2374,8 +2408,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                         }
                                         
                                         // Ensure we always have a valid name
-                                        if (!passengerName) {
-                                            // Last resort: use the name from p.name or a default
+                                        if (!passengerName || passengerName.trim() === '') {
+                                            console.warn('[TransportManager] Warning: passengerName is empty, using fallback');
                                             passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                                         }
                                         
@@ -2390,12 +2424,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                             isAccompaniment: p.isAccompaniment,
                                             passengerIndex: p.passengerIndex
                                         });
-                                        
-                                        // Ensure passengerName is never empty before setting
-                                        if (!passengerName || passengerName.trim() === '') {
-                                            console.warn('[TransportManager] Warning: passengerName is empty, using fallback');
-                                            passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                                        }
                                         
                                         setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                     }
@@ -2488,7 +2516,6 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                 </div>
                 <div className="p-3 bg-gray-50 border-t text-[10px] text-gray-400 text-center">Arraste para o assento ou clique para selecionar.</div>
             </aside>
-
             {/* Main Content Area - Vehicle Management */}
             <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
                 
@@ -3056,7 +3083,6 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
             {label}
         </button>
     );
-
     return (
         <div className="flex flex-col h-full overflow-hidden bg-white">
             <ConfirmDialog isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os passageiros voltarão para a lista." variant="danger" />
@@ -3205,8 +3231,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                             }
                                             
                                             // Ensure we always have a valid name
-                                            if (!passengerName) {
-                                                // Last resort: use the name from p.name or a default
+                                            if (!passengerName || passengerName.trim() === '') {
+                                                console.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
                                                 passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
                                             }
                                             
@@ -3221,12 +3247,6 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                                 isAccompaniment: p.isAccompaniment,
                                                 passengerIndex: p.passengerIndex
                                             });
-                                            
-                                            // Ensure passengerName is never empty before setting
-                                            if (!passengerName || passengerName.trim() === '') {
-                                                console.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
-                                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                                            }
                                             
                                             setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
                                         }
@@ -3370,7 +3390,6 @@ interface OperationsModuleProps {
     onSaveTripData: (tripId: string, data: OperationalData) => void;
     currentAgency: Agency;
 }
-
 const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency }) => {
     const selectedTrip = myTrips.find(t => t.id === selectedTripId);
     const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
@@ -4009,7 +4028,6 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
     };
 
     const tripBookings = selectedTrip ? myBookings.filter(b => b.tripId === selectedTripId) : [];
-
     return (
         <div className="flex h-full overflow-hidden bg-white relative">
             <ConfirmDialog 
@@ -4297,7 +4315,6 @@ const AgencyDashboard: React.FC = () => {
       name: '', description: '', whatsapp: '', phone: '', website: '', 
       address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
       bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, 
-      logo: '', // FIX: Added default for logo to avoid undefined issues
       slug: '', // FIX: Added default for slug
       is_active: false, // FIX: Added default for is_active
       heroMode: 'TRIPS', // FIX: Added default
@@ -4346,19 +4363,22 @@ const AgencyDashboard: React.FC = () => {
       return matchesSearch && matchesStatus;
   });
   
+  // Track trip IDs to detect changes
+  const tripIdsString = useMemo(() => myTrips.map(t => t.id).sort().join(','), [myTrips]);
+  
   // FIX: Load images for trips that don't have them yet
   useEffect(() => {
       if (myTrips.length > 0 && fetchTripImages) {
           myTrips.forEach(trip => {
-              // Only fetch if images array is empty or invalid
-              if (!trip.images || trip.images.length === 0) {
-                  fetchTripImages(trip.id).catch(err => {
-                      console.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
-                  });
-              }
+              // Always fetch images to ensure they're up to date after creation/editing
+              // Force refresh if trip has no images (newly created/edited)
+              const forceRefresh = !trip.images || trip.images.length === 0;
+              fetchTripImages(trip.id, forceRefresh).catch(err => {
+                  console.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
+              });
           });
       }
-  }, [myTrips.length, fetchTripImages]); // Only re-run when trip count changes
+  }, [tripIdsString, fetchTripImages]); // Re-run when trip IDs change (new trips added/removed)
 
   useEffect(() => { 
     if (currentAgency) { 
@@ -4369,10 +4389,9 @@ const AgencyDashboard: React.FC = () => {
             phone: currentAgency.phone || '', 
             website: currentAgency.website || '', 
             slug: currentAgency.slug || '',
-            logo: currentAgency.logo || '',
+            logo: currentAgency.logo || '', // Include logo in form initialization
             address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
             bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, 
-            logo: currentAgency.logo 
         }); 
         setHeroForm({ 
             heroMode: currentAgency.heroMode || 'TRIPS', 
@@ -4640,7 +4659,6 @@ const AgencyDashboard: React.FC = () => {
           setIsSendingReply(null);
       }
   };
-
   // Render Plan Tab Content
   const renderPlanTab = () => {
       const today = new Date();
@@ -4682,15 +4700,11 @@ const AgencyDashboard: React.FC = () => {
                               <ul className="space-y-2 text-sm text-gray-600">
                                   <li className="flex items-center gap-2">
                                       <Check size={16} className="text-green-500 flex-shrink-0" />
-                                      <span><strong>Gestão de Frota Visual:</strong> Visualize e gerencie assentos de ônibus em tempo real</span>
+                                      <span><strong>Plano Básico (R$ 59,90):</strong> 5 viagens, suporte WhatsApp e Email</span>
                                   </li>
                                   <li className="flex items-center gap-2">
                                       <Check size={16} className="text-green-500 flex-shrink-0" />
-                                      <span><strong>Mapa de Assentos/Quartos:</strong> Controle total sobre ocupação e distribuição</span>
-                                  </li>
-                                  <li className="flex items-center gap-2">
-                                      <Check size={16} className="text-green-500 flex-shrink-0" />
-                                      <span><strong>Viagens Ilimitadas:</strong> Publique quantas viagens quiser</span>
+                                      <span><strong>Plano Premium (R$ 99,90):</strong> Viagens ilimitadas, gestão de frota, suporte 24/7</span>
                                   </li>
                               </ul>
                           </div>
@@ -5037,7 +5051,14 @@ const AgencyDashboard: React.FC = () => {
       {isEditingTrip && (
           <CreateTripWizard 
               onClose={() => { setIsEditingTrip(false); setEditingTripId(null); setTripForm({}); }} 
-              onSuccess={() => { setIsEditingTrip(false); setEditingTripId(null); setTripForm({}); handleTabChange('TRIPS'); }} 
+              onSuccess={async () => { 
+                setIsEditingTrip(false); 
+                setEditingTripId(null); 
+                setTripForm({}); 
+                // Refresh data to load new/updated trip with images
+                await refreshData();
+                handleTabChange('TRIPS');
+              }} 
               initialTripData={editingTripId ? myTrips.find(t => t.id === editingTripId) : undefined}
           />
       )}
@@ -5139,7 +5160,6 @@ const AgencyDashboard: React.FC = () => {
             </div>
         </div>
       )}
-
       {activeTab === 'TRIPS' && (
         <div className="space-y-6 animate-[fadeIn_0.3s]">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -5422,8 +5442,24 @@ const AgencyDashboard: React.FC = () => {
                   <div className="mb-6">
                       <label className="block text-sm font-bold text-gray-700 mb-2">Logo da Agência</label>
                       <div className="flex items-center gap-4">
-                          {profileForm.logo && (
-                              <img src={profileForm.logo} alt="Logo" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
+                          {(profileForm.logo || currentAgency?.logo) && (
+                              <div className="relative">
+                                  <img 
+                                      src={profileForm.logo || currentAgency?.logo} 
+                                      alt="Logo" 
+                                      className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm" 
+                                  />
+                                  {profileForm.logo && (
+                                      <button
+                                          type="button"
+                                          onClick={() => setProfileForm(prev => ({ ...prev, logo: '' }))}
+                                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                          title="Remover logo"
+                                      >
+                                          <X size={12} />
+                                      </button>
+                                  )}
+                              </div>
                           )}
                           <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                               {loading ? (
@@ -5448,10 +5484,10 @@ const AgencyDashboard: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website / Redes Sociais</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://instagram.com/suaagencia ou https://facebook.com/suaagencia" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website / Redes Sociais</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://instagram.com/suaagencia ou https://facebook.com/suaagencia" /></div>
                       
                       <div className="md:col-span-2">
                         <label className="block text-sm font-bold text-gray-700 mb-1">Link do seu Site (Slug)</label>
@@ -5462,7 +5498,7 @@ const AgencyDashboard: React.FC = () => {
                             <input 
                                 value={profileForm.slug || ''} 
                                 onChange={e => setProfileForm({...profileForm, slug: slugify(e.target.value)})} 
-                                className="flex-1 min-w-0 block w-full px-3 py-2.5 rounded-none rounded-r-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                                className="flex-1 min-w-0 block w-full px-3 py-2.5 bg-white text-gray-900 rounded-none rounded-r-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 sm:text-sm outline-none"
                                 placeholder="minha-agencia"
                             />
                         </div>
@@ -5471,7 +5507,7 @@ const AgencyDashboard: React.FC = () => {
 
                       <div className="md:col-span-2">
                           <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Curta</label>
-                          <textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Fale um pouco sobre sua agência..." />
+                          <textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Fale um pouco sobre sua agência..." />
                       </div>
                   </div>
                   <div className="border-t pt-6">
@@ -5479,7 +5515,7 @@ const AgencyDashboard: React.FC = () => {
                       <div className="space-y-4">
                           <div>
                               <label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label>
-                              <select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer">
+                              <select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer">
                                   <option value="TRIPS">Carrossel de Viagens</option>
                                   <option value="STATIC">Imagem Estática</option>
                               </select>
@@ -5502,8 +5538,8 @@ const AgencyDashboard: React.FC = () => {
                                           </label>
                                       </div>
                                   </div>
-                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Hero</label><input value={heroForm.heroTitle || ''} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Bem-vindo à Sua Agência" /></div>
-                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Hero</label><textarea value={heroForm.heroSubtitle || ''} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={2} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="As melhores experiências esperam por você!" /></div>
+                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Hero</label><input value={heroForm.heroTitle || ''} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Bem-vindo à Sua Agência" /></div>
+                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Hero</label><textarea value={heroForm.heroSubtitle || ''} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={2} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="As melhores experiências esperam por você!" /></div>
                               </div>
                           )}
                       </div>

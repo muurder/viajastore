@@ -79,6 +79,21 @@ export interface Admin extends User {
   role: UserRole.ADMIN;
 }
 
+// Platform Settings (Whitelabel)
+export interface PlatformSettings {
+  id: number;
+  platform_name: string;
+  platform_logo_url: string | null;
+  maintenance_mode: boolean;
+  layout_style?: 'rounded' | 'square' | 'minimal';
+  background_color?: string;
+  background_blur?: boolean;
+  background_transparency?: number;
+  default_settings?: any; // JSON snapshot of default values
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type TripCategory = 
   | 'PRAIA' 
   | 'AVENTURA' 
@@ -161,6 +176,8 @@ export interface PassengerDetail {
     phone?: string;
     birthDate?: string; // Data de nascimento
     whatsapp?: string; // WhatsApp (pode ser diferente do phone)
+    type?: 'adult' | 'child'; // Tipo calculado automaticamente pela data de nascimento (12 anos = limite)
+    age?: number; // Idade calculada
 }
 
 export interface Guest {
@@ -180,6 +197,14 @@ export interface HotelInstance {
     id: string;
     name: string;
     rooms: RoomConfig[];
+}
+
+export interface PassengerConfig {
+    allowChildren: boolean; // Se a viagem aceita crianças
+    allowSeniors: boolean; // Se a viagem aceita idosos
+    childAgeLimit: number; // Idade limite para ser considerado criança (padrão: 12)
+    allowLapChild: boolean; // Se permite criança no colo (sem assento próprio)
+    childPriceMultiplier: number; // Multiplicador de preço para crianças (padrão: 0.7 = 70% do preço)
 }
 
 export interface OperationalData {
@@ -226,7 +251,8 @@ export interface Trip {
   latitude?: number;
   longitude?: number;
   maxGuests?: number;
-  allowChildren?: boolean;
+  allowChildren?: boolean; // Deprecated - usar passengerConfig.allowChildren
+  passengerConfig?: PassengerConfig; // Configurações de passageiros definidas pela agência
 }
 
 export interface Booking {
@@ -353,6 +379,7 @@ export enum ActivityActionType {
     DELETE_USER = 'DELETE_USER',
     DELETE_MULTIPLE_USERS = 'DELETE_MULTIPLE_USERS',
     DELETE_MULTIPLE_AGENCIES = 'DELETE_MULTIPLE_AGENCIES',
+    UPDATE_SETTINGS = 'UPDATE_SETTINGS',
 }
 
 export interface ActivityLog {

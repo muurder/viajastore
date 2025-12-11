@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { UserRole, Booking, Address, AgencyReview, Agency, Trip } from '../types';
 import { TripCard } from '../components/TripCard';
 import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass } from 'lucide-react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
 import { slugify } from '../utils/slugify';
@@ -40,7 +40,7 @@ const getRandomGreeting = (userName: string) => {
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading, reloadUser } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData, getPublicTrips, trips } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData, getPublicTrips, trips, updateClientProfile } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -57,12 +57,27 @@ const ClientDashboard: React.FC = () => {
   const navigate = useNavigate();
 
   const { agencySlug, tab } = useParams<{ agencySlug?: string; tab?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const impersonateClientId = searchParams.get('impersonate');
   const activeTab = tab ? tab.toUpperCase() : 'PROFILE';
   
   const isMicrositeMode = !!agencySlug;
 
+  // Impersonate logic: if admin is impersonating, use that client's data
+  const impersonatedClient = impersonateClientId ? clients.find(c => c.id === impersonateClientId) : null;
+  const isImpersonating = !!impersonateClientId && user?.role === 'ADMIN';
+
+  // Ensure impersonate parameter is preserved when navigating
+  useEffect(() => {
+    if (isImpersonating && impersonateClientId && !searchParams.get('impersonate')) {
+      setSearchParams({ impersonate: impersonateClientId }, { replace: true });
+    }
+  }, [isImpersonating, impersonateClientId, searchParams, setSearchParams]);
+
   // Ensure user is defined before accessing its id or role
-  const dataContextClient = user ? clients.find(c => c.id === user.id) : undefined;
+  const dataContextClient = isImpersonating && impersonatedClient 
+    ? impersonatedClient 
+    : (user ? clients.find(c => c.id === user.id) : undefined);
   const currentClient = dataContextClient || (user as any); // Fallback to basic user if dataContextClient is undefined
 
   // Fix: Initialize with empty defaults, will be populated by useEffect
@@ -140,12 +155,15 @@ const ClientDashboard: React.FC = () => {
   }, [authLoading, user?.role, handleRefresh]); // Only depend on authLoading and role, not whole user object
   // --- END Data Reactivity Fix ---
 
-  // Generate greeting on mount
+  // Generate greeting on mount - use impersonated client name if impersonating
   useEffect(() => {
-    if (user?.name) {
-      setGreeting(getRandomGreeting(user.name.split(' ')[0]));
+    const nameToUse = isImpersonating && impersonatedClient?.name 
+      ? impersonatedClient.name 
+      : user?.name;
+    if (nameToUse) {
+      setGreeting(getRandomGreeting(nameToUse.split(' ')[0]));
     }
-  }, [user?.name]);
+  }, [user?.name, isImpersonating, impersonatedClient?.name]);
 
   // Load and shuffle suggested trips
   useEffect(() => {
@@ -182,10 +200,10 @@ const ClientDashboard: React.FC = () => {
       const agencyUser = user as Agency;
       const slug = agencyUser.slug || slugify(agencyUser.name);
       navigate(`/${slug}`);
-    } else if (!authLoading && user && user.role !== UserRole.CLIENT) {
+    } else if (!authLoading && user && user.role !== UserRole.CLIENT && !isImpersonating) {
       navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
     }
-  }, [user, authLoading, isMicrositeMode, agencySlug, navigate]);
+  }, [user, authLoading, isMicrositeMode, agencySlug, navigate, isImpersonating]);
   
   useEffect(() => {
     if(editingReview) {
@@ -243,13 +261,15 @@ const ClientDashboard: React.FC = () => {
     fetchPassengers();
   }, [selectedBooking]);
 
-  if (authLoading || !user || user.role !== UserRole.CLIENT) {
+  // Allow access if user is CLIENT or ADMIN impersonating a client
+  if (authLoading || !user || (user.role !== UserRole.CLIENT && !isImpersonating)) {
     return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
   }
 
-  // Use up-to-date values from DataContext
-  const myBookings = bookings.filter(b => b.clientId === user.id);
-  const myReviews = getReviewsByClientId(user.id);
+  // Use up-to-date values from DataContext - use impersonated client ID if impersonating
+  const effectiveClientId = isImpersonating && impersonatedClient ? impersonatedClient.id : user.id;
+  const myBookings = bookings.filter(b => b.clientId === effectiveClientId);
+  const myReviews = getReviewsByClientId(effectiveClientId);
   
   const favoriteIds = currentClient?.favorites || [];
   const favoriteTrips = favoriteIds.map((id: string) => getTripById(id)).filter((t: Trip | undefined) => t !== undefined) as Trip[]; // Cast to Trip[]
@@ -264,8 +284,16 @@ const ClientDashboard: React.FC = () => {
       setUploading(true);
       const url = await uploadImage(e.target.files[0], 'avatars');
       if (url) {
-          await updateUser({ avatar: url });
-          showToast('Foto de perfil atualizada!', 'success');
+          if (isImpersonating && impersonatedClient) {
+            // If admin is impersonating, use updateClientProfile to update the impersonated client
+            await updateClientProfile(impersonatedClient.id, { avatar: url });
+            showToast('Foto de perfil atualizada!', 'success');
+            await refreshAllData(); // Refresh to show updated avatar
+          } else {
+            // Normal user update
+            await updateUser({ avatar: url });
+            showToast('Foto de perfil atualizada!', 'success');
+          }
       } else {
         showToast('Erro ao fazer upload da foto.', 'error');
       }
@@ -312,32 +340,51 @@ const ClientDashboard: React.FC = () => {
     isSavingRef.current = true; // Set flag immediately to prevent refresh loops
     
     try {
-      const res = await updateUser({ 
-          name: editForm.name, 
+      if (isImpersonating && impersonatedClient) {
+        // If admin is impersonating, use updateClientProfile to update the impersonated client
+        await updateClientProfile(impersonatedClient.id, {
+          name: editForm.name,
           email: editForm.email,
           phone: editForm.phone,
           cpf: editForm.cpf,
           birthDate: editForm.birthDate,
           address: addressForm
-      });
-      
-      if (res.success) {
+        });
         showToast('Perfil atualizado com sucesso!', 'success');
-        // Reload user data to refresh the form with updated values
-        // Use a small delay to let the DB update propagate
+        // Refresh data to show updated values
         setTimeout(async () => {
-          if (user) {
-            // Force refresh of DataContext first to get updated client data
-            await refreshAllData();
-            // Then reload user from AuthContext
-            await reloadUser(user);
-          }
-          // Reset flag after reload completes
+          await refreshAllData();
           isSavingRef.current = false;
         }, 500);
       } else {
-        showToast('Erro ao atualizar: ' + (res.error || 'Erro desconhecido'), 'error');
-        isSavingRef.current = false;
+        // Normal user update
+        const res = await updateUser({ 
+            name: editForm.name, 
+            email: editForm.email,
+            phone: editForm.phone,
+            cpf: editForm.cpf,
+            birthDate: editForm.birthDate,
+            address: addressForm
+        });
+        
+        if (res.success) {
+          showToast('Perfil atualizado com sucesso!', 'success');
+          // Reload user data to refresh the form with updated values
+          // Use a small delay to let the DB update propagate
+          setTimeout(async () => {
+            if (user) {
+              // Force refresh of DataContext first to get updated client data
+              await refreshAllData();
+              // Then reload user from AuthContext
+              await reloadUser(user);
+            }
+            // Reset flag after reload completes
+            isSavingRef.current = false;
+          }, 500);
+        } else {
+          showToast('Erro ao atualizar: ' + (res.error || 'Erro desconhecido'), 'error');
+          isSavingRef.current = false;
+        }
       }
     } catch (error: any) {
       console.error('Error saving profile:', error);
@@ -502,11 +549,40 @@ const ClientDashboard: React.FC = () => {
             }
             y += 5;
           });
+        } else if (selectedBooking.passengerDetails && selectedBooking.passengerDetails.length > 0) {
+          // Use passengerDetails from booking if available
+          selectedBooking.passengerDetails.forEach((passenger: any, index: number) => {
+            if (y > 250) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
+            doc.setFont('helvetica', 'normal');
+            y += 7;
+            doc.setFontSize(10);
+            doc.text(`Nome: ${passenger.name || '---'}`, 25, y);
+            y += 6;
+            if (passenger.document) {
+              doc.text(`CPF: ${passenger.document}`, 25, y);
+              y += 6;
+            }
+            if (passenger.birthDate) {
+              doc.text(`Data de Nascimento: ${new Date(passenger.birthDate).toLocaleDateString('pt-BR')}`, 25, y);
+              y += 6;
+            }
+            if (passenger.phone) {
+              doc.text(`WhatsApp: ${passenger.phone}`, 25, y);
+              y += 6;
+            }
+            y += 5;
+          });
         } else {
           // Fallback to main passenger info
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
-          doc.text(`Passageiro Principal: ${user.name}`, 25, y);
+          doc.text(`Passageiro Principal: ${currentClient?.name || user?.name || 'Cliente'}`, 25, y);
           y += 6;
           if (currentClient?.cpf) {
             doc.text(`CPF: ${currentClient.cpf}`, 25, y);
@@ -609,7 +685,20 @@ const ClientDashboard: React.FC = () => {
     }
   };
   
-  const getNavLink = (tab: string) => isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard/${tab}`;
+  // Helper to preserve impersonate parameter in links
+  const preserveImpersonate = (url: string) => {
+    if (isImpersonating && impersonateClientId) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}impersonate=${impersonateClientId}`;
+    }
+    return url;
+  };
+
+  const getNavLink = (tab: string) => {
+    const baseLink = isMicrositeMode ? `/${agencySlug}/client/${tab}` : `/client/dashboard/${tab}`;
+    // Preserve impersonate parameter if in impersonate mode
+    return preserveImpersonate(baseLink);
+  };
   const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
 
   // Helper for ReviewForm tags
@@ -625,6 +714,25 @@ const ClientDashboard: React.FC = () => {
 
   return (
     <div className="max-w-[1600px] mx-auto py-6">
+      {/* Admin Impersonate Banner */}
+      {isImpersonating && (
+        <div className="mb-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 rounded-xl shadow-lg border-2 border-amber-400 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
+            <div>
+              <p className="font-extrabold text-lg">👁️ Modo Admin - Visualização</p>
+              <p className="text-sm text-amber-100">Você está visualizando o painel como: <strong>{currentClient?.name || impersonatedClient?.name}</strong></p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/admin/dashboard?tab=USERS')}
+            className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-colors"
+          >
+            Voltar ao Admin
+          </button>
+        </div>
+      )}
+
       {!isMicrositeMode && <h1 className="text-3xl font-bold text-gray-900 mb-8">Minha Área</h1>}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -633,14 +741,18 @@ const ClientDashboard: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="bg-gradient-to-br from-primary-600 to-blue-400 p-6 rounded-2xl shadow-xl border border-primary-500 text-white text-center mb-6 relative">
              <div className="relative w-24 h-24 mx-auto mb-4 border-4 border-white rounded-full bg-gray-200 shadow-lg">
-                 <img src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}`} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                 <img 
+                   src={currentClient?.avatar || `https://ui-avatars.com/api/?name=${currentClient?.name || user?.name || 'Cliente'}`} 
+                   alt={currentClient?.name || user?.name || 'Cliente'} 
+                   className="w-full h-full rounded-full object-cover" 
+                 />
                  <label className="absolute bottom-0 right-0 bg-white text-primary-600 p-2 rounded-full cursor-pointer hover:bg-gray-100 shadow-md transition-transform hover:scale-110 border border-gray-200">
                      <Camera size={14} />
                      <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
                  </label>
                  {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-full"><div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>}
              </div>
-             <h2 className="text-xl font-bold truncate">{user.name}</h2>
+             <h2 className="text-xl font-bold truncate">{currentClient?.name || user?.name || 'Cliente'}</h2>
              <p className="text-sm text-primary-100 font-light truncate">{greeting}</p> {/* Dynamic Greeting */}
           </div>
 
@@ -979,7 +1091,7 @@ const ClientDashboard: React.FC = () => {
                 <div className="p-8">
                     <div className="text-center mb-6">
                         <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
-                        <p className="font-bold text-gray-900 text-lg">{user.name}</p>
+                        <p className="font-bold text-gray-900 text-lg">{currentClient?.name || user?.name || 'Cliente'}</p>
                         <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
                         <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
                     </div>

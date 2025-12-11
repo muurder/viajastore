@@ -15,11 +15,23 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ plan, agency, onC
   
   // PIX Configuration
   const PIX_KEY = '401.334.708-30';
-  const PIX_BENEFICIARY = 'Juan Galindo';
+  const PIX_BENEFICIARY = 'Juan Nicolas Galindo Primo';
   const WHATSAPP_NUMBER = '5511987697684';
   
-  // Generate QR Code URL
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(PIX_KEY)}`;
+  // Nubank PIX Links by Plan
+  const NUBANK_PIX_LINKS: Record<string, string> = {
+    'BASIC': 'https://nubank.com.br/cobrar/43zc9/693a4b0c-9628-4b2a-8cc3-a2606154b8ac', // R$ 59,90
+    'PREMIUM': 'https://nubank.com.br/cobrar/43zc9/693a4ae6-28e1-4e55-ba8d-e52d3a7ffbd0', // R$ 99,90
+  };
+  
+  // Get Nubank link for current plan
+  const nubankLink = NUBANK_PIX_LINKS[plan.id] || '';
+  const hasNubankLink = !!nubankLink;
+  
+  // QR Code: Use Nubank link if available, otherwise generate from PIX key
+  const qrCodeUrl = hasNubankLink 
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(nubankLink)}`
+    : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(PIX_KEY)}`;
   
   const formatPrice = (price: number) => {
     if (price === 0) return 'Grátis';
@@ -89,8 +101,20 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ plan, agency, onC
                 />
               </div>
               
+              {hasNubankLink && (
+                <button
+                  onClick={() => window.open(nubankLink, '_blank')}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 text-sm"
+                >
+                  <QrCode size={18} className="text-white"/>
+                  Abrir QR Code
+                </button>
+              )}
+              
               <p className="text-xs text-gray-500 text-center">
-                Escaneie o QR Code com o app do seu banco para pagar
+                {hasNubankLink 
+                  ? 'Clique no botão acima para abrir o QR Code ou escaneie com o app do seu banco'
+                  : 'Escaneie o QR Code com o app do seu banco para pagar'}
               </p>
             </div>
             

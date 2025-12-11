@@ -8,29 +8,30 @@ export const PLANS: Plan[] = [
     name: 'Starter', 
     price: 0, 
     features: [
-      '1 Viagem Ativa',
-      'Página Web Básica'
+      '2 Viagens Ativas',
+      'Página Dedicada'
     ] 
   },
   { 
     id: 'BASIC', 
     name: 'Básico', 
-    price: 99.90, 
+    price: 59.90, 
     features: [
       '5 Viagens Ativas',
-      'Personalização de Tema',
+      'Página Dedicada',
+      'Suporte por WhatsApp',
       'Suporte por Email'
     ] 
   },
   { 
     id: 'PREMIUM', 
     name: 'Premium', 
-    price: 199.90, 
+    price: 99.90, 
     features: [
       'Viagens Ilimitadas',
       'Gestão de Frota (Visual)',
       'Mapa de Assentos/Quartos',
-      'Destaque na Home',
+      'Painel Completo',
       'Suporte 24/7'
     ] 
   },

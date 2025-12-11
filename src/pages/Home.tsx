@@ -290,7 +290,7 @@ const Home: React.FC = () => {
                                 key={`hero-img-${trip.id}-${index}`}
                                 src={trip.images[0]}
                                 alt={trip.title} 
-                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'}`}
+                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'} blur-[2px]`}
                                 onError={(e) => { 
                                     // Hide image on error, placeholder will show
                                     e.currentTarget.style.display = 'none';

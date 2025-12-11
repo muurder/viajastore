@@ -139,18 +139,36 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
 
   // Apply suggested colors
   const applySuggestedColors = () => {
-    if (suggestedPalettes.length === 0 || selectedPaletteIndex < 0 || selectedPaletteIndex >= suggestedPalettes.length) return;
+    console.log('applySuggestedColors called', { suggestedPalettes, selectedPaletteIndex });
+    
+    if (suggestedPalettes.length === 0) {
+      console.warn('No suggested palettes available');
+      showToast('Nenhuma paleta disponível', 'error');
+      return;
+    }
+    
+    if (selectedPaletteIndex < 0 || selectedPaletteIndex >= suggestedPalettes.length) {
+      console.warn('Invalid palette index', selectedPaletteIndex);
+      showToast('Paleta selecionada inválida', 'error');
+      return;
+    }
     
     const selectedPalette = suggestedPalettes[selectedPaletteIndex];
+    console.log('Applying palette:', selectedPalette);
     
-    setThemeForm(prev => ({
-      ...prev,
-      colors: {
-        ...prev.colors!,
-        primary: selectedPalette.primary,
-        secondary: selectedPalette.secondary,
-      }
-    }));
+    setThemeForm(prev => {
+      const updated = {
+        ...prev,
+        colors: {
+          ...prev.colors!,
+          primary: selectedPalette.primary,
+          secondary: selectedPalette.secondary,
+        }
+      };
+      console.log('Updated themeForm:', updated);
+      return updated;
+    });
+    
     setShowColorSuggestion(false);
     showToast('Cores aplicadas! Ajuste se necessário e clique em Salvar.', 'success');
   };
@@ -385,14 +403,24 @@ export const AgencyThemeManager: React.FC<AgencyThemeManagerProps> = ({
           
           <div className="flex gap-3">
             <button
-              onClick={applySuggestedColors}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                applySuggestedColors();
+              }}
               className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2"
             >
               <Sparkles size={18} />
               Aplicar Cores
             </button>
             <button
-              onClick={() => setShowColorSuggestion(false)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowColorSuggestion(false);
+              }}
               className="bg-white border-2 border-gray-200 text-gray-700 px-6 py-2.5 rounded-lg font-bold hover:bg-gray-50 transition-colors"
             >
               Não, obrigado

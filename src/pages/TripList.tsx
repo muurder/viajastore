@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import TripListItem from '../components/TripListItem';
 import TripMap from '../components/TripMap';
-import AdvancedSearchBar from '../components/AdvancedSearchBar';
+import HeroSearch from '../components/HeroSearch';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin, Grid3x3, List, Map, Globe } from 'lucide-react';
 import { debounce } from '../utils/debounce';
@@ -330,53 +330,57 @@ export const TripList: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Premium Hero Section - FIX: z-index below header (z-50) so header stays on top when scrolling */}
-      <div className="relative rounded-3xl overflow-visible shadow-2xl min-h-[300px] flex items-center group mx-0 lg:mx-0 z-[30]">
-         {/* Background Image - FIX: Lower z-index to stay behind content */}
+      {/* Premium Hero Section - Imersivo como Home */}
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[500px] md:min-h-[600px] flex flex-col items-center justify-center group bg-gray-900 z-[30]">
+         {/* Background Image */}
          <div className="absolute inset-0 z-0">
             {headerImage ? (
                 <img 
                     src={headerImage}
                     alt="Background" 
-                    className="w-full h-full object-cover transition-transform duration-[20s] ease-linear scale-105 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-110 group-hover:scale-115 blur-[2px]"
                 />
             ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
             )}
-            {/* Gradient Overlay for Readability - FIX: Above background but below content */}
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-[1]"></div>
+            {/* Enhanced Gradient Overlay - Similar to Home */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90 z-[1]"></div>
          </div>
 
-         {/* Content - FIX: z-index below header (header is z-50) so header stays on top when scrolling */}
-         <div className="relative z-[40] w-full max-w-[1600px] mx-auto px-8 py-10 flex flex-col lg:flex-row justify-between items-center gap-8">
-             <div className="relative z-[41] flex-1 text-center lg:text-left">
+         {/* Main Content - Centered like Home */}
+         <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 flex-1 flex flex-col justify-center py-12 md:py-20">
+            {/* Centered Typography */}
+            <div className="text-center mb-8 md:mb-10 animate-[fadeInUp_0.8s_ease-out]">
                 {currentAgency && (
-                    <Link to={`/${currentAgency.slug}`} className="inline-flex items-center text-gray-300 hover:text-white text-sm mb-4 transition-colors font-medium backdrop-blur-sm bg-white/10 px-3 py-1 rounded-full border border-white/10">
-                        <ArrowLeft size={14} className="mr-1"/> Voltar para {currentAgency.name}
+                    <Link 
+                        to={`/${currentAgency.slug}`} 
+                        className="inline-flex items-center text-gray-200 hover:text-white text-sm mb-6 transition-colors font-medium backdrop-blur-sm bg-white/10 px-4 py-2 rounded-full border border-white/20 hover:bg-white/20"
+                    >
+                        <ArrowLeft size={14} className="mr-2"/> Voltar para {currentAgency.name}
                     </Link>
                 )}
                 
-                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 mb-3">
-                    {currentAgency?.logo && (
+                {currentAgency?.logo && (
+                    <div className="mb-6 flex justify-center">
                         <img 
                             src={currentAgency.logo} 
                             alt={currentAgency.name} 
-                            className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg object-cover"
+                            className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white/30 shadow-2xl object-cover"
                         />
-                    )}
-                    <div className="relative z-[42]">
-                        <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">
-                            {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
-                        </h1>
-                        <p className="text-gray-300 text-lg mt-2 font-light max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                            {currentAgency ? "Explore roteiros exclusivos selecionados para você." : "Centenas de destinos incríveis com as melhores tarifas do mercado."}
-                        </p>
                     </div>
-                </div>
-             </div>
+                )}
+                
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-white leading-tight mb-6 drop-shadow-2xl">
+                    {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
+                </h1>
+                <p className="text-lg md:text-xl lg:text-2xl text-gray-200 max-w-2xl mx-auto font-light leading-relaxed drop-shadow-lg">
+                    {currentAgency ? "Explore roteiros exclusivos selecionados para você." : "Centenas de destinos incríveis com as melhores tarifas do mercado."}
+                </p>
+            </div>
 
-             <div className="w-full lg:w-auto relative z-[45]">
-                <AdvancedSearchBar
+            {/* Hero Search Bar - Centered (from main page) */}
+            <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[100]">
+                <HeroSearch
                   initialDestination={q}
                   initialDateRange={{
                     start: startDateParam ? new Date(startDateParam) : null,
@@ -401,7 +405,7 @@ export const TripList: React.FC = () => {
                     setSearchParams(newParams);
                   }}
                 />
-             </div>
+            </div>
          </div>
       </div>
 
