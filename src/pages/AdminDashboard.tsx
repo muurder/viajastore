@@ -1030,7 +1030,7 @@ export const AdminDashboard: React.FC = () => {
     agencies, trips, clients, bookings, reviews, agencyReviews, auditLogs, platformRevenue, platformSettings,
     updateAgency, deleteMultipleAgencies, updateClient, deleteMultipleUsers,
     migrateData, isProcessing: isDataProcessing, refreshData, updatePlatformSettings, getAgencyStats,
-    adminChangePlan, updateUserAvatarByAdmin
+    adminChangePlan, adminSuspendAgency, updateUserAvatarByAdmin
   } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, loading: isThemeProcessing } = useTheme();
   const { showToast } = useToast();
@@ -1921,8 +1921,8 @@ export const AdminDashboard: React.FC = () => {
                       <p className="text-xl font-extrabold text-gray-900">R$ {averageTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                   </div>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[200px] min-h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                       <AreaChart data={revenueData}>
                         <defs>
                           <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">

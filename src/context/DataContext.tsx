@@ -623,12 +623,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sb = guardSupabase();
     if (sb && user?.id) {
         logger.log(`[DataContext] Logging activity: ${actionType} by user ${user.id}`, details);
-        await sb.from('activity_logs').insert({
-            user_id: user.id,
-            action_type: actionType,
-            details: details,
-        });
-        _fetchGlobalAndClientProfiles(); 
+        try {
+          await sb.from('activity_logs').insert({
+              user_id: user.id,
+              actor_email: user.email || 'unknown@example.com',
+              actor_role: user.role || 'CLIENT',
+              action_type: actionType,
+              details: details || {},
+          });
+          _fetchGlobalAndClientProfiles();
+        } catch (error: any) {
+          logger.error('[DataContext] Error logging activity:', error.message);
+          // Don't throw - activity logging should not break the app
+        }
     }
   }, [user, _fetchGlobalAndClientProfiles, guardSupabase]);
 
