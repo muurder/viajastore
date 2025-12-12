@@ -184,7 +184,14 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
               src={tripWithImages.images[0]} 
               alt={tripWithImages.title} 
               loading="lazy"
-              onError={() => setImgError(true)}
+              onError={(e) => {
+                setImgError(true);
+                // Fallback: try to hide broken image and show placeholder
+                const target = e.target as HTMLImageElement;
+                if (target) {
+                  target.style.display = 'none';
+                }
+              }}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
             />
             {/* Gradient overlay for better text readability */}

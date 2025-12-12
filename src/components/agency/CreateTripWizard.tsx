@@ -810,15 +810,41 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
           </div>
 
-          {/* Location Search with Google Maps */}
+          {/* Location Search with Google Maps - Fallback to Simple Input */}
           <div className="md:col-span-2">
-            <GoogleLocationPicker
-              value={locationQuery || tripData.destination || ''}
-              coordinates={locationCoords || (tripData.latitude && tripData.longitude ? { lat: tripData.latitude, lng: tripData.longitude } : null)}
-              onChange={handleLocationChange}
-              onCoordinatesChange={handleCoordinatesChange}
-              placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
-            />
+            {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+              <GoogleLocationPicker
+                value={locationQuery || tripData.destination || ''}
+                coordinates={locationCoords || (tripData.latitude && tripData.longitude ? { lat: tripData.latitude, lng: tripData.longitude } : null)}
+                onChange={handleLocationChange}
+                onCoordinatesChange={handleCoordinatesChange}
+                placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
+              />
+            ) : (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Localização <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={tripData.destination || ''}
+                    onChange={(e) => {
+                      setTripData({ ...tripData, destination: e.target.value });
+                      setLocationQuery(e.target.value);
+                    }}
+                    placeholder="Ex: Serrinha do Alambari, Resende"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  Google Maps não configurado. Digite o destino manualmente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
