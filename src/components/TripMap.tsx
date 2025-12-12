@@ -1,17 +1,10 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Trip } from '../types';
 import { Link } from 'react-router-dom';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { MapPin, Loader as LoaderIcon, AlertCircle } from 'lucide-react';
 
-// Fix for default marker icons in react-leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+// Lazy load Leaflet to avoid SSR issues
+const MapContent = React.lazy(() => import('./TripMapContent'));
 
 interface TripMapProps {
   trips: Trip[];
@@ -21,22 +14,6 @@ interface TripMapProps {
   zoom?: number;
 }
 
-// Component to update map view when highlighted trip changes
-const MapUpdater: React.FC<{ highlightedTrip: Trip | null }> = ({ highlightedTrip }) => {
-  const map = useMap();
-  
-  useEffect(() => {
-    if (highlightedTrip && highlightedTrip.latitude && highlightedTrip.longitude) {
-      map.setView([highlightedTrip.latitude, highlightedTrip.longitude], map.getZoom(), {
-        animate: true,
-        duration: 0.5
-      });
-    }
-  }, [highlightedTrip, map]);
-  
-  return null;
-};
-
 const TripMap: React.FC<TripMapProps> = ({ 
   trips, 
   highlightedTripId, 
@@ -44,9 +21,24 @@ const TripMap: React.FC<TripMapProps> = ({
   center = [-23.5505, -46.6333], // Default: São Paulo
   zoom = 6
 }) => {
+  const [mapError, setMapError] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure we're on client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   // Filter trips with valid coordinates
-  const tripsWithCoords = trips.filter(t => t.latitude !== undefined && t.longitude !== undefined);
-  
+  const tripsWithCoords = trips.filter(t => 
+    t.latitude !== undefined && 
+    t.longitude !== undefined &&
+    typeof t.latitude === 'number' &&
+    typeof t.longitude === 'number' &&
+    !isNaN(t.latitude) &&
+    !isNaN(t.longitude)
+  );
+
   // Calculate center from trips if available
   const calculatedCenter: [number, number] = tripsWithCoords.length > 0
     ? [
@@ -55,106 +47,63 @@ const TripMap: React.FC<TripMapProps> = ({
       ]
     : center;
 
-  const highlightedTrip = trips.find(t => t.id === highlightedTripId) || null;
+  // Loading fallback
+  const LoadingFallback = () => (
+    <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border border-gray-200">
+      <div className="text-center">
+        <LoaderIcon className="animate-spin text-primary-600 mx-auto mb-4" size={48} />
+        <p className="text-gray-600 font-medium">Carregando mapa...</p>
+      </div>
+    </div>
+  );
 
-  // Create custom marker icon with price
-  const createPriceMarker = (trip: Trip, isHighlighted: boolean) => {
-    const price = trip.price.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    
-    return L.divIcon({
-      className: 'custom-price-marker',
-      html: `
-        <div class="relative">
-          <div class="bg-white rounded-lg shadow-lg border-2 ${isHighlighted ? 'border-primary-500' : 'border-gray-300'} px-3 py-1.5 font-bold text-sm text-gray-900 whitespace-nowrap">
-            R$ ${price}
-          </div>
-          <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent ${isHighlighted ? 'border-t-primary-500' : 'border-t-gray-300'}"></div>
-        </div>
-      `,
-      iconSize: [80, 40],
-      iconAnchor: [40, 40],
-      popupAnchor: [0, -40],
-    });
-  };
-
-  if (tripsWithCoords.length === 0) {
+  // Error state
+  if (mapError) {
     return (
-      <div className="w-full h-full bg-gray-100 rounded-xl flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <p className="font-bold mb-2">Nenhuma viagem com localização disponível</p>
-          <p className="text-sm">Adicione coordenadas (latitude/longitude) nas viagens para visualizá-las no mapa</p>
+      <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border border-gray-200">
+        <div className="text-center max-w-sm px-6">
+          <AlertCircle className="text-gray-400 mx-auto mb-4" size={48} />
+          <p className="text-gray-700 font-bold mb-2">Erro ao carregar o mapa</p>
+          <p className="text-sm text-gray-500">Tente recarregar a página</p>
         </div>
       </div>
     );
   }
 
+  // No trips with coordinates
+  if (tripsWithCoords.length === 0) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border border-gray-200">
+        <div className="text-center max-w-sm px-6">
+          <MapPin className="text-gray-400 mx-auto mb-4" size={48} />
+          <p className="text-gray-700 font-bold mb-2">Nenhuma viagem com localização disponível</p>
+          <p className="text-sm text-gray-500">
+            Adicione coordenadas (latitude/longitude) nas viagens para visualizá-las no mapa
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render map only on client side
+  if (!isClient) {
+    return <LoadingFallback />;
+  }
+
   return (
-    <div className="w-full h-full rounded-xl overflow-hidden border border-gray-200">
-      <MapContainer
-        center={calculatedCenter}
-        zoom={zoom}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    <div className="w-full h-full rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+      <Suspense fallback={<LoadingFallback />}>
+        <MapContent
+          trips={tripsWithCoords}
+          highlightedTripId={highlightedTripId}
+          onMarkerClick={onMarkerClick}
+          center={calculatedCenter}
+          zoom={zoom}
+          onError={() => setMapError(true)}
         />
-        
-        <MapUpdater highlightedTrip={highlightedTrip} />
-        
-        {tripsWithCoords.map(trip => {
-          const isHighlighted = trip.id === highlightedTripId;
-          return (
-            <Marker
-              key={trip.id}
-              position={[trip.latitude!, trip.longitude!]}
-              icon={createPriceMarker(trip, isHighlighted)}
-              eventHandlers={{
-                click: () => onMarkerClick?.(trip.id),
-              }}
-            >
-              <Popup>
-                <div className="p-2 min-w-[200px]">
-                  {trip.images && trip.images.length > 0 && (
-                    <img
-                      src={trip.images[0]}
-                      alt={trip.title}
-                      className="w-full h-32 object-cover rounded-lg mb-2"
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop';
-                      }}
-                    />
-                  )}
-                  <h3 className="font-bold text-gray-900 mb-1 line-clamp-2">{trip.title}</h3>
-                  <p className="text-sm text-gray-600 mb-2">{trip.destination}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-primary-600">
-                      R$ {trip.price.toLocaleString('pt-BR')}
-                    </span>
-                    <Link
-                      to={`/viagem/${trip.slug || trip.id}`}
-                      className="text-xs bg-primary-600 text-white px-3 py-1 rounded-lg font-bold hover:bg-primary-700 transition-colors"
-                    >
-                      Ver detalhes
-                    </Link>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
-      
-      <style>{`
-        .custom-price-marker {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
+      </Suspense>
     </div>
   );
 };
 
 export default TripMap;
-

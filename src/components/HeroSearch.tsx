@@ -241,6 +241,17 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     setDateRange({ start: null, end: null });
   };
 
+  // Clear guests selection (reset to default: 1 adult, 0 children)
+  const clearGuests = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clickInsideRef.current = true;
+    setGuests({ adults: 1, children: 0 });
+  };
+
+  // Check if guests are modified from default
+  const isGuestsModified = guests.adults !== 1 || guests.children !== 0;
+
   // Get guests display text - Improved UX for solo travelers
   const getGuestsText = (): string => {
     const total = guests.adults + guests.children;
@@ -324,7 +335,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     return normalizedDate.getTime() === normalizedStart.getTime();
   };
 
-  // Handle date click - FIX: Close calendar after selecting first date, allow selecting second date later
+  // Handle date click - UX: Keep calendar open after check-in, close only after check-out
   const handleDateClick = (date: Date) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -338,18 +349,19 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     if (normalizedStart) normalizedStart.setHours(0, 0, 0, 0);
 
     if (!dateRange.start || (dateRange.start && dateRange.end)) {
-      // Start new selection - close calendar after selecting first date
+      // Start new selection - keep calendar open so user can see range being formed
       setDateRange({ start: normalizedDate, end: null });
-      setShowDatePicker(false); // Close calendar after selecting check-in
+      // Don't close - let user see the selected check-in and choose check-out
     } else if (dateRange.start && !dateRange.end) {
       // Complete the range - selecting check-out
       if (normalizedDate >= normalizedStart!) {
         setDateRange({ start: dateRange.start, end: normalizedDate });
-        setShowDatePicker(false); // Close calendar after selecting check-out
+        // Close calendar only after selecting check-out (range complete)
+        setShowDatePicker(false);
       } else {
         // Selected date is before start, so make it the new start
+        // Keep calendar open so user can choose new check-out
         setDateRange({ start: normalizedDate, end: null });
-        setShowDatePicker(false); // Close calendar after selecting new check-in
       }
     }
   };
@@ -571,6 +583,21 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           >
             <Users size={20} className="text-gray-400 flex-shrink-0" />
             <span className="text-sm flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">{getGuestsText()}</span>
+            {isGuestsModified && (
+              <button
+                type="button"
+                onClick={clearGuests}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  clickInsideRef.current = true;
+                }}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                title="Limpar passageiros"
+              >
+                <X size={14} className="text-gray-500 hover:text-gray-700" />
+              </button>
+            )}
             <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
           </button>
 

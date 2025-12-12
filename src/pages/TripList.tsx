@@ -69,8 +69,16 @@ export const TripList: React.FC = () => {
      traveler: true, style: true, duration: true, price: true, dest: true
   });
   
-  // View mode: 'grid' | 'list' | 'map'
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
+  // View mode: 'grid' | 'list' | 'map' - Load from localStorage
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>(() => {
+    const saved = localStorage.getItem('tripListViewMode');
+    return (saved === 'grid' || saved === 'list' || saved === 'map') ? saved : 'grid';
+  });
+
+  // Save viewMode to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('tripListViewMode', viewMode);
+  }, [viewMode]);
   const [highlightedTripId, setHighlightedTripId] = useState<string | null>(null);
   
   // Search params from AdvancedSearchBar
@@ -286,18 +294,12 @@ export const TripList: React.FC = () => {
         case 'RATING': result.sort((a, b) => (b.tripRating || 0) - (a.tripRating || 0)); break;
         case 'DATE_ASC': result.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()); break;
         default: // RELEVANCE
-           // Only shuffle when no filters are applied AND no search params exist
-           // Use stable seed based on current day to ensure consistent ordering within the same day
-           if (!q && !categoryParam && selectedTags.length === 0 && selectedTravelerTypes.length === 0 && 
-               !durationParam && !priceParam && !startDateParam && !endDateParam && !adultsParam && !childrenParam) {
-               // Use deterministic shuffle with day-based seed (changes once per day, stable within same day)
-               const today = new Date();
-               const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-               const stableSeed = Math.abs(daySeed);
-               result = seededShuffle(result, stableSeed);
-           } else {
-               // When filters are applied, use relevance sorting (stable, not random)
-               result.sort((a, b) => ((b.tripRating || 0) * 10 + (b.views || 0) / 100) - ((a.tripRating || 0) * 10 + (a.views || 0) / 100));
+           // Always shuffle when sort is RELEVANCE to give all trips equal visibility
+           // Use a random shuffle every time the page loads (not deterministic)
+           // This ensures all published trips get attention
+           for (let i = result.length - 1; i > 0; i--) {
+               const j = Math.floor(Math.random() * (i + 1));
+               [result[i], result[j]] = [result[j], result[i]];
            }
     }
 
@@ -326,87 +328,90 @@ export const TripList: React.FC = () => {
       );
   }
 
-  const headerImage = currentAgency?.heroBannerUrl || "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop";
-
   return (
     <div className="space-y-8 pb-12">
-      {/* Premium Hero Section - Imersivo como Home */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[500px] md:min-h-[600px] flex flex-col items-center justify-center group bg-gray-900 z-[30]">
-         {/* Background Image */}
-         <div className="absolute inset-0 z-0">
-            {headerImage ? (
-                <img 
-                    src={headerImage}
-                    alt="Background" 
-                    className="w-full h-full object-cover transition-transform duration-[10s] ease-linear scale-110 group-hover:scale-115 blur-[2px]"
-                />
-            ) : (
-                <div className="w-full h-full bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100"></div>
-            )}
-            {/* Enhanced Gradient Overlay - Similar to Home */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90 z-[1]"></div>
-         </div>
+      {/* Premium Compact Header - Clean & Focused */}
+      <div className="relative">
+        {/* Background with subtle gradient for agency pages */}
+        {currentAgency && (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-gray-50 rounded-3xl -z-10" />
+        )}
+        
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Agency Header (if applicable) */}
+          {currentAgency && (
+            <div className="pt-8 pb-6">
+              <Link 
+                to={`/${currentAgency.slug}`} 
+                className="inline-flex items-center text-gray-600 hover:text-primary-600 text-sm mb-6 transition-colors font-medium group"
+              >
+                <ArrowLeft size={16} className="mr-2 group-hover:-translate-x-1 transition-transform"/> 
+                Voltar para {currentAgency.name}
+              </Link>
+              
+              <div className="flex items-center gap-4 mb-6">
+                {currentAgency.logo && (
+                  <img 
+                    src={currentAgency.logo} 
+                    alt={currentAgency.name} 
+                    className="w-16 h-16 md:w-20 md:h-20 rounded-2xl border-2 border-gray-200 shadow-md object-cover"
+                  />
+                )}
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                    Pacotes {currentAgency.name}
+                  </h1>
+                  <p className="text-sm text-gray-600">
+                    Explore roteiros exclusivos selecionados para você
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-         {/* Main Content - Centered like Home */}
-         <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 flex-1 flex flex-col justify-center py-12 md:py-20">
-            {/* Centered Typography */}
-            <div className="text-center mb-8 md:mb-10 animate-[fadeInUp_0.8s_ease-out]">
-                {currentAgency && (
-                    <Link 
-                        to={`/${currentAgency.slug}`} 
-                        className="inline-flex items-center text-gray-200 hover:text-white text-sm mb-6 transition-colors font-medium backdrop-blur-sm bg-white/10 px-4 py-2 rounded-full border border-white/20 hover:bg-white/20"
-                    >
-                        <ArrowLeft size={14} className="mr-2"/> Voltar para {currentAgency.name}
-                    </Link>
-                )}
-                
-                {currentAgency?.logo && (
-                    <div className="mb-6 flex justify-center">
-                        <img 
-                            src={currentAgency.logo} 
-                            alt={currentAgency.name} 
-                            className="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white/30 shadow-2xl object-cover"
-                        />
-                    </div>
-                )}
-                
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-white leading-tight mb-6 drop-shadow-2xl">
-                    {currentAgency ? `Pacotes: ${currentAgency.name}` : "Encontre sua próxima viagem"}
+          {/* Main Search Section - Compact & Premium */}
+          <div className="pb-8 md:pb-12">
+            {!currentAgency && (
+              <div className="text-center mb-10">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-3">
+                  Encontre sua próxima viagem
                 </h1>
-                <p className="text-lg md:text-xl lg:text-2xl text-gray-200 max-w-2xl mx-auto font-light leading-relaxed drop-shadow-lg">
-                    {currentAgency ? "Explore roteiros exclusivos selecionados para você." : "Centenas de destinos incríveis com as melhores tarifas do mercado."}
+                <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto">
+                  Explore centenas de destinos incríveis com as melhores tarifas do mercado
                 </p>
-            </div>
+              </div>
+            )}
 
-            {/* Hero Search Bar - Centered (from main page) */}
-            <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[100]">
-                <HeroSearch
-                  initialDestination={q}
-                  initialDateRange={{
-                    start: startDateParam ? new Date(startDateParam) : null,
-                    end: endDateParam ? new Date(endDateParam) : null,
-                  }}
-                  initialGuests={{
-                    adults: adultsParam ? parseInt(adultsParam) : 1,
-                    children: childrenParam ? parseInt(childrenParam) : 0,
-                  }}
-                  onSearch={(params) => {
-                    const newParams = new URLSearchParams(searchParams);
-                    if (params.destination) newParams.set('q', params.destination);
-                    else newParams.delete('q');
-                    if (params.dateRange.start) newParams.set('startDate', params.dateRange.start.toISOString().split('T')[0]);
-                    else newParams.delete('startDate');
-                    if (params.dateRange.end) newParams.set('endDate', params.dateRange.end.toISOString().split('T')[0]);
-                    else newParams.delete('endDate');
-                    if (params.guests.adults > 0) newParams.set('adults', params.guests.adults.toString());
-                    else newParams.delete('adults');
-                    if (params.guests.children > 0) newParams.set('children', params.guests.children.toString());
-                    else newParams.delete('children');
-                    setSearchParams(newParams);
-                  }}
-                />
+            {/* Search Bar - Integrated & Clean */}
+            <div className="max-w-5xl mx-auto">
+              <HeroSearch
+                initialDestination={q}
+                initialDateRange={{
+                  start: startDateParam ? new Date(startDateParam) : null,
+                  end: endDateParam ? new Date(endDateParam) : null,
+                }}
+                initialGuests={{
+                  adults: adultsParam ? parseInt(adultsParam) : 1,
+                  children: childrenParam ? parseInt(childrenParam) : 0,
+                }}
+                onSearch={(params) => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (params.destination) newParams.set('q', params.destination);
+                  else newParams.delete('q');
+                  if (params.dateRange.start) newParams.set('startDate', params.dateRange.start.toISOString().split('T')[0]);
+                  else newParams.delete('startDate');
+                  if (params.dateRange.end) newParams.set('endDate', params.dateRange.end.toISOString().split('T')[0]);
+                  else newParams.delete('endDate');
+                  if (params.guests.adults > 0) newParams.set('adults', params.guests.adults.toString());
+                  else newParams.delete('adults');
+                  if (params.guests.children > 0) newParams.set('children', params.guests.children.toString());
+                  else newParams.delete('children');
+                  setSearchParams(newParams);
+                }}
+              />
             </div>
-         </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 px-2">
@@ -572,62 +577,80 @@ export const TripList: React.FC = () => {
 
         {/* Trip Cards/List/Map */}
         <div className="flex-1">
-          <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-            <h2 className="text-xl font-bold text-gray-900">
-              {currentAgency ? `Pacotes de ${currentAgency.name}` : 'Todas as Viagens'} ({filteredTrips.length})
-            </h2>
-            <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === 'grid' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Visualização em grade"
-                >
-                  <Grid3x3 size={18} />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === 'list' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Visualização em lista"
-                >
-                  <List size={18} />
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === 'map' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Visualização no mapa"
-                >
-                  <Map size={18} />
-                </button>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">
+                  {currentAgency ? `Pacotes de ${currentAgency.name}` : 'Todas as Viagens'}
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {filteredTrips.length} {filteredTrips.length === 1 ? 'viagem encontrada' : 'viagens encontradas'}
+                </p>
               </div>
-              
-              <select 
-                value={sortParam} 
-                onChange={(e) => updateUrl('sort', e.target.value)} 
-                className="bg-white border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer font-medium text-gray-700"
-              >
-                <option value="RELEVANCE">Relevância</option>
-                <option value="DATE_ASC">Próximas Saídas</option>
-                <option value="LOW_PRICE">Menor Preço</option>
-                <option value="HIGH_PRICE">Maior Preço</option>
-                <option value="RATING">Melhor Avaliação</option>
-              </select>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2.5 rounded-lg transition-all ${
+                      viewMode === 'grid' 
+                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="Visualização em grade"
+                  >
+                    <Grid3x3 size={18} />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`p-2.5 rounded-lg transition-all ${
+                      viewMode === 'list' 
+                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="Visualização em lista"
+                  >
+                    <List size={18} />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`p-2.5 rounded-lg transition-all ${
+                      viewMode === 'map' 
+                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    }`}
+                    title="Visualização no mapa"
+                  >
+                    <Map size={18} />
+                  </button>
+                </div>
+                
+                <select 
+                  value={sortParam} 
+                  onChange={(e) => updateUrl('sort', e.target.value)} 
+                  className="flex-1 sm:flex-none bg-white border border-gray-200 rounded-xl text-sm p-2.5 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 cursor-pointer font-medium text-gray-700 hover:border-gray-300 transition-colors"
+                >
+                  <option value="RELEVANCE">Relevância</option>
+                  <option value="DATE_ASC">Próximas Saídas</option>
+                  <option value="LOW_PRICE">Menor Preço</option>
+                  <option value="HIGH_PRICE">Maior Preço</option>
+                  <option value="RATING">Melhor Avaliação</option>
+                </select>
+              </div>
             </div>
           </div>
 
           {filteredTrips.length > 0 ? (
             <>
               {viewMode === 'map' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
-                  {/* List on left, Map on right */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px] h-[600px]">
+                  {/* List on left - Scrollable */}
                   <div className="overflow-y-auto space-y-4 pr-2 scrollbar-thin">
+                    <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 pb-3 mb-2 border-b border-gray-200">
+                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
+                        {filteredTrips.length} {filteredTrips.length === 1 ? 'viagem no mapa' : 'viagens no mapa'}
+                      </h3>
+                    </div>
                     {filteredTrips.map(trip => (
                       <TripListItem
                         key={trip.id}
@@ -638,7 +661,16 @@ export const TripList: React.FC = () => {
                       />
                     ))}
                   </div>
-                  <div className="hidden lg:block">
+                  {/* Map on right - Premium */}
+                  <div className="hidden lg:block relative">
+                    <TripMap
+                      trips={filteredTrips}
+                      highlightedTripId={highlightedTripId}
+                      onMarkerClick={setHighlightedTripId}
+                    />
+                  </div>
+                  {/* Mobile: Full width map */}
+                  <div className="lg:hidden h-[400px] mt-4">
                     <TripMap
                       trips={filteredTrips}
                       highlightedTripId={highlightedTripId}

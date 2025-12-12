@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import HeroSearch from '../components/HeroSearch';
 import { NoImagePlaceholder } from '../components/NoImagePlaceholder';
-import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle, TrendingUp } from 'lucide-react';
+import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle, TrendingUp, Star } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { Trip } from '../types';
@@ -356,13 +356,30 @@ const Home: React.FC = () => {
             </div>
           ) : featuredDockTrips.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {featuredDockTrips.map((trip) => (
-                <Link
+              {featuredDockTrips.map((trip) => {
+                // Find agency and WhatsApp link
+                const tripAgency = agencies.find(a => a.agencyId === trip.agencyId);
+                const contactNumber = tripAgency?.whatsapp || tripAgency?.phone;
+                const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
+                
+                const handleWhatsAppClick = (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (whatsappLink) {
+                    window.open(whatsappLink, '_blank');
+                  }
+                };
+
+                return (
+                <div
                   key={trip.id}
-                  to={`/viagem/${trip.slug || trip.id}`}
-                  className="group/dock bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                  className="group/dock relative"
                 >
-                  <div className="relative w-full h-24 rounded-xl overflow-hidden mb-3">
+                <Link
+                  to={`/viagem/${trip.slug || trip.id}`}
+                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col"
+                >
+                  <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3">
                     {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
                       <img
                         key={`dock-img-${trip.id}`}
@@ -383,21 +400,67 @@ const Home: React.FC = () => {
                       />
                     )}
                     {(trip.featured || (trip.views || 0) > 100) && (
-                      <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg">
+                      <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
                         <TrendingUp size={10} />
                         {trip.featured ? 'Em Alta' : 'Oferta'}
                       </div>
                     )}
+                    {((trip as any).tripRating || trip.rating) && (
+                      <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10">
+                        <Star size={10} className="fill-amber-400 text-amber-400" />
+                        {((trip as any).tripRating || trip.rating || 0).toFixed(1)}
+                      </div>
+                    )}
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 mb-2 group-hover/dock:text-primary-600 transition-colors">
-                    {trip.title}
-                  </h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs text-gray-500 font-semibold">R$</span>
-                    <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+                  
+                  <div className="flex-1 flex flex-col">
+                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 mb-2 group-hover/dock:text-primary-600 transition-colors">
+                      {trip.title}
+                    </h3>
+                    
+                    {/* Destination & Duration */}
+                    <div className="flex flex-col gap-1.5 mb-3">
+                      {trip.destination && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <MapPin size={12} className="text-primary-600 flex-shrink-0" />
+                          <span className="truncate">{trip.destination}</span>
+                        </div>
+                      )}
+                      {trip.durationDays && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Clock size={12} className="text-primary-600 flex-shrink-0" />
+                          <span>{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Price */}
+                    <div className="mt-auto pt-2 border-t border-gray-100">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">A partir de</span>
+                          <div className="flex items-baseline gap-0.5">
+                            <span className="text-xs text-gray-500 font-semibold">R$</span>
+                            <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-primary-600 opacity-0 group-hover/dock:opacity-100 group-hover/dock:translate-x-1 transition-all" />
+                      </div>
+                    </div>
                   </div>
                 </Link>
-              ))}
+                {whatsappLink && (
+                  <button
+                    onClick={handleWhatsAppClick}
+                    className="absolute bottom-3 right-3 w-7 h-7 rounded-full bg-[#25D366]/90 backdrop-blur-sm text-white opacity-0 group-hover/dock:opacity-100 shadow-md hover:bg-[#25D366] hover:shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center z-20 border border-white/20"
+                    title="Falar com a agência"
+                    aria-label="WhatsApp"
+                  >
+                    <MessageCircle size={12} />
+                  </button>
+                )}
+                </div>
+              )})}
             </div>
           ) : null}
         </div>

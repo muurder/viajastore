@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Trip } from '../types';
-import { MapPin, Star, Heart, Clock, MessageCircle } from 'lucide-react';
+import { MapPin, Star, Heart, Clock, MessageCircle, ArrowRight, Check, TrendingUp } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -101,9 +101,28 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
   const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
   const shouldShowPlaceholder = !hasValidImages || imgError;
 
+  // Get rating value
+  const rating = (trip as any).tripRating || trip.rating || 0;
+  const hasRating = rating > 0;
+
+  // Check for popular features
+  const includedItems = trip.included || [];
+  const hasBreakfast = includedItems.some(item => 
+    item.toLowerCase().includes('café') || 
+    item.toLowerCase().includes('cafe') || 
+    item.toLowerCase().includes('café da manhã')
+  );
+  const hasFreeCancellation = includedItems.some(item => 
+    item.toLowerCase().includes('cancelamento') || 
+    item.toLowerCase().includes('cancelamento grátis')
+  );
+
+  // Check if popular/featured
+  const isPopular = trip.featured || (trip.views || 0) > 100;
+
   return (
-    <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full flex flex-col">
-      <div className="relative h-48 w-full overflow-hidden bg-gray-100">
+    <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 h-full flex flex-col">
+      <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
         {shouldShowPlaceholder ? (
           <NoImagePlaceholder 
             title={trip.title} 
@@ -111,80 +130,127 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
             size="medium"
           />
         ) : (
-          <img 
-            src={trip.images[0]} 
-            alt={trip.title} 
-            loading="lazy"
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-          />
+          <>
+            <img 
+              src={trip.images[0]} 
+              alt={trip.title} 
+              loading="lazy"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            />
+            {/* Gradient overlay for better text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          </>
         )}
         
+        {/* Favorite button */}
         <div className="absolute top-3 right-3 z-10">
-        <button 
+          <button 
             onClick={handleFavorite}
-            className={`p-2 rounded-full backdrop-blur-md shadow-sm transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-100' : 'bg-white/80 text-gray-500 hover:bg-white hover:text-red-500'}`}
-        >
+            className={`p-2 rounded-full backdrop-blur-md shadow-lg transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-200' : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'}`}
+          >
             <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
-        </button>
+          </button>
         </div>
 
-        <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/10 shadow-lg">
-          {trip.category.replace('_', ' ')}
+        {/* Badges */}
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+          {isPopular && (
+            <div className="bg-primary-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg backdrop-blur-sm border border-primary-400/30">
+              <TrendingUp size={10} />
+              Em Alta
+            </div>
+          )}
+          <div className="bg-black/70 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/20 shadow-lg">
+            {trip.category.replace(/_/g, ' ')}
+          </div>
         </div>
+
+        {/* Rating badge */}
+        {hasRating && (
+          <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-gray-900 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg border border-white/50">
+            <Star size={12} className="fill-amber-400 text-amber-400" />
+            {rating.toFixed(1)}
+          </div>
+        )}
       </div>
       
-      <div className="p-5 flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <div className="flex items-center text-xs font-medium text-gray-500 truncate">
-             <MapPin size={14} className="mr-1.5 flex-shrink-0 text-gray-400 group-hover:text-primary-500 transition-colors" />
-             <span className="truncate">{trip.destination}</span>
-          </div>
-          <div className="flex items-center text-amber-500 text-xs font-bold flex-shrink-0 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
-            <Star size={12} className="mr-1 fill-current" />
-            {trip.tripRating?.toFixed(1) || '5.0'}
+      <div className="p-6 flex flex-col flex-1">
+        {/* Location & Duration */}
+        <div className="flex items-start justify-between mb-3 gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center text-xs font-semibold text-gray-600 mb-2">
+              <MapPin size={13} className="mr-1.5 flex-shrink-0 text-primary-500" />
+              <span className="truncate">{trip.destination}</span>
+            </div>
+            <div className="flex items-center text-xs text-gray-500">
+              <Clock size={13} className="mr-1.5 flex-shrink-0 text-gray-400" />
+              <span className="font-medium">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+            </div>
           </div>
         </div>
 
-        <h3 className="text-lg font-bold text-gray-900 leading-snug mb-2 group-hover:text-primary-600 transition-colors line-clamp-2 min-h-[3.5rem]">
+        {/* Title */}
+        <h3 className="text-xl font-bold text-gray-900 leading-tight mb-4 group-hover:text-primary-600 transition-colors line-clamp-2 min-h-[3.5rem]">
           {trip.title}
         </h3>
 
-        <div className="flex items-center text-sm text-gray-500 mb-4">
-          <Clock size={16} className="mr-2 text-gray-400" />
-          <span className="font-medium">{trip.durationDays} dias</span>
-        </div>
-
-        {/* Tags Section */}
-        <div className="flex flex-wrap gap-2 mb-5 flex-1 content-start">
-          {trip.tags && trip.tags.slice(0, 3).map((tag, index) => (
-             <span key={index} className="text-[10px] px-2.5 py-1 bg-gray-50 text-gray-600 rounded-full font-semibold border border-gray-100">
-               {tag}
-             </span>
+        {/* Features highlights */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {hasBreakfast && (
+            <div className="flex items-center gap-1 text-[10px] px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-semibold border border-green-100">
+              <Check size={10} className="text-green-600" />
+              Café da manhã
+            </div>
+          )}
+          {hasFreeCancellation && (
+            <div className="flex items-center gap-1 text-[10px] px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full font-semibold border border-blue-100">
+              <Check size={10} className="text-blue-600" />
+              Cancelamento grátis
+            </div>
+          )}
+          {!hasBreakfast && !hasFreeCancellation && trip.tags && trip.tags.slice(0, 2).map((tag, index) => (
+            <span key={index} className="text-[10px] px-2.5 py-1 bg-gray-50 text-gray-600 rounded-full font-semibold border border-gray-100">
+              {tag}
+            </span>
           ))}
         </div>
 
-        <div className="flex items-end justify-between pt-4 border-t border-gray-100 mt-auto group-hover:border-primary-100 transition-colors">
+        {/* Tags Section */}
+        {trip.tags && trip.tags.length > 0 && (hasBreakfast || hasFreeCancellation || trip.tags.length > 2) && (
+          <div className="flex flex-wrap gap-1.5 mb-5 flex-1 content-start">
+            {trip.tags.slice(hasBreakfast || hasFreeCancellation ? 0 : 2, 5).map((tag, index) => (
+              <span key={index} className="text-[10px] px-2 py-0.5 bg-gray-50/80 text-gray-600 rounded-full font-medium border border-gray-100">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Price & CTA */}
+        <div className="flex items-end justify-between pt-4 mt-auto border-t border-gray-100 group-hover:border-primary-200 transition-colors">
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">A partir de</span>
-            <div className="flex items-baseline gap-0.5">
-                <span className="text-xs text-gray-500 font-semibold">R$</span>
-                <span className="text-xl font-extrabold text-gray-900 group-hover:text-primary-700 transition-colors">{trip.price.toLocaleString('pt-BR')}</span>
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">A partir de</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs text-gray-500 font-semibold">R$</span>
+              <span className="text-2xl font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors">{trip.price.toLocaleString('pt-BR')}</span>
             </div>
+            <span className="text-[10px] text-gray-400 mt-0.5">por pessoa</span>
           </div>
           <div className="flex items-center gap-2">
-              {whatsappLink && (
-                  <button
-                    onClick={handleWhatsAppClick}
-                    className="p-2.5 rounded-full bg-[#25D366] text-white hover:bg-[#128C7E] transition-all shadow-sm hover:shadow-md flex-shrink-0 hover:-translate-y-0.5 border border-green-400/20"
-                    title="Falar no WhatsApp"
-                  >
-                    <MessageCircle size={18} className="fill-white/20" />
-                  </button>
-              )}
-              <span className="text-xs font-bold text-primary-600 flex items-center bg-primary-50 px-3 py-2 rounded-full hover:bg-primary-100 transition-colors">
-                Detalhes &rarr;
-              </span>
+            {whatsappLink && (
+              <button
+                onClick={handleWhatsAppClick}
+                className="p-2.5 rounded-full bg-[#25D366] text-white hover:bg-[#128C7E] transition-all shadow-md hover:shadow-lg flex-shrink-0 hover:-translate-y-0.5 border border-green-400/20 group-hover:scale-105"
+                title="Falar no WhatsApp"
+              >
+                <MessageCircle size={16} />
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 bg-primary-600 text-white px-4 py-2.5 rounded-full hover:bg-primary-700 transition-all shadow-sm hover:shadow-md group-hover:gap-2">
+              <span className="text-xs font-bold">Ver detalhes</span>
+              <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+            </div>
           </div>
         </div>
       </div>
