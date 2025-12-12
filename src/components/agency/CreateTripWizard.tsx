@@ -75,9 +75,12 @@ const getDraftStorageKey = (tripId?: string) => `trip_draft_${tripId || 'new'}`;
 
 const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess, initialTripData }) => {
   const { user, uploadImage } = useAuth(); 
-  const { createTrip, updateTrip, agencies } = useData();
+  const { createTrip, updateTrip, agencies, trips } = useData();
   const { showToast } = useToast();
   const { guardSupabase } = useData();
+  
+  // State for frequently used boarding points
+  const [frequentBoardingPoints, setFrequentBoardingPoints] = useState<Array<{ location: string; time: string; count: number }>>([]);
   
   const currentAgency = useMemo(() => {
     return agencies.find(a => a.id === user?.id) as Agency;
@@ -111,7 +114,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         endDate: '',
         durationDays: 1,
         images: [],
-        category: 'PRAIA',
+        category: 'PRAIA', // Backward compatibility
+        categories: ['PRAIA'], // Multiple categories support
         tags: [],
         travelerTypes: [],
         itinerary: [],
@@ -135,7 +139,11 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           allowLapChild: false,
           childPriceMultiplier: 0.7
         },
-        ...initialTripData
+        ...initialTripData,
+        // Ensure categories array exists, fallback to category if needed
+        categories: initialTripData.categories || (initialTripData.category ? [initialTripData.category] : ['PRAIA']),
+        // Ensure category exists for backward compatibility
+        category: initialTripData.category || (initialTripData.categories && initialTripData.categories[0]) || 'PRAIA'
       };
     }
     
@@ -264,6 +272,79 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       longitude: coords.lng 
     }));
   }, []);
+
+  // Fetch frequently used boarding points from agency's recent trips
+  useEffect(() => {
+    const fetchFrequentBoardingPoints = async () => {
+      if (!currentAgency?.agencyId) return;
+      
+      try {
+        const sb = guardSupabase();
+        if (!sb) return;
+        
+        // Get last 20 trips from this agency
+        const { data: recentTrips, error: tripsError } = await sb
+          .from('trips')
+          .select('boarding_points')
+          .eq('agency_id', currentAgency.agencyId)
+          .not('boarding_points', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (tripsError) {
+          logger.warn('Error fetching trips for boarding points:', tripsError);
+          return;
+        }
+        
+        if (!recentTrips || recentTrips.length === 0) return;
+        
+        // Count frequency of each boarding point
+        const locationCount = new Map<string, { location: string; time: string; count: number }>();
+        
+        recentTrips.forEach((trip: any) => {
+          // Handle both array format and JSONB format from Supabase
+          let boardingPoints: BoardingPoint[] = [];
+          
+          if (Array.isArray(trip.boarding_points)) {
+            boardingPoints = trip.boarding_points;
+          } else if (trip.boarding_points) {
+            // If it's a JSONB object, it should already be parsed by Supabase
+            boardingPoints = [];
+          }
+          
+          // Filter out empty arrays
+          if (!boardingPoints || boardingPoints.length === 0) return;
+          
+          boardingPoints.forEach((bp: BoardingPoint) => {
+            if (bp && bp.location && typeof bp.location === 'string' && bp.location.trim()) {
+              const key = `${bp.location.toLowerCase().trim()}_${bp.time || ''}`;
+              const existing = locationCount.get(key);
+              if (existing) {
+                existing.count += 1;
+              } else {
+                locationCount.set(key, {
+                  location: bp.location.trim(),
+                  time: bp.time || '08:00',
+                  count: 1
+                });
+              }
+            }
+          });
+        });
+        
+        // Sort by frequency and get top 5
+        const frequent = Array.from(locationCount.values())
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+        
+        setFrequentBoardingPoints(frequent);
+      } catch (error) {
+        logger.error('Error fetching frequent boarding points:', error);
+      }
+    };
+    
+    fetchFrequentBoardingPoints();
+  }, [currentAgency?.agencyId, guardSupabase]);
 
   // Initialize data for editing
   useEffect(() => {
@@ -497,7 +578,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           endDate: new Date(tripData.endDate!).toISOString(),
           durationDays: tripData.durationDays || 1,
           images: finalImages,
-          category: tripData.category!,
+          category: tripData.category || (tripData.categories && tripData.categories[0]) || 'PRAIA', // Backward compatibility
+          categories: tripData.categories || (tripData.category ? [tripData.category] : ['PRAIA']), // Multiple categories
           tags: tripData.tags || [],
           
           travelerTypes: tripData.travelerTypes || [],
@@ -664,7 +746,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         endDate: new Date(tripData.endDate!).toISOString(),
         durationDays: tripData.durationDays || 1,
         images: finalImages,
-        category: tripData.category!,
+        category: tripData.category || (tripData.categories && tripData.categories[0]) || 'PRAIA', // Backward compatibility
+        categories: tripData.categories || (tripData.category ? [tripData.category] : ['PRAIA']), // Multiple categories
         tags: tripData.tags || [],
         travelerTypes: tripData.travelerTypes || [],
         paymentMethods: tripData.paymentMethods || ['PIX'],
@@ -930,20 +1013,67 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           Categoria e Classificação
         </h3>
         
-        {/* P1: MOBILE - Stack on mobile, side-by-side on tablet+ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Categoria</label>
-            <select
-              value={tripData.category}
-              onChange={e => setTripData({ ...tripData, category: e.target.value as TripCategory })}
-              className="w-full border border-gray-300 rounded-lg p-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {ALL_TRIP_CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
-              ))}
-            </select>
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-3">
+            Categorias <span className="text-xs font-normal text-gray-500">(Selecione uma ou mais)</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 p-4 border border-gray-200 rounded-lg bg-gray-50">
+            {ALL_TRIP_CATEGORIES.map(cat => {
+              // Get current categories array, fallback to category if exists, or empty array
+              const currentCategories = tripData.categories || (tripData.category ? [tripData.category] : []);
+              const isSelected = currentCategories.includes(cat);
+              
+              return (
+                <label
+                  key={cat}
+                  className={`
+                    relative flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-all
+                    ${isSelected 
+                      ? 'bg-primary-600 border-primary-600 text-white shadow-md scale-[1.02]' 
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-primary-400 hover:bg-primary-50 hover:shadow-sm'
+                    }
+                  `}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      const currentCategories = tripData.categories || (tripData.category ? [tripData.category] : []);
+                      let newCategories: TripCategory[];
+                      
+                      if (e.target.checked) {
+                        // Add category if not already present
+                        newCategories = [...currentCategories, cat];
+                      } else {
+                        // Remove category
+                        newCategories = currentCategories.filter(c => c !== cat);
+                      }
+                      
+                      setTripData({ 
+                        ...tripData, 
+                        categories: newCategories,
+                        // Keep category for backward compatibility (use first selected)
+                        category: newCategories[0] || 'PRAIA'
+                      });
+                    }}
+                    className="absolute opacity-0 pointer-events-none"
+                  />
+                  {isSelected && (
+                    <Check size={14} className="absolute top-1.5 left-1.5 text-white" strokeWidth={3} />
+                  )}
+                  <span className={`text-xs font-semibold text-center leading-tight px-1 ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+                    {cat.replace(/_/g, ' ')}
+                  </span>
+                </label>
+              );
+            })}
           </div>
+          {tripData.categories && tripData.categories.length > 0 && (
+            <p className="text-xs text-gray-500 mt-3 flex items-center gap-1.5">
+              <Check size={12} className="text-primary-600" />
+              <span className="font-medium">{tripData.categories.length} categoria{tripData.categories.length > 1 ? 's' : ''} selecionada{tripData.categories.length > 1 ? 's' : ''}</span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -962,6 +1092,50 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           </button>
         </div>
         <p className="text-sm text-gray-600 mb-4">Defina os pontos de saída e horários de embarque</p>
+        
+        {/* Frequently Used Boarding Points - Subtle Suggestions */}
+        {frequentBoardingPoints.length > 0 && (
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <p className="text-xs text-gray-500 mb-2.5 flex items-center gap-1.5">
+              <Clock size={12} />
+              <span>Locais mais usados nas suas viagens</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {frequentBoardingPoints.map((bp, idx) => {
+                // Check if this location is already added
+                const isAlreadyAdded = tripData.boardingPoints?.some(
+                  existing => existing.location.toLowerCase().trim() === bp.location.toLowerCase().trim()
+                );
+                
+                if (isAlreadyAdded) return null;
+                
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      const newId = crypto.randomUUID();
+                      setTripData(prev => ({
+                        ...prev,
+                        boardingPoints: [...(prev.boardingPoints || []), { 
+                          id: newId, 
+                          time: bp.time, 
+                          location: bp.location 
+                        }]
+                      }));
+                    }}
+                    className="group flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-primary-50 hover:text-primary-700 border border-gray-200 hover:border-primary-300 rounded-lg transition-all duration-200"
+                    title={`Usado ${bp.count} vez${bp.count > 1 ? 'es' : ''} nas últimas viagens`}
+                  >
+                    <span className="text-gray-400 group-hover:text-primary-500">{bp.time}</span>
+                    <span className="truncate max-w-[200px]">{bp.location}</span>
+                    <span className="text-[10px] text-gray-400 group-hover:text-primary-500">({bp.count}x)</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         
         <div className="space-y-3">
           {tripData.boardingPoints?.map((bp, idx) => (
@@ -1314,9 +1488,9 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   };
 
   const renderStep3 = () => (
-    <div className="space-y-6 animate-[fadeIn_0.3s]">
-      {/* P1: MOBILE - Improved responsive grid for mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+    <div className="space-y-8 animate-[fadeIn_0.3s]">
+      {/* Main Configuration Section - Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Configuration Toggles */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -1408,199 +1582,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 </div>
               )}
 
-              {/* Child Price Configuration - Only show if allowChildren is true */}
-              {tripData.passengerConfig?.allowChildren !== false && (
-                <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <DollarSign className="text-blue-600" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-sm font-bold text-gray-900 mb-1">
-                        Preço para Crianças
-                      </label>
-                      <p className="text-xs text-gray-600">
-                        Escolha entre porcentagem do preço adulto ou valor fixo
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 border border-blue-100 space-y-4">
-                    {/* Toggle between Percentage and Fixed */}
-                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => setTripData({
-                          ...tripData,
-                          passengerConfig: {
-                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                            childPriceType: 'percentage',
-                            childPriceFixed: tripData.passengerConfig?.childPriceFixed
-                          }
-                        })}
-                        className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                          (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
-                            ? 'bg-primary-600 text-white shadow-md'
-                            : 'bg-white text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        Porcentagem
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTripData({
-                          ...tripData,
-                          passengerConfig: {
-                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                            childPriceType: 'fixed',
-                            childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
-                          }
-                        })}
-                        className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${
-                          tripData.passengerConfig?.childPriceType === 'fixed'
-                            ? 'bg-primary-600 text-white shadow-md'
-                            : 'bg-white text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        Valor Fixo
-                      </button>
-                    </div>
-
-                    {/* Input Section */}
-                    {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-4">
-                          <div className="relative flex-1 max-w-[200px]">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="5"
-                              value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
-                              onChange={e => {
-                                const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
-                                setTripData({ 
-                                  ...tripData, 
-                                  passengerConfig: {
-                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                                    childPriceMultiplier: percentage / 100,
-                                    childPriceType: 'percentage',
-                                    childPriceFixed: tripData.passengerConfig?.childPriceFixed
-                                  }
-                                });
-                              }}
-                              className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 bg-white text-gray-900 text-2xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                            />
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xl font-bold text-gray-500 pointer-events-none">
-                              %
-                            </div>
-                          </div>
-                          
-                          <div className="flex-1">
-                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                                Exemplo de Cálculo
-                              </div>
-                              <div className="text-sm text-gray-700">
-                                {(() => {
-                                  const multiplier = tripData.passengerConfig?.childPriceMultiplier ?? 0.7;
-                                  const percentage = Math.round(multiplier * 100);
-                                  const examplePrice = tripData.price || 500;
-                                  const childPrice = Math.round(examplePrice * multiplier);
-                                  return (
-                                    <>
-                                      Preço adulto: <span className="font-bold">R$ {examplePrice.toLocaleString('pt-BR')}</span>
-                                      <br />
-                                      Preço criança ({percentage}%): <span className="font-bold text-primary-600">R$ {childPrice.toLocaleString('pt-BR')}</span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Info size={14} />
-                          <span>
-                            {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% significa que crianças pagam {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% do preço do adulto
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-4">
-                          <div className="relative flex-1 max-w-[200px]">
-                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold pointer-events-none">
-                              R$
-                            </div>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
-                              onChange={e => {
-                                const value = Math.max(0, parseFloat(e.target.value) || 0);
-                                setTripData({ 
-                                  ...tripData, 
-                                  passengerConfig: {
-                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                                    childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                                    childPriceType: 'fixed',
-                                    childPriceFixed: value
-                                  }
-                                });
-                              }}
-                              className="w-full border-2 border-gray-300 rounded-lg pl-12 pr-4 py-3 bg-white text-gray-900 text-2xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                            />
-                          </div>
-                          
-                          <div className="flex-1">
-                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                                Exemplo de Cálculo
-                              </div>
-                              <div className="text-sm text-gray-700">
-                                {(() => {
-                                  const adultPrice = tripData.price || 500;
-                                  const childPrice = tripData.passengerConfig?.childPriceFixed ?? Math.round(adultPrice * 0.7);
-                                  return (
-                                    <>
-                                      Preço adulto: <span className="font-bold">R$ {adultPrice.toLocaleString('pt-BR')}</span>
-                                      <br />
-                                      Preço criança (fixo): <span className="font-bold text-primary-600">R$ {childPrice.toLocaleString('pt-BR')}</span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Info size={14} />
-                          <span>
-                            Crianças sempre pagarão R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}, independente do preço adulto
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Allow Seniors */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
                 <div className="flex-1">
@@ -1626,118 +1607,319 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Right Column - Help Panel & Preview */}
-        <div className="space-y-6">
-          {/* Help Section */}
-          <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 shadow-sm">
-            <h4 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <Info className="text-primary-600" size={20} />
-              Por que definir regras claras?
-            </h4>
-            
+            {/* Right Column - Help Panel & Preview */}
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                  <PawPrint className="text-amber-600" size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Animais & Crianças</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Evita surpresas no embarque e garante que o ambiente seja adequado para todos.
-                  </p>
+              {/* Help Section */}
+              <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 shadow-sm">
+                <h4 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Info className="text-primary-600" size={20} />
+                  Por que definir regras claras?
+                </h4>
+                
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                      <PawPrint className="text-amber-600" size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Animais & Crianças</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Evita surpresas no embarque e garante que o ambiente seja adequado para todos.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <FileText className="text-blue-600" size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Documentação</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Alerta o viajante sobre a necessidade de RG/CNH para viagens interestaduais.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                      <Shield className="text-green-600" size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Clareza</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Regras bem definidas reduzem cancelamentos e dúvidas no WhatsApp.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <FileText className="text-blue-600" size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Documentação</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Alerta o viajante sobre a necessidade de RG/CNH para viagens interestaduais.
-                  </p>
-                </div>
-              </div>
+              {/* Live Preview Section */}
+              <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
+                <h5 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Check className="text-primary-600" size={16} />
+                  Como o viajante vê no site:
+                </h5>
+                <div className="space-y-2">
+                  {/* Children Preview */}
+                  {tripData.passengerConfig?.allowChildren === false ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
+                      <Ban className="text-red-500" size={14} />
+                      <span className="font-medium">Crianças não permitidas</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
+                      <Check className="text-green-600" size={14} />
+                      <span className="font-medium">Crianças permitidas</span>
+                      {tripData.passengerConfig?.childAgeLimit && (
+                        <span className="text-slate-500">
+                          (até {tripData.passengerConfig.childAgeLimit} anos)
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <Shield className="text-green-600" size={18} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 mb-1">Clareza</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Regras bem definidas reduzem cancelamentos e dúvidas no WhatsApp.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+                  {/* Seniors Preview */}
+                  {tripData.passengerConfig?.allowSeniors === false ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
+                      <Ban className="text-red-500" size={14} />
+                      <span className="font-medium">Idosos não permitidos</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
+                      <Check className="text-green-600" size={14} />
+                      <span className="font-medium">Idosos permitidos</span>
+                    </div>
+                  )}
 
-          {/* Live Preview Section */}
-          <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
-            <h5 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <Check className="text-primary-600" size={16} />
-              Como o viajante vê no site:
-            </h5>
-            <div className="space-y-2">
-              {/* Children Preview */}
-              {tripData.passengerConfig?.allowChildren === false ? (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
-                  <Ban className="text-red-500" size={14} />
-                  <span className="font-medium">Crianças não permitidas</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
-                  <Check className="text-green-600" size={14} />
-                  <span className="font-medium">Crianças permitidas</span>
-                  {tripData.passengerConfig?.childAgeLimit && (
-                    <span className="text-slate-500">
-                      (até {tripData.passengerConfig.childAgeLimit} anos)
-                    </span>
+                  {/* Lap Child Preview */}
+                  {tripData.passengerConfig?.allowLapChild && (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-blue-50 px-3 py-2.5 rounded-lg border border-blue-200">
+                      <Info className="text-blue-600" size={14} />
+                      <span className="font-medium">Criança no colo permitida</span>
+                    </div>
+                  )}
+
+                  {/* Child Price Preview */}
+                  {tripData.passengerConfig?.allowChildren !== false && (
+                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
+                      <DollarSign className="text-purple-600" size={14} />
+                      <span className="font-medium">
+                        Preço para crianças: {tripData.passengerConfig?.childPriceType === 'fixed' && tripData.passengerConfig?.childPriceFixed !== undefined
+                          ? `R$ ${tripData.passengerConfig.childPriceFixed.toLocaleString('pt-BR')} (fixo)`
+                          : `${Math.round((tripData.passengerConfig?.childPriceMultiplier || 0.7) * 100)}% do preço adulto`}
+                      </span>
+                    </div>
                   )}
                 </div>
-              )}
-
-              {/* Seniors Preview */}
-              {tripData.passengerConfig?.allowSeniors === false ? (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
-                  <Ban className="text-red-500" size={14} />
-                  <span className="font-medium">Idosos não permitidos</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
-                  <Check className="text-green-600" size={14} />
-                  <span className="font-medium">Idosos permitidos</span>
-                </div>
-              )}
-
-              {/* Lap Child Preview */}
-              {tripData.passengerConfig?.allowLapChild && (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-blue-50 px-3 py-2.5 rounded-lg border border-blue-200">
-                  <Info className="text-blue-600" size={14} />
-                  <span className="font-medium">Criança no colo permitida</span>
-                </div>
-              )}
-
-              {/* Child Price Preview */}
-              {tripData.passengerConfig?.allowChildren !== false && (
-                <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
-                  <DollarSign className="text-purple-600" size={14} />
-                  <span className="font-medium">
-                    Preço para crianças: {tripData.passengerConfig?.childPriceType === 'fixed' && tripData.passengerConfig?.childPriceFixed !== undefined
-                      ? `R$ ${tripData.passengerConfig.childPriceFixed.toLocaleString('pt-BR')} (fixo)`
-                      : `${Math.round((tripData.passengerConfig?.childPriceMultiplier || 0.7) * 100)}% do preço adulto`}
-                  </span>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Child Price Configuration - Full Width Card - Only show if allowChildren is true */}
+      {tripData.passengerConfig?.allowChildren !== false && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm p-6 lg:p-8">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
+              <DollarSign className="text-blue-600" size={24} />
+            </div>
+            <div className="flex-1">
+              <label className="block text-lg font-bold text-gray-900 mb-1.5">
+                Preço para Crianças
+              </label>
+              <p className="text-sm text-gray-600">
+                Escolha entre porcentagem do preço adulto ou valor fixo
+              </p>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg p-6 lg:p-8 border border-blue-100">
+              {/* Toggle between Percentage and Fixed */}
+              <div className="flex items-center gap-3 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setTripData({
+                    ...tripData,
+                    passengerConfig: {
+                      allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                      allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                      childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                      allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                      childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                      childPriceType: 'percentage',
+                      childPriceFixed: tripData.passengerConfig?.childPriceFixed
+                    }
+                  })}
+                  className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
+                    (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                  }`}
+                >
+                  Porcentagem
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTripData({
+                    ...tripData,
+                    passengerConfig: {
+                      allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                      allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                      childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                      allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                      childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                      childPriceType: 'fixed',
+                      childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
+                    }
+                  })}
+                  className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
+                    tripData.passengerConfig?.childPriceType === 'fixed'
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                  }`}
+                >
+                  Valor Fixo
+                </button>
+              </div>
+
+              {/* Input Section */}
+              {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-700">Porcentagem</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
+                        onChange={e => {
+                          const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
+                          setTripData({ 
+                            ...tripData, 
+                            passengerConfig: {
+                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                              allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                              childPriceMultiplier: percentage / 100,
+                              childPriceType: 'percentage',
+                              childPriceFixed: tripData.passengerConfig?.childPriceFixed
+                            }
+                          });
+                        }}
+                        className="w-full border-2 border-gray-300 rounded-lg px-8 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                      />
+                      <div className="absolute right-8 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-500 pointer-events-none">
+                        %
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                      <Info size={14} className="mt-0.5 flex-shrink-0" />
+                      <span>
+                        {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% significa que crianças pagam {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% do preço do adulto
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
+                      <div className="text-base text-gray-700 space-y-3">
+                        {(() => {
+                          const multiplier = tripData.passengerConfig?.childPriceMultiplier ?? 0.7;
+                          const percentage = Math.round(multiplier * 100);
+                          const examplePrice = tripData.price || 500;
+                          const childPrice = Math.round(examplePrice * multiplier);
+                          return (
+                            <>
+                              <div className="flex justify-between items-center pb-2 border-b border-gray-300">
+                                <span className="text-gray-600 font-medium">Preço adulto:</span>
+                                <span className="font-bold text-gray-900 text-lg">R$ {examplePrice.toLocaleString('pt-BR')}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600 font-medium">Preço criança ({percentage}%):</span>
+                                <span className="font-bold text-primary-600 text-lg">R$ {childPrice.toLocaleString('pt-BR')}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-700">Valor Fixo</label>
+                    <div className="relative">
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xl pointer-events-none">
+                        R$
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
+                        onChange={e => {
+                          const value = Math.max(0, parseFloat(e.target.value) || 0);
+                          setTripData({ 
+                            ...tripData, 
+                            passengerConfig: {
+                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                              allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                              childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                              childPriceType: 'fixed',
+                              childPriceFixed: value
+                            }
+                          });
+                        }}
+                        className="w-full border-2 border-gray-300 rounded-lg pl-20 pr-6 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                      <Info size={14} className="mt-0.5 flex-shrink-0" />
+                      <span>
+                        Crianças sempre pagarão R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}, independente do preço adulto
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
+                      <div className="text-base text-gray-700 space-y-3">
+                        {(() => {
+                          const adultPrice = tripData.price || 500;
+                          const childPrice = tripData.passengerConfig?.childPriceFixed ?? Math.round(adultPrice * 0.7);
+                          return (
+                            <>
+                              <div className="flex justify-between items-center pb-2 border-b border-gray-300">
+                                <span className="text-gray-600 font-medium">Preço adulto:</span>
+                                <span className="font-bold text-gray-900 text-lg">R$ {adultPrice.toLocaleString('pt-BR')}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600 font-medium">Preço criança (fixo):</span>
+                                <span className="font-bold text-primary-600 text-lg">R$ {childPrice.toLocaleString('pt-BR')}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
     </div>
   );
 
@@ -1788,7 +1970,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       />
       
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-        <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-2xl max-w-5xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
         
         {/* Draft Restore Alert */}

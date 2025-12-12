@@ -672,11 +672,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (booking.passengerDetails && booking.passengerDetails.length > 0) {
             const passengerRecords = booking.passengerDetails.map((passenger, index) => ({
                 booking_id: booking.id,
-                passenger_index: index,
                 full_name: passenger.name,
-                cpf: passenger.document?.replace(/\D/g, '') || null,
+                document: passenger.document?.replace(/\D/g, '') || passenger.cpf?.replace(/\D/g, '') || null,
+                cpf: passenger.document?.replace(/\D/g, '') || passenger.cpf?.replace(/\D/g, '') || null, // Keep both for compatibility
                 birth_date: passenger.birthDate || null,
-                whatsapp: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null
+                phone: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null,
+                whatsapp: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null // Keep both for compatibility
             }));
 
             const { error: passengerError } = await sb

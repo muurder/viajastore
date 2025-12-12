@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { UserRole, Booking, Address, AgencyReview, Agency, Trip } from '../types';
+import { UserRole, Booking, Address, AgencyReview, Agency, Trip, Client } from '../types';
 import { TripCard } from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass, Users } from 'lucide-react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
-import { jsPDF } from 'jspdf';
 import { useToast } from '../context/ToastContext';
+import { generateTripVoucherPDF } from '../utils/pdfGenerator';
 import { slugify } from '../utils/slugify';
 import { logger } from '../utils/logger';
 
@@ -46,9 +46,11 @@ interface BookingCardProps {
   hasReviewed: boolean;
   onOpenVoucher: (booking: Booking) => void;
   fetchTripImages?: (tripId: string, forceRefresh?: boolean) => Promise<string[]>;
+  currentClient?: Client | null;
+  user?: any;
 }
 
-const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasReviewed, onOpenVoucher, fetchTripImages }) => {
+const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasReviewed, onOpenVoucher, fetchTripImages, currentClient, user }) => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [tripWithImages, setTripWithImages] = useState<Trip>(trip);
@@ -117,7 +119,124 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
            <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
          </div>
          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => onOpenVoucher(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
+            <button 
+              onClick={async () => {
+                // Generate PDF directly with all passenger data
+                try {
+                  const { supabase } = await import('../services/supabase');
+                  if (!supabase) {
+                    showToast('Erro ao conectar com o banco de dados.', 'error');
+                    return;
+                  }
+
+                  // Fetch all passengers from database
+                  const { data: passengersData, error: passengersError } = await supabase
+                    .from('booking_passengers')
+                    .select('*')
+                    .eq('booking_id', booking.id)
+                    .order('created_at', { ascending: true });
+
+                  if (passengersError) {
+                    logger.error('Error fetching passengers:', passengersError);
+                  }
+
+                  // Prepare passengers array
+                  let passengers: any[] = [];
+                  
+                  if (passengersData && passengersData.length > 0) {
+                    passengers = passengersData.map(p => {
+                      // Format document
+                      let formattedDoc = p.document || p.cpf || '---';
+                      if (formattedDoc && formattedDoc !== '---') {
+                        const digits = formattedDoc.replace(/\D/g, '');
+                        if (digits.length === 11) {
+                          formattedDoc = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                        }
+                      }
+                      
+                      // Determine type
+                      let passengerType: string | undefined;
+                      if (p.age !== undefined && p.age !== null) {
+                        passengerType = p.age < 12 ? 'child' : 'adult';
+                      } else if (p.birth_date) {
+                        try {
+                          const today = new Date();
+                          const birth = new Date(p.birth_date);
+                          if (!isNaN(birth.getTime())) {
+                            let age = today.getFullYear() - birth.getFullYear();
+                            const monthDiff = today.getMonth() - birth.getMonth();
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                              age--;
+                            }
+                            passengerType = age < 12 ? 'child' : 'adult';
+                          }
+                        } catch (err) {
+                          logger.warn('Error calculating age:', err);
+                        }
+                      }
+                      
+                      return {
+                        name: p.full_name || p.name || '---',
+                        document: formattedDoc,
+                        birthDate: p.birth_date || p.birthDate,
+                        type: passengerType,
+                        age: p.age,
+                        full_name: p.full_name
+                      };
+                    });
+                  } else if (booking.passengerDetails && booking.passengerDetails.length > 0) {
+                    // Fallback to booking.passengerDetails
+                    passengers = booking.passengerDetails.map((p: any) => {
+                      let formattedDoc = p.document || p.cpf || '---';
+                      if (formattedDoc && formattedDoc !== '---') {
+                        const digits = formattedDoc.replace(/\D/g, '');
+                        if (digits.length === 11) {
+                          formattedDoc = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                        }
+                      }
+                      return {
+                        name: p.name || '---',
+                        document: formattedDoc,
+                        birthDate: p.birthDate || p.birth_date,
+                        type: p.type || (p.age !== undefined ? (p.age < 12 ? 'child' : 'adult') : undefined)
+                      };
+                    });
+                  } else {
+                    // Last resort: use client as main passenger
+                    let formattedDoc = currentClient?.cpf || '---';
+                    if (formattedDoc && formattedDoc !== '---') {
+                      const digits = formattedDoc.replace(/\D/g, '');
+                      if (digits.length === 11) {
+                        formattedDoc = digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                      }
+                    }
+                    passengers = [{
+                      name: currentClient?.name || user?.name || 'Cliente',
+                      document: formattedDoc,
+                      type: 'adult'
+                    }];
+                  }
+
+                  logger.info(`Generating PDF from BookingCard with ${passengers.length} passenger(s):`, passengers.map(p => ({ name: p.name, document: p.document })));
+
+                  // Generate PDF using unified function
+                  await generateTripVoucherPDF({
+                    booking,
+                    trip,
+                    agency: agency || null,
+                    passengers,
+                    voucherCode: booking.voucherCode,
+                    client: currentClient || null
+                  });
+
+                  showToast('PDF gerado com sucesso!', 'success');
+                } catch (error: any) {
+                  logger.error('Error generating PDF from BookingCard:', error);
+                  showToast(error?.message || 'Erro ao gerar o PDF. Tente novamente.', 'error');
+                }
+              }}
+              className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm"
+            >
                  <QrCode size={16} /> Abrir Voucher
             </button>
             <button 
@@ -356,11 +475,13 @@ const ClientDashboard: React.FC = () => {
             .from('booking_passengers')
             .select('*')
             .eq('booking_id', selectedBooking.id)
-            .order('passenger_index', { ascending: true });
+            .order('created_at', { ascending: true });
           
           if (!error && data) {
+            logger.info(`Loaded ${data.length} passengers for booking ${selectedBooking.id}:`, data.map(p => ({ name: p.full_name, document: p.document || p.cpf, birth_date: p.birth_date })));
             setBookingPassengers(data);
           } else {
+            logger.warn(`No passengers found for booking ${selectedBooking.id}`, error);
             setBookingPassengers([]);
           }
         }
@@ -594,160 +715,180 @@ const ClientDashboard: React.FC = () => {
       }
 
       try {
-        // Fetch passenger data from database
+        // ALWAYS fetch passengers fresh from database to ensure we have the latest data
         let passengersData: any[] = [];
+        
         try {
           const { supabase } = await import('../services/supabase');
           if (supabase) {
+            logger.info(`🔍 Fetching passengers for booking ${selectedBooking.id}...`);
             const { data, error } = await supabase
               .from('booking_passengers')
               .select('*')
               .eq('booking_id', selectedBooking.id)
-              .order('passenger_index', { ascending: true });
+              .order('created_at', { ascending: true });
             
-            if (!error && data) {
+            if (error) {
+              logger.error('❌ Error fetching passengers from database:', error);
+              logger.error('Error details:', JSON.stringify(error, null, 2));
+            } else if (data) {
               passengersData = data;
+              logger.info(`✅ Found ${data.length} passengers in database for booking ${selectedBooking.id}`);
+              logger.info('Raw database records:', JSON.stringify(data, null, 2));
+              data.forEach((p, idx) => {
+                logger.info(`  DB Record ${idx + 1}:`, {
+                  id: p.id,
+                  booking_id: p.booking_id,
+                  full_name: p.full_name,
+                  document: p.document,
+                  cpf: p.cpf,
+                  birth_date: p.birth_date,
+                  is_primary: p.is_primary,
+                  created_at: p.created_at
+                });
+              });
+            } else {
+              logger.warn('⚠️ No passengers data returned from query (data is null/undefined)');
             }
           }
         } catch (err) {
           logger.error('Error fetching passengers:', err);
         }
+        
+        // If database fetch failed, try using state
+        if (passengersData.length === 0 && bookingPassengers.length > 0) {
+          logger.info('Using passengers from state as fallback');
+          passengersData = bookingPassengers;
+        }
 
-        const doc = new jsPDF();
-        doc.setFillColor(59, 130, 246);
-        doc.rect(0, 0, 210, 40, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(12);
-        let y = 60;
-        const addField = (label: string, value: string) => { doc.setFont('helvetica', 'bold'); doc.text(label, 20, y); doc.setFont('helvetica', 'normal'); doc.text(value, 70, y); y += 10; };
-        addField('Código da Reserva:', selectedBooking.voucherCode);
-        y += 5;
-        addField('Pacote:', trip.title || '---');
-        addField('Destino:', trip.destination || '---');
-        const dateStr = trip.startDate;
-        addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString() : '---');
-        const duration = trip.durationDays;
-        addField('Duração:', `${duration} Dias`);
-        y += 5;
-        addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
-        if (agency?.phone) addField('Contato Agência:', agency.phone);
-        y += 10;
+        // Use EXACTLY the same logic as CheckoutSuccess
+        // Priority: database passengers > booking.passengerDetails > empty array (same as CheckoutSuccess)
+        let passengers: any[] = [];
         
-        // Passenger section
-        doc.setDrawColor(200, 200, 200);
-        doc.line(20, y, 190, y);
-        y += 15;
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Passageiros', 20, y);
-        y += 10;
+        logger.info('=== PASSENGER DATA ANALYSIS ===');
+        logger.info(`Raw passengersData from DB: ${passengersData.length} records`);
+        logger.info('Raw data:', JSON.stringify(passengersData, null, 2));
+        logger.info(`Booking passengerDetails: ${selectedBooking.passengerDetails?.length || 0} records`);
+        logger.info('Booking passengerDetails data:', JSON.stringify(selectedBooking.passengerDetails, null, 2));
         
-        // If we have passenger data, use it; otherwise use booking info
         if (passengersData.length > 0) {
-          passengersData.forEach((passenger, index) => {
-            if (y > 250) {
-              doc.addPage();
-              y = 20;
-            }
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
-            doc.setFont('helvetica', 'normal');
-            y += 7;
-            doc.setFontSize(10);
-            doc.text(`Nome: ${passenger.full_name}`, 25, y);
-            y += 6;
-            if (passenger.cpf) {
-              doc.text(`CPF: ${passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`, 25, y);
-              y += 6;
-            }
-            if (passenger.birth_date) {
-              doc.text(`Data de Nascimento: ${new Date(passenger.birth_date).toLocaleDateString('pt-BR')}`, 25, y);
-              y += 6;
-            }
-            if (passenger.whatsapp) {
-              doc.text(`WhatsApp: ${passenger.whatsapp}`, 25, y);
-              y += 6;
-            }
-            y += 5;
+          // Convert database format to PassengerDetail format (EXACTLY as CheckoutSuccess receives from state)
+          passengers = passengersData.map((p, idx) => {
+            // Get document - keep raw digits, pdfGenerator will format
+            const rawDoc = p.document || p.cpf || '';
+            const docDigits = rawDoc.replace(/\D/g, '');
+            
+            const passenger = {
+              name: p.full_name || p.name || `Passageiro ${idx + 1}`,
+              document: docDigits || '---', // Raw digits, same as CheckoutSuccess
+              cpf: docDigits || undefined, // Keep for compatibility
+              birthDate: p.birth_date || p.birthDate || undefined,
+              type: (() => {
+                // Calculate type same way as CheckoutSuccess would
+                if (p.age !== undefined && p.age !== null) {
+                  return p.age < 12 ? 'child' : 'adult';
+                }
+                if (p.birth_date) {
+                  try {
+                    const today = new Date();
+                    const birth = new Date(p.birth_date);
+                    if (!isNaN(birth.getTime())) {
+                      let age = today.getFullYear() - birth.getFullYear();
+                      const monthDiff = today.getMonth() - birth.getMonth();
+                      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                        age--;
+                      }
+                      return age < 12 ? 'child' : 'adult';
+                    }
+                  } catch (err) {
+                    // Silent fail, let pdfGenerator determine
+                  }
+                }
+                return undefined; // Let pdfGenerator determine
+              })(),
+              age: p.age
+            };
+            
+            logger.info(`Passenger ${idx + 1}:`, {
+              name: passenger.name,
+              document: passenger.document,
+              type: passenger.type,
+              birthDate: passenger.birthDate,
+              rawData: p
+            });
+            
+            return passenger;
           });
+          
+          logger.info(`✅ Converted ${passengers.length} passengers from database (CheckoutSuccess format)`);
         } else if (selectedBooking.passengerDetails && selectedBooking.passengerDetails.length > 0) {
-          // Use passengerDetails from booking if available
-          selectedBooking.passengerDetails.forEach((passenger: any, index: number) => {
-            if (y > 250) {
-              doc.addPage();
-              y = 20;
-            }
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
-            doc.setFont('helvetica', 'normal');
-            y += 7;
-            doc.setFontSize(10);
-            doc.text(`Nome: ${passenger.name || '---'}`, 25, y);
-            y += 6;
-            if (passenger.document) {
-              doc.text(`CPF: ${passenger.document}`, 25, y);
-              y += 6;
-            }
-            if (passenger.birthDate) {
-              doc.text(`Data de Nascimento: ${new Date(passenger.birthDate).toLocaleDateString('pt-BR')}`, 25, y);
-              y += 6;
-            }
-            if (passenger.phone) {
-              doc.text(`WhatsApp: ${passenger.phone}`, 25, y);
-              y += 6;
-            }
-            y += 5;
+          // Use booking.passengerDetails directly (EXACT format as CheckoutSuccess receives)
+          passengers = selectedBooking.passengerDetails.map((p: any, idx: number) => {
+            const passenger = {
+              name: p.name || `Passageiro ${idx + 1}`,
+              document: p.document || p.cpf || '---',
+              cpf: p.cpf || p.document || undefined,
+              birthDate: p.birthDate || p.birth_date || undefined,
+              type: p.type || undefined,
+              age: p.age
+            };
+            
+            logger.info(`Passenger ${idx + 1} from booking.passengerDetails:`, passenger);
+            
+            return passenger;
           });
+          logger.info(`✅ Using ${passengers.length} passengers from booking.passengerDetails`);
         } else {
-          // Fallback to main passenger info
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`Passageiro Principal: ${currentClient?.name || user?.name || 'Cliente'}`, 25, y);
-          y += 6;
-          if (currentClient?.cpf) {
-            doc.text(`CPF: ${currentClient.cpf}`, 25, y);
-            y += 6;
-          }
-          if (selectedBooking.passengers > 1) {
-            doc.text(`Total de passageiros: ${selectedBooking.passengers}`, 25, y);
-            y += 6;
-            doc.setFontSize(9);
-            doc.setTextColor(100, 100, 100);
-            doc.text('* Dados dos acompanhantes não disponíveis', 25, y);
-            doc.setTextColor(0, 0, 0);
-            y += 6;
-          }
+          // Empty array (EXACT same as CheckoutSuccess fallback)
+          passengers = [];
+          logger.warn('⚠️ No passengers found - using empty array');
         }
         
-        y += 10;
-        doc.setDrawColor(200, 200, 200);
-        doc.line(20, y, 190, y);
-        y += 15;
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Instruções', 20, y);
-        y += 10;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
-        y += 6;
-        doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
-        y += 6;
-        doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
-        y = 280;
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
-        doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
-      } catch (error) {
+        logger.info(`=== FINAL PASSENGERS ARRAY: ${passengers.length} ===`);
+        passengers.forEach((p, idx) => {
+          logger.info(`  [${idx + 1}] ${p.name} | Doc: ${p.document} | Type: ${p.type || 'undefined'}`);
+        });
+
+        // Final validation and logging
+        logger.info('=== FINAL PDF GENERATION DEBUG ===');
+        logger.info(`Booking ID: ${selectedBooking.id}`);
+        logger.info(`Voucher Code: ${selectedBooking.voucherCode}`);
+        logger.info(`Passengers from database: ${passengersData.length}`);
+        logger.info(`Passengers formatted: ${passengers.length}`);
+        logger.info(`Booking passengerDetails: ${selectedBooking.passengerDetails?.length || 0}`);
+        logger.info('=== FINAL PASSENGERS ARRAY TO PDF ===');
+        passengers.forEach((p, idx) => {
+          logger.info(`  [${idx + 1}] Name: "${p.name}" | Document: "${p.document}" | Type: "${p.type || 'undefined'}" | BirthDate: "${p.birthDate || 'none'}"`);
+        });
+        
+        if (passengers.length === 0) {
+          logger.error('❌ CRITICAL: NO PASSENGERS FOUND FOR PDF!');
+          logger.error('Raw database data:', JSON.stringify(passengersData, null, 2));
+          logger.error('Booking passengerDetails:', JSON.stringify(selectedBooking.passengerDetails, null, 2));
+          logger.error('Booking object:', JSON.stringify(selectedBooking, null, 2));
+          showToast('Atenção: Nenhum passageiro encontrado. O PDF será gerado apenas com dados básicos.', 'warning');
+        } else {
+          logger.info(`✅ Generating PDF with ${passengers.length} passenger(s) - ALL SHOULD APPEAR IN PDF`);
+        }
+
+        // Call with EXACTLY the same parameters as CheckoutSuccess
+        logger.info('=== CALLING generateTripVoucherPDF ===');
+        logger.info(`Passengers count: ${passengers.length}`);
+        logger.info('Passengers array:', JSON.stringify(passengers, null, 2));
+        
+        await generateTripVoucherPDF({
+          booking: selectedBooking,
+          trip,
+          agency: agency || null,
+          passengers, // Same format as CheckoutSuccess
+          voucherCode: selectedBooking.voucherCode,
+          client: currentClient || null
+        });
+        
+        logger.info('✅ PDF generation completed');
+      } catch (error: any) {
           logger.error('Erro ao gerar PDF:', error);
-          showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
+          showToast(error?.message || 'Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
       }
   };
 
@@ -952,7 +1093,9 @@ const ClientDashboard: React.FC = () => {
                     const agency = booking._agency; 
                     if (!trip) return null;
                     
-                    return <BookingCard 
+                      return <BookingCard
+                        currentClient={currentClient}
+                        user={user}
                       key={booking.id} 
                       booking={booking} 
                       trip={trip} 
@@ -1163,62 +1306,177 @@ const ClientDashboard: React.FC = () => {
 
       {selectedBooking && !showReviewModal && !showEditReviewModal && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
-            <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
                 <button
                     type="button"
                     onClick={() => setSelectedBooking(null)}
-                    className="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/10 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/50 shadow-lg cursor-pointer"
+                    className="absolute top-4 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 text-gray-600 hover:bg-white border border-gray-200 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-lg cursor-pointer"
                     aria-label="Fechar voucher"
                 >
-                    <X size={28} />
+                    <X size={20} />
                 </button>
-                <div className="bg-primary-600 p-6 text-white text-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                    <h3 className="text-2xl font-bold relative z-10">Voucher de Viagem</h3>
-                    <p className="text-primary-100 text-sm font-mono relative z-10">{selectedBooking.voucherCode}</p>
+
+                {/* TOP BANNER - Trip Image with Overlay (160px height) */}
+                <div className="relative h-40 overflow-hidden">
+                    {selectedBooking._trip?.images && selectedBooking._trip.images.length > 0 ? (
+                        <>
+                            <img 
+                                src={selectedBooking._trip.images[0]} 
+                                alt={selectedBooking._trip.title}
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/40"></div>
+                        </>
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary-600 to-primary-700"></div>
+                    )}
+                    <div className="absolute inset-0 flex flex-col justify-end p-6 text-white">
+                        <h3 className="text-2xl font-bold mb-2 drop-shadow-2xl">{selectedBooking._trip?.title || 'Pacote de Viagem'}</h3>
+                        <div className="flex items-center gap-2 text-sm text-white/95 font-medium">
+                            <Calendar size={16} />
+                            <span>{new Date(selectedBooking.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                        </div>
+                        {selectedBooking._trip?.destination && (
+                            <div className="flex items-center gap-2 text-sm text-white/90 mt-1">
+                                <MapPin size={14} />
+                                <span>{selectedBooking._trip.destination}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="p-8">
+
+                {/* BODY - White Background */}
+                <div className="p-6 bg-white">
+                    {/* Voucher Code - Large & Monospace */}
                     <div className="text-center mb-6">
-                        <div className="w-32 h-32 mx-auto mb-4 bg-gray-100 p-2 rounded-xl"> <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} alt="QR Code" className="w-full h-full object-contain mix-blend-multiply"/> </div>
-                        <p className="font-bold text-gray-900 text-lg">{currentClient?.name || user?.name || 'Cliente'}</p>
-                        <p className="text-sm text-gray-500 mb-2">{selectedBooking._trip?.title || 'Pacote de Viagem'}</p>
-                        <p className="text-xs text-gray-400 mb-6">{new Date(selectedBooking.date).toLocaleDateString()}</p>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Código da Reserva</p>
+                        <p className="text-3xl font-mono font-bold text-primary-600 tracking-wider">{selectedBooking.voucherCode}</p>
                     </div>
 
-                    {/* Passengers List */}
-                    {bookingPassengers.length > 0 && (
-                        <div className="mb-6 border-t pt-6">
-                            <h4 className="text-sm font-bold text-gray-700 mb-3">Passageiros ({bookingPassengers.length})</h4>
-                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                                {bookingPassengers.map((passenger, index) => (
-                                    <div key={passenger.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <p className="text-sm font-bold text-gray-900">
-                                                    {index === 0 ? '👤 ' : '👥 '}
-                                                    {passenger.full_name}
-                                                </p>
-                                                {passenger.cpf && (
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        CPF: {passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
-                                                    </p>
-                                                )}
-                                                {passenger.birth_date && (
-                                                    <p className="text-xs text-gray-500">
-                                                        Nasc: {new Date(passenger.birth_date).toLocaleDateString('pt-BR')}
-                                                    </p>
-                                                )}
+                    {/* Grid: Data, Horário, Status */}
+                    <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Data</p>
+                            <p className="text-sm font-semibold text-gray-900">{new Date(selectedBooking.date).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Status</p>
+                            <p className="text-sm font-semibold text-green-600">
+                                {selectedBooking.status === 'CONFIRMED' ? 'Confirmada' : 
+                                 selectedBooking.status === 'PENDING' ? 'Pendente' : 'Cancelada'}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Passageiros</p>
+                            <p className="text-sm font-semibold text-gray-900">{selectedBooking.passengers || bookingPassengers.length || 1}</p>
+                        </div>
+                    </div>
+
+                    {/* Dashed Separator (Picote Effect) */}
+                    <div className="relative my-6">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t-2 border-dashed border-gray-300"></div>
+                        </div>
+                        <div className="relative flex justify-center">
+                            <div className="bg-white px-4">
+                                <div className="w-20 h-20 mx-auto bg-white border-4 border-gray-200 rounded-2xl p-3 shadow-sm flex items-center justify-center">
+                                    <img 
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedBooking.voucherCode)}`} 
+                                        alt="QR Code" 
+                                        className="w-full h-full object-contain"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Passengers List - Visual with Avatars */}
+                    {(bookingPassengers.length > 0 || (selectedBooking.passengerDetails && selectedBooking.passengerDetails.length > 0)) && (
+                        <div className="mb-6">
+                            <p className="text-xs font-bold text-gray-400 uppercase mb-4 flex items-center gap-2">
+                                <Users size={16} className="text-gray-400"/>
+                                Passageiros ({bookingPassengers.length > 0 ? bookingPassengers.length : selectedBooking.passengerDetails?.length || 0})
+                            </p>
+                            <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                                {bookingPassengers.length > 0 ? (
+                                    bookingPassengers.map((passenger, idx) => {
+                                        const doc = passenger.document || passenger.cpf || '---';
+                                        const formattedDoc = doc !== '---' && /^\d{11}$/.test(doc.replace(/\D/g, '')) 
+                                            ? doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                                            : doc;
+                                        const isChild = passenger.birth_date ? (() => {
+                                            const age = new Date().getFullYear() - new Date(passenger.birth_date).getFullYear();
+                                            return age < 12;
+                                        })() : false;
+                                        
+                                        return (
+                                            <div key={passenger.id || idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors">
+                                                <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-gray-900 truncate">{passenger.full_name || passenger.name || 'Passageiro'}</span>
+                                                        {isChild && (
+                                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Criança</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 font-mono mt-0.5">{formattedDoc}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                        );
+                                    })
+                                ) : selectedBooking.passengerDetails && selectedBooking.passengerDetails.length > 0 ? (
+                                    selectedBooking.passengerDetails.map((p: any, idx: number) => {
+                                        const doc = p.document || p.cpf || '---';
+                                        const formattedDoc = doc !== '---' && /^\d{11}$/.test(doc.replace(/\D/g, '')) 
+                                            ? doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                                            : doc;
+                                        const isChild = p.birthDate ? (() => {
+                                            const age = new Date().getFullYear() - new Date(p.birthDate).getFullYear();
+                                            return age < 12;
+                                        })() : false;
+                                        
+                                        return (
+                                            <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors">
+                                                <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-gray-900 truncate">{p.name || 'Passageiro'}</span>
+                                                        {isChild && (
+                                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">Criança</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 font-mono mt-0.5">{formattedDoc}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : null}
                             </div>
                         </div>
                     )}
 
-                    <div className="space-y-3">
-                        <button onClick={generatePDF} className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-black transition-colors shadow-lg"><Download size={18}/> Baixar PDF</button>
-                        <button onClick={openWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-700 transition-colors shadow-lg"><MessageCircle size={18}/> Falar com a Agência</button>
+                    {/* Action Buttons - Full Width */}
+                    <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <button 
+                            onClick={generatePDF} 
+                            className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.98]"
+                        >
+                            <Download size={20}/> 
+                            Baixar PDF Oficial
+                        </button>
+                        {selectedBooking._agency && (selectedBooking._agency.whatsapp || selectedBooking._agency.phone) && (
+                            <button 
+                                onClick={openWhatsApp} 
+                                className="w-full bg-white text-green-600 border-2 border-green-600 py-4 rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-green-50 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
+                            >
+                                <MessageCircle size={20}/> 
+                                WhatsApp da Agência
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

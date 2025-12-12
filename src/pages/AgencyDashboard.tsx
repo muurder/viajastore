@@ -1510,7 +1510,9 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
     const passengerDetails = opData?.passengerDetails || {}; // New: Details map { [id]: { name, document, phone } }
 
     const allPassengers = useMemo(() => {
-        const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
+        // Safety check: Only process bookings for the current trip
+        const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
+        const booked = validBookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
             const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
             return Array.from({ length: b.passengers }).map((_, i) => {
                 const id = `${b.id}-${i}`;
@@ -1558,7 +1560,7 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
             details: passengerDetails[p.id]
         }));
         return [...booked, ...manual];
-    }, [bookings, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers]);
+    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers]);
 
     // Global Assignment Map (Passenger ID -> Vehicle Name + Seat)
     const globalAssignmentMap = useMemo(() => {
@@ -2109,7 +2111,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
         }
         
         const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
-        const booking = bookings.find(b => b.id === passenger.bookingId);
+        // Safety check: Only find booking if it belongs to current trip
+        const booking = bookings.find(b => b.id === passenger.bookingId && b.tripId && String(b.tripId) === String(trip.id));
         const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
         
         // Use database name if available, otherwise use seat name, otherwise use passenger name
@@ -2358,7 +2361,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                             }
                             // For main passenger, use client name as fallback
                             if (!passengerName && !p.isAccompaniment) {
-                                const booking = bookings.find(b => b.id === p.bookingId);
+                                // Safety check: Only find booking if it belongs to current trip
+                                const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
                                 const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
                                 passengerName = clientName || 'Passageiro';
                             }
@@ -2392,7 +2396,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                         
                                         // For main passenger, use client name as fallback
                                         if (!passengerName && !p.isAccompaniment) {
-                                            const booking = bookings.find(b => b.id === p.bookingId);
+                                            // Safety check: Only find booking if it belongs to current trip
+                                            const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
                                             const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
                                             passengerName = clientName || 'Passageiro';
                                         }
@@ -2455,7 +2460,8 @@ const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, cli
                                         onClick={(e) => { 
                                             e.stopPropagation(); 
                                             const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                                            const booking = bookings.find(b => b.id === p.bookingId);
+                                            // Safety check: Only find booking if it belongs to current trip
+                                            const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
                                             const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
                                             const avatar = client?.avatar || dbPassenger?.avatar;
                                             const name = dbPassenger?.full_name || p.details?.name || p.name || 'Passageiro';
@@ -2788,8 +2794,10 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
         const fetchPassengers = async () => {
             try {
                 const { supabase } = await import('../services/supabase');
-                if (supabase && bookings.length > 0) {
-                    const bookingIds = bookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
+                // Safety check: Only fetch passengers for bookings of the current trip
+                const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
+                if (supabase && validBookings.length > 0) {
+                    const bookingIds = validBookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
                     if (bookingIds.length > 0) {
                         const { data, error } = await supabase
                             .from('booking_passengers')
@@ -2813,10 +2821,12 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
             }
         };
         fetchPassengers();
-    }, [bookings]);
+    }, [bookings, trip.id]);
 
     const allPassengers = useMemo(() => {
-        const booked = bookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
+        // Safety check: Only process bookings for the current trip
+        const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
+        const booked = validBookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
             const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
             return Array.from({ length: b.passengers }).map((_, i) => {
                 const id = `${b.id}-${i}`;
@@ -2861,7 +2871,7 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
             isAccompaniment: false
         }));
         return [...booked, ...manual];
-    }, [bookings, clients, manualPassengers, nameOverrides, dbPassengers]);
+    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, dbPassengers]);
 
     // Global Assignment Map across all hotels
     const assignedMap = useMemo(() => {
@@ -3201,7 +3211,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                             
                                             // For main passenger, use client name as fallback
                                             if (!passengerName && !p.isAccompaniment) {
-                                                const booking = bookings.find(b => b.id === p.bookingId);
+                                                // Safety check: Only find booking if it belongs to current trip
+                                                const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
                                                 const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
                                                 passengerName = clientName || 'Passageiro';
                                             }
@@ -3247,7 +3258,8 @@ const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients
                                                  }
                                                  // For main passenger, use client name as fallback
                                                  if (!passengerName && !p.isAccompaniment) {
-                                                     const booking = bookings.find(b => b.id === p.bookingId);
+                                                     // Safety check: Only find booking if it belongs to current trip
+                                                     const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
                                                      const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
                                                      passengerName = clientName || 'Passageiro';
                                                  }
@@ -3429,7 +3441,7 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
 
             // Stats
             const opData = selectedTrip.operationalData || DEFAULT_OPERATIONAL_DATA;
-            const tripBookings = myBookings.filter(b => b.tripId === selectedTrip.id && b.status === 'CONFIRMED');
+            const tripBookings = myBookings.filter(b => b.tripId && String(b.tripId) === String(selectedTrip.id) && b.status === 'CONFIRMED');
             const totalPax = (opData.manualPassengers?.length || 0) + tripBookings.reduce((sum, b) => sum + b.passengers, 0);
             doc.text(`Total Passageiros: ${totalPax}`, 15, 80);
 
@@ -3996,7 +4008,9 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
         }
     };
 
-    const tripBookings = selectedTrip ? myBookings.filter(b => b.tripId === selectedTripId) : [];
+    const tripBookings = selectedTrip && selectedTripId 
+        ? myBookings.filter(b => b.tripId && String(b.tripId) === String(selectedTripId)) 
+        : [];
     return (
         <div className="flex h-full overflow-hidden bg-white relative">
             <ConfirmDialog 
@@ -5224,27 +5238,36 @@ const AgencyDashboard: React.FC = () => {
                                 {/* Trip Image with Overlay */}
                                 <div className="relative h-56 w-full bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
                                     {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
-                                        <img 
-                                            src={trip.images[0]} 
-                                            alt={trip.title} 
-                                            loading="lazy"
-                                            decoding="async"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
-                                            }}
-                                        />
+                                        <>
+                                            <img 
+                                                src={trip.images[0]} 
+                                                alt={trip.title} 
+                                                loading="lazy"
+                                                decoding="async"
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
+                                                }}
+                                            />
+                                            {/* Gradient Overlay - Only show when image exists */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                        </>
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                                            <div className="text-center">
-                                                <Plane size={32} className="text-gray-400 mx-auto mb-2"/>
-                                                <p className="text-xs text-gray-500 font-medium">Sem Imagem</p>
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 relative overflow-hidden">
+                                            {/* Decorative elements */}
+                                            <div className="absolute top-0 right-0 w-24 h-24 bg-primary-100/20 rounded-full -translate-y-12 translate-x-12"></div>
+                                            <div className="absolute bottom-0 left-0 w-20 h-20 bg-slate-200/30 rounded-full translate-y-10 -translate-x-10"></div>
+                                            
+                                            {/* Content */}
+                                            <div className="relative z-10 text-center px-4">
+                                                <div className="bg-white/70 backdrop-blur-sm p-3 rounded-xl shadow-sm border border-white/50 inline-block mb-3">
+                                                    <Plane size={28} className="text-primary-400/80" strokeWidth={1.5} />
+                                                </div>
+                                                <p className="text-xs font-semibold text-gray-600">Sem Imagem</p>
+                                                <p className="text-[10px] text-gray-400 mt-1">Adicione uma foto para destacar</p>
                                             </div>
                                         </div>
                                     )}
-                                    
-                                    {/* Gradient Overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                     
                                     {/* Status Badge */}
                                     <div className="absolute top-3 left-3 z-10">
