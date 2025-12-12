@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Trip } from '../types';
 import { MapPin, Star, Heart, Clock, MessageCircle, ArrowRight, Check, TrendingUp } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
@@ -43,12 +43,60 @@ export const TripCardSkeleton = () => (
 // Memoized component to prevent unnecessary re-renders
 export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
   const { user } = useAuth();
-  const { toggleFavorite, clients, agencies } = useData();
+  const { toggleFavorite, clients, agencies, fetchTripImages } = useData();
   const { showToast } = useToast();
   const [imgError, setImgError] = useState(false);
+  const [tripWithImages, setTripWithImages] = useState<Trip>(trip);
   
   // Context awareness for link generation
   const { agencySlug } = useParams<{ agencySlug?: string }>();
+
+  // Load images on mount if they don't exist
+  useEffect(() => {
+    const loadImages = async () => {
+      // If trip already has images, use them
+      if (trip.images && trip.images.length > 0) {
+        setTripWithImages(trip);
+        return;
+      }
+      
+      // Otherwise, try to fetch images
+      if (fetchTripImages) {
+        try {
+          const images = await fetchTripImages(trip.id);
+          if (images && images.length > 0) {
+            setTripWithImages({ ...trip, images });
+          } else {
+            setTripWithImages(trip);
+          }
+        } catch (error) {
+          // Silently fail - will show placeholder
+          setTripWithImages(trip);
+        }
+      } else {
+        setTripWithImages(trip);
+      }
+    };
+
+    loadImages();
+  }, [trip.id, trip.images, fetchTripImages]);
+
+  // Update tripWithImages when trip prop changes (but keep existing images if new trip doesn't have any)
+  useEffect(() => {
+    if (trip.id !== tripWithImages.id) {
+      // New trip - reset
+      setTripWithImages(trip);
+      setImgError(false);
+    } else if (trip.images && trip.images.length > 0) {
+      // Same trip but images were updated - check if arrays are different
+      const currentImages = tripWithImages.images || [];
+      const newImages = trip.images || [];
+      if (newImages.length > 0 && (currentImages.length === 0 || currentImages[0] !== newImages[0])) {
+        setTripWithImages(trip);
+        setImgError(false);
+      }
+    }
+  }, [trip, tripWithImages.id]);
 
   // Memoize computed values to prevent recalculation
   const linkTarget = useMemo(() => 
@@ -63,15 +111,16 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
     return currentUserData?.favorites.includes(trip.id) || false;
   }, [user, clients, trip.id]);
 
-  // Memoize agency and WhatsApp link
+  // Memoize agency and WhatsApp link - use tripWithImages for agencyId
   const { agency, whatsappLink } = useMemo(() => {
-    const foundAgency = agencies.find(a => a.agencyId === trip.agencyId);
+    const tripToUse = tripWithImages;
+    const foundAgency = agencies.find(a => a.agencyId === tripToUse.agencyId);
     const contactNumber = foundAgency?.whatsapp || foundAgency?.phone;
     return {
       agency: foundAgency,
-      whatsappLink: contactNumber ? buildWhatsAppLink(contactNumber, trip) : null
+      whatsappLink: contactNumber ? buildWhatsAppLink(contactNumber, tripToUse) : null
     };
-  }, [agencies, trip.agencyId, trip]);
+  }, [agencies, tripWithImages.agencyId, tripWithImages]);
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent Link navigation
@@ -98,15 +147,15 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
   };
 
   // FIX: Rigorously check if trip has valid images
-  const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
+  const hasValidImages = tripWithImages.images && Array.isArray(tripWithImages.images) && tripWithImages.images.length > 0 && tripWithImages.images[0];
   const shouldShowPlaceholder = !hasValidImages || imgError;
 
   // Get rating value
-  const rating = (trip as any).tripRating || trip.rating || 0;
+  const rating = (tripWithImages as any).tripRating || tripWithImages.rating || 0;
   const hasRating = rating > 0;
 
   // Check for popular features
-  const includedItems = trip.included || [];
+  const includedItems = tripWithImages.included || [];
   const hasBreakfast = includedItems.some(item => 
     item.toLowerCase().includes('café') || 
     item.toLowerCase().includes('cafe') || 
@@ -118,22 +167,22 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
   );
 
   // Check if popular/featured
-  const isPopular = trip.featured || (trip.views || 0) > 100;
+  const isPopular = tripWithImages.featured || (tripWithImages.views || 0) > 100;
 
   return (
     <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 h-full flex flex-col">
       <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
         {shouldShowPlaceholder ? (
           <NoImagePlaceholder 
-            title={trip.title} 
-            category={trip.category}
+            title={tripWithImages.title} 
+            category={tripWithImages.category}
             size="medium"
           />
         ) : (
           <>
             <img 
-              src={trip.images[0]} 
-              alt={trip.title} 
+              src={tripWithImages.images[0]} 
+              alt={tripWithImages.title} 
               loading="lazy"
               onError={() => setImgError(true)}
               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
@@ -162,7 +211,7 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
             </div>
           )}
           <div className="bg-black/70 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/20 shadow-lg">
-            {trip.category.replace(/_/g, ' ')}
+            {tripWithImages.category.replace(/_/g, ' ')}
           </div>
         </div>
 
@@ -181,18 +230,18 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center text-xs font-semibold text-gray-600 mb-2">
               <MapPin size={13} className="mr-1.5 flex-shrink-0 text-primary-500" />
-              <span className="truncate">{trip.destination}</span>
+              <span className="truncate">{tripWithImages.destination}</span>
             </div>
             <div className="flex items-center text-xs text-gray-500">
               <Clock size={13} className="mr-1.5 flex-shrink-0 text-gray-400" />
-              <span className="font-medium">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+              <span className="font-medium">{tripWithImages.durationDays} {tripWithImages.durationDays === 1 ? 'dia' : 'dias'}</span>
             </div>
           </div>
         </div>
 
         {/* Title */}
         <h3 className="text-xl font-bold text-gray-900 leading-tight mb-4 group-hover:text-primary-600 transition-colors line-clamp-2 min-h-[3.5rem]">
-          {trip.title}
+          {tripWithImages.title}
         </h3>
 
         {/* Features highlights */}
@@ -209,7 +258,7 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
               Cancelamento grátis
             </div>
           )}
-          {!hasBreakfast && !hasFreeCancellation && trip.tags && trip.tags.slice(0, 2).map((tag, index) => (
+          {!hasBreakfast && !hasFreeCancellation && tripWithImages.tags && tripWithImages.tags.slice(0, 2).map((tag, index) => (
             <span key={index} className="text-[10px] px-2.5 py-1 bg-gray-50 text-gray-600 rounded-full font-semibold border border-gray-100">
               {tag}
             </span>
@@ -217,9 +266,9 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
         </div>
 
         {/* Tags Section */}
-        {trip.tags && trip.tags.length > 0 && (hasBreakfast || hasFreeCancellation || trip.tags.length > 2) && (
+        {tripWithImages.tags && tripWithImages.tags.length > 0 && (hasBreakfast || hasFreeCancellation || tripWithImages.tags.length > 2) && (
           <div className="flex flex-wrap gap-1.5 mb-5 flex-1 content-start">
-            {trip.tags.slice(hasBreakfast || hasFreeCancellation ? 0 : 2, 5).map((tag, index) => (
+            {tripWithImages.tags.slice(hasBreakfast || hasFreeCancellation ? 0 : 2, 5).map((tag, index) => (
               <span key={index} className="text-[10px] px-2 py-0.5 bg-gray-50/80 text-gray-600 rounded-full font-medium border border-gray-100">
                 {tag}
               </span>
@@ -233,7 +282,7 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">A partir de</span>
             <div className="flex items-baseline gap-1">
               <span className="text-xs text-gray-500 font-semibold">R$</span>
-              <span className="text-2xl font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors">{trip.price.toLocaleString('pt-BR')}</span>
+              <span className="text-2xl font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors">{tripWithImages.price.toLocaleString('pt-BR')}</span>
             </div>
             <span className="text-[10px] text-gray-400 mt-0.5">por pessoa</span>
           </div>
@@ -241,10 +290,15 @@ export const TripCard: React.FC<TripCardProps> = React.memo(({ trip }) => {
             {whatsappLink && (
               <button
                 onClick={handleWhatsAppClick}
-                className="p-2.5 rounded-full bg-[#25D366] text-white hover:bg-[#128C7E] transition-all shadow-md hover:shadow-lg flex-shrink-0 hover:-translate-y-0.5 border border-green-400/20 group-hover:scale-105"
+                className="p-2.5 rounded-full bg-[#25D366] text-white hover:bg-[#20BA5A] transition-all shadow-md hover:shadow-lg flex-shrink-0 hover:-translate-y-0.5 border-2 border-green-400/30 active:scale-95"
+                style={{
+                  transform: 'translateZ(0)',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden'
+                }}
                 title="Falar no WhatsApp"
               >
-                <MessageCircle size={16} />
+                <MessageCircle size={16} className="fill-white" strokeWidth={0} />
               </button>
             )}
             <div className="flex items-center gap-1.5 bg-primary-600 text-white px-4 py-2.5 rounded-full hover:bg-primary-700 transition-all shadow-sm hover:shadow-md group-hover:gap-2">

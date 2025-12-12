@@ -4,6 +4,7 @@ export enum UserRole {
   CLIENT = 'CLIENT',
   AGENCY = 'AGENCY',
   ADMIN = 'ADMIN',
+  GUIDE = 'GUIDE', // Tour Guide role
 }
 
 export interface Address {
@@ -211,7 +212,9 @@ export interface PassengerConfig {
     allowSeniors: boolean; // Se a viagem aceita idosos
     childAgeLimit: number; // Idade limite para ser considerado criança (padrão: 12)
     allowLapChild: boolean; // Se permite criança no colo (sem assento próprio)
-    childPriceMultiplier: number; // Multiplicador de preço para crianças (padrão: 0.7 = 70% do preço)
+    childPriceMultiplier: number; // Multiplicador de preço para crianças (padrão: 0.7 = 70% do preço) - DEPRECATED: use childPriceType e childPriceFixed
+    childPriceType?: 'percentage' | 'fixed'; // Tipo de preço para crianças: porcentagem do adulto ou valor fixo
+    childPriceFixed?: number; // Valor fixo para crianças (quando childPriceType === 'fixed')
 }
 
 export interface OperationalData {
@@ -235,7 +238,8 @@ export interface Trip {
   endDate: string;
   durationDays: number;
   images: string[];
-  category: TripCategory;
+  category: TripCategory; // Deprecated: use categories instead
+  categories?: TripCategory[]; // Multiple categories support
   tags: string[];
   travelerTypes: TravelerType[];
   itinerary?: ItineraryDay[];
@@ -395,4 +399,38 @@ export interface ActivityLog {
     actionType: ActivityActionType;
     details: any;
     createdAt: string;
+}
+
+// Broadcast System Types
+export type BroadcastTargetRole = 'ALL' | 'AGENCY' | 'CLIENT' | 'GUIDE';
+
+export interface BroadcastMessage {
+    id: string;
+    title: string;
+    message: string;
+    target_role: BroadcastTargetRole;
+    created_by: string; // admin_id
+    created_at: string;
+    // Computed fields (from joins)
+    read_count?: number;
+    liked_count?: number;
+    total_recipients?: number;
+}
+
+export interface BroadcastInteraction {
+    id: string;
+    broadcast_id: string;
+    user_id: string;
+    read_at: string | null;
+    liked_at: string | null;
+    is_deleted: boolean;
+    created_at: string;
+    // Computed fields (from joins)
+    user_name?: string;
+    user_email?: string;
+    user_role?: UserRole;
+}
+
+export interface BroadcastWithInteractions extends BroadcastMessage {
+    interactions: BroadcastInteraction[];
 }

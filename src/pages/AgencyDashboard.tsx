@@ -5158,8 +5158,26 @@ const AgencyDashboard: React.FC = () => {
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                     </div>
                     <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 flex-shrink-0">
-                        <button onClick={() => setTripViewMode('GRID')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><LayoutGrid size={18} /></button>
-                        <button onClick={() => setTripViewMode('TABLE')} className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}><List size={18} /></button>
+                        <button 
+                            onClick={() => {
+                                setTripViewMode('GRID');
+                                localStorage.setItem('agencyTripViewMode', 'GRID');
+                            }} 
+                            className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="Visualização em Cards"
+                        >
+                            <LayoutGrid size={18} />
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setTripViewMode('TABLE');
+                                localStorage.setItem('agencyTripViewMode', 'TABLE');
+                            }} 
+                            className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="Visualização em Lista"
+                        >
+                            <List size={18} />
+                        </button>
                     </div>
                 </div>
             </div>
@@ -5182,123 +5200,472 @@ const AgencyDashboard: React.FC = () => {
                 </div>
             ) : tripViewMode === 'GRID' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-                    {myTrips.map(trip => (
-                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-lg transition-shadow group relative">
-                            {/* Trip Image & Actions */}
-                            <div className="relative h-48 w-full bg-gray-100">
-                                {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
-                                    <img 
-                                      src={trip.images[0]} 
-                                      alt={trip.title} 
-                                      loading="lazy"
-                                      decoding="async"
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
-                                      }}
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                                        <div className="text-center">
-                                            <Plane size={32} className="text-gray-400 mx-auto mb-2"/>
-                                            <p className="text-xs text-gray-500 font-medium">Sem Imagem</p>
+                    {myTrips.map(trip => {
+                        // Helper to format categories
+                        const displayCategories = trip.categories && trip.categories.length > 0 
+                            ? trip.categories 
+                            : trip.category 
+                                ? [trip.category] 
+                                : [];
+                        const categoryLabels = displayCategories.map(cat => cat.replace(/_/g, ' '));
+                        
+                        // Helper to format dates
+                        const formatDate = (dateStr: string | undefined) => {
+                            if (!dateStr) return 'Data não definida';
+                            try {
+                                return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+                            } catch {
+                                return 'Data inválida';
+                            }
+                        };
+                        
+                        return (
+                            <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-xl hover:border-primary-200 transition-all duration-300 group relative">
+                                {/* Trip Image with Overlay */}
+                                <div className="relative h-56 w-full bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
+                                    {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
+                                        <img 
+                                            src={trip.images[0]} 
+                                            alt={trip.title} 
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                            <div className="text-center">
+                                                <Plane size={32} className="text-gray-400 mx-auto mb-2"/>
+                                                <p className="text-xs text-gray-500 font-medium">Sem Imagem</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Gradient Overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                    
+                                    {/* Status Badge */}
+                                    <div className="absolute top-3 left-3 z-10">
+                                        <Badge color={trip.is_active ? 'green' : 'gray'}>
+                                            <Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}
+                                        </Badge>
+                                    </div>
+                                    
+                                    {/* Featured Badge */}
+                                    {trip.featured && (
+                                        <div className="absolute top-3 right-3 z-10">
+                                            <Badge color="amber">
+                                                <Star size={12} className="fill-current"/> Destaque
+                                            </Badge>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Rating Overlay */}
+                                    {trip.tripRating && trip.tripRating > 0 && (
+                                        <div className="absolute bottom-3 left-3 z-10 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md">
+                                            <Star size={14} className="text-amber-400 fill-amber-400" />
+                                            <span className="text-xs font-bold text-gray-900">{(trip.tripRating as number).toFixed(1)}</span>
+                                            {trip.tripTotalReviews && trip.tripTotalReviews > 0 && (
+                                                <span className="text-xs text-gray-500">({trip.tripTotalReviews})</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Content Section */}
+                                <div className="p-5 flex-1 flex flex-col">
+                                    {/* Title & Destination */}
+                                    <div className="mb-3">
+                                        <h3 
+                                            onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
+                                            className="font-bold text-xl text-gray-900 mb-1.5 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors group/title"
+                                        >
+                                            {trip.title}
+                                        </h3>
+                                        <div className="flex items-center text-sm text-gray-600 mb-2">
+                                            <MapPin size={14} className="mr-1.5 text-primary-500 flex-shrink-0"/>
+                                            <span className="truncate">{trip.destination}</span>
                                         </div>
                                     </div>
-                                )}
-                                <div className="absolute top-3 left-3">
-                                    <Badge color={trip.is_active ? 'green' : 'gray'}><Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}</Badge>
-                                </div>
-                                
-                                {/* New Top Action Menu */}
-                                <div className="absolute top-3 right-3 z-10 bg-white/90 hover:bg-white rounded-full shadow-sm backdrop-blur-sm transition-all p-0.5">
-                                   <ActionMenu actions={getTripActions(trip)} />
-                                </div>
-                            </div>
-
-                            <div className="p-5 flex-1 flex flex-col">
-                                {/* Clickable Title */}
-                                <h3 
-                                    onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
-                                    className="font-bold text-lg text-gray-900 mb-1 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors"
-                                >
-                                    {trip.title}
-                                </h3>
-                                
-                                <p className="text-sm text-gray-500 mb-3 flex items-center"><MapPin size={14} className="mr-2"/>{trip.destination}</p>
-                                
-                                <div className="flex items-center gap-4 text-xs font-medium text-gray-500 mt-auto pt-4 border-t border-gray-100">
-                                    <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
-                                    <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
-                                    <div className="flex items-center ml-auto font-bold text-gray-900 text-base">R$ {trip.price.toLocaleString()}</div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            ) : ( // TABLE VIEW
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
-                    <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-gray-50/50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Destino</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th>
-                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                            {myTrips.map(trip => (
-                                <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                                {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
-                                                    <img 
-                                                        src={trip.images[0]} 
-                                                        className="w-full h-full object-cover" 
-                                                        alt={trip.title}
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/e2e8f0/94a3b8?text=IMG';
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                                        <Plane size={20} className="text-gray-400"/>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="truncate">
-                                                {/* Clickable Title in List */}
-                                                <p 
-                                                    onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
-                                                    className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px] hover:text-primary-600 hover:underline cursor-pointer transition-colors"
+                                    
+                                    {/* Categories Tags */}
+                                    {categoryLabels.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mb-3">
+                                            {categoryLabels.slice(0, 2).map((label, idx) => (
+                                                <span 
+                                                    key={idx}
+                                                    className="px-2 py-0.5 bg-primary-50 text-primary-700 text-[10px] font-semibold rounded-full border border-primary-200"
                                                 >
-                                                    {trip.title}
-                                                </p>
-                                                <p className="text-xs text-gray-500">{trip.category.replace('_', ' ')}</p>
+                                                    {label}
+                                                </span>
+                                            ))}
+                                            {categoryLabels.length > 2 && (
+                                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-full">
+                                                    +{categoryLabels.length - 2}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Trip Details Grid */}
+                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                        {trip.durationDays && (
+                                            <div className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <Calendar size={12} className="text-gray-400"/>
+                                                    <span className="text-[10px] font-semibold text-gray-500 uppercase">Duração</span>
+                                                </div>
+                                                <p className="text-sm font-bold text-gray-900">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</p>
+                                            </div>
+                                        )}
+                                        {trip.startDate && (
+                                            <div className="bg-gray-50 rounded-lg p-2 border border-gray-100">
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <Clock size={12} className="text-gray-400"/>
+                                                    <span className="text-[10px] font-semibold text-gray-500 uppercase">Partida</span>
+                                                </div>
+                                                <p className="text-xs font-bold text-gray-900 leading-tight">{formatDate(trip.startDate)}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Performance Stats */}
+                                    <div className="flex items-center justify-between py-3 px-3 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-lg mb-4 border border-gray-100">
+                                        <div className="flex items-center gap-4 text-xs">
+                                            <div className="flex items-center text-blue-600 font-semibold" title="Visualizações">
+                                                <Eye size={14} className="mr-1.5"/> 
+                                                {trip.views || 0}
+                                            </div>
+                                            <div className="flex items-center text-green-600 font-semibold" title="Vendas">
+                                                <ShoppingBag size={14} className="mr-1.5"/> 
+                                                {trip.sales || 0}
                                             </div>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700">{trip.destination}</td>
-                                    <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
-                                    <td className="px-6 py-4">
-                                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                                            <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
-                                            <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-semibold text-gray-500 uppercase">A partir de</p>
+                                            <p className="text-lg font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</p>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <ActionMenu actions={getTripActions(trip)} />
-                                    </td>
+                                    </div>
+
+                                    {/* Actions - Two Rows */}
+                                    <div className="space-y-2 pt-2 border-t border-gray-200">
+                                        {/* Primary Actions */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank');
+                                                }}
+                                                className="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-xs font-bold hover:from-green-600 hover:to-green-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                            >
+                                                <ExternalLink size={14} />
+                                                Ver Online
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleEditTrip(trip);
+                                                }}
+                                                className="flex-1 px-3 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-xs font-bold hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                            >
+                                                <Edit size={14} />
+                                                Editar
+                                            </button>
+                                        </div>
+
+                                        {/* Secondary Actions */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDuplicateTrip(trip);
+                                                }}
+                                                disabled={isDuplicatingTrip === trip.id}
+                                                className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title="Duplicar viagem"
+                                            >
+                                                {isDuplicatingTrip === trip.id ? (
+                                                    <Loader size={14} className="animate-spin" />
+                                                ) : (
+                                                    <Copy size={14} />
+                                                )}
+                                                Duplicar
+                                            </button>
+                                            {planPermissions.canAccessOperational && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleGoToOperational(trip.id);
+                                                    }}
+                                                    className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1.5"
+                                                    title="Gerenciar Operacional"
+                                                >
+                                                    <Bus size={14} />
+                                                    Operacional
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleTripStatus(trip.id);
+                                                }}
+                                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                                                    trip.is_active
+                                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                                        : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                                }`}
+                                                title={trip.is_active ? 'Pausar' : 'Publicar'}
+                                            >
+                                                {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                                                {trip.is_active ? 'Pausar' : 'Ativar'}
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteTrip(trip.id);
+                                                }}
+                                                className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 size={14} />
+                                                Excluir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : ( // TABLE VIEW - Enhanced
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-100">
+                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Pacote</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Destino</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Duração</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Data Partida</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Preço</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Performance</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white">
+                                {myTrips.map(trip => {
+                                    const displayCategories = trip.categories && trip.categories.length > 0 
+                                        ? trip.categories 
+                                        : trip.category 
+                                            ? [trip.category] 
+                                            : [];
+                                    const formatDate = (dateStr: string | undefined) => {
+                                        if (!dateStr) return '-';
+                                        try {
+                                            return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+                                        } catch {
+                                            return '-';
+                                        }
+                                    };
+                                    
+                                    return (
+                                        <tr key={trip.id} className="hover:bg-primary-50/30 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-20 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 ring-gray-200 group-hover:ring-primary-300 transition-all">
+                                                        {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
+                                                            <img 
+                                                                src={trip.images[0]} 
+                                                                className="w-full h-full object-cover" 
+                                                                alt={trip.title}
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/e2e8f0/94a3b8?text=IMG';
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                                                <Plane size={24} className="text-gray-400"/>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p 
+                                                            onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
+                                                            className="font-bold text-gray-900 text-sm line-clamp-1 hover:text-primary-600 hover:underline cursor-pointer transition-colors mb-1"
+                                                        >
+                                                            {trip.title}
+                                                        </p>
+                                                        {displayCategories.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {displayCategories.slice(0, 2).map((cat, idx) => (
+                                                                    <span 
+                                                                        key={idx}
+                                                                        className="px-1.5 py-0.5 bg-primary-50 text-primary-700 text-[9px] font-semibold rounded border border-primary-200"
+                                                                    >
+                                                                        {cat.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                ))}
+                                                                {displayCategories.length > 2 && (
+                                                                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-semibold rounded">
+                                                                        +{displayCategories.length - 2}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center text-sm text-gray-700">
+                                                    <MapPin size={14} className="mr-1.5 text-primary-500 flex-shrink-0"/>
+                                                    <span>{trip.destination}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {trip.durationDays ? (
+                                                    <div className="flex items-center text-sm text-gray-700">
+                                                        <Calendar size={14} className="mr-1.5 text-gray-400"/>
+                                                        <span className="font-medium">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {trip.startDate ? (
+                                                    <div className="flex items-center text-sm text-gray-700">
+                                                        <Clock size={14} className="mr-1.5 text-gray-400"/>
+                                                        <span className="font-medium">{formatDate(trip.startDate)}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm">
+                                                    <p className="text-[10px] font-semibold text-gray-500 uppercase mb-0.5">A partir de</p>
+                                                    <p className="font-extrabold text-primary-600 text-base">R$ {trip.price.toLocaleString('pt-BR')}</p>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>
+                                                        {trip.is_active ? 'ATIVO' : 'RASCUNHO'}
+                                                    </Badge>
+                                                    {trip.featured && (
+                                                        <Badge color="amber" className="w-fit">
+                                                            <Star size={10} className="fill-current"/> Destaque
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex items-center gap-4 text-xs">
+                                                        <div className="flex items-center text-blue-600 font-semibold" title="Visualizações">
+                                                            <Eye size={14} className="mr-1.5"/> 
+                                                            {trip.views || 0}
+                                                        </div>
+                                                        <div className="flex items-center text-green-600 font-semibold" title="Vendas">
+                                                            <ShoppingBag size={14} className="mr-1.5"/> 
+                                                            {trip.sales || 0}
+                                                        </div>
+                                                    </div>
+                                                    {trip.tripRating && trip.tripRating > 0 && (
+                                                        <div className="flex items-center gap-1 text-xs">
+                                                            <Star size={12} className="text-amber-400 fill-amber-400" />
+                                                            <span className="font-bold text-gray-700">{(trip.tripRating as number).toFixed(1)}</span>
+                                                            {trip.tripTotalReviews && trip.tripTotalReviews > 0 && (
+                                                                <span className="text-gray-500">({trip.tripTotalReviews})</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank');
+                                                        }}
+                                                        className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                                        title="Ver Online"
+                                                    >
+                                                        <ExternalLink size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditTrip(trip);
+                                                        }}
+                                                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                                        title="Editar"
+                                                    >
+                                                        <Edit size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDuplicateTrip(trip);
+                                                        }}
+                                                        disabled={isDuplicatingTrip === trip.id}
+                                                        className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Duplicar"
+                                                    >
+                                                        {isDuplicatingTrip === trip.id ? (
+                                                            <Loader size={18} className="animate-spin" />
+                                                        ) : (
+                                                            <Copy size={18} />
+                                                        )}
+                                                    </button>
+                                                    {planPermissions.canAccessOperational && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleGoToOperational(trip.id);
+                                                            }}
+                                                            className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                            title="Operacional"
+                                                        >
+                                                            <Bus size={18} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleTripStatus(trip.id);
+                                                        }}
+                                                        className={`p-2 rounded-lg transition-colors ${
+                                                            trip.is_active
+                                                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                                                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                                        }`}
+                                                        title={trip.is_active ? 'Pausar' : 'Publicar'}
+                                                    >
+                                                        {trip.is_active ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteTrip(trip.id);
+                                                        }}
+                                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                                        title="Excluir"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

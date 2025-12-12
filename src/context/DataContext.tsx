@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
-import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType, PlatformSettings } from '../types';
+import { Trip, Agency, Booking, Review, AgencyReview, Client, UserRole, AuditLog, AgencyTheme, ThemeColors, UserStats, DashboardStats, ActivityLog, OperationalData, User, ActivityActionType, PlatformSettings, BroadcastMessage, BroadcastInteraction, BroadcastTargetRole, BroadcastWithInteractions } from '../types';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { MOCK_AGENCIES, MOCK_TRIPS, MOCK_BOOKINGS, MOCK_REVIEWS, MOCK_CLIENTS } from '../services/mockData';
@@ -95,6 +95,7 @@ interface DataContextType {
   deleteUser: (id: string, role: string) => Promise<void>;
   deleteMultipleUsers: (ids: string[]) => Promise<void>;
   deleteMultipleAgencies: (ids: string[]) => Promise<void>;
+  deleteAllData: () => Promise<void>; // Delete everything for testing/cleanup
   getUsersStats: (userIds: string[]) => Promise<UserStats[]>;
   updateMultipleUsersStatus: (ids: string[], status: string) => Promise<void>;
   updateMultipleAgenciesStatus: (ids: string[], status: string) => Promise<void>;
@@ -121,6 +122,12 @@ interface DataContextType {
   updatePlatformSettings: (data: Partial<PlatformSettings>) => Promise<void>; // Admin only - Update platform settings
   uploadPlatformLogo: (file: File) => Promise<string | null>; // Admin only - Upload platform logo
   restoreDefaultSettings: () => Promise<void>; // Admin only - Restore default settings
+  
+  // Broadcast System Functions
+  sendBroadcast: (data: { title: string; message: string; target_role: BroadcastTargetRole }) => Promise<BroadcastMessage>;
+  getBroadcastsForAdmin: () => Promise<BroadcastWithInteractions[]>;
+  getUserNotifications: (userId: string, role: UserRole) => Promise<BroadcastMessage[]>;
+  interactWithBroadcast: (broadcastId: string, action: 'READ' | 'LIKE' | 'DELETE') => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -254,7 +261,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // 4. Fetch Clients (Profiles with CLIENT role) - Global list of all clients (OPTIMIZED: only needed fields)
         const { data: profilesData } = await sb.from('profiles')
-          .select('id, full_name, email, role, avatar_url, cpf, phone, birth_date, address, status, created_at')
+          .select('id, full_name, email, role, avatar_url, cpf, phone, birth_date, address, status, created_at, deleted_at')
           .eq('role', UserRole.CLIENT);
         if (profilesData) {
             const mappedClients: Client[] = profilesData.map((c: any) => ({
@@ -269,8 +276,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 // Populate favorites from the separate favorites table
                 favorites: allFavorites.filter((f: any) => f.user_id === c.id).map((f: any) => f.trip_id) || [], 
                 address: c.address || {}, 
-                status: c.status, 
-                createdAt: c.created_at
+                status: c.status || 'ACTIVE', // Default to ACTIVE if null
+                createdAt: c.created_at,
+                deleted_at: c.deleted_at
             }));
             setClients(mappedClients);
         }
@@ -1149,7 +1157,22 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         showToast('Pacote criado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_CREATED, { tripId: data.id, title: data.title });
-        _fetchGlobalAndClientProfiles();
+        
+        // Refresh data first
+        await _fetchGlobalAndClientProfiles();
+        
+        // Then load images for the newly created trip immediately
+        if (trip.images && trip.images.length > 0) {
+          // Update the trip in state with images immediately after creation
+          setTrips(prevTrips => 
+            prevTrips.map(t => 
+              t.id === data.id 
+                ? { ...t, images: trip.images }
+                : t
+            )
+          );
+        }
+        
         logger.log("[DataContext] Trip created successfully:", data.id);
     } catch (error: any) {
         logger.error("[DataContext] Error creating trip:", error.message);
@@ -1229,7 +1252,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         showToast('Pacote atualizado com sucesso!', 'success');
         logActivity(ActivityActionType.TRIP_UPDATED, { tripId: trip.id, title: trip.title });
-        _fetchGlobalAndClientProfiles();
+        
+        // Refresh data first
+        await _fetchGlobalAndClientProfiles();
+        
+        // Then update the trip in state with images immediately after update
+        if (trip.images && trip.images.length > 0) {
+          setTrips(prevTrips => 
+            prevTrips.map(t => 
+              t.id === trip.id 
+                ? { ...t, images: trip.images }
+                : t
+            )
+          );
+        } else {
+          // If no images, fetch them to ensure we have the latest
+          await fetchTripImages(trip.id, true);
+        }
+        
         logger.log("[DataContext] Trip updated successfully:", trip.id);
     } catch (error: any) {
         logger.error("[DataContext] Error updating trip:", error.message);
@@ -1486,6 +1526,165 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [showToast, deleteTrip, logActivity, _fetchGlobalAndClientProfiles, guardSupabase, tripsRef]); // tripsRef.current is used here too
 
+  // Delete ALL data - for testing/cleanup purposes
+  const deleteAllData = useCallback(async () => {
+    const sb = guardSupabase();
+    if (!sb) {
+      logger.warn("[DataContext] Supabase not configured, cannot delete all data.");
+      return;
+    }
+    
+    logger.log("[DataContext] Deleting ALL data...");
+    
+    try {
+      // Step 1: Get all IDs directly from database to ensure we have everything
+      // Get all trips (including soft-deleted ones to hard delete them)
+      const { data: allTrips } = await sb.from('trips').select('id');
+      // Get all agencies (including soft-deleted ones)
+      const { data: allAgencies } = await sb.from('agencies').select('id, user_id');
+      // Get all client profiles
+      const { data: allClients } = await sb.from('profiles').select('id').eq('role', 'CLIENT');
+      
+      const tripIds = (allTrips || []).map(t => t.id);
+      const agencyIds = (allAgencies || []).map(a => a.id);
+      const agencyUserIds = (allAgencies || []).map(a => a.user_id).filter(Boolean);
+      const clientIds = (allClients || []).map(c => c.id);
+      const allUserIds = [...new Set([...agencyUserIds, ...clientIds])]; // Remove duplicates
+      
+      logger.log(`[DataContext] Found ${tripIds.length} trips, ${agencyIds.length} agencies, ${allUserIds.length} users to delete`);
+      
+      // Step 2: Delete in correct order (respecting foreign keys)
+      // 2.1: Get all IDs for dependent tables
+      const { data: allBookings } = await sb.from('bookings').select('id');
+      const { data: allTripImages } = await sb.from('trip_images').select('id');
+      const { data: allAgencyReviews } = await sb.from('agency_reviews').select('id');
+      const { data: allFavorites } = await sb.from('favorites').select('id');
+      // Also get old reviews table if it exists
+      let allReviews: any[] = [];
+      try {
+        const { data: reviewsData } = await sb.from('reviews').select('id');
+        allReviews = reviewsData || [];
+      } catch (err) {
+        // Table might not exist, ignore
+      }
+      
+      // 2.2: Delete bookings first (references trips and clients)
+      if (allBookings && allBookings.length > 0) {
+        logger.log(`[DataContext] Deleting ${allBookings.length} bookings...`);
+        const bookingIds = allBookings.map(b => b.id);
+        const batchSize = 100;
+        for (let i = 0; i < bookingIds.length; i += batchSize) {
+          const batch = bookingIds.slice(i, i + batchSize);
+          await sb.from('bookings').delete().in('id', batch);
+        }
+      }
+      
+      // 2.3: Delete trip_images (references trips)
+      if (allTripImages && allTripImages.length > 0) {
+        logger.log(`[DataContext] Deleting ${allTripImages.length} trip images...`);
+        const imageIds = allTripImages.map(img => img.id);
+        const batchSize = 100;
+        for (let i = 0; i < imageIds.length; i += batchSize) {
+          const batch = imageIds.slice(i, i + batchSize);
+          await sb.from('trip_images').delete().in('id', batch);
+        }
+      }
+      
+      // 2.4: Delete agency_reviews (references agencies and clients)
+      if (allAgencyReviews && allAgencyReviews.length > 0) {
+        logger.log(`[DataContext] Deleting ${allAgencyReviews.length} agency reviews...`);
+        const reviewIds = allAgencyReviews.map(r => r.id);
+        const batchSize = 100;
+        for (let i = 0; i < reviewIds.length; i += batchSize) {
+          const batch = reviewIds.slice(i, i + batchSize);
+          await sb.from('agency_reviews').delete().in('id', batch);
+        }
+      }
+      
+      // 2.5: Delete favorites (references trips and users)
+      if (allFavorites && allFavorites.length > 0) {
+        logger.log(`[DataContext] Deleting ${allFavorites.length} favorites...`);
+        const favoriteIds = allFavorites.map(f => f.id);
+        const batchSize = 100;
+        for (let i = 0; i < favoriteIds.length; i += batchSize) {
+          const batch = favoriteIds.slice(i, i + batchSize);
+          await sb.from('favorites').delete().in('id', batch);
+        }
+      }
+      
+      // 2.6: Delete old reviews table (if exists)
+      if (allReviews.length > 0) {
+        logger.log(`[DataContext] Deleting ${allReviews.length} old reviews...`);
+        const reviewIds = allReviews.map(r => r.id);
+        const batchSize = 100;
+        for (let i = 0; i < reviewIds.length; i += batchSize) {
+          const batch = reviewIds.slice(i, i + batchSize);
+          await sb.from('reviews').delete().in('id', batch);
+        }
+      }
+      
+      // 2.7: Delete trips (hard delete - clear deleted_at first if needed, then delete)
+      if (tripIds.length > 0) {
+        logger.log(`[DataContext] Hard deleting ${tripIds.length} trips...`);
+        // First clear deleted_at for soft-deleted trips (to ensure we can delete them)
+        await sb.from('trips').update({ deleted_at: null }).in('id', tripIds);
+        // Then hard delete in batches
+        const batchSize = 100;
+        for (let i = 0; i < tripIds.length; i += batchSize) {
+          const batch = tripIds.slice(i, i + batchSize);
+          await sb.from('trips').delete().in('id', batch);
+        }
+      }
+      
+      // 2.8: Delete agencies (hard delete - clear deleted_at first if needed)
+      if (agencyIds.length > 0) {
+        logger.log(`[DataContext] Hard deleting ${agencyIds.length} agencies...`);
+        // Clear deleted_at first to ensure we can delete them
+        await sb.from('agencies').update({ deleted_at: null }).in('id', agencyIds);
+        // Then hard delete
+        const batchSize = 100;
+        for (let i = 0; i < agencyIds.length; i += batchSize) {
+          const batch = agencyIds.slice(i, i + batchSize);
+          await sb.from('agencies').delete().in('id', batch);
+        }
+      }
+      
+      // 2.9: Delete profiles
+      if (allUserIds.length > 0) {
+        logger.log("[DataContext] Deleting profiles...");
+        const batchSize = 100;
+        for (let i = 0; i < allUserIds.length; i += batchSize) {
+          const batch = allUserIds.slice(i, i + batchSize);
+          await sb.from('profiles').delete().in('id', batch);
+        }
+      }
+      
+      // 2.10: Try to delete from auth.users (may fail without service_role, but we try anyway)
+      logger.log("[DataContext] Attempting to delete auth users...");
+      for (const userId of allUserIds) {
+        try {
+          const { error: authError } = await sb.auth.admin.deleteUser(userId);
+          if (authError) {
+            logger.warn(`[DataContext] Could not delete Auth user ${userId}: ${authError.message}`);
+          }
+        } catch (err: any) {
+          logger.warn(`[DataContext] Error deleting auth user ${userId}: ${err.message}`);
+        }
+      }
+      
+      logger.log("[DataContext] All data deleted successfully.");
+      showToast('Todos os dados foram excluídos com sucesso.', 'success');
+      
+      // Refresh data
+      await _fetchGlobalAndClientProfiles();
+      
+    } catch (error: any) {
+      logger.error("[DataContext] Error deleting all data:", error.message);
+      showToast(`Erro ao excluir dados: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showToast, guardSupabase, _fetchGlobalAndClientProfiles]);
+
   // Admin-specific functions
   const adminChangePlan = useCallback(async (agencyId: string, newPlan: 'BASIC' | 'PREMIUM') => {
     const sb = guardSupabase();
@@ -1554,13 +1753,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     try {
-      await sb.from('agencies').update({ subscription_status: 'INACTIVE', is_active: false }).eq('id', agencyId);
-      showToast('Agência suspensa', 'success');
-      logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, status: 'SUSPENDED' });
-      _fetchGlobalAndClientProfiles();
+      // Get current agency status
+      const { data: agencyData, error: fetchError } = await sb
+        .from('agencies')
+        .select('subscription_status')
+        .eq('id', agencyId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Toggle status: if ACTIVE, suspend; if INACTIVE, reactivate
+      const currentStatus = agencyData?.subscription_status;
+      const newStatus = currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      const isActive = newStatus === 'ACTIVE';
+      
+      await sb
+        .from('agencies')
+        .update({ subscription_status: newStatus, is_active: isActive })
+        .eq('id', agencyId);
+      
+      showToast(
+        newStatus === 'ACTIVE' ? 'Agência reativada com sucesso!' : 'Agência suspensa com sucesso!',
+        'success'
+      );
+      logActivity(ActivityActionType.AGENCY_STATUS_TOGGLED, { agencyId, status: newStatus });
+      await _fetchGlobalAndClientProfiles();
     } catch (error: any) {
-      logger.error("[DataContext] Error suspending agency:", error.message);
-      showToast(`Erro ao suspender agência: ${error.message}`, 'error');
+      logger.error("[DataContext] Error toggling agency status:", error.message);
+      showToast(`Erro ao alterar status da agência: ${error.message}`, 'error');
       throw error;
     }
   }, [showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
@@ -2188,6 +2408,244 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user, showToast, logActivity, _fetchGlobalAndClientProfiles, guardSupabase]);
 
+  // =====================================================
+  // BROADCAST SYSTEM FUNCTIONS
+  // =====================================================
+
+  const sendBroadcast = useCallback(async (data: { title: string; message: string; target_role: BroadcastTargetRole }): Promise<BroadcastMessage> => {
+    const sb = guardSupabase();
+    if (!sb || !user || user.role !== UserRole.ADMIN) {
+      throw new Error('Apenas administradores podem enviar comunicados.');
+    }
+
+    logger.log("[DataContext] Sending broadcast:", data);
+    try {
+      const { data: broadcast, error } = await sb
+        .from('broadcast_messages')
+        .insert({
+          title: data.title,
+          message: data.message,
+          target_role: data.target_role,
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      showToast('Comunicado enviado com sucesso!', 'success');
+      logActivity(ActivityActionType.UPDATE_SETTINGS, { action: 'BROADCAST_SENT', broadcastId: broadcast.id });
+      logger.log("[DataContext] Broadcast sent successfully:", broadcast.id);
+
+      return {
+        id: broadcast.id,
+        title: broadcast.title,
+        message: broadcast.message,
+        target_role: broadcast.target_role,
+        created_by: broadcast.created_by,
+        created_at: broadcast.created_at
+      };
+    } catch (error: any) {
+      logger.error("[DataContext] Error sending broadcast:", error.message);
+      showToast(`Erro ao enviar comunicado: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [user, showToast, logActivity, guardSupabase]);
+
+  const getBroadcastsForAdmin = useCallback(async (): Promise<BroadcastWithInteractions[]> => {
+    const sb = guardSupabase();
+    if (!sb || !user || user.role !== UserRole.ADMIN) {
+      throw new Error('Apenas administradores podem visualizar o histórico de comunicados.');
+    }
+
+    logger.log("[DataContext] Fetching broadcasts for admin");
+    try {
+      // Fetch all broadcasts with interaction counts
+      const { data: broadcasts, error: broadcastsError } = await sb
+        .from('broadcast_messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (broadcastsError) throw broadcastsError;
+
+      // Fetch all interactions for these broadcasts
+      const broadcastIds = broadcasts.map(b => b.id);
+      const { data: interactions, error: interactionsError } = await sb
+        .from('broadcast_interactions')
+        .select('*, profiles(id, full_name, email, role)')
+        .in('broadcast_id', broadcastIds)
+        .eq('is_deleted', false);
+
+      if (interactionsError) throw interactionsError;
+
+      // Map interactions to broadcasts
+      const broadcastsWithInteractions: BroadcastWithInteractions[] = broadcasts.map(broadcast => {
+        const broadcastInteractions = (interactions || []).filter(i => i.broadcast_id === broadcast.id);
+        
+        const mappedInteractions: BroadcastInteraction[] = broadcastInteractions.map(i => ({
+          id: i.id,
+          broadcast_id: i.broadcast_id,
+          user_id: i.user_id,
+          read_at: i.read_at,
+          liked_at: i.liked_at,
+          is_deleted: i.is_deleted,
+          created_at: i.created_at,
+          user_name: i.profiles?.full_name || '',
+          user_email: i.profiles?.email || '',
+          user_role: i.profiles?.role as UserRole
+        }));
+
+        return {
+          id: broadcast.id,
+          title: broadcast.title,
+          message: broadcast.message,
+          target_role: broadcast.target_role,
+          created_by: broadcast.created_by,
+          created_at: broadcast.created_at,
+          read_count: mappedInteractions.filter(i => i.read_at).length,
+          liked_count: mappedInteractions.filter(i => i.liked_at).length,
+          total_recipients: mappedInteractions.length,
+          interactions: mappedInteractions
+        };
+      });
+
+      logger.log("[DataContext] Broadcasts fetched successfully:", broadcastsWithInteractions.length);
+      return broadcastsWithInteractions;
+    } catch (error: any) {
+      logger.error("[DataContext] Error fetching broadcasts:", error.message);
+      showToast(`Erro ao buscar comunicados: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [user, showToast, guardSupabase]);
+
+  const getUserNotifications = useCallback(async (userId: string, role: UserRole): Promise<BroadcastMessage[]> => {
+    const sb = guardSupabase();
+    if (!sb) {
+      throw new Error('Supabase não configurado.');
+    }
+
+    logger.log("[DataContext] Fetching notifications for user:", userId, role);
+    try {
+      // Determine target roles to fetch
+      const targetRoles: BroadcastTargetRole[] = ['ALL'];
+      if (role === UserRole.CLIENT) {
+        targetRoles.push('CLIENT');
+      } else if (role === UserRole.AGENCY) {
+        targetRoles.push('AGENCY');
+      } else if (role === UserRole.GUIDE || role === UserRole.AGENCY) {
+        // Guides are stored as agencies with isGuide flag, but we'll check both
+        targetRoles.push('GUIDE', 'AGENCY');
+      }
+
+      // Fetch broadcasts that match user's role
+      const { data: broadcasts, error: broadcastsError } = await sb
+        .from('broadcast_messages')
+        .select('*')
+        .in('target_role', targetRoles)
+        .order('created_at', { ascending: false });
+
+      if (broadcastsError) throw broadcastsError;
+
+      // Fetch user's interactions to filter out deleted ones
+      const broadcastIds = broadcasts.map(b => b.id);
+      const { data: interactions, error: interactionsError } = await sb
+        .from('broadcast_interactions')
+        .select('broadcast_id, is_deleted')
+        .eq('user_id', userId)
+        .in('broadcast_id', broadcastIds);
+
+      if (interactionsError) throw interactionsError;
+
+      // Filter out broadcasts that user has deleted
+      const deletedBroadcastIds = new Set(
+        (interactions || []).filter(i => i.is_deleted).map(i => i.broadcast_id)
+      );
+
+      const filteredBroadcasts = broadcasts.filter(b => !deletedBroadcastIds.has(b.id));
+
+      const mappedBroadcasts: BroadcastMessage[] = filteredBroadcasts.map(b => ({
+        id: b.id,
+        title: b.title,
+        message: b.message,
+        target_role: b.target_role,
+        created_by: b.created_by,
+        created_at: b.created_at
+      }));
+
+      logger.log("[DataContext] User notifications fetched:", mappedBroadcasts.length);
+      return mappedBroadcasts;
+    } catch (error: any) {
+      logger.error("[DataContext] Error fetching user notifications:", error.message);
+      throw error;
+    }
+  }, [guardSupabase]);
+
+  const interactWithBroadcast = useCallback(async (broadcastId: string, action: 'READ' | 'LIKE' | 'DELETE'): Promise<void> => {
+    const sb = guardSupabase();
+    if (!sb || !user) {
+      throw new Error('Usuário não autenticado.');
+    }
+
+    logger.log("[DataContext] User interacting with broadcast:", broadcastId, action);
+    try {
+      // Check if interaction already exists
+      const { data: existingInteraction } = await sb
+        .from('broadcast_interactions')
+        .select('id, read_at, liked_at, is_deleted')
+        .eq('broadcast_id', broadcastId)
+        .eq('user_id', user.id)
+        .single();
+
+      const now = new Date().toISOString();
+      const updates: any = {};
+
+      if (action === 'READ') {
+        if (!existingInteraction?.read_at) {
+          updates.read_at = now;
+        }
+      } else if (action === 'LIKE') {
+        if (!existingInteraction?.liked_at) {
+          updates.liked_at = now;
+        }
+        // Also mark as read if not already
+        if (!existingInteraction?.read_at) {
+          updates.read_at = now;
+        }
+      } else if (action === 'DELETE') {
+        updates.is_deleted = true;
+      }
+
+      if (existingInteraction) {
+        // Update existing interaction
+        const { error } = await sb
+          .from('broadcast_interactions')
+          .update(updates)
+          .eq('id', existingInteraction.id);
+
+        if (error) throw error;
+      } else {
+        // Create new interaction
+        const newInteraction: any = {
+          broadcast_id: broadcastId,
+          user_id: user.id,
+          ...updates
+        };
+
+        const { error } = await sb
+          .from('broadcast_interactions')
+          .insert(newInteraction);
+
+        if (error) throw error;
+      }
+
+      logger.log("[DataContext] Broadcast interaction updated successfully");
+    } catch (error: any) {
+      logger.error("[DataContext] Error interacting with broadcast:", error.message);
+      showToast(`Erro ao processar ação: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [user, showToast, guardSupabase]);
+
   return (
     <DataContext.Provider value={{
       agencies, trips, bookings, reviews: [], agencyReviews, clients, auditLogs, activityLogs, platformSettings, loading,
@@ -2196,11 +2654,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshData, addBooking, addReview, addAgencyReview, deleteReview, deleteAgencyReview, updateAgencyReview,
       toggleFavorite, updateClientProfile, updateAgencySubscription, updateAgencyProfileByAdmin, toggleAgencyStatus,
       createTrip, updateTrip, deleteTrip, toggleTripStatus, toggleTripFeatureStatus, updateTripOperationalData,
-      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, getUsersStats,
+      softDeleteEntity, restoreEntity, deleteUser, deleteMultipleUsers, deleteMultipleAgencies, deleteAllData, getUsersStats,
       updateMultipleUsersStatus, updateMultipleAgenciesStatus, logAuditAction, sendPasswordReset, updateUserAvatarByAdmin,
       adminChangePlan, adminBulkDeleteAgencies, adminBulkArchiveAgencies, adminBulkChangePlan, adminSuspendAgency,
       getReviewsByTripId, getReviewsByAgencyId, getReviewsByClientId, getAgencyStats, getAgencyTheme, saveAgencyTheme,
-      refreshUserData, incrementTripViews, fetchTripImages, updatePlatformSettings, uploadPlatformLogo, restoreDefaultSettings
+      refreshUserData, incrementTripViews, fetchTripImages, updatePlatformSettings, uploadPlatformLogo, restoreDefaultSettings,
+      sendBroadcast, getBroadcastsForAdmin, getUserNotifications, interactWithBroadcast
     }}>
       {children}
     </DataContext.Provider>

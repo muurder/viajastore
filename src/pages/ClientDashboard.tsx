@@ -38,10 +38,120 @@ const getRandomGreeting = (userName: string) => {
   return greetings[Math.floor(Math.random() * greetings.length)];
 };
 
+// Component to handle booking card with dynamic image loading
+interface BookingCardProps {
+  booking: Booking;
+  trip: Trip;
+  agency: Agency | null;
+  hasReviewed: boolean;
+  onOpenVoucher: (booking: Booking) => void;
+  fetchTripImages?: (tripId: string, forceRefresh?: boolean) => Promise<string[]>;
+}
+
+const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasReviewed, onOpenVoucher, fetchTripImages }) => {
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+  const [tripWithImages, setTripWithImages] = useState<Trip>(trip);
+  const [imgError, setImgError] = useState(false);
+
+  // Load images on mount if they don't exist
+  useEffect(() => {
+    const loadImages = async () => {
+      // If trip already has images, use them
+      if (trip.images && trip.images.length > 0) {
+        setTripWithImages(trip);
+        return;
+      }
+      
+      // Otherwise, try to fetch images
+      if (fetchTripImages) {
+        try {
+          const images = await fetchTripImages(trip.id);
+          if (images && images.length > 0) {
+            setTripWithImages({ ...trip, images });
+          } else {
+            setTripWithImages(trip);
+          }
+        } catch (error) {
+          // Silently fail - will show placeholder
+          setTripWithImages(trip);
+        }
+      } else {
+        setTripWithImages(trip);
+      }
+    };
+
+    loadImages();
+  }, [trip, fetchTripImages]);
+
+  // Update when trip prop changes
+  useEffect(() => {
+    setTripWithImages(trip);
+    setImgError(false);
+  }, [trip]);
+
+  const imgUrl = tripWithImages.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
+  const startDate = tripWithImages.startDate;
+  const agencySlugForNav = agency?.slug;
+  const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, tripWithImages.title);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
+      {!imgError ? (
+        <img 
+          src={imgUrl} 
+          alt={tripWithImages.title} 
+          className="w-full md:w-48 h-32 object-cover rounded-xl"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full md:w-48 h-32 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center">
+          <span className="text-gray-400 text-sm">Sem Imagem</span>
+        </div>
+      )}
+      <div className="flex-1">
+         <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{tripWithImages.title}</h3>
+         {agency && ( <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block"> Organizado por {agency.name} </Link> )}
+         <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
+           <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2" /> {tripWithImages.destination}</div>
+           <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
+         </div>
+         <div className="flex gap-2 flex-wrap">
+            <button onClick={() => onOpenVoucher(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
+                 <QrCode size={16} /> Abrir Voucher
+            </button>
+            <button 
+               onClick={() => {
+                 if (agencySlugForNav) {
+                   navigate(`/${agencySlugForNav}?tab=REVIEWS`);
+                 } else {
+                   showToast('Não foi possível encontrar a página da agência.', 'error');
+                 }
+               }}
+               disabled={!agencySlugForNav}
+               className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <Star size={16} /> {hasReviewed ? 'Ver/Editar Avaliação' : 'Avaliar Agência'}
+            </button>
+            {whatsappUrl && (
+             <a
+               href={whatsappUrl}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
+             >
+               <MessageCircle size={16} className="fill-white/20"/> Falar com a Agência
+             </a>
+            )}
+         </div>
+      </div>
+    </div>
+  );
+};
 
 const ClientDashboard: React.FC = () => {
   const { user, updateUser, logout, deleteAccount, uploadImage, updatePassword, loading: authLoading, reloadUser } = useAuth();
-  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData, getPublicTrips, trips, updateClientProfile } = useData();
+  const { bookings, getTripById, clients, addAgencyReview, getReviewsByClientId, deleteAgencyReview, updateAgencyReview, refreshUserData: refreshAllData, getPublicTrips, trips, updateClientProfile, fetchTripImages } = useData();
   const { showToast } = useToast();
   
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
@@ -201,7 +311,8 @@ const ClientDashboard: React.FC = () => {
       const agencyUser = user as Agency;
       const slug = agencyUser.slug || slugify(agencyUser.name);
       navigate(`/${slug}`);
-    } else if (!authLoading && user && user.role !== UserRole.CLIENT && !isImpersonating) {
+    } else if (!authLoading && user && user.role !== UserRole.CLIENT && user.role !== UserRole.ADMIN && !isImpersonating) {
+      // Allow ADMIN to access client dashboard without impersonation
       navigate(isMicrositeMode ? `/${agencySlug}/unauthorized` : '/unauthorized', { replace: true });
     }
   }, [user, authLoading, isMicrositeMode, agencySlug, navigate, isImpersonating]);
@@ -262,9 +373,9 @@ const ClientDashboard: React.FC = () => {
     fetchPassengers();
   }, [selectedBooking]);
 
-  // Allow access if user is CLIENT or ADMIN impersonating a client
-  if (authLoading || !user || (user.role !== UserRole.CLIENT && !isImpersonating)) {
-    return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
+  // Allow access if user is CLIENT, ADMIN (can access directly), or ADMIN impersonating a client
+  if (authLoading || !user || (user.role !== UserRole.CLIENT && user.role !== UserRole.ADMIN && !isImpersonating)) {
+    return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-slate-600" size={32} /></div>;
   }
 
   // Use up-to-date values from DataContext - use impersonated client ID if impersonating
@@ -283,22 +394,36 @@ const ClientDashboard: React.FC = () => {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files || e.target.files.length === 0) return;
       setUploading(true);
-      const url = await uploadImage(e.target.files[0], 'avatars');
-      if (url) {
-          if (isImpersonating && impersonatedClient) {
-            // If admin is impersonating, use updateClientProfile to update the impersonated client
-            await updateClientProfile(impersonatedClient.id, { avatar: url });
-            showToast('Foto de perfil atualizada!', 'success');
-            await refreshAllData(); // Refresh to show updated avatar
-          } else {
-            // Normal user update
-            await updateUser({ avatar: url });
-            showToast('Foto de perfil atualizada!', 'success');
-          }
-      } else {
-        showToast('Erro ao fazer upload da foto.', 'error');
+      try {
+        const url = await uploadImage(e.target.files[0], 'avatars');
+        if (url) {
+            if (isImpersonating && impersonatedClient) {
+              // If admin is impersonating, use updateClientProfile to update the impersonated client
+              await updateClientProfile(impersonatedClient.id, { avatar: url });
+              showToast('Foto de perfil atualizada!', 'success');
+              await refreshAllData(); // Refresh to show updated avatar
+            } else {
+              // Normal user update
+              const result = await updateUser({ avatar: url });
+              if (result.success) {
+                // Reload user data to refresh avatar immediately
+                await reloadUser();
+                await refreshAllData(); // Also refresh all data context
+                showToast('Foto de perfil atualizada!', 'success');
+              } else {
+                showToast('Erro ao atualizar foto: ' + (result.error || 'Erro desconhecido'), 'error');
+              }
+            }
+            // Reset input to allow selecting the same file again
+            e.target.value = '';
+        } else {
+          showToast('Erro ao fazer upload da foto.', 'error');
+        }
+      } catch (error: any) {
+        showToast('Erro ao fazer upload da foto: ' + (error.message || 'Erro desconhecido'), 'error');
+      } finally {
+        setUploading(false);
       }
-      setUploading(false);
   };
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -700,7 +825,7 @@ const ClientDashboard: React.FC = () => {
     // Preserve impersonate parameter if in impersonate mode
     return preserveImpersonate(baseLink);
   };
-  const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-primary-50 text-primary-700 border-primary-600' : 'border-transparent text-gray-600 hover:bg-gray-50'}`;
+  const getTabClass = (tab: string) => `w-full flex items-center px-6 py-4 text-left text-sm font-medium transition-colors border-l-4 ${activeTab === tab ? 'bg-slate-50 text-slate-900 border-slate-900' : 'border-transparent text-slate-600 hover:bg-slate-50'}`;
 
   // Helper for ReviewForm tags
   const toggleReviewTag = (tag: string) => {
@@ -717,17 +842,17 @@ const ClientDashboard: React.FC = () => {
     <div className="max-w-[1600px] mx-auto py-6">
       {/* Admin Impersonate Banner */}
       {isImpersonating && (
-        <div className="mb-6 bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 rounded-xl shadow-lg border-2 border-amber-400 flex items-center justify-between">
+        <div className="mb-6 bg-amber-50 border-b border-amber-200 p-4 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
+            <AlertTriangle className="text-amber-600" size={20} />
             <div>
-              <p className="font-extrabold text-lg">👁️ Modo Admin - Visualização</p>
-              <p className="text-sm text-amber-100">Você está visualizando o painel como: <strong>{currentClient?.name || impersonatedClient?.name}</strong></p>
+              <p className="font-semibold text-amber-900 text-sm">Modo Admin - Visualização</p>
+              <p className="text-xs text-amber-700">Você está visualizando o painel como: <strong>{currentClient?.name || impersonatedClient?.name}</strong></p>
             </div>
           </div>
           <button
             onClick={() => navigate('/admin/dashboard?tab=USERS')}
-            className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition-colors"
+            className="px-4 py-2 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 rounded-lg font-semibold text-sm transition-colors"
           >
             Voltar ao Admin
           </button>
@@ -740,21 +865,22 @@ const ClientDashboard: React.FC = () => {
         
         {/* Left Sidebar */}
         <div className="lg:col-span-1">
-          <div className="bg-gradient-to-br from-primary-600 to-blue-400 p-6 rounded-2xl shadow-xl border border-primary-500 text-white text-center mb-6 relative">
-             <div className="relative w-24 h-24 mx-auto mb-4 border-4 border-white rounded-full bg-gray-200 shadow-lg">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center mb-6 relative">
+             <div className="relative w-24 h-24 mx-auto mb-4 border-4 border-slate-200 rounded-full bg-slate-100 shadow-sm">
                  <img 
-                   src={currentClient?.avatar || `https://ui-avatars.com/api/?name=${currentClient?.name || user?.name || 'Cliente'}`} 
+                   key={user?.avatar || currentClient?.avatar || 'avatar'} 
+                   src={currentClient?.avatar || user?.avatar || `https://ui-avatars.com/api/?name=${currentClient?.name || user?.name || 'Cliente'}`} 
                    alt={currentClient?.name || user?.name || 'Cliente'} 
                    className="w-full h-full rounded-full object-cover" 
                  />
-                 <label className="absolute bottom-0 right-0 bg-white text-primary-600 p-2 rounded-full cursor-pointer hover:bg-gray-100 shadow-md transition-transform hover:scale-110 border border-gray-200">
+                 <label className="absolute bottom-0 right-0 bg-white text-slate-700 p-2 rounded-full cursor-pointer hover:bg-slate-100 shadow-md transition-transform hover:scale-110 border border-slate-200">
                      <Camera size={14} />
                      <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
                  </label>
-                 {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-full"><div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>}
+                 {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-full"><div className="w-5 h-5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div></div>}
              </div>
-             <h2 className="text-xl font-bold truncate">{currentClient?.name || user?.name || 'Cliente'}</h2>
-             <p className="text-sm text-primary-100 font-light truncate">{greeting}</p> {/* Dynamic Greeting */}
+             <h2 className="text-xl font-semibold text-slate-900 truncate">{currentClient?.name || user?.name || 'Cliente'}</h2>
+             <p className="text-sm text-slate-600 font-light truncate">{greeting}</p> {/* Dynamic Greeting */}
           </div>
 
           <nav className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -769,34 +895,34 @@ const ClientDashboard: React.FC = () => {
            
            {activeTab === 'PROFILE' && (
              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-               <div className="flex justify-between items-center mb-6"> <h2 className="text-2xl font-bold text-gray-900">Resumo do Perfil</h2> <Link to={getNavLink('SETTINGS')} className="text-primary-600 text-sm font-bold hover:underline">Editar Dados</Link> </div>
+               <div className="flex justify-between items-center mb-6"> <h2 className="text-2xl font-semibold text-slate-900">Resumo do Perfil</h2> <Link to={getNavLink('SETTINGS')} className="text-slate-600 text-sm font-semibold hover:text-slate-900 hover:underline">Editar Dados</Link> </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {/* Stat Card: Viagens */}
-                 <div className="bg-blue-50 p-6 rounded-2xl flex items-center gap-4 border border-blue-100 shadow-sm">
-                    <div className="bg-white p-3 rounded-full shadow-md text-blue-600"><Plane size={24} strokeWidth={1.5}/></div>
+                 <div className="bg-slate-50 p-6 rounded-2xl flex items-center gap-4 border border-slate-200 shadow-sm">
+                    <div className="bg-white p-3 rounded-full shadow-sm text-slate-700"><Plane size={24} strokeWidth={1.5}/></div>
                     <div>
-                        <p className="text-3xl font-extrabold text-gray-900">{myBookings.length}</p>
-                        <p className="text-xs text-gray-600 uppercase font-bold mt-0.5">Viagens Reservadas</p>
+                        <p className="text-3xl font-semibold text-slate-900">{myBookings.length}</p>
+                        <p className="text-xs text-slate-600 uppercase font-semibold mt-0.5">Viagens Reservadas</p>
                     </div>
                  </div>
                  {/* Stat Card: Favoritos */}
-                 <div className="bg-amber-50 p-6 rounded-2xl flex items-center gap-4 border border-amber-100 shadow-sm">
-                    <div className="bg-white p-3 rounded-full shadow-md text-amber-600"><Heart size={24} strokeWidth={1.5}/></div>
+                 <div className="bg-slate-50 p-6 rounded-2xl flex items-center gap-4 border border-slate-200 shadow-sm">
+                    <div className="bg-white p-3 rounded-full shadow-sm text-slate-700"><Heart size={24} strokeWidth={1.5}/></div>
                     <div>
-                        <p className="text-3xl font-extrabold text-gray-900">{favoriteTrips.length}</p>
-                        <p className="text-xs text-gray-600 uppercase font-bold mt-0.5">Viagens Favoritas</p>
+                        <p className="text-3xl font-semibold text-slate-900">{favoriteTrips.length}</p>
+                        <p className="text-xs text-slate-600 uppercase font-semibold mt-0.5">Viagens Favoritas</p>
                     </div>
                  </div>
                </div>
 
                {/* Profile Details */}
-               <div className="mt-10 pt-6 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nome</label> <p className="text-gray-900 font-medium">{currentClient?.name || '---'}</p> </div>
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Email</label> <p className="text-gray-900 font-medium">{currentClient?.email || '---'}</p> </div>
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">CPF</label> <p className="text-gray-900 font-medium">{currentClient?.cpf || '---'}</p> </div>
-                 <div className="bg-gray-50 p-4 rounded-xl"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Telefone</label> <p className="text-gray-900 font-medium">{currentClient?.phone || '---'}</p> </div>
+               <div className="mt-10 pt-6 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome</label> <p className="text-slate-900 font-medium">{currentClient?.name || '---'}</p> </div>
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Email</label> <p className="text-slate-900 font-medium">{currentClient?.email || '---'}</p> </div>
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">CPF</label> <p className="text-slate-900 font-medium">{currentClient?.cpf || '---'}</p> </div>
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Telefone</label> <p className="text-slate-900 font-medium">{currentClient?.phone || '---'}</p> </div>
                  {currentClient?.address?.city && (
-                    <div className="bg-gray-50 p-4 rounded-xl md:col-span-2"> <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Endereço</label> <p className="text-gray-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p> </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 md:col-span-2"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Endereço</label> <p className="text-slate-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p> </div>
                  )}
                </div>
 
@@ -804,7 +930,7 @@ const ClientDashboard: React.FC = () => {
                {suggestedTrips.length > 0 && (
                  <div className="mt-12 pt-8 border-t border-gray-100">
                    <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                     <Compass size={24} className="text-primary-600" />
+                     <Compass size={24} className="text-slate-700" />
                      🌎 Inspire-se para sua próxima aventura
                    </h3>
                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -826,53 +952,15 @@ const ClientDashboard: React.FC = () => {
                     const agency = booking._agency; 
                     if (!trip) return null;
                     
-                    const imgUrl = trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-                    const startDate = trip.startDate;
-                    const hasReviewed = myReviews.some(r => r.bookingId === booking.id);
-                    const agencySlugForNav = booking._agency?.slug;
-                    const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title);
-
-                    return (
-                      <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
-                        <img src={imgUrl} alt={trip.title} className="w-full md:w-48 h-32 object-cover rounded-xl" />
-                        <div className="flex-1">
-                           <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{trip.title}</h3>
-                           {agency && ( <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium mb-3 block"> Organizado por {agency.name} </Link> )}
-                           <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
-                             <div className="flex items-center text-gray-600"><MapPin size={16} className="mr-2" /> {trip.destination}</div>
-                             <div className="flex items-center text-gray-600"><Calendar size={16} className="mr-2 text-gray-400" /> {startDate ? new Date(startDate).toLocaleDateString() : '---'}</div>
-                           </div>
-                           <div className="flex gap-2 flex-wrap">
-                               <button onClick={() => setSelectedBooking(booking)} className="bg-primary-600 text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-700 transition-colors shadow-sm">
-                                    <QrCode size={16} /> Abrir Voucher
-                               </button>
-                               <button 
-                                  onClick={() => {
-                                    if (agencySlugForNav) {
-                                      navigate(`/${agencySlugForNav}?tab=REVIEWS`);
-                                    } else {
-                                      showToast('Não foi possível encontrar a página da agência.', 'error');
-                                    }
-                                  }}
-                                  disabled={!agencySlugForNav}
-                                  className="bg-amber-50 text-amber-600 text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-amber-100 transition-colors border border-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <Star size={16} /> {hasReviewed ? 'Ver/Editar Avaliação' : 'Avaliar Agência'}
-                               </button>
-                               {whatsappUrl && (
-                                <a
-                                  href={whatsappUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="bg-[#25D366] text-white text-sm font-bold py-2 px-4 rounded-lg flex items-center gap-2 hover:bg-[#128C7E] transition-colors shadow-sm"
-                                >
-                                  <MessageCircle size={16} className="fill-white/20"/> Falar com a Agência
-                                </a>
-                               )}
-                           </div>
-                        </div>
-                      </div>
-                    );
+                    return <BookingCard 
+                      key={booking.id} 
+                      booking={booking} 
+                      trip={trip} 
+                      agency={agency}
+                      hasReviewed={myReviews.some(r => r.bookingId === booking.id)}
+                      onOpenVoucher={setSelectedBooking}
+                      fetchTripImages={fetchTripImages}
+                    />;
                  })
                ) : (
                  <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> 

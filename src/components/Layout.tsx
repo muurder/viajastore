@@ -6,14 +6,14 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building, Shield, Briefcase } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
 
 
 const Layout: React.FC = () => {
-  const { user, logout, login } = useAuth();
+  const { user, logout, login, reloadUser, exitImpersonate, isImpersonating } = useAuth();
   const { getAgencyBySlug, getAgencyTheme, loading: dataLoading, platformSettings } = useData();
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
   const { showToast } = useToast();
@@ -191,6 +191,8 @@ const Layout: React.FC = () => {
     { name: 'Agência Teste', email: 'agencia@teste.com', password: 'agencia123', role: 'AGENCY', icon: Building },
     { name: 'Guia Turístico Teste', email: 'guia@teste.com', password: 'guia123', role: 'AGENCY', icon: Compass },
     { name: 'Admin Real', email: 'juannicolas1@gmail.com', password: '', role: 'ADMIN', icon: ShieldCheck, requiresPassword: true },
+    { name: 'Juan Nicolas Agência', email: 'juan.agencia@viajastore.com', password: 'agencia123', role: 'AGENCY', icon: Building },
+    { name: 'Juan Nicolas Guia', email: 'juan.guia@viajastore.com', password: 'guia123', role: 'AGENCY', icon: Compass },
   ];
 
   const handleQuickLogin = async (email: string, password: string, requiresPassword?: boolean) => {
@@ -207,11 +209,50 @@ const Layout: React.FC = () => {
     }
     
     setIsUserDropdownOpen(false);
-    const result = await login(email, finalPassword);
-    if (result.success) {
-      showToast('Login realizado com sucesso!', 'success');
-    } else {
-      showToast(result.error || 'Erro ao fazer login', 'error');
+    
+    // Show loading toast
+    showToast('Fazendo login...', 'info');
+    
+    try {
+      const result = await login(email, finalPassword);
+      if (result.success) {
+        showToast('Login realizado com sucesso!', 'success');
+        
+        // Calculate dashboard route based on the account we're logging into (not current user state)
+        let dashboardRoute = '/';
+        const accountToLogin = TEST_ACCOUNTS.find(acc => acc.email === email);
+        if (accountToLogin) {
+          if (accountToLogin.role === 'ADMIN') {
+            dashboardRoute = '/admin/dashboard';
+          } else if (accountToLogin.role === 'AGENCY') {
+            dashboardRoute = '/agency/dashboard';
+          } else if (accountToLogin.role === 'CLIENT') {
+            dashboardRoute = '/client/dashboard/BOOKINGS';
+          }
+        }
+        
+        // Reload user data and then navigate
+        if (reloadUser) {
+          await reloadUser();
+        }
+        
+        // Small delay to ensure state is updated, then navigate
+        setTimeout(() => {
+          navigate(dashboardRoute);
+        }, 500);
+      } else {
+        const errorMsg = result.error || 'Erro ao fazer login';
+        // Provide more helpful error messages
+        if (errorMsg.includes('Invalid login credentials') || errorMsg.includes('incorretos')) {
+          showToast('Email ou senha incorretos. Verifique as credenciais.', 'error');
+        } else if (errorMsg.includes('timeout') || errorMsg.includes('demorou')) {
+          showToast('Servidor demorou para responder. Tente novamente.', 'error');
+        } else {
+          showToast(errorMsg, 'error');
+        }
+      }
+    } catch (error: any) {
+      showToast('Erro inesperado ao fazer login: ' + (error.message || 'Erro desconhecido'), 'error');
     }
   };
 
@@ -455,6 +496,35 @@ const Layout: React.FC = () => {
                               </>
                             )}
 
+                            {/* Admin Quick Access to Other Dashboards */}
+                            {user.role === 'ADMIN' && (
+                              <>
+                                <div className="border-t border-gray-100 my-1"></div>
+                                <div className="px-2 py-1.5">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Shield size={14} className="text-primary-600" />
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Acesso Admin</span>
+                                  </div>
+                                  <Link
+                                    to="/client/dashboard/BOOKINGS"
+                                    onClick={() => setIsUserDropdownOpen(false)}
+                                    className="flex items-center gap-2 px-2.5 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group"
+                                  >
+                                    <User size={14} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                    <span className="font-medium">Painel Cliente</span>
+                                  </Link>
+                                  <Link
+                                    to="/agency/dashboard"
+                                    onClick={() => setIsUserDropdownOpen(false)}
+                                    className="flex items-center gap-2 px-2.5 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group"
+                                  >
+                                    <Briefcase size={14} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                    <span className="font-medium">Painel Agência</span>
+                                  </Link>
+                                </div>
+                              </>
+                            )}
+
                             {/* Quick Account Switch - Admin Only */}
                             {/* Show Quick Switch for any test account or admin */}
                             {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email)) && (
@@ -473,7 +543,11 @@ const Layout: React.FC = () => {
                                       return (
                                         <button
                                           key={account.email}
-                                          onClick={() => !isCurrentUser && hasPassword && handleQuickLogin(account.email, account.password || '', account.requiresPassword)}
+                                          onClick={async () => {
+                                            if (!isCurrentUser && hasPassword) {
+                                              await handleQuickLogin(account.email, account.password || '', account.requiresPassword);
+                                            }
+                                          }}
                                           disabled={isCurrentUser || !hasPassword}
                                           className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs rounded-lg transition-all ${
                                             isCurrentUser
@@ -604,6 +678,32 @@ const Layout: React.FC = () => {
 
       {/* RENDER THE NEW BOTTOM NAV */}
       <BottomNav />
+
+      {/* Impersonate Mode Floating Button */}
+      {isImpersonating && (
+        <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
+          <button
+            onClick={async () => {
+              try {
+                await exitImpersonate();
+                // Wait a bit for state to update
+                setTimeout(() => {
+                  navigate('/admin/dashboard');
+                }, 100);
+              } catch (error) {
+                // Error handled in exitImpersonate
+                // Navigate anyway
+                navigate('/admin/dashboard');
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
+            title="Sair do Modo Gerenciar"
+          >
+            <LogOut size={20} />
+            Sair do Modo Gerenciar
+          </button>
+        </div>
+      )}
     </div>
   );
 };

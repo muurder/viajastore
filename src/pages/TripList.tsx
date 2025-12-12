@@ -3,10 +3,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import TripListItem from '../components/TripListItem';
-import TripMap from '../components/TripMap';
 import HeroSearch from '../components/HeroSearch';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
-import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin, Grid3x3, List, Map, Globe } from 'lucide-react';
+import { Filter, X, ArrowUpDown, Search, ChevronDown, ChevronUp, ArrowLeft, Loader, MapPin, Grid3x3, List, Globe } from 'lucide-react';
 import { debounce } from '../utils/debounce';
 
 // Helper to normalize strings for comparison (remove accents, lowercase)
@@ -69,17 +68,16 @@ export const TripList: React.FC = () => {
      traveler: true, style: true, duration: true, price: true, dest: true
   });
   
-  // View mode: 'grid' | 'list' | 'map' - Load from localStorage
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>(() => {
+  // View mode: 'grid' | 'list' - Load from localStorage
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     const saved = localStorage.getItem('tripListViewMode');
-    return (saved === 'grid' || saved === 'list' || saved === 'map') ? saved : 'grid';
+    return (saved === 'grid' || saved === 'list') ? saved : 'grid';
   });
 
   // Save viewMode to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('tripListViewMode', viewMode);
   }, [viewMode]);
-  const [highlightedTripId, setHighlightedTripId] = useState<string | null>(null);
   
   // Search params from AdvancedSearchBar
   const startDateParam = searchParams.get('startDate');
@@ -612,17 +610,6 @@ export const TripList: React.FC = () => {
                   >
                     <List size={18} />
                   </button>
-                  <button
-                    onClick={() => setViewMode('map')}
-                    className={`p-2.5 rounded-lg transition-all ${
-                      viewMode === 'map' 
-                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
-                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                    }`}
-                    title="Visualização no mapa"
-                  >
-                    <Map size={18} />
-                  </button>
                 </div>
                 
                 <select 
@@ -642,43 +629,7 @@ export const TripList: React.FC = () => {
 
           {filteredTrips.length > 0 ? (
             <>
-              {viewMode === 'map' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px] h-[600px]">
-                  {/* List on left - Scrollable */}
-                  <div className="overflow-y-auto space-y-4 pr-2 scrollbar-thin">
-                    <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 pb-3 mb-2 border-b border-gray-200">
-                      <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">
-                        {filteredTrips.length} {filteredTrips.length === 1 ? 'viagem no mapa' : 'viagens no mapa'}
-                      </h3>
-                    </div>
-                    {filteredTrips.map(trip => (
-                      <TripListItem
-                        key={trip.id}
-                        trip={trip}
-                        onHover={setHighlightedTripId}
-                        highlighted={trip.id === highlightedTripId}
-                        adults={adultsParam ? parseInt(adultsParam) : 1}
-                      />
-                    ))}
-                  </div>
-                  {/* Map on right - Premium */}
-                  <div className="hidden lg:block relative">
-                    <TripMap
-                      trips={filteredTrips}
-                      highlightedTripId={highlightedTripId}
-                      onMarkerClick={setHighlightedTripId}
-                    />
-                  </div>
-                  {/* Mobile: Full width map */}
-                  <div className="lg:hidden h-[400px] mt-4">
-                    <TripMap
-                      trips={filteredTrips}
-                      highlightedTripId={highlightedTripId}
-                      onMarkerClick={setHighlightedTripId}
-                    />
-                  </div>
-                </div>
-              ) : viewMode === 'list' ? (
+              {viewMode === 'list' ? (
                 <div className="space-y-4 animate-[fadeInUp_0.5s]">
                   {filteredTrips.map(trip => (
                     <TripListItem

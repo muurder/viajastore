@@ -29,6 +29,10 @@ interface AuthContextType {
   uploadImage: (file: File, bucket: 'avatars' | 'agency-logos' | 'trip-images') => Promise<string | null>;
   // FIX: Updated `reloadUser` signature to accept `User`
   reloadUser: (currentUser: User | Client | Agency | Admin | null) => Promise<void>;
+  // Admin Impersonate Mode
+  adminImpersonate: (targetUserId: string, targetRole: UserRole) => Promise<void>;
+  exitImpersonate: () => Promise<void>;
+  isImpersonating: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const { showToast } = useToast(); // Use toast for feedback
 
   // Fetch user profile/agency data based on Auth ID
@@ -1036,8 +1041,189 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Admin Impersonate Mode
+  const adminImpersonate = async (targetUserId: string, targetRole: UserRole) => {
+    if (!user || user.role !== UserRole.ADMIN) {
+      showToast('Apenas administradores podem usar o modo Gerenciar.', 'error');
+      return;
+    }
+
+    try {
+      // Save current admin session
+      const adminSession = {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+      };
+      sessionStorage.setItem('admin_impersonate_session', JSON.stringify(adminSession));
+      
+      // Fetch target user data
+      if (!supabase) {
+        showToast('Erro de conexão.', 'error');
+        return;
+      }
+
+      let targetUserData: User | Client | Agency | null = null;
+
+      if (targetRole === UserRole.CLIENT) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', targetUserId)
+          .single();
+        
+        if (profileData) {
+          targetUserData = {
+            id: profileData.id,
+            name: profileData.full_name || profileData.email,
+            email: profileData.email,
+            role: UserRole.CLIENT,
+            avatar: profileData.avatar_url,
+            createdAt: profileData.created_at,
+          } as Client;
+        }
+      } else if (targetRole === UserRole.AGENCY) {
+        const { data: agencyData } = await supabase
+          .from('agencies')
+          .select('*, profiles(*)')
+          .eq('user_id', targetUserId)
+          .single();
+        
+        if (agencyData && agencyData.profiles) {
+          const profile = Array.isArray(agencyData.profiles) ? agencyData.profiles[0] : agencyData.profiles;
+          targetUserData = {
+            id: profile.id,
+            agencyId: agencyData.id,
+            name: agencyData.name || profile.full_name,
+            email: profile.email,
+            role: UserRole.AGENCY,
+            avatar: agencyData.logo || profile.avatar_url,
+            slug: agencyData.slug,
+            description: agencyData.description || '',
+            subscriptionStatus: agencyData.subscription_status || 'INACTIVE',
+            subscriptionPlan: agencyData.subscription_plan || 'STARTER',
+            subscriptionExpiresAt: agencyData.subscription_expires_at || new Date().toISOString(),
+            heroMode: agencyData.hero_mode || 'TRIPS',
+            createdAt: profile.created_at,
+          } as Agency;
+        }
+      }
+
+      if (!targetUserData) {
+        showToast('Usuário não encontrado.', 'error');
+        return;
+      }
+
+      // Set impersonating state and target user
+      setIsImpersonating(true);
+      setUser(targetUserData);
+      
+      logger.log("[AuthContext] Admin impersonating user:", targetUserId, "Role:", targetRole);
+      // Toast removed - banner is shown in ClientDashboard instead
+    } catch (error: any) {
+      logger.error("[AuthContext] Error impersonating user:", error);
+      showToast(`Erro ao ativar modo Gerenciar: ${error.message}`, 'error');
+    }
+  };
+
+  const exitImpersonate = async () => {
+    try {
+      const adminSessionStr = sessionStorage.getItem('admin_impersonate_session');
+      if (!adminSessionStr) {
+        showToast('Sessão de administrador não encontrada.', 'error');
+        // Even if session not found, try to restore from current auth session
+        if (supabase) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await fetchUserData(session.user.id, session.user.email || '');
+          }
+        }
+        setIsImpersonating(false);
+        return;
+      }
+
+      const adminSession = JSON.parse(adminSessionStr);
+      
+      // Check if it's Master Admin
+      const masterAdminEmail = import.meta.env.VITE_MASTER_ADMIN_EMAIL || 'juannicolas1@gmail.com';
+      const isMasterAdmin = adminSession.email === masterAdminEmail;
+      
+      if (isMasterAdmin && supabase) {
+        // For Master Admin, get current auth session and restore
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const masterUser: Admin = {
+            id: session.user.id,
+            name: 'Master Admin',
+            email: adminSession.email,
+            role: UserRole.ADMIN,
+            avatar: `https://ui-avatars.com/api/?name=MA&background=000&color=fff`,
+            createdAt: new Date().toISOString()
+          };
+          setIsImpersonating(false);
+          setUser(masterUser);
+          sessionStorage.removeItem('admin_impersonate_session');
+          logger.log("[AuthContext] Exited impersonate mode, restored Master Admin session");
+          showToast('Modo Gerenciar desativado. Sessão de administrador restaurada.', 'success');
+          return;
+        }
+      }
+      
+      // For regular admin, restore from saved session
+      const adminUser: Admin = {
+        id: adminSession.userId,
+        name: adminSession.name,
+        email: adminSession.email,
+        role: UserRole.ADMIN,
+        avatar: adminSession.avatar,
+      };
+
+      setIsImpersonating(false);
+      setUser(adminUser);
+      sessionStorage.removeItem('admin_impersonate_session');
+      
+      logger.log("[AuthContext] Exited impersonate mode, restored admin session");
+      showToast('Modo Gerenciar desativado. Sessão de administrador restaurada.', 'success');
+    } catch (error: any) {
+      logger.error("[AuthContext] Error exiting impersonate mode:", error);
+      showToast(`Erro ao sair do modo Gerenciar: ${error.message}`, 'error');
+      // Try to restore anyway - get session and restore admin
+      setIsImpersonating(false);
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const masterAdminEmail = import.meta.env.VITE_MASTER_ADMIN_EMAIL || 'juannicolas1@gmail.com';
+          if (session.user.email === masterAdminEmail) {
+            const masterUser: Admin = {
+              id: session.user.id,
+              name: 'Master Admin',
+              email: session.user.email || '',
+              role: UserRole.ADMIN,
+              avatar: `https://ui-avatars.com/api/?name=MA&background=000&color=fff`,
+              createdAt: new Date().toISOString()
+            };
+            setUser(masterUser);
+          } else {
+            await fetchUserData(session.user.id, session.user.email || '');
+          }
+        }
+      }
+    }
+  };
+
+  // Check for impersonate session on mount
+  useEffect(() => {
+    const adminSessionStr = sessionStorage.getItem('admin_impersonate_session');
+    if (adminSessionStr && user?.role === UserRole.ADMIN) {
+      // Already impersonating, keep state
+      setIsImpersonating(true);
+    }
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage, reloadUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, register, updateUser, updatePassword, deleteAccount, uploadImage, reloadUser, adminImpersonate, exitImpersonate, isImpersonating }}>
       {children}
     </AuthContext.Provider>
   );

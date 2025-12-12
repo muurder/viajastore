@@ -289,10 +289,12 @@ const TripDetails: React.FC = () => {
           childPriceMultiplier: 0.7
         };
         
-        // Calculate price: adults pay full price, children pay configured multiplier
-        const childPriceMultiplier = passengerConfig.childPriceMultiplier || 0.7;
+        // Calculate price: adults pay full price, children pay configured price (fixed or multiplier)
+        const childPriceValue = passengerConfig.childPriceType === 'fixed' && passengerConfig.childPriceFixed !== undefined
+            ? passengerConfig.childPriceFixed
+            : (trip.price * (passengerConfig.childPriceMultiplier || 0.7));
         const adultPrice = trip.price * adults;
-        const childPrice = trip.price * childPriceMultiplier * children;
+        const childPrice = childPriceValue * children;
         const totalPrice = adultPrice + childPrice;
         
         const bookingData = {
@@ -667,9 +669,12 @@ const TripDetails: React.FC = () => {
                               allowLapChild: false,
                               childPriceMultiplier: 0.7
                             };
-                            const childPriceMultiplier = passengerConfig.childPriceMultiplier || 0.7;
+                            // Calculate child price: use fixed price if configured, otherwise use multiplier
+                            const childPriceValue = passengerConfig.childPriceType === 'fixed' && passengerConfig.childPriceFixed !== undefined
+                                ? passengerConfig.childPriceFixed
+                                : (trip.price * (passengerConfig.childPriceMultiplier || 0.7));
                             const adultPrice = trip.price * adults;
-                            const childPrice = trip.price * childPriceMultiplier * children;
+                            const childPrice = childPriceValue * children;
                             const totalPrice = adultPrice + childPrice;
                             
                             return (

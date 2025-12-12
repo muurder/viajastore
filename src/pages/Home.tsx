@@ -374,10 +374,11 @@ const Home: React.FC = () => {
                 <div
                   key={trip.id}
                   className="group/dock relative"
+                  style={{ overflow: 'visible' }}
                 >
                 <Link
                   to={`/viagem/${trip.slug || trip.id}`}
-                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col"
+                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible"
                 >
                   <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3">
                     {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
@@ -452,11 +453,16 @@ const Home: React.FC = () => {
                 {whatsappLink && (
                   <button
                     onClick={handleWhatsAppClick}
-                    className="absolute bottom-3 right-3 w-7 h-7 rounded-full bg-[#25D366]/90 backdrop-blur-sm text-white opacity-0 group-hover/dock:opacity-100 shadow-md hover:bg-[#25D366] hover:shadow-lg hover:scale-110 transition-all duration-300 flex items-center justify-center z-20 border border-white/20"
+                    className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-[#25D366] text-white opacity-0 group-hover/dock:opacity-100 shadow-lg hover:bg-[#20BA5A] hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center z-50 border-2 border-white pointer-events-auto"
+                    style={{
+                      transform: 'translateZ(0)',
+                      willChange: 'transform, opacity',
+                      backfaceVisibility: 'hidden'
+                    }}
                     title="Falar com a agência"
                     aria-label="WhatsApp"
                   >
-                    <MessageCircle size={12} />
+                    <MessageCircle size={14} className="fill-white" strokeWidth={0} />
                   </button>
                 )}
                 </div>

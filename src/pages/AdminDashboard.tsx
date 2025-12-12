@@ -1,11 +1,70 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, OperationalData, RoomConfig, ManualPassenger } from '../types';
+import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, OperationalData, RoomConfig, ManualPassenger, BroadcastMessage, BroadcastWithInteractions, BroadcastTargetRole } from '../types';
+
+const ALL_TRIP_CATEGORIES: TripCategory[] = [
+  'PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO',
+  'NATUREZA', 'CULTURA', 'GASTRONOMICO', 'VIDA_NOTURNA',
+  'VIAGEM_BARATA', 'ARTE'
+];
+
+// Helper function to normalize date to ISO format (YYYY-MM-DD) for input type="date"
+const normalizeDateToISO = (dateValue: string | Date | undefined | null): string => {
+  if (!dateValue) return '';
+  
+  try {
+    let date: Date;
+    
+    // If it's already a Date object
+    if (dateValue instanceof Date) {
+      date = dateValue;
+    } 
+    // If it's a string, try to parse it
+    else if (typeof dateValue === 'string') {
+      // If already in ISO format (YYYY-MM-DD)
+      if (dateValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+        return dateValue.split('T')[0]; // Return just the date part
+      }
+      
+      // Try to parse as date string (handles various formats)
+      date = new Date(dateValue);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        // Try parsing as DD/MM/YYYY (Brazilian format)
+        const parts = dateValue.split(/[\/\-]/);
+        if (parts.length === 3) {
+          // Assume DD/MM/YYYY format
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+          const year = parseInt(parts[2], 10);
+          date = new Date(year, month, day);
+        }
+      }
+    } else {
+      return '';
+    }
+    
+    // If still invalid, return empty
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    
+    // Return in ISO format (YYYY-MM-DD)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    logger.error('Error normalizing date:', error);
+    return '';
+  }
+};
 import { 
-  Trash2, MessageCircle, Users, Briefcase, 
+  Trash2, MessageCircle, Users, Briefcase, MapPin, 
   AlertOctagon, Database, Loader, Palette, Lock, Eye, Save, 
   Activity, X, Search, MoreVertical, 
   DollarSign, ShoppingBag, Edit3, 
@@ -13,8 +72,9 @@ import {
   Sparkles, Filter, ChevronDown, MonitorPlay, Download, BarChart2 as StatsIcon, ExternalLink,
   LayoutGrid, List, Archive, ArchiveRestore, Trash, Camera, Upload, History, PauseCircle, PlayCircle, Plane, RefreshCw, AlertCircle, LucideProps,
   TrendingUp, UserPlus, Shield, Calendar, LogIn, FileText, X as XIcon, Gift, CheckCircle2,
-  UserCog, Building2, Package, BookOpen, Settings, CreditCard as CreditCardIcon,
-  Megaphone, Clock, AlertTriangle, CheckCircle2 as CheckCircle2Icon, XCircle as XCircleIcon
+  UserCog, Building2, Package, BookOpen, Settings, CreditCard as CreditCardIcon, Check,
+  Megaphone, Clock, AlertTriangle, CheckCircle2 as CheckCircle2Icon, XCircle as XCircleIcon, Copy,
+  LogOut, Send, BarChart3, ThumbsUp
 } from 'lucide-react';
 import { migrateData } from '../services/dataMigration';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
@@ -24,21 +84,23 @@ import { slugify } from '../utils/slugify';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logger } from '../utils/logger';
+import GoogleLocationPicker from '../components/agency/GoogleLocationPicker';
+import SimpleLocationPicker from '../components/agency/SimpleLocationPicker';
 
 // --- STYLED COMPONENTS (LOCAL) ---
 
 // Fix: Explicitly define Badge as a functional component returning React.ReactNode
 const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
   const colors = {
-    green: 'bg-green-50 text-green-700 border-green-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    gray: 'bg-gray-50 text-gray-600 border-gray-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    green: 'bg-green-100 text-green-700',
+    red: 'bg-amber-100 text-amber-700',
+    blue: 'bg-slate-100 text-slate-700',
+    purple: 'bg-violet-100 text-violet-700',
+    gray: 'bg-gray-100 text-gray-600',
+    amber: 'bg-amber-100 text-amber-700',
   };
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
+    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
       {children}
     </span>
   );
@@ -170,15 +232,15 @@ const AgenciesFilterModal: React.FC<AgenciesFilterModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-8 py-6 text-white relative">
+          <div className="bg-white border-b border-slate-200 px-8 py-6 relative">
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="absolute top-4 right-4 p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XIcon size={24} />
             </button>
-            <h2 className="text-2xl font-extrabold">{title}</h2>
-            <p className="text-primary-100 mt-1">{agencies.length} agência(s) encontrada(s)</p>
+            <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
+            <p className="text-slate-600 mt-1">{agencies.length} agência(s) encontrada(s)</p>
           </div>
 
           {/* Content */}
@@ -344,15 +406,15 @@ const UsersFilterModal: React.FC<UsersFilterModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-8 py-6 text-white relative">
+          <div className="bg-white border-b border-slate-200 px-8 py-6 relative">
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="absolute top-4 right-4 p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XIcon size={24} />
             </button>
-            <h2 className="text-2xl font-extrabold">{title}</h2>
-            <p className="text-primary-100 mt-1">{users.length} usuário(s) encontrado(s)</p>
+            <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
+            <p className="text-slate-600 mt-1">{users.length} usuário(s) encontrado(s)</p>
           </div>
 
           {/* Content */}
@@ -468,6 +530,119 @@ interface ClientDashboardPopupProps {
   onClose: () => void;
 }
 
+// Generic Dashboard Viewer for Users, Agencies, and Guides
+interface DashboardViewerProps {
+  isOpen: boolean;
+  type: 'client' | 'agency' | 'guide';
+  entityId: string | null;
+  entityName?: string;
+  onClose: () => void;
+}
+
+const DashboardViewer: React.FC<DashboardViewerProps> = ({ isOpen, type, entityId, entityName, onClose }) => {
+  if (!isOpen || !entityId) return null;
+
+  // Build the correct URL for HashRouter based on type
+  const basePath = window.location.pathname.replace(/\/$/, '');
+  let dashboardUrl = '';
+  
+  if (type === 'client') {
+    dashboardUrl = `${window.location.origin}${basePath}/#/client/dashboard/PROFILE?impersonate=${entityId}`;
+  } else if (type === 'agency') {
+    // Get agency slug from entityId
+    const agency = agencies.find(a => a.agencyId === entityId);
+    if (agency?.slug) {
+      dashboardUrl = `${window.location.origin}${basePath}/#/${agency.slug}/dashboard?impersonate=${entityId}`;
+    } else {
+      dashboardUrl = `${window.location.origin}${basePath}/#/agency/dashboard?impersonate=${entityId}`;
+    }
+  } else if (type === 'guide') {
+    dashboardUrl = `${window.location.origin}${basePath}/#/guide/dashboard?impersonate=${entityId}`;
+  }
+
+  const typeLabels = {
+    client: 'Cliente',
+    agency: 'Agência',
+    guide: 'Guia de Turismo'
+  };
+
+  return (
+    <>
+      <div 
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] animate-[fadeIn_0.2s]"
+        onClick={onClose}
+      />
+      <div 
+        className="fixed inset-0 z-[201] flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <div 
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col animate-[scaleIn_0.2s]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <h2 className="text-xl font-semibold text-slate-900">Painel do {typeLabels[type]}</h2>
+              <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full font-semibold flex items-center gap-2">
+                <Shield size={14} />
+                Acesso Administrativo
+              </span>
+            </div>
+            <button 
+              onClick={onClose}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <XIcon size={24} />
+            </button>
+          </div>
+          
+          {/* Admin Warning Banner */}
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <AlertTriangle size={18} className="text-amber-600" />
+              <span>Você está visualizando o perfil de <strong>{entityName || typeLabels[type]}</strong> como Administrador. Todas as ações serão registradas.</span>
+            </div>
+          </div>
+
+          {/* Iframe Content */}
+          <div className="flex-1 overflow-hidden">
+            <iframe
+              src={dashboardUrl}
+              className="w-full h-full border-0"
+              title={`${typeLabels[type]} Dashboard`}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+              onLoad={(e) => {
+                // Ensure impersonate parameter is preserved in iframe navigation
+                const iframe = e.currentTarget;
+                try {
+                  const iframeWindow = iframe.contentWindow;
+                  if (iframeWindow) {
+                    // Intercept navigation to preserve impersonate parameter
+                    const originalPushState = iframeWindow.history.pushState;
+                    iframeWindow.history.pushState = function(...args) {
+                      const url = args[2] as string;
+                      if (url && !url.includes('impersonate=')) {
+                        const separator = url.includes('?') ? '&' : '?';
+                        args[2] = `${url}${separator}impersonate=${entityId}`;
+                      }
+                      return originalPushState.apply(iframeWindow.history, args);
+                    };
+                  }
+                } catch (err) {
+                  // Cross-origin restrictions may prevent access
+                  logger.warn('Could not intercept iframe navigation:', err);
+                }
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
 const ClientDashboardPopup: React.FC<ClientDashboardPopupProps> = ({ isOpen, clientId, onClose }) => {
   if (!isOpen || !clientId) return null;
 
@@ -490,18 +665,29 @@ const ClientDashboardPopup: React.FC<ClientDashboardPopupProps> = ({ isOpen, cli
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-6 py-4 text-white flex items-center justify-between rounded-t-3xl">
+          <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <h2 className="text-xl font-extrabold">Painel do Cliente</h2>
-              <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Modo Admin - Visualização</span>
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <h2 className="text-xl font-semibold text-slate-900">Painel do Cliente</h2>
+              <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full font-semibold flex items-center gap-2">
+                <Shield size={14} />
+                Acesso Administrativo
+              </span>
             </div>
             <button 
               onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XIcon size={24} />
             </button>
+          </div>
+          
+          {/* Admin Warning Banner */}
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+              <AlertTriangle size={18} className="text-amber-600" />
+              <span>Você está visualizando este perfil como Administrador. Todas as ações serão registradas.</span>
+            </div>
           </div>
 
           {/* Iframe Content */}
@@ -586,22 +772,22 @@ const AgencyDetailModal: React.FC<AgencyDetailModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-8 py-6 text-white relative">
+          <div className="bg-white border-b border-slate-200 px-8 py-6 relative">
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="absolute top-4 right-4 p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XIcon size={24} />
             </button>
             <div className="flex items-center gap-6">
               <img 
                 src={agency.logo_url || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                className="w-20 h-20 rounded-full ring-4 ring-white/30"
+                className="w-20 h-20 rounded-full ring-4 ring-slate-200"
                 alt=""
               />
               <div className="flex-1">
-                <h2 className="text-3xl font-extrabold mb-1">{agency.name}</h2>
-                <p className="text-primary-100 text-lg">{agency.email || '---'}</p>
+                <h2 className="text-3xl font-semibold mb-1 text-slate-900">{agency.name}</h2>
+                <p className="text-slate-600 text-lg">{agency.email || '---'}</p>
                 {agency.phone && (
                   <p className="text-primary-100 text-sm mt-1">{agency.phone}</p>
                 )}
@@ -772,24 +958,24 @@ const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-8 py-6 text-white relative">
+          <div className="bg-white border-b border-slate-200 px-8 py-6 relative">
             <button 
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
+              className="absolute top-4 right-4 p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XIcon size={24} />
             </button>
             <div className="flex items-center gap-6">
               <img 
                 src={client.avatar || `https://ui-avatars.com/api/?name=${client.name}`} 
-                className="w-20 h-20 rounded-full ring-4 ring-white/30"
+                className="w-20 h-20 rounded-full ring-4 ring-slate-200"
                 alt=""
               />
               <div className="flex-1">
-                <h2 className="text-3xl font-extrabold mb-1">{client.name}</h2>
-                <p className="text-primary-100 text-lg">{client.email}</p>
+                <h2 className="text-3xl font-semibold mb-1 text-slate-900">{client.name}</h2>
+                <p className="text-slate-600 text-lg">{client.email}</p>
                 {client.phone && (
-                  <p className="text-primary-100 text-sm mt-1">{client.phone}</p>
+                  <p className="text-slate-600 text-sm mt-1">{client.phone}</p>
                 )}
               </div>
               <div className="text-right">
@@ -909,7 +1095,7 @@ const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
             </button>
             <button
               onClick={() => onAccessDashboard(client.id)}
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl font-extrabold hover:from-primary-700 hover:to-secondary-700 transition-all shadow-lg hover:shadow-xl"
+              className="flex items-center gap-2 px-8 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl"
             >
               <LogIn size={18} /> Acessar Painel do Cliente
             </button>
@@ -1025,15 +1211,26 @@ const DetailDrawer: React.FC<DrawerProps> = ({ isOpen, onClose, item, type, onEd
 
 // Fix: Export AdminDashboard directly
 export const AdminDashboard: React.FC = () => {
-  const { user, isMaster, sendPasswordReset } = useAuth();
-  const { 
+  const { user, isMaster, sendPasswordReset, adminImpersonate, exitImpersonate, isImpersonating } = useAuth();
+  const {
     agencies, trips, clients, bookings, reviews, agencyReviews, auditLogs, platformRevenue, platformSettings,
-    updateAgency, deleteMultipleAgencies, updateClient, deleteMultipleUsers,
+    updateAgency, deleteMultipleAgencies, updateClient, deleteMultipleUsers, deleteAllData,
     migrateData, isProcessing: isDataProcessing, refreshData, updatePlatformSettings, getAgencyStats,
-    adminChangePlan, adminSuspendAgency, updateUserAvatarByAdmin
+    adminChangePlan, adminSuspendAgency, updateUserAvatarByAdmin, softDeleteEntity, restoreEntity, toggleAgencyStatus,
+    updateAgencySubscription, createTrip, deleteTrip, updateTrip, toggleTripStatus, toggleTripFeatureStatus, fetchTripImages,
+    updateClientProfile, updateMultipleUsersStatus, sendBroadcast, getBroadcastsForAdmin
   } = useData();
   const { themes, activeTheme, setTheme, addTheme, deleteTheme, previewTheme, resetPreview, loading: isThemeProcessing } = useTheme();
   const { showToast } = useToast();
+  const navigate = useNavigate();
+
+  // Dashboard viewer state
+  const [dashboardViewer, setDashboardViewer] = useState<{ isOpen: boolean; type: 'client' | 'agency' | 'guide'; entityId: string | null; entityName?: string }>({
+    isOpen: false,
+    type: 'client',
+    entityId: null,
+    entityName: undefined
+  });
   
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('tab') as any) || 'OVERVIEW';
@@ -1049,17 +1246,40 @@ export const AdminDashboard: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [selectedPendingAgencies, setSelectedPendingAgencies] = useState<string[]>([]);
+  const [selectedTrips, setSelectedTrips] = useState<string[]>([]);
   const [userStats, setUserStats] = useState<UserStats[]>([]);
 
   const [agencyView, setAgencyView] = useState<'cards' | 'list'>(
-    () => (localStorage.getItem('adminAgencyView') as 'cards' | 'list') || 'cards'
+    () => {
+      const saved = localStorage.getItem('adminAgencyView');
+      if (saved) return saved as 'cards' | 'list';
+      return 'cards';
+    }
   );
   const [userView, setUserView] = useState<'cards' | 'list'>(
-    () => (localStorage.getItem('adminUserView') as 'cards' | 'list') || 'cards'
+    () => {
+      const saved = localStorage.getItem('adminUserView');
+      if (saved) return saved as 'cards' | 'list';
+      return 'cards';
+    }
   );
+  const [tripView, setTripView] = useState<'cards' | 'list'>(
+    () => {
+      const saved = localStorage.getItem('adminTripView');
+      if (saved) return saved as 'cards' | 'list';
+      return 'list';
+    }
+  );
+
+  const handleSetTripView = (view: 'cards' | 'list') => {
+    setTripView(view);
+    localStorage.setItem('adminTripView', view); // Persist even after cache clear
+  };
   const [showAgencyTrash, setShowAgencyTrash] = useState(false);
   const [showUserTrash, setShowUserTrash] = useState(false);
   const [activityFilter, setActivityFilter] = useState<'all' | 'user' | 'agency' | 'trip' | 'settings'>('all');
@@ -1109,22 +1329,81 @@ export const AdminDashboard: React.FC = () => {
   const [agenciesFilterModal, setAgenciesFilterModal] = useState<{ isOpen: boolean; filterType: 'all' | 'premium' | 'pending' | 'active' | null }>({ isOpen: false, filterType: null });
   const [agencyDetailModal, setAgencyDetailModal] = useState<{ isOpen: boolean; agency: Agency | null }>({ isOpen: false, agency: null });
   
-  // Broadcast Modal State
-  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  // Broadcast State
+  const [broadcastSubTab, setBroadcastSubTab] = useState<'compose' | 'reports' | 'templates' | 'scheduled'>('compose');
   const [broadcastForm, setBroadcastForm] = useState({
     title: '',
     message: '',
-    recipients: 'all_agencies' as 'all_agencies' | 'all_users' | 'all'
+    target_role: 'ALL' as BroadcastTargetRole,
+    scheduled_at: '' as string | null,
+    template_id: null as string | null
   });
+  const [broadcastsHistory, setBroadcastsHistory] = useState<BroadcastWithInteractions[]>([]);
+  const [expandedBroadcastId, setExpandedBroadcastId] = useState<string | null>(null);
+  const [loadingBroadcasts, setLoadingBroadcasts] = useState(false);
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [customDateStart, setCustomDateStart] = useState<string>('');
+  const [customDateEnd, setCustomDateEnd] = useState<string>('');
+  const [broadcastTemplates, setBroadcastTemplates] = useState<Array<{ id: string; name: string; title: string; message: string; target_role: BroadcastTargetRole }>>([]);
 
   const handleSetAgencyView = (view: 'cards' | 'list') => {
     setAgencyView(view);
     localStorage.setItem('adminAgencyView', view);
   };
 
+  // Functions for trips bulk actions
+  const handleToggleTrip = (id: string) => {
+    setSelectedTrips(prev => 
+      prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleAllTrips = () => {
+    if (selectedTrips.length === filteredTrips.length && filteredTrips.length > 0) {
+      setSelectedTrips([]);
+    } else {
+      setSelectedTrips(filteredTrips.map(t => t.id));
+    }
+  };
+
+  const handleBulkDeleteTrips = async () => {
+    if (selectedTrips.length === 0) {
+      showToast('Selecione pelo menos uma viagem para excluir.', 'warning');
+      return;
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Excluir Viagens',
+      message: `Tem certeza que deseja excluir ${selectedTrips.length} viagem(ns)? Esta ação não pode ser desfeita.`,
+      variant: 'danger',
+      confirmText: 'Excluir Permanentemente',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setIsProcessing(true);
+        try {
+          for (const tripId of selectedTrips) {
+            await deleteTrip(tripId);
+          }
+          showToast(`${selectedTrips.length} viagem(ns) excluída(s) com sucesso!`, 'success');
+          setSelectedTrips([]);
+          await refreshData();
+        } catch (error: any) {
+          showToast(`Erro ao excluir viagens: ${error.message}`, 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
   const handleSetUserView = (view: 'cards' | 'list') => {
     setUserView(view);
     localStorage.setItem('adminUserView', view);
+  };
+
+  const handleViewClientDetails = (client: Client) => {
+    setClientDetailModal({ isOpen: true, client });
   };
 
   // TAREFA 1: Revenue Data (Last 6 months)
@@ -1169,6 +1448,41 @@ export const AdminDashboard: React.FC = () => {
     const activeCount = activeAgencies.filter(a => a.subscriptionStatus === 'ACTIVE').length;
     return activeCount > 0 ? mrr / activeCount : 0;
   }, [mrr, activeAgencies]);
+
+  const currentUser = useMemo(() => {
+    if (modalType === 'EDIT_USER' && selectedItem) {
+      return clients.find(c => c.id === selectedItem.id) || selectedItem;
+    }
+    return null;
+  }, [modalType, selectedItem, clients]);
+
+  // Load broadcasts history when Reports tab is active
+  useEffect(() => {
+    if (activeTab === 'BROADCASTS' && broadcastSubTab === 'reports' && !loadingBroadcasts) {
+      setLoadingBroadcasts(true);
+      getBroadcastsForAdmin()
+        .then(data => {
+          setBroadcastsHistory(data);
+          setLoadingBroadcasts(false);
+        })
+        .catch(error => {
+          logger.error("[AdminDashboard] Error loading broadcasts:", error);
+          setLoadingBroadcasts(false);
+        });
+    }
+  }, [activeTab, broadcastSubTab]);
+
+  // Load templates from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('broadcastTemplates');
+    if (saved) {
+      try {
+        setBroadcastTemplates(JSON.parse(saved));
+      } catch (e) {
+        logger.error("[AdminDashboard] Error loading templates:", e);
+      }
+    }
+  }, []);
 
   // TAREFA 3: Pending Agencies (Mock)
   const pendingAgencies = useMemo(() => {
@@ -1251,19 +1565,8 @@ export const AdminDashboard: React.FC = () => {
 
     setIsProcessing(true);
     try {
-      // Delete all agencies (this will cascade delete trips)
-      const allAgencyIds = agencies.map(a => a.agencyId);
-      if (allAgencyIds.length > 0) {
-        await deleteMultipleAgencies(allAgencyIds);
-      }
-      
-      // Delete all users (clients)
-      const allUserIds = clients.filter(c => c.role === UserRole.CLIENT).map(c => c.id);
-      if (allUserIds.length > 0) {
-        await deleteMultipleUsers(allUserIds);
-      }
-      
-      showToast('Todos os dados foram excluídos com sucesso.', 'success');
+      // Use the robust deleteAllData function that handles everything in correct order
+      await deleteAllData();
       await refreshData();
     } catch (error: any) {
       showToast(`Erro ao limpar dados: ${error.message}`, 'error');
@@ -1289,7 +1592,93 @@ export const AdminDashboard: React.FC = () => {
       setIsProcessing(false);
   };
   
-  const handleSoftDelete = async (id: string, type: 'user' | 'agency') => {
+  // Functions for pending agencies bulk actions
+  const handleTogglePendingAgency = (id: string) => {
+    setSelectedPendingAgencies(prev => 
+      prev.includes(id) ? prev.filter(aid => aid !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleAllPendingAgencies = () => {
+    if (selectedPendingAgencies.length === pendingAgencies.length && pendingAgencies.length > 0) {
+      setSelectedPendingAgencies([]);
+    } else {
+      setSelectedPendingAgencies(pendingAgencies.map(a => a.agencyId));
+    }
+  };
+
+  const handleBulkApprovePendingAgencies = async () => {
+    if (selectedPendingAgencies.length === 0) {
+      showToast('Selecione pelo menos uma agência para aprovar.', 'warning');
+      return;
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Aprovar Agências',
+      message: `Tem certeza que deseja aprovar ${selectedPendingAgencies.length} agência(s)? Elas serão ativadas e poderão começar a publicar viagens.`,
+      variant: 'info',
+      confirmText: 'Aprovar Todas',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setIsProcessing(true);
+        try {
+          for (const agencyId of selectedPendingAgencies) {
+            // Activate the agency (toggle status to true if false, and set subscription status to ACTIVE)
+            const agency = agencies.find(a => a.agencyId === agencyId);
+            if (agency) {
+              // First ensure it's active
+              if (!agency.is_active) {
+                await toggleAgencyStatus(agencyId);
+              }
+              // Update subscription status to ACTIVE (keep current plan)
+              await updateAgencySubscription(agencyId, 'ACTIVE', agency.subscriptionPlan || 'BASIC');
+            }
+          }
+          showToast(`${selectedPendingAgencies.length} agência(s) aprovada(s) com sucesso!`, 'success');
+          setSelectedPendingAgencies([]);
+          await refreshData();
+        } catch (error: any) {
+          showToast(`Erro ao aprovar agências: ${error.message}`, 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
+  const handleBulkRejectPendingAgencies = async () => {
+    if (selectedPendingAgencies.length === 0) {
+      showToast('Selecione pelo menos uma agência para rejeitar.', 'warning');
+      return;
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Rejeitar Agências',
+      message: `Tem certeza que deseja rejeitar ${selectedPendingAgencies.length} agência(s)? Esta ação moverá as agências para a lixeira e elas não serão mais visíveis publicamente.`,
+      variant: 'danger',
+      confirmText: 'Rejeitar Todas',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setIsProcessing(true);
+        try {
+          for (const agencyId of selectedPendingAgencies) {
+            await handleSoftDelete(agencyId, 'agency', true);
+          }
+          showToast(`${selectedPendingAgencies.length} agência(s) rejeitada(s) com sucesso!`, 'success');
+          setSelectedPendingAgencies([]);
+          await refreshData();
+        } catch (error: any) {
+          showToast(`Erro ao rejeitar agências: ${error.message}`, 'error');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
+    });
+  };
+
+  const handleSoftDelete = async (id: string, type: 'user' | 'agency', skipConfirm: boolean = false) => {
     // For agencies, id should be agencyId (PK of agencies table)
     // For users, id should be user_id (PK of profiles table)
     const name = type === 'user' 
@@ -1299,30 +1688,44 @@ export const AdminDashboard: React.FC = () => {
       showToast(`${type === 'user' ? 'Usuário' : 'Agência'} não encontrado(a).`, 'error');
       return;
     }
-    if (window.confirm(`Mover "${name}" para a lixeira?`)) {
-        setIsProcessing(true);
-        try {
-          // id is already the correct PK for the table
-          await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
-          showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
-          if (type === 'user') {
-              setShowUserTrash(true);
-          } else {
-              setShowAgencyTrash(true);
-          }
-        } catch (error: any) {
-          showToast(`Erro ao mover ${type === 'user' ? 'usuário' : 'agência'} para a lixeira: ${error.message}`, 'error');
-        } finally {
-          setIsProcessing(false);
-        }
+    
+    setIsProcessing(true);
+    
+    // Only show confirm dialog if not already confirmed
+    if (!skipConfirm && !window.confirm(`Mover "${name}" para a lixeira?`)) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      // id is already the correct PK for the table
+      await softDeleteEntity(id, type === 'user' ? 'profiles' : 'agencies');
+      showToast(`${type === 'user' ? 'Usuário' : 'Agência'} movido para a lixeira.`, 'success');
+      await refreshData();
+      if (type === 'user') {
+          setShowUserTrash(true);
+      } else {
+          setShowAgencyTrash(true);
+      }
+    } catch (error: any) {
+      showToast(`Erro ao mover ${type === 'user' ? 'usuário' : 'agência'} para a lixeira: ${error.message}`, 'error');
+      throw error;
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleRestore = async (id: string, type: 'user' | 'agency') => {
     setIsProcessing(true);
-    await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
-    setIsProcessing(false);
-    showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a).`, 'success');
+    try {
+      await restoreEntity(id, type === 'user' ? 'profiles' : 'agencies');
+      showToast(`${type === 'user' ? 'Usuário' : 'Agência'} restaurado(a) com sucesso!`, 'success');
+      await refreshData();
+    } catch (error: any) {
+      showToast(`Erro ao restaurar: ${error.message}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handlePermanentDelete = async (id: string, role: UserRole) => {
@@ -1462,27 +1865,42 @@ export const AdminDashboard: React.FC = () => {
   };
   
   const handleUserStatusToggle = async (user: Client) => {
-    const newStatus = user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const currentStatus = user.status || 'ACTIVE'; // Default to ACTIVE if undefined
+    const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    
+    logger.log("[AdminDashboard] Toggling user status:", {
+      userId: user.id,
+      currentStatus,
+      newStatus
+    });
+    
     setIsProcessing(true);
     try {
         await updateClientProfile(user.id, { status: newStatus });
-        showToast(`Usuário ${newStatus === 'ACTIVE' ? 'reativado' : 'suspenso'}.`, 'success');
-    } catch (e) {
-        showToast('Erro ao alterar status.', 'error');
+        logger.log("[AdminDashboard] User status updated successfully");
+        showToast(`Usuário ${newStatus === 'ACTIVE' ? 'reativado' : 'suspenso'} com sucesso!`, 'success');
+        // Refresh data to update UI
+        await refreshData();
+    } catch (e: any) {
+        logger.error("[AdminDashboard] Error toggling user status:", e);
+        showToast(`Erro ao alterar status: ${e.message || 'Erro desconhecido'}`, 'error');
+        throw e;
     } finally {
         setIsProcessing(false);
     }
   };
 
-  const handleUserUpdate = async () => {
+  const handleUserUpdate = async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
       if (!selectedItem) return;
       setIsProcessing(true);
       try {
           await updateClientProfile(selectedItem.id, editFormData);
           showToast('Usuário atualizado!', 'success');
+          await refreshData();
           setModalType(null);
-      } catch (error) {
-          showToast('Erro ao atualizar usuário.', 'error');
+      } catch (error: any) {
+          showToast(`Erro ao atualizar usuário: ${error.message}`, 'error');
       } finally {
           setIsProcessing(false);
       }
@@ -1518,31 +1936,265 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleTripUpdate = async () => {
+  // Initialize user form data when editing user
+  useEffect(() => {
+    if (modalType === 'EDIT_USER' && selectedItem?.id) {
+      // Load user data into form - find the latest data from clients array
+      const user = clients.find(c => c.id === selectedItem.id) || selectedItem;
+      
+      // Extract all relevant user data - use the most complete source
+      if (user && user.id) {
+        const userData = {
+          name: user.name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          cpf: user.cpf || '',
+          avatar: user.avatar || '',
+          id: user.id,
+        };
+        
+        // Always update to ensure fresh data when modal opens
+        setEditFormData(userData);
+      }
+    } else if (modalType !== 'EDIT_USER') {
+      // Clear form data when modal is closed
+      setEditFormData({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalType, selectedItem?.id]);
+
+  // Auto-calculate duration when dates change
+  useEffect(() => {
+    if (editFormData.startDate && editFormData.endDate && modalType === 'EDIT_TRIP') {
+      try {
+        // Parse dates in local timezone to avoid timezone issues
+        // Input format is YYYY-MM-DD from date input
+        const startDateStr = editFormData.startDate;
+        const endDateStr = editFormData.endDate;
+        
+        // Validate date strings
+        if (!startDateStr.match(/^\d{4}-\d{2}-\d{2}$/) || !endDateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return; // Invalid format, skip calculation
+        }
+        
+        // Create dates using local timezone at midnight
+        const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number);
+        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+        
+        // Validate parsed values
+        if (isNaN(startYear) || isNaN(startMonth) || isNaN(startDay) || 
+            isNaN(endYear) || isNaN(endMonth) || isNaN(endDay)) {
+          return; // Invalid values, skip calculation
+        }
+        
+        const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+        const end = new Date(endYear, endMonth - 1, endDay, 0, 0, 0, 0);
+        
+        // Validate dates
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return; // Invalid dates, skip calculation
+        }
+        
+        // Calculate difference in milliseconds
+        const diffTime = end.getTime() - start.getTime();
+        
+        // Convert to days - use Math.floor for exact day calculation
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Duration is inclusive: if start and end are the same day, it's 1 day
+        // If end is after start, add 1 to include both days
+        const calculatedDuration = diffDays >= 0 ? diffDays + 1 : 1;
+        
+        // Only update if different to avoid infinite loops
+        setEditFormData(prev => {
+          // Check if dates haven't changed but duration is different
+          if (prev.startDate === startDateStr && prev.endDate === endDateStr && prev.durationDays === calculatedDuration) {
+            return prev; // No change needed
+          }
+          return { ...prev, durationDays: calculatedDuration };
+        });
+      } catch (error) {
+        logger.error('Error calculating duration:', error);
+      }
+    }
+  }, [editFormData.startDate, editFormData.endDate, modalType]);
+
+
+  // Initialize form data and location coordinates when editing
+  useEffect(() => {
+    if (modalType === 'EDIT_TRIP' && selectedItem && (!editFormData.id || editFormData.id !== selectedItem.id)) {
+      // Initialize all form data from selectedItem (only if not already set or different trip)
+      // Use helper function to ensure correct ISO format (YYYY-MM-DD) for input type="date"
+      const formattedStartDate = normalizeDateToISO(selectedItem.startDate);
+      const formattedEndDate = normalizeDateToISO(selectedItem.endDate);
+      
+      // Calculate initial duration
+      let initialDuration = selectedItem.durationDays || 1;
+      if (formattedStartDate && formattedEndDate) {
+        try {
+          const [startYear, startMonth, startDay] = formattedStartDate.split('-').map(Number);
+          const [endYear, endMonth, endDay] = formattedEndDate.split('-').map(Number);
+          const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+          const end = new Date(endYear, endMonth - 1, endDay, 0, 0, 0, 0);
+          const diffTime = end.getTime() - start.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          initialDuration = diffDays >= 0 ? diffDays + 1 : 1;
+        } catch (error) {
+          // Keep original duration if calculation fails
+        }
+      }
+      
+      // Handle categories: support both single category (legacy) and multiple categories
+      let initialCategories: TripCategory[] = [];
+      if (selectedItem.categories && Array.isArray(selectedItem.categories)) {
+        initialCategories = selectedItem.categories;
+      } else if (selectedItem.category) {
+        // Convert single category to array for backward compatibility
+        initialCategories = [selectedItem.category];
+      }
+      
+      setEditFormData({
+        ...selectedItem,
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        durationDays: initialDuration, // Recalculate on init
+        categories: initialCategories, // Use array format
+      });
+      
+      // Initialize location coordinates if available
+      if (selectedItem.latitude && selectedItem.longitude) {
+        setLocationCoords({ lat: selectedItem.latitude, lng: selectedItem.longitude });
+      } else {
+        setLocationCoords(null);
+      }
+    } else if (modalType !== 'EDIT_TRIP') {
+      // Clear when modal closes
+      setEditFormData({});
+      setLocationCoords(null);
+    }
+  }, [modalType, selectedItem, editFormData.id]);
+
+  const handleLocationChange = useCallback((location: string, coords: { lat: number; lng: number }) => {
+    setLocationCoords(coords);
+    setEditFormData(prev => ({ 
+      ...prev, 
+      destination: location,
+      latitude: coords.lat, 
+      longitude: coords.lng 
+    }));
+  }, []);
+
+  const handleCoordinatesChange = useCallback((coords: { lat: number; lng: number }) => {
+    setLocationCoords(coords);
+    setEditFormData(prev => ({ 
+      ...prev, 
+      latitude: coords.lat, 
+      longitude: coords.lng 
+    }));
+  }, []);
+
+  const handleTripUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!selectedItem) return;
+    
+    // Validate at least one category is selected
+    if (!editFormData.categories || editFormData.categories.length === 0) {
+      showToast('Selecione pelo menos uma categoria.', 'error');
+      return;
+    }
+    
     setIsProcessing(true);
     try {
-        await updateTrip({ ...selectedItem, ...editFormData });
+        // Ensure we send categories as array and maintain backward compatibility with category field
+        const updateData = {
+          ...selectedItem,
+          ...editFormData,
+          categories: editFormData.categories || [],
+          // Keep category field for backward compatibility (use first category)
+          category: editFormData.categories?.[0] || editFormData.category
+        };
+        
+        await updateTrip(updateData);
         showToast('Viagem atualizada!', 'success');
+        setModalType(null);
     } catch (error) {
         showToast('Erro ao atualizar viagem.', 'error');
     } finally {
         setIsProcessing(false);
-        setModalType(null);
     }
   };
   
-  const handleDeleteTrip = async (tripId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta viagem? A ação não pode ser desfeita.')) {
-        setIsProcessing(true);
+  const handleDuplicateTrip = async (originalTrip: Trip) => {
+    setIsProcessing(true);
+    try {
+      // Fetch images if not already loaded
+      let tripImages = originalTrip.images || [];
+      if (tripImages.length === 0 && fetchTripImages) {
         try {
-            await deleteTrip(tripId);
-            showToast('Viagem excluída com sucesso.', 'success');
+          tripImages = await fetchTripImages(originalTrip.id);
         } catch (error) {
-            showToast('Erro ao excluir viagem.', 'error');
-        } finally {
-            setIsProcessing(false);
+          // If fetching fails, continue without images
+          logger.error('Error fetching images for duplication:', error);
         }
+      }
+      
+      // Create a copy of the trip with modified title and slug
+      const duplicateTrip: Trip = {
+        ...originalTrip,
+        id: crypto.randomUUID(), // New ID
+        title: `${originalTrip.title} (Cópia)`,
+        slug: `${originalTrip.slug}-copia-${Date.now()}`, // Unique slug
+        images: tripImages, // Copy images
+        is_active: false, // Start as inactive
+        featured: false, // Don't copy featured status
+        featuredInHero: false,
+        views: 0,
+        sales: 0,
+        tripRating: 0,
+        tripTotalReviews: 0,
+      };
+      
+      await createTrip(duplicateTrip);
+      showToast('Viagem duplicada com sucesso!', 'success');
+      await refreshData();
+    } catch (error: any) {
+      showToast(`Erro ao duplicar viagem: ${error.message || 'Erro desconhecido'}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDeleteTrip = async (tripId: string, skipConfirm: boolean = false) => {
+    const trip = trips.find(t => t.id === tripId);
+    if (!trip) {
+      showToast('Viagem não encontrada.', 'error');
+      return;
+    }
+
+    if (!skipConfirm) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Excluir Viagem',
+        message: `Tem certeza que deseja excluir a viagem "${trip.title}"? Esta ação não pode ser desfeita.`,
+        variant: 'danger',
+        confirmText: 'Excluir Permanentemente',
+        onConfirm: async () => {
+          setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+          await handleDeleteTrip(tripId, true);
+        }
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      await deleteTrip(tripId);
+      showToast('Viagem excluída com sucesso.', 'success');
+      await refreshData();
+    } catch (error: any) {
+      showToast(`Erro ao excluir viagem: ${error.message || 'Erro desconhecido'}`, 'error');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -1603,25 +2255,132 @@ export const AdminDashboard: React.FC = () => {
     return filtered;
   }, [allGuides, searchTerm]);
 
+  // Generate recent activities from actual data
+  const generatedActivities = useMemo(() => {
+    const activities: Array<{ id: string; action: string; details: string; createdAt: string; type: 'user' | 'agency' | 'trip' | 'booking' | 'settings' }> = [];
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000); // Last 24 hours
+    const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000); // Last week
+
+    // New users (last 24 hours)
+    activeUsers
+      .filter(u => u.createdAt && new Date(u.createdAt).getTime() > oneDayAgo)
+      .forEach(user => {
+        activities.push({
+          id: `user-${user.id}`,
+          action: 'NOVO_USUARIO_CRIADO',
+          details: `Novo usuário cadastrado: ${user.name} (${user.email})`,
+          createdAt: user.createdAt || new Date().toISOString(),
+          type: 'user'
+        });
+      });
+
+    // New agencies (last 24 hours)
+    activeAgencies
+      .filter(a => a.createdAt && new Date(a.createdAt).getTime() > oneDayAgo)
+      .forEach(agency => {
+        activities.push({
+          id: `agency-${agency.agencyId}`,
+          action: 'NOVA_AGENCIA_CRIADA',
+          details: `Nova agência registrada: ${agency.name} (Plano: ${agency.subscriptionPlan})`,
+          createdAt: agency.createdAt || new Date().toISOString(),
+          type: 'agency'
+        });
+      });
+
+    // New trips (last 24 hours)
+    trips
+      .filter(t => t.createdAt && new Date(t.createdAt).getTime() > oneDayAgo)
+      .forEach(trip => {
+        const agency = activeAgencies.find(a => a.agencyId === trip.agencyId);
+        activities.push({
+          id: `trip-${trip.id}`,
+          action: 'NOVO_PACOTE_CRIADO',
+          details: `Novo pacote criado: ${trip.title} por ${agency?.name || 'Agência desconhecida'}`,
+          createdAt: trip.createdAt || new Date().toISOString(),
+          type: 'trip'
+        });
+      });
+
+    // New bookings (last 24 hours)
+    bookings
+      .filter(b => b.date && new Date(b.date).getTime() > oneDayAgo)
+      .slice(0, 10) // Limit to 10 most recent
+      .forEach(booking => {
+        const trip = trips.find(t => t.id === booking.tripId);
+        const client = activeUsers.find(u => u.id === booking.clientId);
+        activities.push({
+          id: `booking-${booking.id}`,
+          action: 'NOVA_RESERVA_CRIADA',
+          details: `Nova reserva: ${client?.name || 'Cliente'} reservou "${trip?.title || 'Viagem'}" - R$ ${booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+          createdAt: booking.date || new Date().toISOString(),
+          type: 'booking'
+        });
+      });
+
+    // Subscription plan changes (last week)
+    activeAgencies.forEach(agency => {
+      if (agency.updatedAt && new Date(agency.updatedAt).getTime() > oneWeekAgo) {
+        // This is simplified - in a real scenario, you'd track what changed
+        activities.push({
+          id: `agency-update-${agency.agencyId}-${agency.updatedAt}`,
+          action: 'AGENCIA_ATUALIZADA',
+          details: `Agência atualizada: ${agency.name} (Status: ${agency.subscriptionStatus})`,
+          createdAt: agency.updatedAt || new Date().toISOString(),
+          type: 'agency'
+        });
+      }
+    });
+
+    // Settings changes (if platformSettings exists and was recently updated)
+    if (platformSettings) {
+      // Platform settings would need an updatedAt field to track changes
+      // For now, we'll skip this or use a default timestamp
+    }
+
+    return activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [activeUsers, activeAgencies, trips, bookings, platformSettings]);
+
+  // Combine audit logs with generated activities
+  const allActivities = useMemo(() => {
+    const combined = [
+      ...auditLogs.map(log => ({
+        ...log,
+        type: (() => {
+          const actionUpper = log.action.toUpperCase();
+          if (actionUpper.includes('USER') || actionUpper.includes('USUÁRIO') || actionUpper.includes('CLIENT')) return 'user' as const;
+          if (actionUpper.includes('AGENCY') || actionUpper.includes('AGÊNCIA') || actionUpper.includes('SUBSCRIPTION') || actionUpper.includes('PLANO')) return 'agency' as const;
+          if (actionUpper.includes('TRIP') || actionUpper.includes('VIAGEM') || actionUpper.includes('PACOTE')) return 'trip' as const;
+          if (actionUpper.includes('SETTINGS') || actionUpper.includes('CONFIGURAÇÃO') || actionUpper.includes('THEME')) return 'settings' as const;
+          if (actionUpper.includes('BOOKING') || actionUpper.includes('RESERVA')) return 'booking' as const;
+          return 'settings' as const;
+        })()
+      })),
+      ...generatedActivities
+    ];
+
+    // Sort by date, newest first
+    return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [auditLogs, generatedActivities]);
+
   // Filter activities
   const filteredActivities = useMemo(() => {
-    let filtered = auditLogs;
+    let filtered = allActivities;
     
     // Filter by type
     if (activityFilter !== 'all') {
       filtered = filtered.filter(log => {
-        const actionUpper = log.action.toUpperCase();
         if (activityFilter === 'user') {
-          return actionUpper.includes('USER') || actionUpper.includes('USUÁRIO') || actionUpper.includes('CLIENT') || actionUpper.includes('AVATAR') || actionUpper.includes('PROFILE');
+          return log.type === 'user';
         }
         if (activityFilter === 'agency') {
-          return actionUpper.includes('AGENCY') || actionUpper.includes('AGÊNCIA') || actionUpper.includes('SUBSCRIPTION') || actionUpper.includes('PLANO');
+          return log.type === 'agency';
         }
         if (activityFilter === 'trip') {
-          return actionUpper.includes('TRIP') || actionUpper.includes('VIAGEM') || actionUpper.includes('PACOTE');
+          return log.type === 'trip';
         }
         if (activityFilter === 'settings') {
-          return actionUpper.includes('SETTINGS') || actionUpper.includes('CONFIGURAÇÃO') || actionUpper.includes('THEME') || actionUpper.includes('TEMA');
+          return log.type === 'settings';
         }
         return true;
       });
@@ -1637,7 +2396,7 @@ export const AdminDashboard: React.FC = () => {
     }
     
     return filtered;
-  }, [auditLogs, activityFilter, activitySearch]);
+  }, [allActivities, activityFilter, activitySearch]);
   
   // Calculate User Stats
   const userStatsData = useMemo(() => {
@@ -1739,7 +2498,18 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleMassUpdateUserStatus = async (status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus(selectedUsers, status); setSelectedUsers([]); showToast('Status atualizado.', 'success'); };
-  const handleUpdateUserStatus = async (userId: string, status: 'ACTIVE' | 'SUSPENDED') => { await updateMultipleUsersStatus([userId], status); showToast('Status atualizado.', 'success'); };
+  const handleUpdateUserStatus = async (userId: string, status: 'ACTIVE' | 'SUSPENDED') => {
+    setIsProcessing(true);
+    try {
+      await updateMultipleUsersStatus([userId], status);
+      showToast(`Usuário ${status === 'ACTIVE' ? 'reativado' : 'suspenso'} com sucesso!`, 'success');
+      await refreshData();
+    } catch (error: any) {
+      showToast(`Erro ao alterar status: ${error.message || 'Erro desconhecido'}`, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   const handleMassUpdateAgencyStatus = async (status: 'ACTIVE' | 'INACTIVE') => { await updateMultipleAgenciesStatus(selectedAgencies, status); setSelectedAgencies([]); showToast('Status atualizado.', 'success'); };
 
   // Filter users by type for modal
@@ -1852,9 +2622,20 @@ export const AdminDashboard: React.FC = () => {
     setIsProcessing(true);
     try {
       await adminChangePlan(agencyId, newPlan);
-      setModalType(null);
-    } catch (error) {
+      showToast(`Plano alterado para ${newPlan === 'PREMIUM' ? 'Premium' : 'Básico'} com sucesso!`, 'success');
+      await refreshData();
+      // Update selectedItem with new plan
+      const updatedAgency = agencies.find(a => a.agencyId === agencyId);
+      if (updatedAgency) {
+        setSelectedItem(updatedAgency);
+      }
+      // Don't close modal immediately - let user see the change
+      setTimeout(() => {
+        setModalType(null);
+      }, 1500);
+    } catch (error: any) {
       logger.error('Error changing plan:', error);
+      showToast(`Erro ao alterar plano: ${error.message || 'Erro desconhecido'}`, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -1893,8 +2674,30 @@ export const AdminDashboard: React.FC = () => {
 
   // Allow access if user is ADMIN or if it's a test admin account (for quick switching)
   const isTestAdmin = user?.email === 'admin@teste.com' || user?.email === 'juannicolas1@gmail.com';
+  
+  // Redirect non-admin users to their appropriate dashboard
+  useEffect(() => {
+    if (user && user.role !== UserRole.ADMIN && !isTestAdmin) {
+      // Redirect to appropriate dashboard based on role
+      if (user.role === UserRole.CLIENT) {
+        navigate('/client/dashboard/BOOKINGS', { replace: true });
+      } else if (user.role === UserRole.AGENCY) {
+        navigate('/agency/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [user, navigate, isTestAdmin]);
+
   if (!user || (user.role !== UserRole.ADMIN && !isTestAdmin)) {
-    return <div className="min-h-screen flex items-center justify-center">Acesso negado.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-primary-600 mx-auto mb-4" size={32} />
+          <p className="text-gray-600">Redirecionando...</p>
+        </div>
+      </div>
+    );
   }
 
   const renderContent = () => {
@@ -1974,41 +2777,126 @@ export const AdminDashboard: React.FC = () => {
                   <Badge color="amber">{pendingAgencies.length} pendente{pendingAgencies.length > 1 ? 's' : ''}</Badge>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">Agências recém-criadas aguardando verificação:</p>
+                
+                {/* Bulk Actions Bar */}
+                {selectedPendingAgencies.length > 0 && (
+                  <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg flex items-center justify-between">
+                    <span className="text-sm font-bold text-primary-700">
+                      {selectedPendingAgencies.length} agência(s) selecionada(s)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleBulkApprovePendingAgencies}
+                        disabled={isProcessing}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <CheckCircle2Icon size={16} />
+                        Aprovar Selecionadas
+                      </button>
+                      <button
+                        onClick={handleBulkRejectPendingAgencies}
+                        disabled={isProcessing}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <XCircleIcon size={16} />
+                        Rejeitar Selecionadas
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Select All Checkbox */}
+                <div className="mb-3 flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={handleToggleAllPendingAgencies}>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    selectedPendingAgencies.length === pendingAgencies.length && pendingAgencies.length > 0
+                      ? 'bg-primary-600 border-primary-600'
+                      : 'border-gray-300 hover:border-primary-400'
+                  }`}>
+                    {selectedPendingAgencies.length === pendingAgencies.length && pendingAgencies.length > 0 && (
+                      <Check size={14} className="text-white" strokeWidth={3} />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Selecionar todas ({pendingAgencies.length})
+                  </span>
+                </div>
+
                 <div className="space-y-3">
                   {pendingAgencies.map(agency => (
-                    <div key={agency.agencyId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center gap-3">
+                    <div key={agency.agencyId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
+                      <div className="flex items-center gap-3 flex-1">
+                        {/* Checkbox */}
+                        <div 
+                          className="w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePendingAgency(agency.agencyId);
+                          }}
+                          style={{
+                            backgroundColor: selectedPendingAgencies.includes(agency.agencyId) ? '#2563eb' : 'transparent',
+                            borderColor: selectedPendingAgencies.includes(agency.agencyId) ? '#2563eb' : '#d1d5db'
+                          }}
+                        >
+                          {selectedPendingAgencies.includes(agency.agencyId) && (
+                            <Check size={14} className="text-white" strokeWidth={3} />
+                          )}
+                        </div>
+                        
                         <img 
                           src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                           alt={agency.name}
                         />
-                        <div>
-                          <p className="text-sm font-bold text-gray-900">{agency.name}</p>
-                          <p className="text-xs text-gray-500">{agency.email}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{agency.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{agency.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <button
-                          onClick={() => {
-                            setSelectedItem(agency);
-                            setModalType('CHANGE_PLAN');
-                            // In real implementation, this would approve the agency
-                            showToast(`Agência ${agency.name} aprovada!`, 'success');
+                          onClick={async () => {
+                            setIsProcessing(true);
+                            try {
+                              const agencyData = agencies.find(a => a.agencyId === agency.agencyId);
+                              if (agencyData) {
+                                // First ensure it's active
+                                if (!agencyData.is_active) {
+                                  await toggleAgencyStatus(agency.agencyId);
+                                }
+                                // Update subscription status to ACTIVE (keep current plan)
+                                await updateAgencySubscription(agency.agencyId, 'ACTIVE', agencyData.subscriptionPlan || 'BASIC');
+                              }
+                              showToast(`Agência ${agency.name} aprovada!`, 'success');
+                              await refreshData();
+                            } catch (error: any) {
+                              showToast(`Erro ao aprovar agência: ${error.message}`, 'error');
+                            } finally {
+                              setIsProcessing(false);
+                            }
                           }}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2"
+                          disabled={isProcessing}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <CheckCircle2Icon size={16} />
                           Aprovar
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm(`Rejeitar agência ${agency.name}?`)) {
-                              handleSoftDelete(agency.agencyId, 'agency');
-                              showToast(`Agência ${agency.name} rejeitada.`, 'success');
-                            }
+                            setConfirmDialog({
+                              isOpen: true,
+                              title: 'Rejeitar Agência',
+                              message: `Tem certeza que deseja rejeitar a agência "${agency.name}"? Esta ação moverá a agência para a lixeira e ela não será mais visível publicamente.`,
+                              variant: 'danger',
+                              confirmText: 'Rejeitar',
+                              onConfirm: async () => {
+                                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                await handleSoftDelete(agency.agencyId, 'agency', true); // Skip confirm since we already showed ConfirmDialog
+                                // handleSoftDelete already shows a toast, so we don't need to show another one
+                              }
+                            });
                           }}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2"
+                          disabled={isProcessing}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <XCircleIcon size={16} />
                           Rejeitar
@@ -2331,6 +3219,66 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* Toolbar with Search, Filters, and View Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex flex-wrap items-center gap-4 flex-1">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar usuários..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-gray-50 text-gray-900"
+                  />
+                </div>
+
+                {/* Trash Toggle */}
+                <button
+                  onClick={() => setShowUserTrash(!showUserTrash)}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                    showUserTrash
+                      ? 'bg-red-50 text-red-700 border-2 border-red-200'
+                      : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  {showUserTrash ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                  {showUserTrash ? 'Ativos' : `Lixeira (${deletedUsers.length})`}
+                </button>
+              </div>
+
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                <button
+                  onClick={() => {
+                    handleSetUserView('cards');
+                  }}
+                  className={`p-2 rounded-lg transition-all ${
+                    userView === 'cards'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  title="Visualização em Cards"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    handleSetUserView('list');
+                  }}
+                  className={`p-2 rounded-lg transition-all ${
+                    userView === 'list'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  title="Visualização em Lista"
+                >
+                  <List size={18} />
+                </button>
+              </div>
+            </div>
+
             {userView === 'cards' ? (
                 <>
                   {/* Select All Checkbox for Card View */}
@@ -2358,79 +3306,161 @@ export const AdminDashboard: React.FC = () => {
                           onClick={(e) => e.stopPropagation()}
                           className="absolute top-5 left-5 h-6 w-6 rounded-md text-primary-600 border-2 border-gray-300 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 cursor-pointer z-10 shadow-md hover:scale-110 transition-transform"
                         />
-                        <div className="absolute top-5 right-5 z-10 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {/* User Info Section */}
+                        <div className="flex flex-col items-center text-center pt-4 relative z-0 mb-28">
+                          <div className="relative mb-4 flex items-center justify-center">
+                            <div className="relative">
+                              <img 
+                                src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} 
+                                className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl ring-4 ring-primary-100 group-hover:ring-primary-300 transition-all group-hover:scale-105" 
+                                alt=""
+                              />
+                              {c.status === 'ACTIVE' && (
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-md z-10"></div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="font-extrabold text-gray-900 text-xl mb-1 group-hover:text-primary-600 transition-colors">{c.name}</p>
+                          <p className="text-sm text-gray-500 mb-3 font-medium">{c.email}</p>
+                          <div className="flex items-center gap-2 mb-4">
+                            <Badge color={c.status === 'ACTIVE' ? 'green' : 'amber'}>
+                              {c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}
+                            </Badge>
+                          </div>
+                        </div>
+                        {/* Action Buttons - Better Design */}
+                        <div className="absolute bottom-5 left-0 right-0 z-10 px-5" onClick={(e) => e.stopPropagation()}>
                           {showUserTrash ? (
-                            <>
+                            <div className="flex gap-2">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleRestore(c.id, 'user'); }}
-                                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors bg-white shadow-sm"
+                                className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
                                 title="Restaurar"
                               >
-                                <ArchiveRestore size={16} />
+                                <ArchiveRestore size={14} />
+                                Restaurar
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handlePermanentDelete(c.id, c.role); }}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
+                                className="flex-1 px-3 py-2.5 text-red-600 hover:bg-red-50 hover:border-red-200 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
                                 title="Excluir Permanentemente"
                               >
-                                <Trash size={16} />
+                                <Trash size={14} />
+                                Excluir
                               </button>
-                            </>
+                            </div>
                           ) : (
-                            <>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); setModalTab('PROFILE'); }}
-                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Editar Dados"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleUserStatusToggle(c); }}
-                                className={`p-2 rounded-lg transition-colors bg-white shadow-sm ${
-                                  c.status === 'ACTIVE' 
-                                    ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
-                                    : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                }`}
-                                title={c.status === 'ACTIVE' ? 'Suspender' : 'Reativar'}
-                              >
-                                {c.status === 'ACTIVE' ? <Ban size={16} /> : <UserCheck size={16} />}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleSoftDelete(c.id, 'user'); }}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Mover para Lixeira"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
+                            <div className="space-y-2">
+                              {/* Primary Actions */}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={async (e) => { 
+                                    e.stopPropagation(); 
+                                    try {
+                                      await adminImpersonate(c.id, UserRole.CLIENT);
+                                      navigate('/client/dashboard/PROFILE');
+                                    } catch (error) {
+                                      // Error handled in adminImpersonate
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-2.5 bg-slate-900 text-white rounded-lg font-semibold text-xs hover:bg-slate-800 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Gerenciar Usuário"
+                                >
+                                  <UserCog size={14} />
+                                  Gerenciar
+                                </button>
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setClientDashboardPopup({ isOpen: true, clientId: c.id });
+                                  }}
+                                  className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Acessar Painel do Cliente"
+                                >
+                                  <LogIn size={14} />
+                                  Painel
+                                </button>
+                              </div>
+                              {/* Secondary Actions */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    // Load user data immediately
+                                    const userData = {
+                                      name: c.name || '',
+                                      email: c.email || '',
+                                      phone: c.phone || '',
+                                      cpf: c.cpf || '',
+                                      avatar: c.avatar || '',
+                                      id: c.id,
+                                    };
+                                    setEditFormData(userData);
+                                    setSelectedItem(c);
+                                    setModalType('EDIT_USER');
+                                    setModalTab('PROFILE');
+                                  }}
+                                  className="px-3 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Editar Dados"
+                                >
+                                  <Edit3 size={14} />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={async (e) => { 
+                                    e.stopPropagation(); 
+                                    if (isProcessing) return;
+                                    try {
+                                      await handleUserStatusToggle(c);
+                                    } catch (error) {
+                                      // Error already handled in handleUserStatusToggle
+                                    }
+                                  }}
+                                  disabled={isProcessing}
+                                  className="px-3 py-2 text-amber-600 bg-amber-50 hover:bg-amber-100 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                  title={c.status === 'ACTIVE' ? 'Suspender' : 'Reativar'}
+                                >
+                                  {c.status === 'ACTIVE' ? <Ban size={14} /> : <UserCheck size={14} />}
+                                  {c.status === 'ACTIVE' ? 'Pausar' : 'Ativar'}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleViewClientDetails(c); }}
+                                  className="px-3 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Ver Detalhes"
+                                >
+                                  <Eye size={14} />
+                                  Detalhes
+                                </button>
+                                <button
+                                  onClick={async (e) => { 
+                                    e.stopPropagation(); 
+                                    try {
+                                      await handleSoftDelete(c.id, 'user');
+                                      await refreshData();
+                                    } catch (error) {
+                                      // Error already handled in handleSoftDelete
+                                    }
+                                  }}
+                                  disabled={isProcessing}
+                                  className="px-3 py-2 text-red-600 hover:bg-red-50 hover:border-red-200 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                  title="Arquivar"
+                                >
+                                  <Trash2 size={14} />
+                                  Arquivar
+                                </button>
+                              </div>
+                            </div>
                           )}
-                        </div>
-                        <div className="flex flex-col items-center text-center pt-4 relative z-0">
-                          <div className="relative mb-4">
-                            <img 
-                              src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} 
-                              className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl ring-4 ring-primary-100 group-hover:ring-primary-300 transition-all group-hover:scale-105" 
-                              alt=""
-                            />
-                            {c.status === 'ACTIVE' && (
-                              <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-4 border-white shadow-lg"></div>
-                            )}
-                          </div>
-                          <p className="font-extrabold text-gray-900 text-xl mb-1 group-hover:text-primary-600 transition-colors">{c.name}</p>
-                          <p className="text-sm text-gray-500 mb-4 font-medium">{c.email}</p>
-                          <Badge color={c.status === 'ACTIVE' ? 'green' : 'red'}>
-                            {c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}
-                          </Badge>
                         </div>
                       </div>
                     ))}
                   </div>
                 </>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
                           <tr>
                             <th className="w-12 px-6 py-4">
                               <input 
@@ -2440,9 +3470,10 @@ export const AdminDashboard: React.FC = () => {
                                 className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500 cursor-pointer"
                               />
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Usuário</th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Usuário</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
@@ -2463,41 +3494,42 @@ export const AdminDashboard: React.FC = () => {
                                   />
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="flex items-center gap-4">
-                                    <img 
-                                      src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} 
-                                      className="w-10 h-10 rounded-full ring-2 ring-gray-200" 
-                                      alt=""
-                                    />
-                                    <div>
-                                      <p className="font-semibold text-gray-900 text-sm">{c.name}</p>
-                                      <p className="text-xs text-gray-500 mt-0.5">{c.email}</p>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 ring-gray-200 group-hover:ring-primary-300 transition-all">
+                                      <img 
+                                        src={c.avatar || `https://ui-avatars.com/api/?name=${c.name}`} 
+                                        className="w-full h-full object-cover" 
+                                        alt=""
+                                      />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-gray-900 text-sm">{c.name}</p>
+                                      <p className="text-xs text-gray-500 mt-0.5">ID: {c.id.slice(0, 8)}...</p>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                                    c.status === 'ACTIVE' 
-                                      ? 'bg-green-50 text-green-700' 
-                                      : 'bg-red-50 text-red-700'
-                                  }`}>
-                                    {c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}
-                                  </span>
+                                  <p className="text-sm text-gray-700">{c.email}</p>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <Badge color={c.status === 'ACTIVE' ? 'green' : 'amber'}>
+                                    {c.status === 'SUSPENDED' ? 'SUSPENSO' : 'ATIVO'}
+                                  </Badge>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                     {showUserTrash ? (
                                       <>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); handleRestore(c.id, 'user'); }}
-                                          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                          className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
                                           title="Restaurar"
                                         >
                                           <ArchiveRestore size={18} />
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); handlePermanentDelete(c.id, c.role); }}
-                                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                           title="Excluir Permanentemente"
                                         >
                                           <Trash size={18} />
@@ -2506,27 +3538,86 @@ export const AdminDashboard: React.FC = () => {
                                     ) : (
                                       <>
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); setEditFormData(c); setSelectedItem(c); setModalType('EDIT_USER'); setModalTab('PROFILE'); }}
-                                          className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                          onClick={async (e) => { 
+                                            e.stopPropagation(); 
+                                            try {
+                                              await adminImpersonate(c.id, UserRole.CLIENT);
+                                              navigate('/client/dashboard/PROFILE');
+                                            } catch (error) {
+                                              // Error handled in adminImpersonate
+                                            }
+                                          }}
+                                          className="p-2 bg-slate-900 text-white hover:bg-slate-800 rounded-lg transition-colors shadow-sm"
+                                          title="Gerenciar Usuário"
+                                        >
+                                          <UserCog size={18} />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            setClientDashboardPopup({ isOpen: true, clientId: c.id });
+                                          }}
+                                          className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors shadow-sm"
+                                          title="Acessar Painel do Cliente"
+                                        >
+                                          <LogIn size={18} />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            // Load user data immediately
+                                            const userData = {
+                                              name: c.name || '',
+                                              email: c.email || '',
+                                              phone: c.phone || '',
+                                              cpf: c.cpf || '',
+                                              avatar: c.avatar || '',
+                                              id: c.id,
+                                            };
+                                            setEditFormData(userData);
+                                            setSelectedItem(c);
+                                            setModalType('EDIT_USER');
+                                            setModalTab('PROFILE');
+                                          }}
+                                          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
                                           title="Editar Detalhes"
                                         >
                                           <Edit3 size={18} />
                                         </button>
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); handleUpdateUserStatus(c.id, c.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'); }}
-                                          className={`p-2 rounded-lg transition-colors ${
-                                            c.status === 'ACTIVE' 
-                                              ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
-                                              : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                          }`}
+                                          onClick={async (e) => { 
+                                            e.stopPropagation(); 
+                                            if (isProcessing) return;
+                                            const currentStatus = c.status || 'ACTIVE';
+                                            const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+                                            logger.log("[AdminDashboard] List view - Toggling user status:", {
+                                              userId: c.id,
+                                              currentStatus,
+                                              newStatus
+                                            });
+                                            try {
+                                              await handleUpdateUserStatus(c.id, newStatus);
+                                            } catch (error) {
+                                              // Error already handled in handleUpdateUserStatus
+                                            }
+                                          }}
+                                          disabled={isProcessing}
+                                          className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-50"
                                           title={c.status === 'ACTIVE' ? 'Suspender' : 'Ativar'}
                                         >
                                           {c.status === 'ACTIVE' ? <Ban size={18} /> : <UserCheck size={18} />}
                                         </button>
                                         <button
+                                          onClick={(e) => { e.stopPropagation(); handleViewClientDetails(c); }}
+                                          className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors shadow-sm"
+                                          title="Ver Detalhes"
+                                        >
+                                          <Eye size={18} />
+                                        </button>
+                                        <button
                                           onClick={(e) => { e.stopPropagation(); handleSoftDelete(c.id, 'user'); }}
-                                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Excluir"
+                                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="Arquivar"
                                         >
                                           <Trash2 size={18} />
                                         </button>
@@ -2538,6 +3629,7 @@ export const AdminDashboard: React.FC = () => {
                             ))}
                         </tbody>
                     </table>
+                  </div>
                 </div>
             )}
 
@@ -2585,7 +3677,7 @@ export const AdminDashboard: React.FC = () => {
               <h2 className="text-2xl font-extrabold text-gray-900">Estatísticas de Agências</h2>
               <button
                 onClick={() => generateAgenciesReportPDF()}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-secondary-700 transition-all shadow-lg hover:shadow-xl"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-all shadow-sm hover:shadow-md"
                 title="Exportar Relatório em PDF"
               >
                 <Download size={18} />
@@ -2652,9 +3744,69 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* Toolbar with Search, Filters, and View Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex flex-wrap items-center gap-4 flex-1">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar agências..."
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-gray-50 text-gray-900"
+                  />
+                </div>
+
+                {/* Trash Toggle */}
+                <button
+                  onClick={() => setShowAgencyTrash(!showAgencyTrash)}
+                  className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                    showAgencyTrash
+                      ? 'bg-red-50 text-red-700 border-2 border-red-200'
+                      : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  {showAgencyTrash ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+                  {showAgencyTrash ? 'Ativas' : `Lixeira (${deletedAgencies.length})`}
+                </button>
+              </div>
+
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                <button
+                  onClick={() => {
+                    handleSetAgencyView('cards');
+                  }}
+                  className={`p-2 rounded-lg transition-all ${
+                    agencyView === 'cards'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  title="Visualização em Cards"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+                <button
+                  onClick={() => {
+                    handleSetAgencyView('list');
+                  }}
+                  className={`p-2 rounded-lg transition-all ${
+                    agencyView === 'list'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                  title="Visualização em Lista"
+                >
+                  <List size={18} />
+                </button>
+              </div>
+            </div>
+
             {/* Bulk Selection Bar */}
             {selectedAgencies.length > 0 && (
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between">
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-blue-900">
                     {selectedAgencies.length} agência(s) selecionada(s)
@@ -2712,95 +3864,129 @@ export const AdminDashboard: React.FC = () => {
                           onClick={(e) => e.stopPropagation()}
                           className="absolute top-5 left-5 h-6 w-6 rounded-md text-primary-600 border-2 border-gray-300 focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 cursor-pointer z-10 shadow-md hover:scale-110 transition-transform"
                         />
-                        <div className="absolute top-5 right-5 z-10 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                          {showAgencyTrash ? (
-                            <>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleRestore(agency.agencyId, 'agency'); }}
-                                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Restaurar"
-                              >
-                                <ArchiveRestore size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handlePermanentDelete(agency.id, agency.role); }}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Excluir Permanentemente"
-                              >
-                                <Trash size={16} />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleViewAgencyDetails(agency); }}
-                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Ver Detalhes"
-                              >
-                                <Eye size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }}
-                                className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Editar Dados"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setModalType('CHANGE_PLAN'); }}
-                                className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Mudar Plano"
-                              >
-                                <CreditCard size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); adminSuspendAgency(agency.agencyId); }}
-                                className={`p-2 rounded-lg transition-colors bg-white shadow-sm ${
-                                  agency.subscriptionStatus === 'ACTIVE' 
-                                    ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
-                                    : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                }`}
-                                title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'}
-                              >
-                                {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={16} /> : <CheckCircle size={16} />}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); window.open(`/#/${agency.slug}`, '_blank'); }}
-                                className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Ver Perfil"
-                              >
-                                <ExternalLink size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleSoftDelete(agency.agencyId, 'agency'); }}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors bg-white shadow-sm"
-                                title="Arquivar"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-center text-center pt-4 relative z-0">
-                          <div className="relative mb-4">
-                            <img 
-                              src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                              className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl ring-4 ring-primary-100 group-hover:ring-primary-300 transition-all group-hover:scale-105" 
-                              alt=""
-                            />
-                            {agency.subscriptionStatus === 'ACTIVE' && (
-                              <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-4 border-white shadow-lg"></div>
-                            )}
+                        {/* Agency Info Section */}
+                        <div className="flex flex-col items-center text-center pt-4 relative z-0 mb-32">
+                          <div className="relative mb-4 flex items-center justify-center">
+                            <div className="relative">
+                              <img 
+                                src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
+                                className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl ring-4 ring-primary-100 group-hover:ring-primary-300 transition-all group-hover:scale-105" 
+                                alt=""
+                              />
+                              {agency.subscriptionStatus === 'ACTIVE' && (
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-md z-10"></div>
+                              )}
+                            </div>
                           </div>
                           <p className="font-extrabold text-gray-900 text-xl mb-1 group-hover:text-primary-600 transition-colors">{agency.name}</p>
                           <p className="text-sm text-gray-500 mb-3 font-mono font-medium">{`/${agency.slug}`}</p>
                           <div className="flex items-center gap-2 mb-3">
                             <Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{agency.subscriptionPlan}</Badge>
-                            <Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'red'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge>
+                            <Badge color={agency.subscriptionStatus === 'ACTIVE' ? 'green' : 'amber'}>{agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}</Badge>
                           </div>
-                          <p className={`text-xs font-mono font-bold ${daysLeft < 30 && daysLeft > 0 ? 'text-amber-600' : daysLeft <= 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                          <p className={`text-xs font-mono font-bold mb-4 ${daysLeft < 30 && daysLeft > 0 ? 'text-amber-600' : daysLeft <= 0 ? 'text-red-500' : 'text-gray-500'}`}>
                             {daysLeft > 0 ? `Expira em ${daysLeft} dias` : 'Expirado'}
                           </p>
+                        </div>
+                        {/* Action Buttons - Better Design */}
+                        <div className="absolute bottom-5 left-0 right-0 z-10 px-5" onClick={(e) => e.stopPropagation()}>
+                          {showAgencyTrash ? (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRestore(agency.agencyId, 'agency'); }}
+                                className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                title="Restaurar"
+                              >
+                                <ArchiveRestore size={14} />
+                                Restaurar
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handlePermanentDelete(agency.id, agency.role); }}
+                                className="flex-1 px-3 py-2.5 text-red-600 hover:bg-red-50 hover:border-red-200 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                title="Excluir Permanentemente"
+                              >
+                                <Trash size={14} />
+                                Excluir
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {/* Primary Actions */}
+                              <div className="flex gap-2">
+                              <button
+                                onClick={async (e) => { 
+                                  e.stopPropagation(); 
+                                  try {
+                                    await adminImpersonate(agency.id, UserRole.AGENCY);
+                                    navigate('/agency/dashboard');
+                                  } catch (error) {
+                                    // Error handled in adminImpersonate
+                                  }
+                                }}
+                                className="flex-1 px-3 py-2.5 bg-slate-900 text-white rounded-lg font-semibold text-xs hover:bg-slate-800 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                title="Gerenciar Agência"
+                              >
+                                <UserCog size={14} />
+                                Gerenciar
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); window.open(`/#/${agency.slug}`, '_blank'); }}
+                                className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                title="Ver Perfil Online"
+                              >
+                                <ExternalLink size={14} />
+                                Ver Online
+                              </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleViewAgencyDetails(agency); }}
+                                  className="flex-1 px-3 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Ver Detalhes"
+                                >
+                                  <Eye size={14} />
+                                  Detalhes
+                                </button>
+                              </div>
+                              {/* Secondary Actions */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }}
+                                  className="px-3 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Editar Dados"
+                                >
+                                  <Edit3 size={14} />
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setModalType('CHANGE_PLAN'); }}
+                                  className="px-3 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold text-xs hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Mudar Plano"
+                                >
+                                  <CreditCard size={14} />
+                                  Plano
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); adminSuspendAgency(agency.agencyId); }}
+                                  className={`px-3 py-2 text-amber-600 bg-amber-50 hover:bg-amber-100 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 ${
+                                    agency.subscriptionStatus === 'ACTIVE' 
+                                      ? '' 
+                                      : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                                  }`}
+                                  title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'}
+                                >
+                                  {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={14} /> : <CheckCircle size={14} />}
+                                  {agency.subscriptionStatus === 'ACTIVE' ? 'Pausar' : 'Ativar'}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleSoftDelete(agency.agencyId, 'agency'); }}
+                                  className="px-3 py-2 text-red-600 hover:bg-red-50 hover:border-red-200 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
+                                  title="Arquivar"
+                                >
+                                  <Trash2 size={14} />
+                                  Arquivar
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -2808,9 +3994,10 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </>
             ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-100">
+                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
                           <tr>
                             <th className="w-12 px-6 py-4">
                               <input 
@@ -2820,12 +4007,12 @@ export const AdminDashboard: React.FC = () => {
                                 className="h-4 w-4 rounded text-primary-600 border-gray-300 focus:ring-primary-500 cursor-pointer"
                               />
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Agência</th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Plano</th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dias Restantes</th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendas</th>
-                            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Ações</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Agência</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Plano</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Dias Restantes</th>
+                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Vendas</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
@@ -2855,14 +4042,21 @@ export const AdminDashboard: React.FC = () => {
                                     />
                                   </td>
                                   <td className="px-6 py-4">
-                                    <div className="flex items-center gap-4">
-                                      <img 
-                                        src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
-                                        className="w-10 h-10 rounded-full ring-2 ring-gray-200" 
-                                        alt=""
-                                      />
-                                      <div>
-                                        <p className="font-semibold text-gray-900 text-sm">{agency.name}</p>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 ring-gray-200 group-hover:ring-primary-300 transition-all">
+                                        <img 
+                                          src={agency.logo || `https://ui-avatars.com/api/?name=${agency.name}`} 
+                                          className="w-full h-full object-cover" 
+                                          alt=""
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p 
+                                          onClick={() => window.open(`/#/${agency.slug}`, '_blank')}
+                                          className="font-bold text-gray-900 text-sm hover:text-primary-600 hover:underline cursor-pointer transition-colors"
+                                        >
+                                          {agency.name}
+                                        </p>
                                         <p className="text-xs text-gray-500 mt-0.5 font-mono">/{agency.slug}</p>
                                       </div>
                                     </div>
@@ -2877,19 +4071,9 @@ export const AdminDashboard: React.FC = () => {
                                     </span>
                                   </td>
                                   <td className="px-6 py-4">
-                                    {agency.subscriptionPlan === 'PREMIUM' ? (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                                        PREMIUM
-                                      </span>
-                                    ) : agency.subscriptionPlan === 'BASIC' ? (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500 text-white">
-                                        BASIC
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-300">
-                                        STARTER
-                                      </span>
-                                    )}
+                                    <Badge color={agency.subscriptionPlan === 'PREMIUM' ? 'purple' : agency.subscriptionPlan === 'BASIC' ? 'blue' : 'gray'}>
+                                      {agency.subscriptionPlan === 'PREMIUM' ? '⭐ Premium' : agency.subscriptionPlan === 'BASIC' ? '📦 Básico' : agency.subscriptionPlan || 'Starter'}
+                                    </Badge>
                                   </td>
                                   <td className="px-6 py-4">
                                     {agency.subscriptionExpiresAt ? (() => {
@@ -2939,19 +4123,19 @@ export const AdminDashboard: React.FC = () => {
                                     </p>
                                   </td>
                                   <td className="px-6 py-4">
-                                    <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                       {showAgencyTrash ? (
                                         <>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); handleRestore(agency.agencyId, 'agency'); }}
-                                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors"
                                             title="Restaurar"
                                           >
                                             <ArchiveRestore size={18} />
                                           </button>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); handlePermanentDelete(agency.id, agency.role); }}
-                                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                             title="Excluir Permanentemente"
                                           >
                                             <Trash size={18} />
@@ -2960,23 +4144,63 @@ export const AdminDashboard: React.FC = () => {
                                       ) : (
                                         <>
                                           <button
+                                            onClick={async (e) => { 
+                                              e.stopPropagation(); 
+                                              try {
+                                                await adminImpersonate(agency.id, UserRole.AGENCY);
+                                                navigate('/agency/dashboard');
+                                              } catch (error) {
+                                                // Error handled in adminImpersonate
+                                              }
+                                            }}
+                                            className="p-2 bg-slate-900 text-white hover:bg-slate-800 rounded-lg transition-colors shadow-sm"
+                                            title="Gerenciar Agência"
+                                          >
+                                            <UserCog size={18} />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); window.open(`/#/${agency.slug}`, '_blank'); }}
+                                            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors shadow-sm"
+                                            title="Ver Perfil Online"
+                                          >
+                                            <ExternalLink size={18} />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleViewAgencyDetails(agency); }}
+                                            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors shadow-sm"
+                                            title="Ver Detalhes"
+                                          >
+                                            <Eye size={18} />
+                                          </button>
+                                          <button
                                             onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setEditFormData({ name: agency.name, description: agency.description, cnpj: agency.cnpj, slug: agency.slug, phone: agency.phone, whatsapp: agency.whatsapp, website: agency.website, address: agency.address, bankInfo: agency.bankInfo }); setModalType('EDIT_AGENCY'); }}
-                                            className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
                                             title="Editar Detalhes"
                                           >
                                             <Edit3 size={18} />
                                           </button>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setSelectedItem(agency); setModalType('CHANGE_PLAN'); }}
-                                            className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                                            className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors shadow-sm"
                                             title="Mudar Plano"
                                           >
                                             <CreditCard size={18} />
                                           </button>
                                           <button
+                                            onClick={(e) => { e.stopPropagation(); adminSuspendAgency(agency.agencyId); }}
+                                            className={`p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors ${
+                                              agency.subscriptionStatus === 'ACTIVE'
+                                                ? '' 
+                                                : 'text-emerald-600 hover:bg-emerald-50'
+                                            }`}
+                                            title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'}
+                                          >
+                                            {agency.subscriptionStatus === 'ACTIVE' ? <Ban size={18} /> : <CheckCircle size={18} />}
+                                          </button>
+                                          <button
                                             onClick={(e) => { e.stopPropagation(); handleSoftDelete(agency.agencyId, 'agency'); }}
-                                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Excluir"
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Arquivar"
                                           >
                                             <Trash2 size={18} />
                                           </button>
@@ -2989,6 +4213,7 @@ export const AdminDashboard: React.FC = () => {
                             })}
                         </tbody>
                     </table>
+                  </div>
                 </div>
             )}
 
@@ -3029,102 +4254,482 @@ export const AdminDashboard: React.FC = () => {
           </div>
         );
       case 'TRIPS':
-        return (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
-                <table className="min-w-full divide-y divide-gray-100">
-                    <thead className="bg-gray-50/50">
-                        <tr>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Destaque</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th>
-                            <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 bg-white">
-                        {filteredTrips.map(trip => {
-                            const agency = agencies.find(a => a.agencyId === trip.agencyId);
-                            return (
-                                <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-16 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                                <img src={trip.images[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
-                                            </div>
-                                            <div className="truncate">
-                                                <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[200px]">{trip.title}</p>
-                                                <p className="text-xs text-gray-500">{trip.destination}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700">
-                                        {agency ? (
-                                            <Link to={`/#/${agency.slug}`} target="_blank" className="flex items-center hover:underline max-w-[150px] truncate">
-                                                {agency.name} <ExternalLink size={10} className="ml-1 flex-shrink-0" />
-                                            </Link>
-                                        ) : 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString()}</td>
-                                    <td className="px-6 py-4">
-                                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'INATIVO'}</Badge>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <Badge color={trip.featured ? 'amber' : 'gray'}>{trip.featured ? 'SIM' : 'NÃO'}</Badge>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                                            <div className="flex items-center" title="Visualizações"><Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}</div>
-                                            <div className="flex items-center" title="Vendas"><ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}</div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end items-center gap-2">
-                                            <button
-                                                onClick={() => { setSelectedItem(trip); setEditFormData(trip); setModalType('EDIT_TRIP'); }}
-                                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="Editar"
-                                            >
-                                                <Edit3 size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => toggleTripStatus(trip.id)}
-                                                className={`p-2 rounded-lg transition-colors ${
-                                                    trip.is_active 
-                                                        ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
-                                                        : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                                }`}
-                                                title={trip.is_active ? 'Pausar' : 'Publicar'}
-                                            >
-                                                {trip.is_active ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
-                                            </button>
-                                            <button
-                                                onClick={() => toggleTripFeatureStatus(trip.id)}
-                                                className={`p-2 rounded-lg transition-colors ${
-                                                    trip.featured 
-                                                        ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50' 
-                                                        : 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
-                                                }`}
-                                                title={trip.featured ? 'Remover Destaque' : 'Destacar'}
-                                            >
-                                                <Sparkles size={18} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteTrip(trip.id)}
-                                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="Excluir"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+        if (tripView === 'cards') {
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeIn_0.3s]">
+              {/* Select All Checkbox for Cards */}
+              {filteredTrips.length > 0 && (
+                <div className="md:col-span-full mb-2 flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div 
+                    className="w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors"
+                    onClick={handleToggleAllTrips}
+                    style={{
+                      backgroundColor: selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 ? '#2563eb' : 'transparent',
+                      borderColor: selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 ? '#2563eb' : '#d1d5db'
+                    }}
+                  >
+                    {selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 && (
+                      <Check size={14} className="text-white" strokeWidth={3} />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Selecionar todas ({filteredTrips.length})
+                  </span>
+                </div>
+              )}
+
+              {filteredTrips.map(trip => {
+                const agency = agencies.find(a => a.agencyId === trip.agencyId);
+                const tripBookings = bookings.filter(b => b.tripId === trip.id);
+                const tripRevenue = tripBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+                const isSelected = selectedTrips.includes(trip.id);
+                
+                return (
+                  <div 
+                    key={trip.id} 
+                    className={`bg-white rounded-2xl shadow-sm border-2 transition-all hover:shadow-lg ${
+                      isSelected ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-100'
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <div className="p-4 pb-2 flex items-start justify-between">
+                      <div 
+                        className="w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0 mt-1"
+                        onClick={() => handleToggleTrip(trip.id)}
+                        style={{
+                          backgroundColor: isSelected ? '#2563eb' : 'transparent',
+                          borderColor: isSelected ? '#2563eb' : '#d1d5db'
+                        }}
+                      >
+                        {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
+                      </div>
+                      <div className="flex gap-1">
+                        {trip.featured && <Badge color="amber" className="text-xs">DESTAQUE</Badge>}
+                        <Badge color={trip.is_active ? 'green' : 'gray'} className="text-xs">{trip.is_active ? 'ATIVO' : 'INATIVO'}</Badge>
+                      </div>
+                    </div>
+
+                    {/* Image */}
+                    <div className="relative h-48 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                      <img 
+                        src={trip.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem'} 
+                        className="w-full h-full object-cover"
+                        alt={trip.title}
+                      />
+                      {trip.featured && (
+                        <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                          <Sparkles size={12} />
+                          Em Alta
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4 space-y-3">
+                      {/* Title & Destination */}
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-lg line-clamp-2 mb-1">{trip.title}</h3>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <MapPin size={12} />
+                          <span>{trip.destination}</span>
+                        </div>
+                      </div>
+
+                      {/* Agency */}
+                      {agency && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-gray-500">Agência:</span>
+                          <Link to={`/#/${agency.slug}`} target="_blank" className="text-primary-600 hover:underline font-medium truncate flex items-center gap-1">
+                            {agency.name}
+                            <ExternalLink size={12} />
+                          </Link>
+                        </div>
+                      )}
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <div className="text-gray-500 mb-0.5">Categoria</div>
+                          <div className="font-semibold text-gray-900">{trip.category || 'N/A'}</div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <div className="text-gray-500 mb-0.5">Duração</div>
+                          <div className="font-semibold text-gray-900">{trip.durationDays || 'N/A'} {trip.durationDays === 1 ? 'dia' : 'dias'}</div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <div className="text-gray-500 mb-0.5">Preço</div>
+                          <div className="font-bold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-lg">
+                          <div className="text-gray-500 mb-0.5">Data Início</div>
+                          <div className="font-semibold text-gray-900">
+                            {trip.startDate ? new Date(trip.startDate).toLocaleDateString('pt-BR') : 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance Stats */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center text-blue-600" title="Visualizações">
+                            <Eye size={14} className="mr-1" />
+                            <span className="font-semibold">{trip.views || 0}</span>
+                          </div>
+                          <div className="flex items-center text-green-600" title="Vendas">
+                            <ShoppingBag size={14} className="mr-1" />
+                            <span className="font-semibold">{trip.sales || 0}</span>
+                          </div>
+                          {trip.tripRating && (
+                            <div className="flex items-center text-amber-600" title="Avaliação">
+                              <Star size={14} className="mr-1 fill-amber-400" />
+                              <span className="font-semibold">{(trip.tripRating as number).toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Revenue if exists */}
+                      {tripRevenue > 0 && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                          <div className="text-xs text-green-600 font-semibold">Receita Total</div>
+                          <div className="text-lg font-bold text-green-700">R$ {tripRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                      )}
+
+                      {/* Actions - Improved Layout */}
+                      <div className="space-y-2 pt-3 border-t border-gray-100">
+                        {/* Primary Actions Row */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            to={`/viagem/${trip.slug}`}
+                            target="_blank"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 min-w-[100px]"
+                          >
+                            <ExternalLink size={14} />
+                            Ver Online
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Use helper function to ensure correct ISO format (YYYY-MM-DD)
+                              const formattedStartDate = normalizeDateToISO(trip.startDate);
+                              const formattedEndDate = normalizeDateToISO(trip.endDate);
+                              
+                              // Recalculate duration correctly
+                              let recalculatedDuration = trip.durationDays || 1;
+                              if (formattedStartDate && formattedEndDate) {
+                                try {
+                                  const [startYear, startMonth, startDay] = formattedStartDate.split('-').map(Number);
+                                  const [endYear, endMonth, endDay] = formattedEndDate.split('-').map(Number);
+                                  const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+                                  const end = new Date(endYear, endMonth - 1, endDay, 0, 0, 0, 0);
+                                  const diffTime = end.getTime() - start.getTime();
+                                  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                  recalculatedDuration = diffDays >= 0 ? diffDays + 1 : 1;
+                                } catch (error) {
+                                  // Keep original if calculation fails
+                                }
+                              }
+                              
+                              // Handle categories: support both single category (legacy) and multiple categories
+                              let initialCategories: TripCategory[] = [];
+                              if (trip.categories && Array.isArray(trip.categories)) {
+                                initialCategories = trip.categories;
+                              } else if (trip.category) {
+                                // Convert single category to array for backward compatibility
+                                initialCategories = [trip.category];
+                              }
+                              
+                              setSelectedItem(trip);
+                              setEditFormData({ 
+                                ...trip, 
+                                startDate: formattedStartDate, 
+                                endDate: formattedEndDate, 
+                                durationDays: recalculatedDuration,
+                                categories: initialCategories 
+                              });
+                              if (trip.latitude && trip.longitude) {
+                                setLocationCoords({ lat: trip.latitude, lng: trip.longitude });
+                              } else {
+                                setLocationCoords(null);
+                              }
+                              setModalType('EDIT_TRIP');
+                            }}
+                            className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5 min-w-[100px]"
+                          >
+                            <Edit3 size={14} />
+                            Editar
+                          </button>
+                        </div>
+
+                        {/* Secondary Actions Row */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicateTrip(trip);
+                            }}
+                            className="flex-1 px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors flex items-center justify-center gap-1.5 min-w-[100px]"
+                            title="Duplicar viagem"
+                          >
+                            <Copy size={14} />
+                            Duplicar
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTripStatus(trip.id);
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 min-w-[100px] ${
+                              trip.is_active
+                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                : 'bg-green-50 text-green-600 hover:bg-green-100'
+                            }`}
+                            title={trip.is_active ? 'Pausar' : 'Publicar'}
+                          >
+                            {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                            {trip.is_active ? 'Pausar' : 'Publicar'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTripFeatureStatus(trip.id);
+                            }}
+                            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 min-w-[100px] ${
+                              trip.featured
+                                ? 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title={trip.featured ? 'Remover Destaque' : 'Destacar'}
+                          >
+                            <Sparkles size={14} />
+                            {trip.featured ? 'Em Destaque' : 'Destacar'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTrip(trip.id);
+                            }}
+                            className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5 min-w-[100px]"
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          );
+        }
+
+        // List View
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto animate-[fadeIn_0.3s]">
+            <table className="min-w-full divide-y divide-gray-100">
+              <thead className="bg-gray-50/50">
+                <tr>
+                  <th className="px-6 py-4 text-left">
+                    <div 
+                      className="w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors"
+                      onClick={handleToggleAllTrips}
+                      style={{
+                        backgroundColor: selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 ? '#2563eb' : 'transparent',
+                        borderColor: selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 ? '#2563eb' : '#d1d5db'
+                      }}
+                    >
+                      {selectedTrips.length === filteredTrips.length && filteredTrips.length > 0 && (
+                        <Check size={14} className="text-white" strokeWidth={3} />
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Agência</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Categoria</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Preço</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Duração</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Destaque</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Performance</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredTrips.map(trip => {
+                  const agency = agencies.find(a => a.agencyId === trip.agencyId);
+                  const tripBookings = bookings.filter(b => b.tripId === trip.id);
+                  const tripRevenue = tripBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+                  const isSelected = selectedTrips.includes(trip.id);
+                  
+                  return (
+                    <tr key={trip.id} className={`hover:bg-gray-50 transition-colors ${isSelected ? 'bg-primary-50/30' : ''}`}>
+                      <td className="px-6 py-4">
+                        <div 
+                          className="w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors"
+                          onClick={() => handleToggleTrip(trip.id)}
+                          style={{
+                            backgroundColor: isSelected ? '#2563eb' : 'transparent',
+                            borderColor: isSelected ? '#2563eb' : '#d1d5db'
+                          }}
+                        >
+                          {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                            <img src={trip.images?.[0] || 'https://placehold.co/100x100/e2e8f0/e2e8f0'} className="w-full h-full object-cover" alt={trip.title} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-900 text-sm line-clamp-1 max-w-[250px]">{trip.title}</p>
+                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                              <MapPin size={12} />
+                              <span className="truncate">{trip.destination}</span>
+                            </div>
+                            {trip.startDate && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Início: {new Date(trip.startDate).toLocaleDateString('pt-BR')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {agency ? (
+                          <Link to={`/#/${agency.slug}`} target="_blank" className="flex items-center hover:underline max-w-[150px] truncate">
+                            {agency.name} <ExternalLink size={10} className="ml-1 flex-shrink-0" />
+                          </Link>
+                        ) : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        <Badge color="blue" className="text-xs">{trip.category || 'N/A'}</Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-700">R$ {trip.price.toLocaleString('pt-BR')}</div>
+                        {tripRevenue > 0 && (
+                          <div className="text-xs text-green-600 font-semibold mt-0.5">
+                            Receita: R$ {tripRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {trip.durationDays ? `${trip.durationDays} ${trip.durationDays === 1 ? 'dia' : 'dias'}` : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'INATIVO'}</Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge color={trip.featured ? 'amber' : 'gray'}>{trip.featured ? 'SIM' : 'NÃO'}</Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1 text-xs font-medium text-gray-500">
+                          <div className="flex items-center" title="Visualizações">
+                            <Eye size={14} className="mr-1.5 text-blue-400"/> {trip.views || 0}
+                          </div>
+                          <div className="flex items-center" title="Vendas">
+                            <ShoppingBag size={14} className="mr-1.5 text-green-500"/> {trip.sales || 0}
+                          </div>
+                          {trip.tripRating && (
+                            <div className="flex items-center" title="Avaliação">
+                              <Star size={14} className="mr-1.5 text-amber-400 fill-amber-400"/> {(trip.tripRating as number).toFixed(1)}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end items-center gap-2">
+                          <button
+                            onClick={() => {
+                            // Use helper function to ensure correct ISO format (YYYY-MM-DD)
+                            const formattedStartDate = normalizeDateToISO(trip.startDate);
+                            const formattedEndDate = normalizeDateToISO(trip.endDate);
+                            
+                            // Recalculate duration correctly
+                            let recalculatedDuration = trip.durationDays || 1;
+                            if (formattedStartDate && formattedEndDate) {
+                              try {
+                                const [startYear, startMonth, startDay] = formattedStartDate.split('-').map(Number);
+                                const [endYear, endMonth, endDay] = formattedEndDate.split('-').map(Number);
+                                const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+                                const end = new Date(endYear, endMonth - 1, endDay, 0, 0, 0, 0);
+                                const diffTime = end.getTime() - start.getTime();
+                                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                recalculatedDuration = diffDays >= 0 ? diffDays + 1 : 1;
+                              } catch (error) {
+                                // Keep original if calculation fails
+                              }
+                            }
+                            
+                            // Handle categories: support both single category (legacy) and multiple categories
+                            let initialCategories: TripCategory[] = [];
+                            if (trip.categories && Array.isArray(trip.categories)) {
+                              initialCategories = trip.categories;
+                            } else if (trip.category) {
+                              // Convert single category to array for backward compatibility
+                              initialCategories = [trip.category];
+                            }
+                            
+                            setSelectedItem(trip);
+                            setEditFormData({ 
+                              ...trip, 
+                              startDate: formattedStartDate, 
+                              endDate: formattedEndDate, 
+                              durationDays: recalculatedDuration,
+                              categories: initialCategories 
+                            });
+                            if (trip.latitude && trip.longitude) {
+                              setLocationCoords({ lat: trip.latitude, lng: trip.longitude });
+                            } else {
+                              setLocationCoords(null);
+                            }
+                            setModalType('EDIT_TRIP');
+                          }}
+                            className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Edit3 size={18} />
+                          </button>
+                          <button
+                            onClick={() => toggleTripStatus(trip.id)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              trip.is_active 
+                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' 
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                            }`}
+                            title={trip.is_active ? 'Pausar' : 'Publicar'}
+                          >
+                            {trip.is_active ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
+                          </button>
+                          <button
+                            onClick={() => toggleTripFeatureStatus(trip.id)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              trip.featured 
+                                ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50' 
+                                : 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
+                            }`}
+                            title={trip.featured ? 'Remover Destaque' : 'Destacar'}
+                          >
+                            <Sparkles size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTrip(trip.id)}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         );
       case 'REVIEWS':
         return (
@@ -3683,7 +5288,7 @@ export const AdminDashboard: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={isProcessing}
-                                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl font-extrabold hover:from-primary-700 hover:to-secondary-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-2 px-8 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isProcessing ? (
                                     <>
@@ -3772,6 +5377,686 @@ export const AdminDashboard: React.FC = () => {
                 </div>
             </div>
         );
+      case 'BROADCASTS':
+        const activeGuides = agencies.filter(a => a.isGuide === true);
+        const totalRecipients = {
+          ALL: activeAgencies.length + activeUsers.length + activeGuides.length,
+          AGENCY: activeAgencies.length,
+          CLIENT: activeUsers.length,
+          GUIDE: activeGuides.length
+        };
+
+        // Filter broadcasts by date
+        const getFilteredBroadcasts = () => {
+          let filtered = [...broadcastsHistory];
+          const now = new Date();
+          
+          if (dateFilter === 'today') {
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            filtered = filtered.filter(b => new Date(b.created_at) >= today);
+          } else if (dateFilter === 'week') {
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            filtered = filtered.filter(b => new Date(b.created_at) >= weekAgo);
+          } else if (dateFilter === 'month') {
+            const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+            filtered = filtered.filter(b => new Date(b.created_at) >= monthAgo);
+          } else if (dateFilter === 'custom' && customDateStart && customDateEnd) {
+            const start = new Date(customDateStart);
+            const end = new Date(customDateEnd);
+            end.setHours(23, 59, 59, 999);
+            filtered = filtered.filter(b => {
+              const created = new Date(b.created_at);
+              return created >= start && created <= end;
+            });
+          }
+          
+          return filtered;
+        };
+
+        // Export to PDF
+        const exportBroadcastsToPDF = (broadcasts: BroadcastWithInteractions[]) => {
+          const doc = new jsPDF();
+          doc.setFontSize(18);
+          doc.text('Relatório de Comunicados', 20, 20);
+          
+          let y = 35;
+          broadcasts.forEach((broadcast, index) => {
+            if (y > 270) {
+              doc.addPage();
+              y = 20;
+            }
+            
+            doc.setFontSize(14);
+            doc.text(`${index + 1}. ${broadcast.title}`, 20, y);
+            y += 8;
+            
+            doc.setFontSize(10);
+            doc.text(`Enviado em: ${new Date(broadcast.created_at).toLocaleDateString('pt-BR')}`, 20, y);
+            y += 6;
+            doc.text(`Público: ${broadcast.target_role === 'ALL' ? 'Todos' : broadcast.target_role === 'CLIENT' ? 'Clientes' : broadcast.target_role === 'AGENCY' ? 'Agências' : 'Guias'}`, 20, y);
+            y += 6;
+            doc.text(`Vistos: ${broadcast.read_count || 0} | Curtidas: ${broadcast.liked_count || 0}`, 20, y);
+            y += 8;
+            
+            const messageLines = doc.splitTextToSize(broadcast.message, 170);
+            doc.text(messageLines, 20, y);
+            y += messageLines.length * 5 + 10;
+          });
+          
+          doc.save(`comunicados-${new Date().toISOString().split('T')[0]}.pdf`);
+          showToast('Relatório PDF exportado com sucesso!', 'success');
+        };
+
+        // Export to CSV
+        const exportBroadcastsToCSV = (broadcasts: BroadcastWithInteractions[]) => {
+          const headers = ['Título', 'Mensagem', 'Público', 'Data Envio', 'Vistos', 'Curtidas', 'Taxa Leitura %'];
+          const rows = broadcasts.map(b => [
+            b.title,
+            b.message.replace(/\n/g, ' ').replace(/,/g, ';'),
+            b.target_role === 'ALL' ? 'Todos' : b.target_role === 'CLIENT' ? 'Clientes' : b.target_role === 'AGENCY' ? 'Agências' : 'Guias',
+            new Date(b.created_at).toLocaleDateString('pt-BR'),
+            (b.read_count || 0).toString(),
+            (b.liked_count || 0).toString(),
+            b.total_recipients && b.total_recipients > 0 
+              ? Math.round((b.read_count || 0) / b.total_recipients * 100).toString() 
+              : '0'
+          ]);
+          
+          const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+          ].join('\n');
+          
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          const url = URL.createObjectURL(blob);
+          link.setAttribute('href', url);
+          link.setAttribute('download', `comunicados-${new Date().toISOString().split('T')[0]}.csv`);
+          link.style.visibility = 'hidden';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast('Relatório CSV exportado com sucesso!', 'success');
+        };
+
+        const handleSendBroadcast = async () => {
+          if (!broadcastForm.title || !broadcastForm.message) {
+            showToast('Preencha todos os campos', 'error');
+            return;
+          }
+          setIsProcessing(true);
+          try {
+            await sendBroadcast({
+              title: broadcastForm.title,
+              message: broadcastForm.message,
+              target_role: broadcastForm.target_role
+            });
+            setBroadcastForm({ title: '', message: '', target_role: 'ALL' });
+            // Refresh history if on Reports tab
+            if (broadcastSubTab === 'reports') {
+              const data = await getBroadcastsForAdmin();
+              setBroadcastsHistory(data);
+            }
+          } catch (error: any) {
+            // Error already handled in sendBroadcast
+          } finally {
+            setIsProcessing(false);
+          }
+        };
+
+        return (
+          <div className="space-y-6 animate-[fadeIn_0.3s]">
+            {/* Sub-tabs */}
+            <div className="flex border-b border-gray-200 bg-white rounded-t-xl">
+              <button
+                onClick={() => setBroadcastSubTab('compose')}
+                className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${
+                  broadcastSubTab === 'compose'
+                    ? 'border-slate-900 text-slate-900 bg-slate-50'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <Edit3 size={16} />
+                Nova Mensagem
+              </button>
+              <button
+                onClick={() => setBroadcastSubTab('reports')}
+                className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${
+                  broadcastSubTab === 'reports'
+                    ? 'border-slate-900 text-slate-900 bg-slate-50'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <BarChart3 size={16} />
+                Histórico e Métricas
+              </button>
+              <button
+                onClick={() => setBroadcastSubTab('templates')}
+                className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${
+                  broadcastSubTab === 'templates'
+                    ? 'border-slate-900 text-slate-900 bg-slate-50'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <FileText size={16} />
+                Templates
+              </button>
+              <button
+                onClick={() => setBroadcastSubTab('scheduled')}
+                className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${
+                  broadcastSubTab === 'scheduled'
+                    ? 'border-slate-900 text-slate-900 bg-slate-50'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <Clock size={16} />
+                Agendados
+              </button>
+            </div>
+
+            {/* Compose Tab */}
+            {broadcastSubTab === 'compose' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-slate-100 rounded-xl">
+                    <Megaphone size={24} className="text-slate-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-semibold text-slate-900">Enviar Comunicado</h2>
+                    <p className="text-sm text-slate-600">Envie uma mensagem para clientes, agências ou guias de turismo</p>
+                  </div>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); handleSendBroadcast(); }} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Título do Comunicado
+                    </label>
+                    <input
+                      type="text"
+                      value={broadcastForm.title}
+                      onChange={(e) => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
+                      placeholder="Ex: Manutenção Programada"
+                      className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Mensagem
+                    </label>
+                    <textarea
+                      value={broadcastForm.message}
+                      onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
+                      placeholder="Digite sua mensagem aqui..."
+                      rows={6}
+                      className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all resize-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Destinatários
+                    </label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="target_role"
+                          value="ALL"
+                          checked={broadcastForm.target_role === 'ALL'}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, target_role: e.target.value as BroadcastTargetRole })}
+                          className="text-slate-600"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-900">Todos</p>
+                          <p className="text-xs text-slate-600">{totalRecipients.ALL} destinatários receberão o comunicado</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="target_role"
+                          value="CLIENT"
+                          checked={broadcastForm.target_role === 'CLIENT'}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, target_role: e.target.value as BroadcastTargetRole })}
+                          className="text-slate-600"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-900">Todos os Clientes</p>
+                          <p className="text-xs text-slate-600">{totalRecipients.CLIENT} clientes receberão o comunicado</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="target_role"
+                          value="AGENCY"
+                          checked={broadcastForm.target_role === 'AGENCY'}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, target_role: e.target.value as BroadcastTargetRole })}
+                          className="text-slate-600"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-900">Todas as Agências</p>
+                          <p className="text-xs text-slate-600">{totalRecipients.AGENCY} agências receberão o comunicado</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-xl cursor-pointer hover:border-slate-300 transition-colors">
+                        <input
+                          type="radio"
+                          name="target_role"
+                          value="GUIDE"
+                          checked={broadcastForm.target_role === 'GUIDE'}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, target_role: e.target.value as BroadcastTargetRole })}
+                          className="text-slate-600"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-900">Guias de Turismo</p>
+                          <p className="text-xs text-slate-600">{totalRecipients.GUIDE} guias receberão o comunicado</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setBroadcastForm({ title: '', message: '', target_role: 'ALL' })}
+                      className="flex-1 px-6 py-3 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 hover:text-slate-900 transition-all"
+                    >
+                      Limpar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="flex-1 px-6 py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader size={18} className="animate-spin" />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={18} />
+                          Enviar Comunicado
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Reports Tab */}
+            {broadcastSubTab === 'reports' && (
+              <div className="space-y-6">
+                {/* Filters and Export */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                    {/* Date Filters */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="text-sm font-semibold text-slate-700">Filtrar por data:</label>
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => {
+                          setDateFilter(e.target.value as any);
+                          if (e.target.value !== 'custom') {
+                            setCustomDateStart('');
+                            setCustomDateEnd('');
+                          }
+                        }}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="today">Hoje</option>
+                        <option value="week">Última semana</option>
+                        <option value="month">Último mês</option>
+                        <option value="custom">Período personalizado</option>
+                      </select>
+                      
+                      {dateFilter === 'custom' && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="date"
+                            value={customDateStart}
+                            onChange={(e) => setCustomDateStart(e.target.value)}
+                            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none"
+                          />
+                          <span className="text-slate-500">até</span>
+                          <input
+                            type="date"
+                            value={customDateEnd}
+                            onChange={(e) => setCustomDateEnd(e.target.value)}
+                            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Export Buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const filtered = getFilteredBroadcasts();
+                          exportBroadcastsToPDF(filtered);
+                        }}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold text-sm hover:bg-red-700 transition-colors flex items-center gap-2"
+                      >
+                        <FileText size={16} />
+                        Exportar PDF
+                      </button>
+                      <button
+                        onClick={() => {
+                          const filtered = getFilteredBroadcasts();
+                          exportBroadcastsToCSV(filtered);
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
+                      >
+                        <Download size={16} />
+                        Exportar CSV
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {loadingBroadcasts ? (
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+                    <Loader size={32} className="animate-spin text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-600">Carregando histórico...</p>
+                  </div>
+                ) : broadcastsHistory.length === 0 ? (
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+                    <Megaphone size={48} className="mx-auto mb-4 text-slate-300" />
+                    <p className="text-slate-600 font-semibold">Nenhum comunicado enviado</p>
+                    <p className="text-sm text-slate-500 mt-1">Os comunicados enviados aparecerão aqui</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {getFilteredBroadcasts().length === 0 ? (
+                      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+                        <Filter size={48} className="mx-auto mb-4 text-slate-300" />
+                        <p className="text-slate-600 font-semibold">Nenhum comunicado encontrado</p>
+                        <p className="text-sm text-slate-500 mt-1">Tente ajustar os filtros de data</p>
+                      </div>
+                    ) : (
+                      <>
+                        {getFilteredBroadcasts().map((broadcast) => {
+                          const readPercentage = broadcast.total_recipients && broadcast.total_recipients > 0
+                            ? Math.round((broadcast.read_count || 0) / broadcast.total_recipients * 100)
+                            : 0;
+                          const likedPercentage = broadcast.total_recipients && broadcast.total_recipients > 0
+                            ? Math.round((broadcast.liked_count || 0) / broadcast.total_recipients * 100)
+                            : 0;
+
+                          return (
+                        <div
+                          key={broadcast.id}
+                          className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                        >
+                          <div
+                            className="p-6 cursor-pointer hover:bg-slate-50 transition-colors"
+                            onClick={() => setExpandedBroadcastId(expandedBroadcastId === broadcast.id ? null : broadcast.id)}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h3 className="text-lg font-semibold text-slate-900">{broadcast.title}</h3>
+                                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                    broadcast.target_role === 'ALL' ? 'bg-purple-100 text-purple-700' :
+                                    broadcast.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
+                                    broadcast.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-green-100 text-green-700'
+                                  }`}>
+                                    {broadcast.target_role === 'ALL' ? 'Todos' :
+                                     broadcast.target_role === 'CLIENT' ? 'Clientes' :
+                                     broadcast.target_role === 'AGENCY' ? 'Agências' : 'Guias'}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-slate-600 mb-4 line-clamp-2">{broadcast.message}</p>
+                                <div className="flex items-center gap-6 text-sm text-slate-500">
+                                  <span>{new Date(broadcast.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span className="flex items-center gap-1">
+                                    <Eye size={14} />
+                                    {broadcast.read_count || 0} vistos
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <ThumbsUp size={14} />
+                                    {broadcast.liked_count || 0} curtidas
+                                  </span>
+                                </div>
+                                {/* Progress Bar */}
+                                <div className="mt-4">
+                                  <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                                    <span>Taxa de Leitura</span>
+                                    <span>{readPercentage}%</span>
+                                  </div>
+                                  <div className="w-full bg-slate-200 rounded-full h-2">
+                                    <div
+                                      className="bg-blue-600 h-2 rounded-full transition-all"
+                                      style={{ width: `${readPercentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <ChevronDown
+                                size={20}
+                                className={`text-slate-400 transition-transform ${expandedBroadcastId === broadcast.id ? 'rotate-180' : ''}`}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Expanded Details */}
+                          {expandedBroadcastId === broadcast.id && (
+                            <div className="border-t border-slate-200 p-6 bg-slate-50">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Eye size={18} className="text-blue-600" />
+                                    <h4 className="font-semibold text-slate-900">Visto por</h4>
+                                  </div>
+                                  <p className="text-2xl font-bold text-slate-900">{broadcast.read_count || 0}</p>
+                                  <p className="text-xs text-slate-600 mt-1">usuários</p>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-200">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <ThumbsUp size={18} className="text-green-600" />
+                                    <h4 className="font-semibold text-slate-900">Curtido por</h4>
+                                  </div>
+                                  <p className="text-2xl font-bold text-slate-900">{broadcast.liked_count || 0}</p>
+                                  <p className="text-xs text-slate-600 mt-1">usuários</p>
+                                </div>
+                              </div>
+
+                              {/* Detailed Interactions List */}
+                              {broadcast.interactions && broadcast.interactions.length > 0 ? (
+                                <div>
+                                  <h4 className="font-semibold text-slate-900 mb-4">Detalhes das Interações</h4>
+                                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                    <table className="min-w-full divide-y divide-slate-200">
+                                      <thead className="bg-slate-50">
+                                        <tr>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Usuário</th>
+                                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Data Leitura</th>
+                                          <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Curtiu?</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-200">
+                                        {broadcast.interactions.map((interaction) => (
+                                          <tr key={interaction.id} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3">
+                                              <div>
+                                                <p className="text-sm font-medium text-slate-900">{interaction.user_name || 'N/A'}</p>
+                                                <p className="text-xs text-slate-500">{interaction.user_email || 'N/A'}</p>
+                                              </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-slate-600">
+                                              {interaction.read_at
+                                                ? new Date(interaction.read_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                                : 'Não lido'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                              {interaction.liked_at ? (
+                                                <span className="inline-flex items-center gap-1 text-green-600 font-semibold">
+                                                  <ThumbsUp size={14} />
+                                                  Sim
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-400">Não</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-slate-500 text-center py-4">Nenhuma interação registrada ainda.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Templates Tab */}
+            {broadcastSubTab === 'templates' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h2 className="text-2xl font-semibold text-slate-900">Templates de Mensagens</h2>
+                      <p className="text-sm text-slate-600 mt-1">Salve templates para reutilizar em comunicados futuros</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newTemplate = {
+                          id: `temp-${Date.now()}`,
+                          name: `Template ${broadcastTemplates.length + 1}`,
+                          title: broadcastForm.title || '',
+                          message: broadcastForm.message || '',
+                          target_role: broadcastForm.target_role
+                        };
+                        setBroadcastTemplates([...broadcastTemplates, newTemplate]);
+                        localStorage.setItem('broadcastTemplates', JSON.stringify([...broadcastTemplates, newTemplate]));
+                        showToast('Template salvo com sucesso!', 'success');
+                      }}
+                      disabled={!broadcastForm.title || !broadcastForm.message}
+                      className="px-4 py-2 bg-slate-900 text-white rounded-lg font-semibold text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Save size={16} />
+                      Salvar Template Atual
+                    </button>
+                  </div>
+
+                  {broadcastTemplates.length === 0 ? (
+                    <div className="text-center py-12">
+                      <FileText size={48} className="mx-auto mb-4 text-slate-300" />
+                      <p className="text-slate-600 font-semibold">Nenhum template salvo</p>
+                      <p className="text-sm text-slate-500 mt-1">Crie um template a partir do formulário de envio</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {broadcastTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => {
+                            setBroadcastForm({
+                              ...broadcastForm,
+                              title: template.title,
+                              message: template.message,
+                              target_role: template.target_role,
+                              template_id: template.id
+                            });
+                            setBroadcastSubTab('compose');
+                            showToast('Template aplicado!', 'success');
+                          }}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="font-semibold text-slate-900">{template.name}</h3>
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              template.target_role === 'ALL' ? 'bg-purple-100 text-purple-700' :
+                              template.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
+                              template.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {template.target_role === 'ALL' ? 'Todos' :
+                               template.target_role === 'CLIENT' ? 'Clientes' :
+                               template.target_role === 'AGENCY' ? 'Agências' : 'Guias'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-slate-700 mb-1">{template.title}</p>
+                          <p className="text-xs text-slate-600 line-clamp-2">{template.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Scheduled Tab */}
+            {broadcastSubTab === 'scheduled' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-slate-100 rounded-xl">
+                    <Clock size={24} className="text-slate-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-semibold text-slate-900">Agendamento de Envios</h2>
+                    <p className="text-sm text-slate-600">Programe comunicados para serem enviados no futuro</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle size={20} className="text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-amber-900 text-sm">Funcionalidade em Desenvolvimento</p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          O agendamento de envios requer configuração de jobs/cron no servidor. 
+                          Por enquanto, você pode usar a opção de agendamento manual abaixo.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl p-6">
+                    <h3 className="font-semibold text-slate-900 mb-4">Agendar Envio Manual</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                          Data e Hora do Envio
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={broadcastForm.scheduled_at || ''}
+                          onChange={(e) => setBroadcastForm({ ...broadcastForm, scheduled_at: e.target.value })}
+                          min={new Date().toISOString().slice(0, 16)}
+                          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 outline-none transition-all"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                          Selecione uma data futura. Você precisará enviar manualmente neste horário.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
       default:
         return (
           <div className="space-y-8 animate-[fadeIn_0.3s]">
@@ -3785,19 +6070,164 @@ export const AdminDashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Atividade Recente */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Activity size={20} className="mr-2 text-blue-600"/> Atividade Recente</h3>
-                    {auditLogs.length > 0 ? (
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                            <Activity size={20} className="mr-2 text-blue-600"/> 
+                            Atividade Recente
+                        </h3>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                            {filteredActivities.length} {filteredActivities.length === 1 ? 'evento' : 'eventos'}
+                        </span>
+                    </div>
+                    
+                    {/* Search and Filters */}
+                    <div className="mb-4 space-y-2">
+                        <div className="relative">
+                            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar atividades..."
+                                value={activitySearch}
+                                onChange={(e) => setActivitySearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                            />
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            <button
+                                onClick={() => setActivityFilter('all')}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                                    activityFilter === 'all' 
+                                        ? 'bg-primary-600 text-white' 
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                            >
+                                Todas
+                            </button>
+                            <button
+                                onClick={() => setActivityFilter('user')}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${
+                                    activityFilter === 'user' 
+                                        ? 'bg-indigo-600 text-white' 
+                                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                                }`}
+                            >
+                                <Users size={12} /> Usuários
+                            </button>
+                            <button
+                                onClick={() => setActivityFilter('agency')}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${
+                                    activityFilter === 'agency' 
+                                        ? 'bg-purple-600 text-white' 
+                                        : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                                }`}
+                            >
+                                <Building2 size={12} /> Agências
+                            </button>
+                            <button
+                                onClick={() => setActivityFilter('trip')}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${
+                                    activityFilter === 'trip' 
+                                        ? 'bg-green-600 text-white' 
+                                        : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                }`}
+                            >
+                                <Package size={12} /> Viagens
+                            </button>
+                            <button
+                                onClick={() => setActivityFilter('settings')}
+                                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${
+                                    activityFilter === 'settings' 
+                                        ? 'bg-gray-600 text-white' 
+                                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                <Settings size={12} /> Config
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {filteredActivities.length > 0 ? (
                         <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                            {auditLogs.map(log => (
-                                <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{log.action}</p>
-                                    <p className="text-xs text-gray-600 line-clamp-2">{log.details}</p>
-                                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                            {filteredActivities.slice(0, 20).map(log => {
+                                const activityInfo = getActivityInfo(log.action);
+                                const Icon = activityInfo.icon;
+                                const timeAgo = new Date(log.createdAt);
+                                const now = new Date();
+                                const diffMs = now.getTime() - timeAgo.getTime();
+                                const diffMins = Math.floor(diffMs / 60000);
+                                const diffHours = Math.floor(diffMs / 3600000);
+                                const diffDays = Math.floor(diffMs / 86400000);
+                                
+                                let timeLabel = '';
+                                if (diffMins < 1) timeLabel = 'Agora';
+                                else if (diffMins < 60) timeLabel = `${diffMins}min atrás`;
+                                else if (diffHours < 24) timeLabel = `${diffHours}h atrás`;
+                                else if (diffDays < 7) timeLabel = `${diffDays}d atrás`;
+                                else timeLabel = timeAgo.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+
+                                // Format action name for better readability
+                                const formattedAction = log.action
+                                    .replace(/_/g, ' ')
+                                    .replace(/\b\w/g, l => l.toUpperCase());
+
+                                return (
+                                    <div key={log.id} className={`${activityInfo.bgColor} p-4 rounded-xl border ${activityInfo.borderColor} hover:shadow-md transition-all group cursor-pointer`}>
+                                        <div className="flex items-start gap-3">
+                                            <div className={`${activityInfo.color} p-2 rounded-lg bg-white border ${activityInfo.borderColor} group-hover:scale-110 transition-transform flex-shrink-0`}>
+                                                <Icon size={18} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-bold text-gray-900 line-clamp-1 mb-1">{formattedAction}</p>
+                                                <p className="text-xs text-gray-600 line-clamp-2 mb-2">{log.details}</p>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-[10px] text-gray-400 font-medium">{timeLabel}</p>
+                                                        {log.adminEmail && (
+                                                            <span className="text-[10px] text-gray-400 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                                                                {log.adminEmail}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-400">{timeAgo.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {filteredActivities.length > 20 && (
+                                <div className="text-center pt-2">
+                                    <p className="text-xs text-gray-400">
+                                        Mostrando 20 de {filteredActivities.length} atividades
+                                    </p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     ) : (
-                        <div className="text-center py-8 text-gray-400 text-sm">Nenhuma atividade recente.</div>
+                        <div className="text-center py-12 text-gray-400">
+                            <Activity size={48} className="mx-auto mb-3 opacity-50" />
+                            <p className="text-sm font-medium">
+                                {activitySearch || activityFilter !== 'all' 
+                                    ? 'Nenhuma atividade encontrada' 
+                                    : 'Nenhuma atividade recente'}
+                            </p>
+                            <p className="text-xs mt-1">
+                                {activitySearch || activityFilter !== 'all'
+                                    ? 'Tente ajustar os filtros ou busca'
+                                    : 'As ações do sistema aparecerão aqui'}
+                            </p>
+                            {(activitySearch || activityFilter !== 'all') && (
+                                <button
+                                    onClick={() => {
+                                        setActivitySearch('');
+                                        setActivityFilter('all');
+                                    }}
+                                    className="mt-3 text-xs text-primary-600 hover:text-primary-700 font-semibold"
+                                >
+                                    Limpar filtros
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -3839,15 +6269,6 @@ export const AdminDashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900">Painel Master</h1>
         <div className="flex flex-wrap gap-3">
-            {/* TAREFA 4: Broadcast Button */}
-            <button 
-              onClick={() => setBroadcastModalOpen(true)}
-              className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-primary-700 transition-colors"
-              title="Enviar Comunicado Global"
-            >
-              <Megaphone size={18} className="mr-2"/>
-              Broadcast
-            </button>
             <button onClick={handleRefresh} disabled={isProcessing} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
                 {isProcessing ? <Loader size={18} className="animate-spin mr-2"/> : <RefreshCw size={18} className="mr-2"/>}
                 Atualizar Dados
@@ -3870,184 +6291,100 @@ export const AdminDashboard: React.FC = () => {
         <button onClick={() => handleTabChange('SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={16}/> Temas</button>
         <button onClick={() => handleTabChange('AUDIT_LOGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'AUDIT_LOGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Lock size={16}/> Segurança & Logs</button>
         <button onClick={() => handleTabChange('GLOBAL_SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'GLOBAL_SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Shield size={16}/> Configurações Globais</button>
+        <button onClick={() => handleTabChange('BROADCASTS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'BROADCASTS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Megaphone size={16}/> Comunicados</button>
       </div>
 
       {/* Bulk Actions & View Toggles */}
 
       {/* Filter Bar for Trips */}
       {activeTab === 'TRIPS' && (
-        <div className="flex flex-wrap items-center gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-2">
+        <>
+          {/* Toolbar with Filters, View Toggle, and Bulk Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
                 <Filter size={16} className="text-gray-500"/>
                 <span className="text-sm font-bold text-gray-700">Filtros:</span>
-            </div>
-            
-            <div className="w-48">
+              </div>
+              
+              <div className="w-48">
                 <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                    <option value="">Todas as Agências</option>
-                    {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
+                  <option value="">Todas as Agências</option>
+                  {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
                 </select>
-            </div>
-            <div className="w-48">
+              </div>
+              <div className="w-48">
                 <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                    <option value="">Todas as Categorias</option>
-                    {tripCategories.map(category => <option key={category as string} value={category as string}>{(category as string).replace('_', ' ')}</option>)}
+                  <option value="">Todas as Categorias</option>
+                  {tripCategories.map(category => <option key={category as string} value={category as string}>{(category as string).replace('_', ' ')}</option>)}
                 </select>
-            </div>
-            {(agencyFilter || categoryFilter) && (
+              </div>
+              {(agencyFilter || categoryFilter) && (
                 <button onClick={() => { setAgencyFilter(''); setCategoryFilter(''); }} className="text-sm font-bold text-red-500 hover:underline">Limpar Filtros</button>
-            )}
-        </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
+                <button
+                  onClick={() => handleSetTripView('list')}
+                  className={`p-2.5 rounded-lg transition-all ${
+                    tripView === 'list' 
+                      ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Visualização em lista"
+                >
+                  <List size={18} />
+                </button>
+                <button
+                  onClick={() => handleSetTripView('cards')}
+                  className={`p-2.5 rounded-lg transition-all ${
+                    tripView === 'cards' 
+                      ? 'bg-white text-primary-600 shadow-sm border border-primary-100' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title="Visualização em cards"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </div>
+
+              {/* Results count */}
+              <span className="text-sm text-gray-600 font-medium">
+                {filteredTrips.length} viagem{filteredTrips.length !== 1 ? 'ns' : ''}
+              </span>
+            </div>
+          </div>
+
+          {/* Bulk Actions Bar */}
+          {selectedTrips.length > 0 && (
+            <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg flex items-center justify-between">
+              <span className="text-sm font-bold text-primary-700">
+                {selectedTrips.length} viagem(ns) selecionada(s)
+              </span>
+              <button
+                onClick={handleBulkDeleteTrips}
+                disabled={isProcessing}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={16} />
+                Excluir Selecionadas
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {renderContent()}
 
       {/* Modals */}
-      {/* TAREFA 4: Broadcast Modal */}
-      {broadcastModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button 
-              onClick={() => {
-                setBroadcastModalOpen(false);
-                setBroadcastForm({ title: '', message: '', recipients: 'all_agencies' });
-              }} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"
-            >
-              <X size={20}/>
-            </button>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-primary-100 rounded-xl">
-                <Megaphone size={24} className="text-primary-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Enviar Comunicado Global</h2>
-                <p className="text-sm text-gray-500">Envie uma mensagem para todas as agências ou usuários</p>
-              </div>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!broadcastForm.title || !broadcastForm.message) {
-                showToast('Preencha todos os campos', 'error');
-                return;
-              }
-              
-              const recipientText = 
-                broadcastForm.recipients === 'all_agencies' ? 'Todas as Agências' :
-                broadcastForm.recipients === 'all_users' ? 'Todos os Usuários' :
-                'Todos (Agências e Usuários)';
-              
-              showToast(`Comunicado enviado para ${recipientText}!`, 'success');
-              setBroadcastModalOpen(false);
-              setBroadcastForm({ title: '', message: '', recipients: 'all_agencies' });
-            }} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Título do Comunicado
-                </label>
-                <input
-                  type="text"
-                  value={broadcastForm.title}
-                  onChange={(e) => setBroadcastForm({ ...broadcastForm, title: e.target.value })}
-                  placeholder="Ex: Manutenção Programada"
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Mensagem
-                </label>
-                <textarea
-                  value={broadcastForm.message}
-                  onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })}
-                  placeholder="Digite sua mensagem aqui..."
-                  rows={6}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all resize-none"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Destinatários
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="recipients"
-                      value="all_agencies"
-                      checked={broadcastForm.recipients === 'all_agencies'}
-                      onChange={(e) => setBroadcastForm({ ...broadcastForm, recipients: e.target.value as any })}
-                      className="text-primary-600"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">Todas as Agências</p>
-                      <p className="text-xs text-gray-500">{activeAgencies.length} agências receberão o comunicado</p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="recipients"
-                      value="all_users"
-                      checked={broadcastForm.recipients === 'all_users'}
-                      onChange={(e) => setBroadcastForm({ ...broadcastForm, recipients: e.target.value as any })}
-                      className="text-primary-600"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">Todos os Usuários</p>
-                      <p className="text-xs text-gray-500">{activeUsers.length} usuários receberão o comunicado</p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
-                    <input
-                      type="radio"
-                      name="recipients"
-                      value="all"
-                      checked={broadcastForm.recipients === 'all'}
-                      onChange={(e) => setBroadcastForm({ ...broadcastForm, recipients: e.target.value as any })}
-                      className="text-primary-600"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">Todos (Agências e Usuários)</p>
-                      <p className="text-xs text-gray-500">{activeAgencies.length + activeUsers.length} destinatários receberão o comunicado</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-              
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBroadcastModalOpen(false);
-                    setBroadcastForm({ title: '', message: '', recipients: 'all_agencies' });
-                  }}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Megaphone size={18} />
-                  Enviar Comunicado
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       
-      {modalType === 'EDIT_USER' && selectedItem && (
+      {modalType === 'EDIT_USER' && selectedItem && currentUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => { setModalType(null); setSelectedItem(null); setEditFormData({}); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Usuário</h2>
                 
                 <div className="flex border-b border-gray-200 mb-6">
@@ -4057,22 +6394,59 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 {modalTab === 'PROFILE' && (
-                    <form onSubmit={handleUserUpdate} className="space-y-6">
+                    <form onSubmit={(e) => { e.preventDefault(); handleUserUpdate(e); }} className="space-y-6">
                         <div className="flex flex-col items-center gap-4 mb-6">
                             <div className="relative w-24 h-24 rounded-full group">
-                                <img src={editFormData.avatar || `https://ui-avatars.com/api/?name=${editFormData.name}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
+                                <img src={editFormData.avatar || currentUser?.avatar || `https://ui-avatars.com/api/?name=${editFormData.name || currentUser?.name || 'Usuário'}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
                                 <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
                                     {isUploadingAvatar ? <Loader className="animate-spin" size={20}/> : <Camera size={20} />}
                                     <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar}/>
                                 </label>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-900">{editFormData.name}</h3>
+                            <h3 className="text-xl font-bold text-gray-900">{editFormData.name || currentUser?.name || 'Usuário'}</h3>
                         </div>
 
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label><input value={editFormData.name || ''} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Email</label><input type="email" value={editFormData.email || ''} onChange={e => setEditFormData({...editFormData, email: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label><input value={editFormData.phone || ''} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1">CPF</label><input value={editFormData.cpf || ''} onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label>
+                            <input 
+                                value={editFormData.name || currentUser?.name || ''} 
+                                onChange={e => setEditFormData({...editFormData, name: e.target.value})} 
+                                className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500" 
+                                placeholder="Nome completo do usuário"
+                                style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Email</label>
+                            <input 
+                                type="email" 
+                                value={editFormData.email || currentUser?.email || ''} 
+                                onChange={e => setEditFormData({...editFormData, email: e.target.value})} 
+                                className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500" 
+                                placeholder="email@exemplo.com"
+                                style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
+                            <input 
+                                value={editFormData.phone || currentUser?.phone || ''} 
+                                onChange={e => setEditFormData({...editFormData, phone: e.target.value})} 
+                                className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500" 
+                                placeholder="(00) 00000-0000"
+                                style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">CPF</label>
+                            <input 
+                                value={editFormData.cpf || currentUser?.cpf || ''} 
+                                onChange={e => setEditFormData({...editFormData, cpf: e.target.value})} 
+                                className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500" 
+                                placeholder="000.000.000-00"
+                                style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                            />
+                        </div>
                         <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
                     </form>
                 )}
@@ -4080,23 +6454,131 @@ export const AdminDashboard: React.FC = () => {
                     <div className="space-y-6">
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
                             <p className="text-sm text-gray-700 font-medium">Resetar Senha</p>
-                            <button onClick={() => sendPasswordReset(selectedItem.email)} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
+                            <button onClick={() => sendPasswordReset(currentUser?.email || selectedItem?.email || '')} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
                                 <Key size={16}/> Enviar Link
                             </button>
                         </div>
                         <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
                             <p className="text-sm text-red-700 font-medium">Excluir Conta</p>
-                            <button onClick={() => handlePermanentDelete(selectedItem.id, selectedItem.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
+                            <button onClick={() => handlePermanentDelete(currentUser?.id || selectedItem?.id, currentUser?.role || selectedItem?.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
                                 <Trash2 size={16}/> Excluir
                             </button>
                         </div>
                     </div>
                 )}
-                {modalTab === 'HISTORY' && (
+                {modalTab === 'HISTORY' && (() => {
+                  const userId = currentUser?.id || selectedItem?.id;
+                  // Get user activities
+                  const userBookings = bookings.filter(b => b.clientId === userId).slice(0, 10);
+                  const userReviews = reviews.filter(r => r.clientId === userId).slice(0, 10);
+                  const userAuditLogs = auditLogs.filter(log => {
+                    const userEmail = currentUser?.email || selectedItem?.email || '';
+                    const userName = currentUser?.name || selectedItem?.name || '';
+                    return log.details?.toLowerCase().includes(userEmail.toLowerCase()) ||
+                           log.details?.toLowerCase().includes(userName.toLowerCase());
+                  }).slice(0, 10);
+                  
+                  const allActivities: Array<{
+                    id: string;
+                    type: 'booking' | 'review' | 'activity';
+                    title: string;
+                    description: string;
+                    date: string;
+                    icon: any;
+                    color: string;
+                  }> = [];
+
+                  // Add bookings
+                  userBookings.forEach(booking => {
+                    const trip = trips.find(t => t.id === booking.tripId);
+                    allActivities.push({
+                      id: `booking-${booking.id}`,
+                      type: 'booking',
+                      title: 'Nova Reserva',
+                      description: `Reservou "${trip?.title || 'Viagem'}" - R$ ${booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                      date: booking.date || booking.createdAt || new Date().toISOString(),
+                      icon: ShoppingBag,
+                      color: 'text-green-600 bg-green-50 border-green-200'
+                    });
+                  });
+
+                  // Add reviews
+                  userReviews.forEach(review => {
+                    const agency = agencies.find(a => a.agencyId === review.agencyId);
+                    allActivities.push({
+                      id: `review-${review.id}`,
+                      type: 'review',
+                      title: 'Nova Avaliação',
+                      description: `Avaliou ${agency?.name || 'Agência'} com ${review.rating} estrelas`,
+                      date: review.createdAt || new Date().toISOString(),
+                      icon: Star,
+                      color: 'text-amber-600 bg-amber-50 border-amber-200'
+                    });
+                  });
+
+                  // Add audit logs
+                  userAuditLogs.forEach(log => {
+                    allActivities.push({
+                      id: `log-${log.id}`,
+                      type: 'activity',
+                      title: log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      description: log.details || '',
+                      date: log.createdAt,
+                      icon: Activity,
+                      color: 'text-blue-600 bg-blue-50 border-blue-200'
+                    });
+                  });
+
+                  // Sort by date, newest first
+                  allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                  return (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                        <p className="text-sm text-gray-500 text-center">Nenhum histórico disponível.</p>
+                      {allActivities.length > 0 ? (
+                        allActivities.map(activity => {
+                          const Icon = activity.icon;
+                          const timeAgo = new Date(activity.date);
+                          const now = new Date();
+                          const diffMs = now.getTime() - timeAgo.getTime();
+                          const diffMins = Math.floor(diffMs / 60000);
+                          const diffHours = Math.floor(diffMs / 3600000);
+                          const diffDays = Math.floor(diffMs / 86400000);
+                          
+                          let timeLabel = '';
+                          if (diffMins < 1) timeLabel = 'Agora';
+                          else if (diffMins < 60) timeLabel = `${diffMins}min atrás`;
+                          else if (diffHours < 24) timeLabel = `${diffHours}h atrás`;
+                          else if (diffDays < 7) timeLabel = `${diffDays}d atrás`;
+                          else timeLabel = timeAgo.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+                          return (
+                            <div key={activity.id} className={`p-4 rounded-xl border ${activity.color} hover:shadow-md transition-all`}>
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-lg bg-white border ${activity.color.split(' ')[2] || 'border-gray-200'} flex-shrink-0`}>
+                                  <Icon size={18} className={activity.color.split(' ')[0] || 'text-gray-600'} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-gray-900 mb-1">{activity.title}</p>
+                                  <p className="text-xs text-gray-600 mb-2">{activity.description}</p>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[10px] text-gray-400 font-medium">{timeLabel}</p>
+                                    <p className="text-[10px] text-gray-400">{timeAgo.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-12 text-gray-400">
+                          <Activity size={48} className="mx-auto mb-3 opacity-50" />
+                          <p className="text-sm font-medium">Nenhuma atividade encontrada</p>
+                          <p className="text-xs mt-1">As atividades do usuário aparecerão aqui</p>
+                        </div>
+                      )}
                     </div>
-                )}
+                  );
+                })()}
             </div>
         </div>
       )}
@@ -4213,16 +6695,253 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-10"><X size={20}/></button>
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
-            <form onSubmit={handleTripUpdate} className="space-y-6">
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Título</label><input value={editFormData.title || ''} onChange={e => setEditFormData({...editFormData, title: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label><textarea value={editFormData.description || ''} onChange={e => setEditFormData({...editFormData, description: e.target.value})} rows={5} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Preço</label><input type="number" value={editFormData.price || 0} onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-1">Destino</label><input value={editFormData.destination || ''} onChange={e => setEditFormData({...editFormData, destination: e.target.value})} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18}/> Salvar Alterações</button>
+            <form onSubmit={handleTripUpdate} className="space-y-6 animate-[fadeIn_0.3s]">
+              {/* Título e Descrição */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Título <span className="text-red-500">*</span></label>
+                    <input 
+                      value={editFormData.title || ''} 
+                      onChange={e => setEditFormData({...editFormData, title: e.target.value})} 
+                      className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" 
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+                    <textarea 
+                      value={editFormData.description || ''} 
+                      onChange={e => setEditFormData({...editFormData, description: e.target.value})} 
+                      rows={5} 
+                      className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Destino com Mapa */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <MapPin className="text-primary-600" size={20} />
+                  Destino e Localização <span className="text-red-500">*</span>
+                </h3>
+                {/* Use SimpleLocationPicker - mais confiável e funciona com iframe */}
+                <SimpleLocationPicker
+                  value={editFormData.destination || ''}
+                  coordinates={locationCoords || (editFormData.latitude && editFormData.longitude ? { lat: editFormData.latitude, lng: editFormData.longitude } : null)}
+                  onChange={handleLocationChange}
+                  onCoordinatesChange={handleCoordinatesChange}
+                  placeholder={editFormData.destination || "Ex: Serrinha do Alambari, Resende"}
+                />
+              </div>
+
+              {/* Preço e Datas */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <DollarSign className="text-primary-600" size={20} />
+                  Preço e Datas
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                      <input
+                        type="number"
+                        value={editFormData.price || 0}
+                        onChange={e => setEditFormData({...editFormData, price: Number(e.target.value)})}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18}/>
+                      <input
+                        type="date"
+                        lang="pt-BR"
+                        value={editFormData.startDate || ''}
+                        onChange={e => setEditFormData({...editFormData, startDate: e.target.value})}
+                        min={normalizeDateToISO(new Date())}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Fim <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18}/>
+                      <input
+                        type="date"
+                        lang="pt-BR"
+                        value={editFormData.endDate || ''}
+                        onChange={e => setEditFormData({...editFormData, endDate: e.target.value})}
+                        min={editFormData.startDate || normalizeDateToISO(new Date())}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                      <input
+                        type="number"
+                        value={editFormData.durationDays || 1}
+                        onChange={e => {
+                          const value = parseInt(e.target.value) || 1;
+                          setEditFormData({...editFormData, durationDays: value});
+                        }}
+                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                        min="1"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                      <Clock size={12} />
+                      {editFormData.startDate && editFormData.endDate ? (
+                        <span>
+                          Calculado automaticamente: <strong>{editFormData.durationDays || 1}</strong> {editFormData.durationDays === 1 ? 'dia' : 'dias'}
+                          {(() => {
+                            try {
+                              const [startYear, startMonth, startDay] = (editFormData.startDate || '').split('-').map(Number);
+                              const [endYear, endMonth, endDay] = (editFormData.endDate || '').split('-').map(Number);
+                              const start = new Date(startYear, startMonth - 1, startDay);
+                              const end = new Date(endYear, endMonth - 1, endDay);
+                              const diffTime = end.getTime() - start.getTime();
+                              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              return ` (de ${startDay}/${startMonth}/${startYear} até ${endDay}/${endMonth}/${endYear})`;
+                            } catch {
+                              return '';
+                            }
+                          })()}
+                        </span>
+                      ) : (
+                        <span className="text-amber-600">Preencha as datas para calcular automaticamente</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Validation message */}
+                {editFormData.startDate && editFormData.endDate && new Date(editFormData.startDate) > new Date(editFormData.endDate) && (
+                  <p className="text-red-500 text-sm font-bold bg-red-50 p-3 rounded-lg mt-4 flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    A data final deve ser depois da inicial.
+                  </p>
+                )}
+              </div>
+
+              {/* Categorias (Pills/Badges) */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Tag className="text-primary-600" size={20} />
+                  Categorias <span className="text-red-500">*</span>
+                  <span className="text-xs font-normal text-gray-500">(Clique para selecionar)</span>
+                </h3>
+                
+                <div className="flex flex-wrap gap-2.5">
+                  {ALL_TRIP_CATEGORIES.map(category => {
+                    const categoryKey = category as string;
+                    const categoryLabel = categoryKey.replace(/_/g, ' ');
+                    const isSelected = editFormData.categories?.includes(category as TripCategory) || false;
+                    
+                    return (
+                      <button
+                        key={categoryKey}
+                        type="button"
+                        onClick={() => {
+                          const currentCategories = editFormData.categories || [];
+                          if (isSelected) {
+                            // Remove category
+                            setEditFormData({
+                              ...editFormData,
+                              categories: currentCategories.filter(cat => cat !== category)
+                            });
+                          } else {
+                            // Add category
+                            setEditFormData({
+                              ...editFormData,
+                              categories: [...currentCategories, category as TripCategory]
+                            });
+                          }
+                        }}
+                        className={`
+                          inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium
+                          transition-all duration-200 ease-in-out
+                          focus:outline-none focus:ring-2 focus:ring-offset-2
+                          ${
+                            isSelected
+                              ? 'bg-primary-600 text-white shadow-md hover:bg-primary-700 focus:ring-primary-500 transform scale-105'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 focus:ring-gray-400 border border-gray-200'
+                          }
+                        `}
+                      >
+                        {isSelected && (
+                          <CheckCircle2Icon size={16} className="flex-shrink-0" />
+                        )}
+                        <span>{categoryLabel}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                {(!editFormData.categories || editFormData.categories.length === 0) && (
+                  <p className="text-xs text-amber-600 mt-4 flex items-center gap-1.5 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <AlertCircle size={14} />
+                    <span>Selecione pelo menos uma categoria</span>
+                  </p>
+                )}
+                
+                {editFormData.categories && editFormData.categories.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-3">
+                    <strong>{editFormData.categories.length}</strong> {editFormData.categories.length === 1 ? 'categoria selecionada' : 'categorias selecionadas'}
+                  </p>
+                )}
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setModalType(null)} 
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isProcessing} 
+                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader size={18} className="animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18}/> 
+                      Salvar Alterações
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -4296,33 +7015,191 @@ export const AdminDashboard: React.FC = () => {
       {/* Modal: Change Plan */}
       {modalType === 'CHANGE_PLAN' && selectedItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20}/></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Mudar Plano</h2>
-            <p className="text-sm text-gray-600 mb-6">{selectedItem.name}</p>
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1">Plano Atual</p>
-                <Badge color={selectedItem.subscriptionPlan === 'PREMIUM' ? 'purple' : 'gray'}>{selectedItem.subscriptionPlan}</Badge>
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="bg-white border-b border-slate-200 p-6 relative">
+              <button 
+                onClick={() => setModalType(null)} 
+                className="absolute top-4 right-4 text-slate-500 hover:bg-slate-100 p-2 rounded-full transition-all"
+              >
+                <X size={20}/>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <CreditCard size={24} className="text-slate-700" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">Mudar Plano</h2>
+                  <p className="text-sm text-slate-600 mt-1">{selectedItem.name}</p>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Current Plan Info */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-5 rounded-xl border-2 border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plano Atual</p>
+                    <Badge color={selectedItem.subscriptionPlan === 'PREMIUM' ? 'purple' : selectedItem.subscriptionPlan === 'BASIC' ? 'blue' : 'gray'} className="text-sm py-1.5 px-3">
+                      {selectedItem.subscriptionPlan === 'PREMIUM' ? '⭐ Premium' : selectedItem.subscriptionPlan === 'BASIC' ? '📦 Básico' : selectedItem.subscriptionPlan || 'Starter'}
+                    </Badge>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
+                    <Badge color={selectedItem.subscriptionStatus === 'ACTIVE' ? 'green' : selectedItem.subscriptionStatus === 'PENDING' ? 'amber' : 'amber'}>
+                      {selectedItem.subscriptionStatus === 'ACTIVE' ? '✓ Ativo' : selectedItem.subscriptionStatus === 'PENDING' ? '⏳ Pendente' : '✗ Inativo'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan Options */}
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-gray-700 uppercase tracking-wide">Selecione um Plano</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleChangePlan(selectedItem.agencyId, 'BASIC')}
+                    disabled={isProcessing || selectedItem.subscriptionPlan === 'BASIC'}
+                    className={`
+                      relative p-5 rounded-xl border-2 transition-all duration-200
+                      ${selectedItem.subscriptionPlan === 'BASIC'
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 hover:shadow-lg'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
+                    `}
+                  >
+                    {selectedItem.subscriptionPlan === 'BASIC' && (
+                      <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        Atual
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Package size={20} className="text-blue-600" />
+                        </div>
+                        <p className="font-bold text-gray-900 text-lg">Básico</p>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl font-extrabold text-gray-900">R$ 99,90</p>
+                        <p className="text-xs text-gray-500 mt-1">por mês</p>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <ul className="text-xs text-gray-600 space-y-1">
+                          <li className="flex items-center gap-1.5">
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                            <span>Até 10 pacotes</span>
+                          </li>
+                          <li className="flex items-center gap-1.5">
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                            <span>Suporte básico</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleChangePlan(selectedItem.agencyId, 'PREMIUM')}
+                    disabled={isProcessing || selectedItem.subscriptionPlan === 'PREMIUM'}
+                    className={`
+                      relative p-5 rounded-xl border-2 transition-all duration-200
+                      ${selectedItem.subscriptionPlan === 'PREMIUM'
+                        ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
+                        : 'border-gray-200 bg-white hover:border-purple-400 hover:bg-purple-50 hover:shadow-lg'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
+                    `}
+                  >
+                    {selectedItem.subscriptionPlan === 'PREMIUM' && (
+                      <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                        Atual
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <Sparkles size={20} className="text-purple-600" />
+                        </div>
+                        <p className="font-bold text-gray-900 text-lg">Premium</p>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-2xl font-extrabold text-gray-900">R$ 199,90</p>
+                        <p className="text-xs text-gray-500 mt-1">por mês</p>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <ul className="text-xs text-gray-600 space-y-1">
+                          <li className="flex items-center gap-1.5">
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                            <span>Pacotes ilimitados</span>
+                          </li>
+                          <li className="flex items-center gap-1.5">
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                            <span>Módulo operacional</span>
+                          </li>
+                          <li className="flex items-center gap-1.5">
+                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                            <span>Suporte prioritário</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => handleChangePlan(selectedItem.agencyId, 'BASIC')}
-                  disabled={isProcessing || selectedItem.subscriptionPlan === 'BASIC'}
-                  className="p-4 border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    adminSuspendAgency(selectedItem.agencyId);
+                  }}
+                  disabled={isProcessing}
+                  className={`
+                    flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2
+                    ${selectedItem.subscriptionStatus === 'ACTIVE'
+                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-2 border-amber-200'
+                      : 'bg-green-50 text-green-700 hover:bg-green-100 border-2 border-green-200'
+                    }
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
                 >
-                  <p className="font-bold text-gray-900">Básico</p>
-                  <p className="text-xs text-gray-500 mt-1">R$ 99,90/mês</p>
+                  {isProcessing ? (
+                    <Loader size={16} className="animate-spin" />
+                  ) : selectedItem.subscriptionStatus === 'ACTIVE' ? (
+                    <>
+                      <Ban size={16} />
+                      Suspender Agência
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Reativar Agência
+                    </>
+                  )}
                 </button>
                 <button
-                  onClick={() => handleChangePlan(selectedItem.agencyId, 'PREMIUM')}
-                  disabled={isProcessing || selectedItem.subscriptionPlan === 'PREMIUM'}
-                  className="p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setModalType(null)}
+                  disabled={isProcessing}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <p className="font-bold text-gray-900">Premium</p>
-                  <p className="text-xs text-gray-500 mt-1">R$ 199,90/mês</p>
+                  Cancelar
                 </button>
               </div>
+
+              {/* Loading Overlay */}
+              {isProcessing && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader size={32} className="animate-spin text-primary-600" />
+                    <p className="text-sm font-semibold text-gray-700">Processando...</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -4538,6 +7415,32 @@ export const AdminDashboard: React.FC = () => {
         confirmText={confirmDialog.confirmText}
         isConfirming={isProcessing}
       />
+
+      {/* Impersonate Mode Floating Button */}
+      {isImpersonating && (
+        <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
+          <button
+            onClick={async () => {
+              try {
+                await exitImpersonate();
+                // Wait a bit for state to update
+                setTimeout(() => {
+                  navigate('/admin/dashboard');
+                }, 100);
+              } catch (error) {
+                // Error handled in exitImpersonate
+                // Navigate anyway
+                navigate('/admin/dashboard');
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
+            title="Sair do Modo Gerenciar"
+          >
+            <LogOut size={20} />
+            Sair do Modo Gerenciar
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -1382,35 +1382,195 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 </div>
               )}
 
-              {/* Child Price Multiplier - Only show if allowChildren is true */}
+              {/* Child Price Configuration - Only show if allowChildren is true */}
               {tripData.passengerConfig?.allowChildren !== false && (
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <label className="block text-sm font-bold text-gray-700 mb-3">
-                    Desconto para crianças (% do preço adulto)
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
-                      onChange={e => {
-                        const percentage = parseInt(e.target.value) || 70;
-                        setTripData({ 
-                          ...tripData, 
+                <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <DollarSign className="text-blue-600" size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-sm font-bold text-gray-900 mb-1">
+                        Preço para Crianças
+                      </label>
+                      <p className="text-xs text-gray-600">
+                        Escolha entre porcentagem do preço adulto ou valor fixo
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 border border-blue-100 space-y-4">
+                    {/* Toggle between Percentage and Fixed */}
+                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setTripData({
+                          ...tripData,
                           passengerConfig: {
                             allowChildren: tripData.passengerConfig?.allowChildren ?? true,
                             allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
                             childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
                             allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                            childPriceMultiplier: percentage / 100
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                            childPriceType: 'percentage',
+                            childPriceFixed: tripData.passengerConfig?.childPriceFixed
                           }
-                        });
-                      }}
-                      className="w-20 border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-semibold"
-                    />
-                    <span className="text-sm text-gray-600">% (ex: 70% = crianças pagam 70% do preço adulto)</span>
+                        })}
+                        className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                          (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
+                            ? 'bg-primary-600 text-white shadow-md'
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Porcentagem
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTripData({
+                          ...tripData,
+                          passengerConfig: {
+                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                            childPriceType: 'fixed',
+                            childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
+                          }
+                        })}
+                        className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                          tripData.passengerConfig?.childPriceType === 'fixed'
+                            ? 'bg-primary-600 text-white shadow-md'
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Valor Fixo
+                      </button>
+                    </div>
+
+                    {/* Input Section */}
+                    {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative flex-1 max-w-[200px]">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="5"
+                              value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
+                              onChange={e => {
+                                const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
+                                setTripData({ 
+                                  ...tripData, 
+                                  passengerConfig: {
+                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                                    childPriceMultiplier: percentage / 100,
+                                    childPriceType: 'percentage',
+                                    childPriceFixed: tripData.passengerConfig?.childPriceFixed
+                                  }
+                                });
+                              }}
+                              className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 bg-white text-gray-900 text-2xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                            />
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xl font-bold text-gray-500 pointer-events-none">
+                              %
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                Exemplo de Cálculo
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                {(() => {
+                                  const multiplier = tripData.passengerConfig?.childPriceMultiplier ?? 0.7;
+                                  const percentage = Math.round(multiplier * 100);
+                                  const examplePrice = tripData.price || 500;
+                                  const childPrice = Math.round(examplePrice * multiplier);
+                                  return (
+                                    <>
+                                      Preço adulto: <span className="font-bold">R$ {examplePrice.toLocaleString('pt-BR')}</span>
+                                      <br />
+                                      Preço criança ({percentage}%): <span className="font-bold text-primary-600">R$ {childPrice.toLocaleString('pt-BR')}</span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Info size={14} />
+                          <span>
+                            {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% significa que crianças pagam {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% do preço do adulto
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="relative flex-1 max-w-[200px]">
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold pointer-events-none">
+                              R$
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
+                              onChange={e => {
+                                const value = Math.max(0, parseFloat(e.target.value) || 0);
+                                setTripData({ 
+                                  ...tripData, 
+                                  passengerConfig: {
+                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                                    childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                                    childPriceType: 'fixed',
+                                    childPriceFixed: value
+                                  }
+                                });
+                              }}
+                              className="w-full border-2 border-gray-300 rounded-lg pl-12 pr-4 py-3 bg-white text-gray-900 text-2xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                            />
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                                Exemplo de Cálculo
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                {(() => {
+                                  const adultPrice = tripData.price || 500;
+                                  const childPrice = tripData.passengerConfig?.childPriceFixed ?? Math.round(adultPrice * 0.7);
+                                  return (
+                                    <>
+                                      Preço adulto: <span className="font-bold">R$ {adultPrice.toLocaleString('pt-BR')}</span>
+                                      <br />
+                                      Preço criança (fixo): <span className="font-bold text-primary-600">R$ {childPrice.toLocaleString('pt-BR')}</span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Info size={14} />
+                          <span>
+                            Crianças sempre pagarão R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}, independente do preço adulto
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1537,12 +1697,14 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 </div>
               )}
 
-              {/* Child Discount Preview */}
-              {tripData.passengerConfig?.allowChildren !== false && tripData.passengerConfig?.childPriceMultiplier && (
+              {/* Child Price Preview */}
+              {tripData.passengerConfig?.allowChildren !== false && (
                 <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
                   <DollarSign className="text-purple-600" size={14} />
                   <span className="font-medium">
-                    Desconto para crianças: {Math.round((tripData.passengerConfig.childPriceMultiplier || 0.7) * 100)}%
+                    Preço para crianças: {tripData.passengerConfig?.childPriceType === 'fixed' && tripData.passengerConfig?.childPriceFixed !== undefined
+                      ? `R$ ${tripData.passengerConfig.childPriceFixed.toLocaleString('pt-BR')} (fixo)`
+                      : `${Math.round((tripData.passengerConfig?.childPriceMultiplier || 0.7) * 100)}% do preço adulto`}
                   </span>
                 </div>
               )}

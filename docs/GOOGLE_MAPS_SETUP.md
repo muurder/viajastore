@@ -11,10 +11,12 @@
    - Dê um nome ao projeto (ex: "ViajaStore Maps")
    - Clique em "Criar"
 
-3. **Ative a API do Maps Embed:**
+3. **Ative as APIs necessárias:**
    - No menu lateral, vá em "APIs e Serviços" > "Biblioteca"
-   - Procure por "Maps Embed API"
-   - Clique em "Ativar"
+   - Procure e ative as seguintes APIs:
+     - **Maps Embed API** (para mostrar o mapa)
+     - **Geocoding API** (para buscar localizações pelo nome) - IMPORTANTE!
+   - Clique em "Ativar" para cada uma
 
 4. **Crie uma Credencial (API Key):**
    - Vá em "APIs e Serviços" > "Credenciais"
