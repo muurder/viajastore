@@ -19,6 +19,7 @@ import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   return (
@@ -58,7 +59,11 @@ const App: React.FC = () => {
                   )}
                   
                   {/* Protected Routes */}
-                  <Route path="agency/dashboard" element={<AgencyDashboard />} />
+                  <Route path="agency/dashboard" element={
+                    <ErrorBoundary>
+                      <AgencyDashboard />
+                    </ErrorBoundary>
+                  } />
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
 

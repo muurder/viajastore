@@ -99,6 +99,11 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const [tripData, setTripData] = useState<Partial<Trip>>(() => {
     // If editing, use initialTripData
     if (initialTripData?.id) {
+      const initialWithDefaults = {
+        ...initialTripData,
+        categories: initialTripData.categories || (initialTripData.category ? [initialTripData.category] : ['PRAIA']),
+        category: initialTripData.category || (initialTripData.categories && initialTripData.categories[0]) || 'PRAIA'
+      };
       return {
         agencyId: currentAgency?.agencyId || '',
         title: '',
@@ -110,8 +115,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         endDate: '',
         durationDays: 1,
         images: [],
-        category: 'PRAIA', // Backward compatibility
-        categories: ['PRAIA'], // Multiple categories support
+        // categories/category serão definidos abaixo com base em initialTripData
         tags: [],
         travelerTypes: [],
         itinerary: [],
@@ -135,11 +139,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           allowLapChild: false,
           childPriceMultiplier: 0.7
         },
-        ...initialTripData,
-        // Ensure categories array exists, fallback to category if needed
-        categories: initialTripData.categories || (initialTripData.category ? [initialTripData.category] : ['PRAIA']),
-        // Ensure category exists for backward compatibility
-        category: initialTripData.category || (initialTripData.categories && initialTripData.categories[0]) || 'PRAIA'
+        ...initialWithDefaults
       };
     }
     

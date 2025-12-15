@@ -310,7 +310,7 @@ export const TripList: React.FC = () => {
 
   if (isResolvingAgency || loading && !initialTrips.length) {
       return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">
               {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
           </div>
       );
@@ -640,7 +640,7 @@ export const TripList: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 animate-[fadeInUp_0.5s]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 animate-[fadeInUp_0.5s] items-stretch">
                   {filteredTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
                 </div>
               )}

@@ -345,7 +345,7 @@ const Home: React.FC = () => {
         {/* Featured Dock - Bottom Overlap - FIX: Lower z-index than search bar */}
         <div className="relative z-[20] w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
           {dockLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-stretch">
               {[1, 2, 3, 4].map((n) => (
                 <div key={n} className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl animate-pulse">
                   <div className="w-full h-24 bg-gray-200 rounded-xl mb-3"></div>
@@ -355,7 +355,7 @@ const Home: React.FC = () => {
               ))}
             </div>
           ) : featuredDockTrips.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-stretch">
               {featuredDockTrips.map((trip) => {
                 // Find agency and WhatsApp link
                 const tripAgency = agencies.find(a => a.agencyId === trip.agencyId);
@@ -373,14 +373,14 @@ const Home: React.FC = () => {
                 return (
                 <div
                   key={trip.id}
-                  className="group/dock relative"
+                  className="group/dock relative h-full"
                   style={{ overflow: 'visible' }}
                 >
                 <Link
                   to={`/viagem/${trip.slug || trip.id}`}
-                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible"
+                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible h-full min-h-[320px]"
                 >
-                  <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3">
+                  <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3 flex-shrink-0">
                     {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
                       <img
                         key={`dock-img-${trip.id}`}
@@ -414,13 +414,16 @@ const Home: React.FC = () => {
                     )}
                   </div>
                   
-                  <div className="flex-1 flex flex-col">
-                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 mb-2 group-hover/dock:text-primary-600 transition-colors">
-                      {trip.title}
-                    </h3>
+                  <div className="flex-1 flex flex-col min-h-0">
+                    {/* Title with fixed height to ensure consistency */}
+                    <div className="h-10 mb-2 flex flex-col justify-center">
+                      <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 group-hover/dock:text-primary-600 transition-colors">
+                        {trip.title}
+                      </h3>
+                    </div>
                     
                     {/* Destination & Duration */}
-                    <div className="flex flex-col gap-1.5 mb-3">
+                    <div className="flex flex-col gap-1.5 mb-3 flex-shrink-0">
                       {trip.destination && (
                         <div className="flex items-center gap-1.5 text-xs text-gray-600">
                           <MapPin size={12} className="text-primary-600 flex-shrink-0" />
@@ -435,8 +438,8 @@ const Home: React.FC = () => {
                       )}
                     </div>
                     
-                    {/* Price */}
-                    <div className="mt-auto pt-2 border-t border-gray-100">
+                    {/* Price - Always at bottom */}
+                    <div className="mt-auto pt-2 border-t border-gray-100 flex-shrink-0">
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="flex flex-col">
                           <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">A partir de</span>
@@ -522,9 +525,9 @@ const Home: React.FC = () => {
             </div>
             
             {gridLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
             ) : gridTrips.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s]">{gridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s] items-stretch">{gridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}</div>
             ) : (
                 <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
                   <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Search className="text-gray-300" size={32} /></div>

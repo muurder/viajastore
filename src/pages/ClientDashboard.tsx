@@ -1885,7 +1885,7 @@ const ClientDashboard: React.FC = () => {
            {activeTab === 'FAVORITES' && (
              <div className="animate-[fadeIn_0.3s]">
                <h2 className="text-2xl font-bold text-gray-900 mb-6">Meus Favoritos ({favoriteTrips.length})</h2>
-               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( 
+               {favoriteTrips.length > 0 ? ( <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {favoriteTrips.map((trip: any) => (trip && <TripCard key={trip.id} trip={trip} />))} </div> ) : ( 
                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200"> 
                     <Heart size={32} className="text-gray-300 mx-auto mb-4" /> 
                     <h3 className="text-lg font-bold text-gray-900">Lista vazia</h3> 

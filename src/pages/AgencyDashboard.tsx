@@ -3371,7 +3371,9 @@ interface OperationsModuleProps {
     onSaveTripData: (tripId: string, data: OperationalData) => void;
     currentAgency: Agency;
 }
-const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency }) => {
+const OperationsModule: React.FC<OperationsModuleProps & { isGuide?: boolean }> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency, isGuide = false }) => {
+    const tripLabel = isGuide ? 'Experiência' : 'Pacote';
+    const tripLabelLower = isGuide ? 'experiência' : 'pacote';
     const selectedTrip = myTrips.find(t => t.id === selectedTripId);
     const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
@@ -3397,14 +3399,14 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
         try {
             await deleteTrip(tripToDelete);
             setTripToDelete(null);
-            showToast('Pacote excluído com sucesso.', 'success');
+            showToast(`${tripLabel} excluído com sucesso.`, 'success');
             // If the deleted trip was selected, clear the selection
             if (selectedTripId === tripToDelete) {
                 onSelectTrip(null);
             }
         } catch (error: any) {
             logger.error('Error deleting trip:', error);
-            showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
+            showToast(`Erro ao excluir ${tripLabelLower}: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             setIsDeletingTripInOps(false);
         }
@@ -4219,9 +4221,13 @@ const OperationsModule: React.FC<OperationsModuleProps> = ({ myTrips, myBookings
 // Define TopTripsCard component
 interface TopTripsCardProps {
   trips: Trip[];
+  isGuide?: boolean;
 }
 
-const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
+const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips, isGuide = false }) => {
+  const tripLabelPlural = isGuide ? 'Experiências' : 'Pacotes';
+  const tripLabelPluralLower = isGuide ? 'experiências' : 'pacotes';
+  
   const topTrips = useMemo(() => {
     // Sort by sales descending
     return [...trips].sort((a, b) => ((b.sales || 0) - (a.sales || 0))).slice(0, 5);
@@ -4230,7 +4236,7 @@ const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-        <Plane size={20} className="mr-2 text-primary-600"/> Top Pacotes
+        <Plane size={20} className="mr-2 text-primary-600"/> Top {tripLabelPlural}
       </h3>
       {topTrips.length > 0 && topTrips[0].sales && topTrips[0].sales > 0 ? (
         <div className="space-y-4">
@@ -4259,7 +4265,7 @@ const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips }) => {
       ) : (
         <div className="text-center py-12 text-gray-400 text-sm">
           <Plane size={32} className="mx-auto mb-3 opacity-50" />
-          <p>Seus pacotes mais vendidos aparecerão aqui.</p>
+          <p>Suas {tripLabelPluralLower} mais vendidas aparecerão aqui.</p>
         </div>
       )}
     </div>
@@ -4275,8 +4281,25 @@ const AgencyDashboard: React.FC = () => {
   const { setAgencyTheme: setGlobalAgencyTheme } = useTheme();
   const planPermissions = usePlanPermissions();
 
-  const currentAgency = agencies.find(a => a.id === user?.id);
+  // Safe access to currentAgency with proper checks
+  const currentAgency = useMemo(() => {
+    if (!user || !agencies || agencies.length === 0) return undefined;
+    return agencies.find(a => a.id === user.id);
+  }, [user, agencies]);
+  
+  const isGuide = currentAgency?.isGuide === true;
   const navigate = useNavigate();
+  
+  // Terminology helpers - adapt text based on whether user is a guide or agency
+  // Only define if currentAgency exists to prevent errors
+  const entityName = currentAgency ? (isGuide ? 'Guia de Turismo' : 'Agência') : 'Agência';
+  const entityNameLower = currentAgency ? (isGuide ? 'guia de turismo' : 'agência') : 'agência';
+  const entityNamePlural = currentAgency ? (isGuide ? 'Guias de Turismo' : 'Agências') : 'Agências';
+  const tripsLabel = currentAgency ? (isGuide ? 'Minhas Experiências' : 'Meus Pacotes') : 'Meus Pacotes';
+  const tripLabel = currentAgency ? (isGuide ? 'Experiência' : 'Pacote') : 'Pacote';
+  const tripLabelLower = currentAgency ? (isGuide ? 'experiência' : 'pacote') : 'pacote';
+  const createTripLabel = currentAgency ? (isGuide ? 'Nova Experiência' : 'Novo Pacote') : 'Novo Pacote';
+  const profileLabel = currentAgency ? (isGuide ? 'Meu Perfil de Guia' : 'Gerenciar Perfil') : 'Gerenciar Perfil';
   
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editingTripId, setEditingTripId] = useState<string | null>(null);
@@ -4334,17 +4357,28 @@ const AgencyDashboard: React.FC = () => {
       loadStats();
   }, [currentAgency?.agencyId, getAgencyStats]); // Depend on agencyId
 
-  const rawTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
-  const myBookings = bookings.filter(b => b._trip?.agencyId === currentAgency?.agencyId);
+  // Safe filtering - only if currentAgency exists
+  const rawTrips = useMemo(() => {
+    if (!currentAgency?.agencyId || !allTrips) return [];
+    return allTrips.filter(t => t.agencyId === currentAgency.agencyId);
+  }, [allTrips, currentAgency?.agencyId]);
+  
+  const myBookings = useMemo(() => {
+    if (!currentAgency?.agencyId || !bookings) return [];
+    return bookings.filter(b => b._trip?.agencyId === currentAgency.agencyId);
+  }, [bookings, currentAgency?.agencyId]);
 
-  // Apply filters to trips
-  const myTrips = rawTrips.filter(trip => {
-      const matchesSearch = trip.title.toLowerCase().includes(tripSearch.toLowerCase()) || 
-                            trip.destination.toLowerCase().includes(tripSearch.toLowerCase());
+  // Apply filters to trips - safe with empty array fallback
+  const myTrips = useMemo(() => {
+    if (!rawTrips || rawTrips.length === 0) return [];
+    return rawTrips.filter(trip => {
+      const matchesSearch = trip.title?.toLowerCase().includes(tripSearch.toLowerCase()) || 
+                            trip.destination?.toLowerCase().includes(tripSearch.toLowerCase());
       const matchesStatus = tripStatusFilter === 'ALL' ? true : 
                             tripStatusFilter === 'ACTIVE' ? trip.is_active : !trip.is_active;
       return matchesSearch && matchesStatus;
-  });
+    });
+  }, [rawTrips, tripSearch, tripStatusFilter]);
   
   // Track trip IDs to detect changes
   const tripIdsString = useMemo(() => myTrips.map(t => t.id).sort().join(','), [myTrips]);
@@ -4434,6 +4468,7 @@ const AgencyDashboard: React.FC = () => {
   const [tripToDelete, setTripToDelete] = useState<string | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isDeletingTrip, setIsDeletingTrip] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   
   const handleDeleteTrip = async (id: string) => { 
     setTripToDelete(id);
@@ -4444,6 +4479,8 @@ const AgencyDashboard: React.FC = () => {
     setIsDeletingTrip(true);
     try {
       await deleteTrip(tripToDelete);
+      // Refresh data to update the trips list
+      await refreshData();
       showToast('Pacote excluído com sucesso.', 'success');
       setTripToDelete(null);
       // If the deleted trip was selected, clear the selection
@@ -4476,10 +4513,10 @@ const AgencyDashboard: React.FC = () => {
         is_active: false 
       };
       await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
-      showToast('Pacote duplicado com sucesso!', 'success');
+      showToast(`${tripLabel} duplicado com sucesso!`, 'success');
     } catch (error: any) {
       logger.error('Error duplicating trip:', error);
-      showToast(`Erro ao duplicar pacote: ${error.message || 'Erro desconhecido'}`, 'error');
+      showToast(`Erro ao duplicar ${tripLabelLower}: ${error.message || 'Erro desconhecido'}`, 'error');
     } finally {
       setIsDuplicatingTrip(null);
     }
@@ -4557,11 +4594,43 @@ const AgencyDashboard: React.FC = () => {
       }
   };
 
+  // Avatar upload handler - for header avatar
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!e.target.files?.[0] || !currentAgency) return;
+      
+      const file = e.target.files[0];
+      setIsUploadingAvatar(true);
+      
+      try {
+          // Upload image immediately
+          const url = await uploadImage(file, 'agency-logos');
+          
+          if (url) {
+              // Update in AuthContext and database immediately
+              const result = await updateUser({ logo: url });
+              
+              if (result.success) {
+                  // Refresh data to update currentAgency with new logo
+                  await refreshData();
+                  showToast('Foto atualizada com sucesso!', 'success');
+              } else {
+                  throw new Error(result.error || 'Erro ao atualizar foto');
+              }
+          }
+      } catch (error: any) {
+          showToast('Erro ao fazer upload da foto: ' + (error.message || 'Erro desconhecido'), 'error');
+      } finally {
+          setIsUploadingAvatar(false);
+          // Reset input to allow selecting the same file again
+          e.target.value = '';
+      }
+  };
+
   // Legacy function for AgencyThemeManager (also uses instant update)
   const handleLogoUpload = async (file: File): Promise<string> => {
       try {
           if (!currentAgency) {
-              throw new Error('Agência não encontrada');
+              throw new Error(`${entityName} não encontrada`);
           }
           const url = await uploadImage(file, 'agency-logos');
           
@@ -4926,16 +4995,74 @@ const AgencyDashboard: React.FC = () => {
       return [...myBookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [myBookings]);
 
-  if (authLoading || !currentAgency) return <div className="min-h-[60vh] flex items-center justify-center"><Loader className="animate-spin text-primary-600" size={32} /></div>;
+  // Enhanced loading and error handling
+  if (authLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-primary-600 mx-auto mb-4" size={32} />
+          <p className="text-gray-500">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="text-red-500 mx-auto mb-4" size={32} />
+          <p className="text-gray-700 font-medium mb-2">Usuário não autenticado</p>
+          <p className="text-gray-500 text-sm">Por favor, faça login para acessar o dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentAgency) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-primary-600 mx-auto mb-4" size={32} />
+          <p className="text-gray-500">Carregando dados da {entityNameLower}...</p>
+          <p className="text-gray-400 text-sm mt-2">Se o problema persistir, tente recarregar a página.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto pb-12 min-h-screen flex flex-col px-4 md:px-6">
       {/* Mobile Header with Hamburger */}
       <div className="md:hidden flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" />
-            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+          <div className="relative group">
+            <label className="cursor-pointer block">
+              <div className="relative">
+                <img 
+                  src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
+                  alt={currentAgency?.name} 
+                  className={`w-10 h-10 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
+                />
+                {isUploadingAvatar ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
+                    <Loader size={16} className="text-white animate-spin" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Camera size={14} className="text-white" />
+                  </div>
+                )}
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full z-10"></span>
+              </div>
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleAvatarUpload}
+                disabled={isUploadingAvatar}
+              />
+            </label>
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 truncate max-w-[180px]">{currentAgency?.name}</h1>
@@ -4953,12 +5080,39 @@ const AgencyDashboard: React.FC = () => {
       {/* Desktop Header */}
       <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
          <div className="flex items-center gap-4">
-            <div className="relative"><img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" /><span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span></div>
+            <div className="relative group">
+              <label className="cursor-pointer block">
+                <div className="relative">
+                  <img 
+                    src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
+                    alt={currentAgency?.name} 
+                    className={`w-16 h-16 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
+                  />
+                  {isUploadingAvatar ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
+                      <Loader size={20} className="text-white animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera size={20} className="text-white" />
+                    </div>
+                  )}
+                  <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-10"></span>
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarUpload}
+                  disabled={isUploadingAvatar}
+                />
+              </label>
+            </div>
             <div><h1 className="text-2xl font-bold text-gray-900">{currentAgency?.name}</h1><div className="flex items-center gap-3 text-sm text-gray-500"><span className="flex items-center"><Globe size={14} className="mr-1"/> {currentAgency?.slug}.viajastore.com</span><a href={`/#/${currentAgency?.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center">Ver site <ExternalLink size={10} className="ml-1"/></a></div></div>
          </div>
          <div className="flex flex-wrap gap-3">
             <button onClick={() => handleTabChange('PROFILE')} className="bg-white text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100 transition-colors shadow-sm border border-gray-200">
-                <Settings size={18} className="mr-2"/> Gerenciar Perfil
+                <Settings size={18} className="mr-2"/> {profileLabel}
             </button>
             <button onClick={handleLogout} className="bg-red-50 text-red-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-red-100 transition-colors shadow-sm border border-red-100">
                 <LogOut size={18} className="mr-2"/> Sair
@@ -4980,7 +5134,33 @@ const AgencyDashboard: React.FC = () => {
               {/* Header */}
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
                 <div className="flex items-center gap-3">
-                  <img src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} alt={currentAgency?.name} className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" />
+                  <div className="relative group">
+                    <label className="cursor-pointer block">
+                      <div className="relative">
+                        <img 
+                          src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
+                          alt={currentAgency?.name} 
+                          className={`w-10 h-10 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
+                        />
+                        {isUploadingAvatar ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
+                            <Loader size={16} className="text-white animate-spin" />
+                          </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera size={14} className="text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleAvatarUpload}
+                        disabled={isUploadingAvatar}
+                      />
+                    </label>
+                  </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">{currentAgency?.name}</h2>
                     <p className="text-xs text-gray-500">{currentAgency?.slug}.viajastore.com</p>
@@ -4998,7 +5178,7 @@ const AgencyDashboard: React.FC = () => {
               {/* Navigation Menu */}
               <nav className="space-y-2 mb-6">
                 <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
+                <NavButton tabId="TRIPS" label={tripsLabel} icon={Plane} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
                 <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
                 {planPermissions.canAccessOperational && (
                   <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
@@ -5087,7 +5267,7 @@ const AgencyDashboard: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
         <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="TRIPS" label="Meus Pacotes" icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
+        <NavButton tabId="TRIPS" label={tripsLabel} icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={handleTabChange} />
         <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
@@ -5108,8 +5288,8 @@ const AgencyDashboard: React.FC = () => {
                     color="green"
                     onClick={() => handleTabChange('BOOKINGS')}
                 />
-                <StatCard 
-                    title="Pacotes Ativos" 
+                <StatCard
+                    title={isGuide ? "Experiências Ativas" : "Pacotes Ativos"}
                     value={myTrips.filter(t => t.is_active).length} 
                     subtitle={`${myTrips.filter(t => !t.is_active).length} rascunhos`} 
                     icon={Plane} 
@@ -5139,12 +5319,22 @@ const AgencyDashboard: React.FC = () => {
                 <RecentBookingsTable bookings={myBookings} clients={clients} />
 
                 {/* Top Pacotes */}
-                <TopTripsCard trips={myTrips} />
+                <TopTripsCard trips={myTrips} isGuide={isGuide} />
             </div>
         </div>
       )}
       {activeTab === 'TRIPS' && (
         <div className="space-y-6 animate-[fadeIn_0.3s]">
+            <ConfirmDialog 
+                isOpen={!!tripToDelete} 
+                onClose={() => setTripToDelete(null)} 
+                onConfirm={confirmDeleteTrip} 
+                title={`Excluir ${tripLabel}`} 
+                message={`Tem certeza que deseja excluir esta ${tripLabelLower}? Esta ação não pode ser desfeita.`} 
+                variant="danger" 
+                confirmText={isDeletingTrip ? "Excluindo..." : "Excluir"}
+                isConfirming={isDeletingTrip}
+            />
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <h2 className="text-2xl font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2>
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -5206,14 +5396,14 @@ const AgencyDashboard: React.FC = () => {
             {myTrips.length === 0 ? (
                 <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
                     <Plane size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum pacote criado ainda</h3>
-                    <p className="text-gray-500 mt-1 mb-6">Crie seu primeiro pacote de viagem para começar a vender na ViajaStore!</p>
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum {tripLabelLower} criado ainda</h3>
+                    <p className="text-gray-500 mt-1 mb-6">Crie sua primeira {tripLabelLower} de viagem para começar a vender na ViajaStore!</p>
                     <button onClick={handleCreateTrip} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
-                        <Plus size={16}/> Criar Pacote
+                        <Plus size={16}/> Criar {tripLabel}
                     </button>
                 </div>
             ) : tripViewMode === 'GRID' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">
                     {myTrips.map(trip => {
                         // Helper to format categories
                         const displayCategories = trip.categories && trip.categories.length > 0 
@@ -5301,12 +5491,14 @@ const AgencyDashboard: React.FC = () => {
                                 <div className="p-5 flex-1 flex flex-col">
                                     {/* Title & Destination */}
                                     <div className="mb-3">
-                                        <h3 
-                                            onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
-                                            className="font-bold text-xl text-gray-900 mb-1.5 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors group/title"
-                                        >
-                                            {trip.title}
-                                        </h3>
+                                        <div className="min-h-[3.5rem] flex flex-col justify-center mb-1.5">
+                                            <h3 
+                                                onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
+                                                className="font-bold text-xl text-gray-900 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors group/title"
+                                            >
+                                                {trip.title}
+                                            </h3>
+                                        </div>
                                         <div className="flex items-center text-sm text-gray-600 mb-2">
                                             <MapPin size={14} className="mr-1.5 text-primary-500 flex-shrink-0"/>
                                             <span className="truncate">{trip.destination}</span>
@@ -5709,9 +5901,10 @@ const AgencyDashboard: React.FC = () => {
                       onSelectTrip={setSelectedOperationalTripId}
                       onSaveTripData={updateTripOperationalData}
                       currentAgency={currentAgency}
+                      isGuide={isGuide}
                   />
               ) : (
-                  <div className="p-8 text-center text-gray-500">Carregando dados da agência...</div>
+                  <div className="p-8 text-center text-gray-500">Carregando dados do {entityNameLower}...</div>
               )}
           </div>
       )}

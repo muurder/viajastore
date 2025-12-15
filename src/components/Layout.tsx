@@ -1,12 +1,12 @@
 
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building, Shield, Briefcase } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
@@ -78,6 +78,10 @@ const Layout: React.FC = () => {
   const isAgencyUser = user?.role === 'AGENCY';
   const isAgencyDashboardRoute = location.pathname.includes('/agency/dashboard');
   const isAgencyDashboard = isAgencyDashboardRoute && isAgencyUser;
+  const isGuide = (user as Agency)?.isGuide === true;
+  
+  // Check if currently in any dashboard
+  const isInDashboard = location.pathname.includes('/dashboard');
 
   if (isMicrositeClientArea) {
       isAgencyMode = true; // Force agency mode for client dashboard context
@@ -256,31 +260,36 @@ const Layout: React.FC = () => {
     }
   };
 
-  // Centralized Dashboard Route Logic
-  const getDashboardRoute = () => {
-    if (!user) return '/#login';
-    
-    // Check if user is a test admin account (for quick switching)
-    const isTestAdmin = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN');
-    const isTestAgency = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'AGENCY');
-    
-    switch (user.role) {
-      case 'AGENCY':
-        return '/agency/dashboard';
-      case 'ADMIN':
-        return '/admin/dashboard';
-      case 'CLIENT':
-        // If it's a test admin/agency account logged as client, allow access to their dashboard
-        if (isTestAdmin) return '/admin/dashboard';
-        if (isTestAgency) return '/agency/dashboard';
-        if (isAgencyMode && activeSlug) {
-            return `/${activeSlug}/client/BOOKINGS`;
-        }
-        return '/client/dashboard/BOOKINGS';
-      default:
-        return '/';
+  // Centralized Dashboard Route Logic - Memoized to prevent unnecessary recalculations
+  const dashboardRoute = useMemo(() => {
+    try {
+      if (!user) return '/#login';
+      
+      // Check if user is a test admin account (for quick switching)
+      const isTestAdmin = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN');
+      const isTestAgency = TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'AGENCY');
+      
+      switch (user.role) {
+        case 'AGENCY':
+          return '/agency/dashboard';
+        case 'ADMIN':
+          return '/admin/dashboard';
+        case 'CLIENT':
+          // If it's a test admin/agency account logged as client, allow access to their dashboard
+          if (isTestAdmin) return '/admin/dashboard';
+          if (isTestAgency) return '/agency/dashboard';
+          if (isAgencyMode && activeSlug) {
+              return `/${activeSlug}/client/BOOKINGS`;
+          }
+          return '/client/dashboard/BOOKINGS';
+        default:
+          return '/';
+      }
+    } catch (error) {
+      console.error('Error calculating dashboard route:', error);
+      return '/';
     }
-  };
+  }, [user, isAgencyMode, activeSlug]);
 
 
   return (
@@ -426,13 +435,13 @@ const Layout: React.FC = () => {
               <div className="hidden md:flex items-center">
                 {user ? (
                   <div className="ml-4 flex items-center md:ml-6 gap-3">
-                    {/* Only show direct Dashboard link if user is Admin or Agency */}
-                    {(user.role === 'AGENCY' || user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && (acc.role === 'ADMIN' || acc.role === 'AGENCY'))) && (
+                    {/* Only show direct Dashboard link if NOT already in dashboard (to avoid redundancy) */}
+                    {!isInDashboard && (user.role === 'AGENCY' || user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && (acc.role === 'ADMIN' || acc.role === 'AGENCY'))) && (
                         <Link 
-                            to={getDashboardRoute()}
-                            className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${location.pathname.includes('/dashboard') ? 'text-primary-600 bg-primary-50' : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'}`}
+                            to={dashboardRoute}
+                            className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors text-gray-600 hover:text-primary-600 hover:bg-gray-50"
                         >
-                            <LayoutDashboard size={16}/> {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')) ? 'Painel Master' : 'Meu Painel'}
+                            <LayoutDashboard size={16}/> {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')) ? 'Painel Master' : (isGuide ? 'Meu Painel de Guia' : 'Meu Painel')}
                         </Link>
                     )}
                     
@@ -477,14 +486,46 @@ const Layout: React.FC = () => {
                             
                             {user.role === 'AGENCY' && (
                               <>
-                                <Link
-                                  to="/agency/dashboard"
-                                  onClick={() => setIsUserDropdownOpen(false)}
-                                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                >
-                                  <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
-                                  <span className="font-medium">Acessar Painel da Agência</span>
-                                </Link>
+                                {/* Dashboard link - only show if not already in dashboard */}
+                                {!isInDashboard && (
+                                  <Link
+                                    to="/agency/dashboard"
+                                    onClick={() => setIsUserDropdownOpen(false)}
+                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                  >
+                                    <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                    <span className="font-medium">{isGuide ? 'Acessar Painel de Guia' : 'Acessar Painel da Agência'}</span>
+                                  </Link>
+                                )}
+                                {/* If in dashboard, show quick links to different tabs */}
+                                {isInDashboard && (
+                                  <>
+                                    <Link
+                                      to="/agency/dashboard?tab=OVERVIEW"
+                                      onClick={() => setIsUserDropdownOpen(false)}
+                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                    >
+                                      <BarChart2 size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                      <span className="font-medium">Visão Geral</span>
+                                    </Link>
+                                    <Link
+                                      to="/agency/dashboard?tab=TRIPS"
+                                      onClick={() => setIsUserDropdownOpen(false)}
+                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                    >
+                                      <Plane size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                      <span className="font-medium">{isGuide ? 'Minhas Experiências' : 'Meus Pacotes'}</span>
+                                    </Link>
+                                    <Link
+                                      to="/agency/dashboard?tab=BOOKINGS"
+                                      onClick={() => setIsUserDropdownOpen(false)}
+                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                    >
+                                      <ShoppingBag size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                      <span className="font-medium">Reservas</span>
+                                    </Link>
+                                  </>
+                                )}
                                 <Link
                                   to={themeLink}
                                   onClick={() => setIsUserDropdownOpen(false)}
@@ -493,6 +534,42 @@ const Layout: React.FC = () => {
                                   <Palette size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
                                   <span className="font-medium">Aparência</span>
                                 </Link>
+                              </>
+                            )}
+                            
+                            {/* Client Dashboard Links */}
+                            {user.role === 'CLIENT' && (
+                              <>
+                                {!isInDashboard && (
+                                  <Link
+                                    to={dashboardRoute}
+                                    onClick={() => setIsUserDropdownOpen(false)}
+                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                  >
+                                    <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                    <span className="font-medium">Meu Painel</span>
+                                  </Link>
+                                )}
+                                {isInDashboard && (
+                                  <>
+                                    <Link
+                                      to="/client/dashboard/BOOKINGS"
+                                      onClick={() => setIsUserDropdownOpen(false)}
+                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                    >
+                                      <ShoppingBag size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                      <span className="font-medium">Minhas Viagens</span>
+                                    </Link>
+                                    <Link
+                                      to="/client/dashboard/FAVORITES"
+                                      onClick={() => setIsUserDropdownOpen(false)}
+                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
+                                    >
+                                      <Heart size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors"/>
+                                      <span className="font-medium">Favoritos</span>
+                                    </Link>
+                                  </>
+                                )}
                               </>
                             )}
 

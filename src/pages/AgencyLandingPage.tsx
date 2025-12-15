@@ -667,7 +667,7 @@ const AgencyLandingPage: React.FC = () => {
                 </div>
 
                 {filteredTrips.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8 items-stretch">
                     {filteredTrips.map(trip => (
                     <TripCard key={trip.id} trip={trip} />
                     ))}
