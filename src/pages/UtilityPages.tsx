@@ -108,10 +108,10 @@ export const CheckoutSuccess: React.FC = () => {
         voucherCode
       });
     } catch (error: any) {
-      logger.error("PDF Generation Error:", error);
-      alert(`Erro ao gerar PDF: ${error?.message || 'Erro desconhecido'}. Tente novamente.`);
+        logger.error("PDF Generation Error:", error);
+        alert(`Erro ao gerar PDF: ${error?.message || 'Erro desconhecido'}. Tente novamente.`);
     } finally {
-      setIsGeneratingPdf(false);
+        setIsGeneratingPdf(false);
     }
   };
 

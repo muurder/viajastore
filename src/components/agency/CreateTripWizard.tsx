@@ -15,7 +15,6 @@ import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slu
 import ConfirmDialog from '../ui/ConfirmDialog';
 import imageCompression from 'browser-image-compression';
 import { logger } from '../../utils/logger';
-import GoogleLocationPicker from './GoogleLocationPicker';
 
 // Minimal defaults to satisfy DB constraints without wizard steps
 const DEFAULT_OPERATIONAL_DATA: OperationalData = {
@@ -95,9 +94,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
   
-  // Geolocation state
-  const [locationQuery, setLocationQuery] = useState('');
-  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   
   // Initialize tripData with draft restoration
   const [tripData, setTripData] = useState<Partial<Trip>>(() => {
@@ -238,40 +234,6 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       }
     }
   }, [tripData.startDate, tripData.endDate]);
-
-  // Initialize location query from destination or initial data
-  useEffect(() => {
-    if (initialTripData?.destination) {
-      setLocationQuery(initialTripData.destination);
-    } else if (tripData.destination) {
-      setLocationQuery(tripData.destination);
-    }
-    if (initialTripData?.latitude && initialTripData?.longitude) {
-      const coords = { lat: initialTripData.latitude, lng: initialTripData.longitude };
-      setLocationCoords(coords);
-    }
-  }, []);
-
-  // Handle location change from GoogleLocationPicker
-  const handleLocationChange = useCallback((location: string, coords: { lat: number; lng: number }) => {
-    setLocationQuery(location);
-    setLocationCoords(coords);
-    setTripData(prev => ({ 
-      ...prev, 
-      latitude: coords.lat, 
-      longitude: coords.lng 
-    }));
-  }, []);
-
-  // Handle coordinates change (when marker is dragged)
-  const handleCoordinatesChange = useCallback((coords: { lat: number; lng: number }) => {
-    setLocationCoords(coords);
-    setTripData(prev => ({ 
-      ...prev, 
-      latitude: coords.lat, 
-      longitude: coords.lng 
-    }));
-  }, []);
 
   // Fetch frequently used boarding points from agency's recent trips
   useEffect(() => {
@@ -854,7 +816,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   // --- UI RENDERERS ---
 
-  const renderStep1 = () => (
+  const renderStep1 = () => {
+    return (
     <div className="space-y-6 animate-[fadeIn_0.3s]">
       {/* Main Info Section */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
@@ -871,7 +834,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               type="text"
               value={tripData.title}
               onChange={e => setTripData({ ...tripData, title: e.target.value, slug: slugify(e.target.value) })}
-              className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none`}
+              className={`w-full border ${errors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 text-base bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none`}
               placeholder="Ex: Fim de Semana em Capitólio"
               autoFocus
             />
@@ -886,48 +849,11 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 type="text"
                 value={tripData.destination}
                 onChange={e => setTripData({ ...tripData, destination: e.target.value })}
-                className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
+                className={`w-full border ${errors.destination ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
                 placeholder="Cidade, UF"
               />
             </div>
             {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
-          </div>
-
-          {/* Location Search with Google Maps - Fallback to Simple Input */}
-          <div className="md:col-span-2">
-            {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
-              <GoogleLocationPicker
-                value={locationQuery || tripData.destination || ''}
-                coordinates={locationCoords || (tripData.latitude && tripData.longitude ? { lat: tripData.latitude, lng: tripData.longitude } : null)}
-                onChange={handleLocationChange}
-                onCoordinatesChange={handleCoordinatesChange}
-                placeholder={tripData.destination || "Ex: Serrinha do Alambari, Resende"}
-              />
-            ) : (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  Localização <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    value={tripData.destination || ''}
-                    onChange={(e) => {
-                      setTripData({ ...tripData, destination: e.target.value });
-                      setLocationQuery(e.target.value);
-                    }}
-                    placeholder="Ex: Serrinha do Alambari, Resende"
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                    required
-                  />
-                </div>
-                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  <AlertTriangle size={12} />
-                  Google Maps não configurado. Digite o destino manualmente.
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -950,7 +876,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 type="number"
                 value={tripData.price || ''}
                 onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
-                className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
+                className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
                 placeholder="0.00"
                 min="0"
               />
@@ -967,7 +893,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 value={tripData.startDate}
                 onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
                 min={new Date().toISOString().split('T')[0]}
-                className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
+                className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
               />
             </div>
             {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate}</p>}
@@ -982,7 +908,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 value={tripData.endDate}
                 onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
                 min={tripData.startDate || new Date().toISOString().split('T')[0]}
-                className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
+                className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
               />
             </div>
             {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate}</p>}
@@ -1013,7 +939,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           Categoria e Classificação
         </h3>
         
-        <div>
+          <div>
           <label className="block text-sm font-bold text-gray-700 mb-3">
             Categorias <span className="text-xs font-normal text-gray-500">(Selecione uma ou mais)</span>
           </label>
@@ -1173,7 +1099,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderStep2 = () => {
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1309,7 +1236,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             <textarea
                 value={tripData.description}
                 onChange={e => setTripData({ ...tripData, description: e.target.value })}
-                className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none h-32`}
+                className={`w-full border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 text-base bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 outline-none h-32`}
                 placeholder="Descreva o roteiro, o que está incluso e os diferenciais..."
             />
             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
@@ -1487,7 +1414,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
     );
   };
 
-  const renderStep3 = () => (
+  const renderStep3 = () => {
+    return (
     <div className="space-y-8 animate-[fadeIn_0.3s]">
       {/* Main Configuration Section - Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1703,7 +1631,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                   )}
 
                   {/* Child Price Preview */}
-                  {tripData.passengerConfig?.allowChildren !== false && (
+              {tripData.passengerConfig?.allowChildren !== false && (
                     <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
                       <DollarSign className="text-purple-600" size={14} />
                       <span className="font-medium">
@@ -1726,202 +1654,199 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           <div className="flex items-start gap-4 mb-6">
             <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
               <DollarSign className="text-blue-600" size={24} />
-            </div>
-            <div className="flex-1">
+                    </div>
+                    <div className="flex-1">
               <label className="block text-lg font-bold text-gray-900 mb-1.5">
-                Preço para Crianças
-              </label>
+                        Preço para Crianças
+                      </label>
               <p className="text-sm text-gray-600">
-                Escolha entre porcentagem do preço adulto ou valor fixo
-              </p>
-            </div>
-          </div>
-          
+                        Escolha entre porcentagem do preço adulto ou valor fixo
+                      </p>
+                    </div>
+                  </div>
+                  
           <div className="bg-white rounded-lg p-6 lg:p-8 border border-blue-100">
-              {/* Toggle between Percentage and Fixed */}
+                    {/* Toggle between Percentage and Fixed */}
               <div className="flex items-center gap-3 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setTripData({
-                    ...tripData,
-                    passengerConfig: {
-                      allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                      allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                      childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                      allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                      childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                      childPriceType: 'percentage',
-                      childPriceFixed: tripData.passengerConfig?.childPriceFixed
-                    }
-                  })}
+                      <button
+                        type="button"
+                        onClick={() => setTripData({
+                          ...tripData,
+                          passengerConfig: {
+                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                            childPriceType: 'percentage',
+                            childPriceFixed: tripData.passengerConfig?.childPriceFixed
+                          }
+                        })}
                   className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
-                    (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
-                      ? 'bg-primary-600 text-white shadow-md'
+                          (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
+                            ? 'bg-primary-600 text-white shadow-md'
                       : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  Porcentagem
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTripData({
-                    ...tripData,
-                    passengerConfig: {
-                      allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                      allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                      childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                      allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                      childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                      childPriceType: 'fixed',
-                      childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
-                    }
-                  })}
+                        }`}
+                      >
+                        Porcentagem
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTripData({
+                          ...tripData,
+                          passengerConfig: {
+                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                            childPriceType: 'fixed',
+                            childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
+                          }
+                        })}
                   className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
-                    tripData.passengerConfig?.childPriceType === 'fixed'
-                      ? 'bg-primary-600 text-white shadow-md'
+                          tripData.passengerConfig?.childPriceType === 'fixed'
+                            ? 'bg-primary-600 text-white shadow-md'
                       : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  Valor Fixo
-                </button>
-              </div>
+                        }`}
+                      >
+                        Valor Fixo
+                      </button>
+                    </div>
 
-              {/* Input Section */}
-              {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
+                    {/* Input Section */}
+                    {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <label className="block text-sm font-semibold text-gray-700">Porcentagem</label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="5"
-                        value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
-                        onChange={e => {
-                          const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
-                          setTripData({ 
-                            ...tripData, 
-                            passengerConfig: {
-                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                              allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                              childPriceMultiplier: percentage / 100,
-                              childPriceType: 'percentage',
-                              childPriceFixed: tripData.passengerConfig?.childPriceFixed
-                            }
-                          });
-                        }}
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="5"
+                              value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
+                              onChange={e => {
+                                const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
+                                setTripData({ 
+                                  ...tripData, 
+                                  passengerConfig: {
+                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                                    childPriceMultiplier: percentage / 100,
+                                    childPriceType: 'percentage',
+                                    childPriceFixed: tripData.passengerConfig?.childPriceFixed
+                                  }
+                                });
+                              }}
                         className="w-full border-2 border-gray-300 rounded-lg px-8 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                      />
+                            />
                       <div className="absolute right-8 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-500 pointer-events-none">
-                        %
-                      </div>
-                    </div>
+                              %
+                            </div>
+                          </div>
                     <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
                       <Info size={14} className="mt-0.5 flex-shrink-0" />
                       <span>
                         {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% significa que crianças pagam {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% do preço do adulto
                       </span>
-                    </div>
+                              </div>
                   </div>
                   
                   <div className="space-y-4">
                     <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
                       <div className="text-base text-gray-700 space-y-3">
-                        {(() => {
-                          const multiplier = tripData.passengerConfig?.childPriceMultiplier ?? 0.7;
-                          const percentage = Math.round(multiplier * 100);
-                          const examplePrice = tripData.price || 500;
-                          const childPrice = Math.round(examplePrice * multiplier);
-                          return (
-                            <>
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-300">
-                                <span className="text-gray-600 font-medium">Preço adulto:</span>
-                                <span className="font-bold text-gray-900 text-lg">R$ {examplePrice.toLocaleString('pt-BR')}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-medium">Preço criança ({percentage}%):</span>
-                                <span className="font-bold text-primary-600 text-lg">R$ {childPrice.toLocaleString('pt-BR')}</span>
-                              </div>
-                            </>
-                          );
-                        })()}
+                        <>
+                          <div className="flex justify-between items-center pb-2 border-b border-gray-300">
+                            <span className="text-gray-600 font-medium">Preço adulto:</span>
+                            <span className="font-bold text-gray-900 text-lg">
+                              R$ {(tripData.price || 500).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 font-medium">
+                              Preço criança ({Math.round(((tripData.passengerConfig?.childPriceMultiplier ?? 0.7)) * 100)}%):
+                            </span>
+                            <span className="font-bold text-primary-600 text-lg">
+                              R$ {Math.round((tripData.price || 500) * (tripData.passengerConfig?.childPriceMultiplier ?? 0.7)).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        </>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
+                            </div>
+                        </div>
+                      </div>
+                    ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <label className="block text-sm font-semibold text-gray-700">Valor Fixo</label>
                     <div className="relative">
                       <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xl pointer-events-none">
-                        R$
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
-                        onChange={e => {
-                          const value = Math.max(0, parseFloat(e.target.value) || 0);
-                          setTripData({ 
-                            ...tripData, 
-                            passengerConfig: {
-                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                              allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                              childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                              childPriceType: 'fixed',
-                              childPriceFixed: value
-                            }
-                          });
-                        }}
+                              R$
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
+                              onChange={e => {
+                                const value = Math.max(0, parseFloat(e.target.value) || 0);
+                                setTripData({ 
+                                  ...tripData, 
+                                  passengerConfig: {
+                                    allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                                    allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                                    childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                                    allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                                    childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                                    childPriceType: 'fixed',
+                                    childPriceFixed: value
+                                  }
+                                });
+                              }}
                         className="w-full border-2 border-gray-300 rounded-lg pl-20 pr-6 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                      />
-                    </div>
+                            />
+                          </div>
                     <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
                       <Info size={14} className="mt-0.5 flex-shrink-0" />
                       <span>
                         Crianças sempre pagarão R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}, independente do preço adulto
                       </span>
-                    </div>
+                              </div>
                   </div>
                   
                   <div className="space-y-4">
                     <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
                       <div className="text-base text-gray-700 space-y-3">
-                        {(() => {
-                          const adultPrice = tripData.price || 500;
-                          const childPrice = tripData.passengerConfig?.childPriceFixed ?? Math.round(adultPrice * 0.7);
-                          return (
-                            <>
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-300">
-                                <span className="text-gray-600 font-medium">Preço adulto:</span>
-                                <span className="font-bold text-gray-900 text-lg">R$ {adultPrice.toLocaleString('pt-BR')}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600 font-medium">Preço criança (fixo):</span>
-                                <span className="font-bold text-primary-600 text-lg">R$ {childPrice.toLocaleString('pt-BR')}</span>
-                              </div>
-                            </>
-                          );
-                        })()}
+                        <>
+                          <div className="flex justify-between items-center pb-2 border-b border-gray-300">
+                            <span className="text-gray-600 font-medium">Preço adulto:</span>
+                            <span className="font-bold text-gray-900 text-lg">
+                              R$ {(tripData.price || 500).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 font-medium">Preço criança (fixo):</span>
+                            <span className="font-bold text-primary-600 text-lg">
+                              R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        </>
                       </div>
-                    </div>
+                            </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        )}
     </div>
   );
+  };
 
   const steps = [
     { title: "Detalhes Principais", icon: Plane, content: renderStep1() },
@@ -2079,8 +2004,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             </button>
           )}
         </div>
+        </div>
       </div>
-    </div>
     </>
   );
 };

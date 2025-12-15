@@ -465,7 +465,7 @@ const Layout: React.FC = () => {
                             onClick={() => setIsUserDropdownOpen(false)}
                           />
                           {/* Menu */}
-                          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 p-2 z-[99] animate-[scaleIn_0.15s]">
+                          <div className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-100 p-2 z-[99] animate-[scaleIn_0.15s]">
                             <Link
                               to={userProfileLink}
                               onClick={() => setIsUserDropdownOpen(false)}

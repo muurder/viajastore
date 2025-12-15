@@ -410,8 +410,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else if (user.role === UserRole.CLIENT) {
             logger.log("[DataContext] _fetchBookingsForCurrentUser: Client user, fetching bookings for client ID:", user.id);
             ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
-                .select('*, trips:trip_id(*, agencies:agency_id(*))')
-                .eq('client_id', user.id)); // Use user.id directly here
+                .select('*, trips:trip_id(*, agencies:agency_id(*)), booking_passengers(*)')
+                .eq('client_id', user.id)
+                .order('created_at', { ascending: false })); // Use created_at instead of date
         }
 
         if (bookingsError) throw bookingsError;
@@ -670,15 +671,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Save passenger details if provided
         if (booking.passengerDetails && booking.passengerDetails.length > 0) {
-            const passengerRecords = booking.passengerDetails.map((passenger, index) => ({
+            const passengerRecords = booking.passengerDetails.map((passenger, index) => {
+                // Extract document from passenger.document or passenger.cpf (if exists in data)
+                const rawDoc = passenger.document || (passenger as any).cpf || '';
+                const documentDigits = rawDoc.replace(/\D/g, '') || null;
+                
+                return {
                 booking_id: booking.id,
                 full_name: passenger.name,
-                document: passenger.document?.replace(/\D/g, '') || passenger.cpf?.replace(/\D/g, '') || null,
-                cpf: passenger.document?.replace(/\D/g, '') || passenger.cpf?.replace(/\D/g, '') || null, // Keep both for compatibility
+                    document: documentDigits,
                 birth_date: passenger.birthDate || null,
-                phone: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null,
-                whatsapp: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null // Keep both for compatibility
-            }));
+                    phone: passenger.whatsapp || passenger.phone?.replace(/\D/g, '') || null,
+                    is_primary: index === 0 // First passenger is primary
+                };
+            });
 
             const { error: passengerError } = await sb
                 .from('booking_passengers')

@@ -281,6 +281,20 @@ export interface Booking {
   _agency?: Agency;
 }
 
+// Extended Booking with passengers from database
+export interface BookingWithDetails extends Booking {
+  booking_passengers?: Array<{
+    id: string;
+    booking_id: string;
+    full_name: string;
+    document: string | null;
+    birth_date: string | null;
+    phone: string | null;
+    is_primary: boolean;
+    created_at: string;
+  }>;
+}
+
 export interface Review {
   id: string;
   tripId: string;

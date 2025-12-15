@@ -5239,16 +5239,16 @@ const AgencyDashboard: React.FC = () => {
                                 <div className="relative h-56 w-full bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
                                     {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
                                         <>
-                                            <img 
-                                                src={trip.images[0]} 
-                                                alt={trip.title} 
-                                                loading="lazy"
-                                                decoding="async"
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
-                                                }}
-                                            />
+                                        <img 
+                                            src={trip.images[0]} 
+                                            alt={trip.title} 
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
+                                            }}
+                                        />
                                             {/* Gradient Overlay - Only show when image exists */}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                         </>

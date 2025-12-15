@@ -58,8 +58,8 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
     if (value !== inputValue && !isUpdatingRef.current) {
       setInputValue(value);
       if (inputRef.current) {
-        inputRef.current.value = value;
-      }
+      inputRef.current.value = value;
+    }
     }
   }, [value, inputValue]);
 
@@ -73,10 +73,10 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
         setMarkerPosition(newCoords);
         setMapZoom(16);
         
-        if (mapRef.current) {
+      if (mapRef.current) {
           mapRef.current.setCenter(newCoords);
-          mapRef.current.setZoom(16);
-        }
+        mapRef.current.setZoom(16);
+      }
         
         setTimeout(() => {
           isUpdatingRef.current = false;
@@ -89,29 +89,29 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
   const onPlaceChanged = useCallback(() => {
     if (!autocompleteRef.current) return;
     
-    const place = autocompleteRef.current.getPlace();
-    setIsSearching(false);
-    
-    if (place.geometry?.location) {
+      const place = autocompleteRef.current.getPlace();
+      setIsSearching(false);
+      
+      if (place.geometry?.location) {
       isUpdatingRef.current = true;
       
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
       const formattedAddress = place.formatted_address || place.name || inputValue || '';
-      const newCoords = { lat, lng };
-      
-      // Determine zoom level based on place type
+        const newCoords = { lat, lng };
+        
+        // Determine zoom level based on place type
       let zoomLevel = 16;
-      if (place.types) {
-        if (place.types.includes('locality') || place.types.includes('administrative_area_level_1')) {
+        if (place.types) {
+          if (place.types.includes('locality') || place.types.includes('administrative_area_level_1')) {
           zoomLevel = 12;
-        } else if (place.types.includes('country')) {
+          } else if (place.types.includes('country')) {
           zoomLevel = 6;
-        } else if (place.types.includes('establishment') || place.types.includes('point_of_interest')) {
+          } else if (place.types.includes('establishment') || place.types.includes('point_of_interest')) {
           zoomLevel = 17;
+          }
         }
-      }
-      
+        
       // Update input value
       setInputValue(formattedAddress);
       if (inputRef.current) {
@@ -119,15 +119,15 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
       }
       
       // Update map state
-      setMapCenter(newCoords);
-      setMarkerPosition(newCoords);
-      setMapZoom(zoomLevel);
-      
+        setMapCenter(newCoords);
+        setMarkerPosition(newCoords);
+        setMapZoom(zoomLevel);
+        
       // Update map view
-      if (mapRef.current) {
-        mapRef.current.setCenter(newCoords);
-        mapRef.current.setZoom(zoomLevel);
-      }
+        if (mapRef.current) {
+          mapRef.current.setCenter(newCoords);
+          mapRef.current.setZoom(zoomLevel);
+        }
       
       // Update parent
       onChange(formattedAddress, newCoords);
@@ -136,10 +136,10 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
       setTimeout(() => {
         isUpdatingRef.current = false;
       }, 200);
-    } else {
-      logger.warn('Place selected but no geometry available:', place);
-      setMapError('Localização não encontrada. Tente ser mais específico.');
-    }
+      } else {
+        logger.warn('Place selected but no geometry available:', place);
+        setMapError('Localização não encontrada. Tente ser mais específico.');
+      }
   }, [onChange, onCoordinatesChange, inputValue]);
 
   // Handle marker drag end
@@ -147,23 +147,23 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
     if (!e.latLng) return;
     
     isUpdatingRef.current = true;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    const newCoords = { lat, lng };
-    
-    setMarkerPosition(newCoords);
-    setMapCenter(newCoords);
-    onCoordinatesChange(newCoords);
-    
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      const newCoords = { lat, lng };
+      
+      setMarkerPosition(newCoords);
+      setMapCenter(newCoords);
+      onCoordinatesChange(newCoords);
+      
     // Reverse geocode
     if (typeof window !== 'undefined' && (window as any).google?.maps) {
-      const geocoder = new (window as any).google.maps.Geocoder();
-      geocoder.geocode({ location: newCoords }, (results: any, status: string) => {
-        if (status === 'OK' && results && results[0]) {
+        const geocoder = new (window as any).google.maps.Geocoder();
+        geocoder.geocode({ location: newCoords }, (results: any, status: string) => {
+          if (status === 'OK' && results && results[0]) {
           const address = results[0].formatted_address;
           setInputValue(address);
           onChange(address, newCoords);
-        } else {
+          } else {
           const coordString = `Lat: ${newCoords.lat.toFixed(6)}, Lng: ${newCoords.lng.toFixed(6)}`;
           setInputValue(coordString);
           onChange(coordString, newCoords);
@@ -366,13 +366,13 @@ const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
         <Autocomplete
           onLoad={(autocomplete) => {
             try {
-              autocompleteRef.current = autocomplete;
+            autocompleteRef.current = autocomplete;
               if (typeof window !== 'undefined' && (window as any).google?.maps) {
-                const brazilBounds = new (window as any).google.maps.LatLngBounds(
+            const brazilBounds = new (window as any).google.maps.LatLngBounds(
                   new (window as any).google.maps.LatLng(-35.0, -74.0),
                   new (window as any).google.maps.LatLng(5.0, -32.0)
-                );
-                autocomplete.setBounds(brazilBounds);
+            );
+            autocomplete.setBounds(brazilBounds);
               }
             } catch (error) {
               logger.error('Error setting autocomplete bounds:', error);
