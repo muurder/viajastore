@@ -102,25 +102,25 @@ export interface PlatformSettings {
   updated_at?: string;
 }
 
-export type TripCategory = 
-  | 'PRAIA' 
-  | 'AVENTURA' 
-  | 'FAMILIA' 
-  | 'ROMANTICO' 
-  | 'URBANO' 
-  | 'NATUREZA' 
-  | 'CULTURA' 
-  | 'GASTRONOMICO' 
-  | 'VIDA_NOTURNA' 
-  | 'VIAGEM_BARATA' 
+export type TripCategory =
+  | 'PRAIA'
+  | 'AVENTURA'
+  | 'FAMILIA'
+  | 'ROMANTICO'
+  | 'URBANO'
+  | 'NATUREZA'
+  | 'CULTURA'
+  | 'GASTRONOMICO'
+  | 'VIDA_NOTURNA'
+  | 'VIAGEM_BARATA'
   | 'ARTE';
 
-export type TravelerType = 
-  | 'SOZINHO' 
-  | 'CASAL' 
-  | 'FAMILIA' 
-  | 'AMIGOS' 
-  | 'MOCHILAO' 
+export type TravelerType =
+  | 'SOZINHO'
+  | 'CASAL'
+  | 'FAMILIA'
+  | 'AMIGOS'
+  | 'MOCHILAO'
   | 'MELHOR_IDADE';
 
 export interface ItineraryDay {
@@ -136,7 +136,7 @@ export interface BoardingPoint {
 }
 
 export interface PassengerSeat {
-  seatNumber: string; 
+  seatNumber: string;
   passengerName: string;
   bookingId: string;
   status: 'occupied' | 'blocked' | 'available';
@@ -164,66 +164,66 @@ export interface VehicleInstance {
 }
 
 export interface TransportConfig {
-    // Deprecated single fields (kept for migration)
-    vehicleConfig?: VehicleLayoutConfig | null;
-    seats?: PassengerSeat[];
-    
-    // New Multi-Vehicle field
-    vehicles?: VehicleInstance[];
+  // Deprecated single fields (kept for migration)
+  vehicleConfig?: VehicleLayoutConfig | null;
+  seats?: PassengerSeat[];
+
+  // New Multi-Vehicle field
+  vehicles?: VehicleInstance[];
 }
 
 export interface ManualPassenger {
-    id: string;
-    name: string;
-    document?: string;
+  id: string;
+  name: string;
+  document?: string;
 }
 
 export interface PassengerDetail {
-    name: string;
-    document?: string;
-    phone?: string;
-    birthDate?: string; // Data de nascimento
-    whatsapp?: string; // WhatsApp (pode ser diferente do phone)
-    type?: 'adult' | 'child'; // Tipo calculado automaticamente pela data de nascimento (12 anos = limite)
-    age?: number; // Idade calculada
+  name: string;
+  document?: string;
+  phone?: string;
+  birthDate?: string; // Data de nascimento
+  whatsapp?: string; // WhatsApp (pode ser diferente do phone)
+  type?: 'adult' | 'child'; // Tipo calculado automaticamente pela data de nascimento (12 anos = limite)
+  age?: number; // Idade calculada
 }
 
 export interface Guest {
-    name: string;
-    bookingId: string;
+  name: string;
+  bookingId: string;
 }
 
 export interface RoomConfig {
-    id: string;
-    name: string;
-    type: 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
-    capacity: number;
-    guests: Guest[];
+  id: string;
+  name: string;
+  type: 'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE';
+  capacity: number;
+  guests: Guest[];
 }
 
 export interface HotelInstance {
-    id: string;
-    name: string;
-    rooms: RoomConfig[];
+  id: string;
+  name: string;
+  rooms: RoomConfig[];
 }
 
 export interface PassengerConfig {
-    allowChildren: boolean; // Se a viagem aceita crianças
-    allowSeniors: boolean; // Se a viagem aceita idosos
-    childAgeLimit: number; // Idade limite para ser considerado criança (padrão: 12)
-    allowLapChild: boolean; // Se permite criança no colo (sem assento próprio)
-    childPriceMultiplier: number; // Multiplicador de preço para crianças (padrão: 0.7 = 70% do preço) - DEPRECATED: use childPriceType e childPriceFixed
-    childPriceType?: 'percentage' | 'fixed'; // Tipo de preço para crianças: porcentagem do adulto ou valor fixo
-    childPriceFixed?: number; // Valor fixo para crianças (quando childPriceType === 'fixed')
+  allowChildren: boolean; // Se a viagem aceita crianças
+  allowSeniors: boolean; // Se a viagem aceita idosos
+  childAgeLimit: number; // Idade limite para ser considerado criança (padrão: 12)
+  allowLapChild: boolean; // Se permite criança no colo (sem assento próprio)
+  childPriceMultiplier: number; // Multiplicador de preço para crianças (padrão: 0.7 = 70% do preço) - DEPRECATED: use childPriceType e childPriceFixed
+  childPriceType?: 'percentage' | 'fixed'; // Tipo de preço para crianças: porcentagem do adulto ou valor fixo
+  childPriceFixed?: number; // Valor fixo para crianças (quando childPriceType === 'fixed')
 }
 
 export interface OperationalData {
-    transport?: TransportConfig;
-    rooming?: RoomConfig[]; // Deprecated (single list)
-    hotels?: HotelInstance[]; // New (multiple hotels)
-    manualPassengers?: ManualPassenger[];
-    passengerNameOverrides?: Record<string, string>;
-    passengerDetails?: Record<string, PassengerDetail>; // New detailed info
+  transport?: TransportConfig;
+  rooming?: RoomConfig[]; // Deprecated (single list)
+  hotels?: HotelInstance[]; // New (multiple hotels)
+  manualPassengers?: ManualPassenger[];
+  passengerNameOverrides?: Record<string, string>;
+  passengerDetails?: Record<string, PassengerDetail>; // New detailed info
 }
 
 export interface Trip {
@@ -248,8 +248,8 @@ export interface Trip {
   is_active: boolean;
   rating?: number;
   totalReviews?: number;
-  tripRating?: number; 
-  tripTotalReviews?: number; 
+  tripRating?: number;
+  tripTotalReviews?: number;
   included: string[];
   notIncluded?: string[];
   views?: number;
@@ -264,6 +264,8 @@ export interface Trip {
   maxGuests?: number;
   allowChildren?: boolean; // Deprecated - usar passengerConfig.allowChildren
   passengerConfig?: PassengerConfig; // Configurações de passageiros definidas pela agência
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Booking {
@@ -277,7 +279,7 @@ export interface Booking {
   voucherCode: string;
   paymentMethod: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   passengerDetails?: PassengerDetail[]; // Dados dos passageiros
-  _trip?: Trip; 
+  _trip?: Trip;
   _agency?: Agency;
 }
 
@@ -321,6 +323,7 @@ export interface AgencyReview {
   agencyName?: string;
   agencyLogo?: string;
   response?: string;
+  reply?: string; // Add reply field to match potential backend data
   tripTitle?: string;
 }
 
@@ -329,6 +332,7 @@ export interface Plan {
   name: string;
   price: number;
   features: string[];
+  maxTrips: number;
 }
 
 export interface ThemeColors {
@@ -383,68 +387,85 @@ export interface DashboardStats {
   conversionRate: number;
   averageRating?: number;
   totalReviews?: number;
+  activeTrips?: number;
 }
 
 // FIX: Changed from `type` to `enum` so it can be used as a value
 export enum ActivityActionType {
-    TRIP_CREATED = 'TRIP_CREATED',
-    TRIP_UPDATED = 'TRIP_UPDATED',
-    TRIP_DELETED = 'TRIP_DELETED',
-    BOOKING_CREATED = 'BOOKING_CREATED',
-    AGENCY_UPDATED = 'AGENCY_UPDATED',
-    REVIEW_SUBMITTED = 'REVIEW_SUBMITTED',
-    CLIENT_PROFILE_UPDATED = 'CLIENT_PROFILE_UPDATED',
-    AGENCY_SUBSCRIPTION_UPDATED = 'AGENCY_SUBSCRIPTION_UPDATED',
-    AGENCY_PROFILE_UPDATED = 'AGENCY_PROFILE_UPDATED',
-    AGENCY_STATUS_TOGGLED = 'AGENCY_STATUS_TOGGLED',
-    TRIP_STATUS_TOGGLED = 'TRIP_STATUS_TOGGLED',
-    FAVORITE_TOGGLED = 'FAVORITE_TOGGLED',
-    REVIEW_DELETED = 'REVIEW_DELETED',
-    REVIEW_UPDATED = 'REVIEW_UPDATED',
-    DELETE_USER = 'DELETE_USER',
-    DELETE_MULTIPLE_USERS = 'DELETE_MULTIPLE_USERS',
-    DELETE_MULTIPLE_AGENCIES = 'DELETE_MULTIPLE_AGENCIES',
-    UPDATE_SETTINGS = 'UPDATE_SETTINGS',
+  TRIP_CREATED = 'TRIP_CREATED',
+  TRIP_UPDATED = 'TRIP_UPDATED',
+  TRIP_DELETED = 'TRIP_DELETED',
+  BOOKING_CREATED = 'BOOKING_CREATED',
+  AGENCY_UPDATED = 'AGENCY_UPDATED',
+  REVIEW_SUBMITTED = 'REVIEW_SUBMITTED',
+  CLIENT_PROFILE_UPDATED = 'CLIENT_PROFILE_UPDATED',
+  AGENCY_SUBSCRIPTION_UPDATED = 'AGENCY_SUBSCRIPTION_UPDATED',
+  AGENCY_PROFILE_UPDATED = 'AGENCY_PROFILE_UPDATED',
+  AGENCY_STATUS_TOGGLED = 'AGENCY_STATUS_TOGGLED',
+  TRIP_STATUS_TOGGLED = 'TRIP_STATUS_TOGGLED',
+  FAVORITE_TOGGLED = 'FAVORITE_TOGGLED',
+  REVIEW_DELETED = 'REVIEW_DELETED',
+  REVIEW_UPDATED = 'REVIEW_UPDATED',
+  DELETE_USER = 'DELETE_USER',
+  DELETE_MULTIPLE_USERS = 'DELETE_MULTIPLE_USERS',
+  DELETE_MULTIPLE_AGENCIES = 'DELETE_MULTIPLE_AGENCIES',
+  UPDATE_SETTINGS = 'UPDATE_SETTINGS',
+  SOFT_DELETE_ENTITY = 'SOFT_DELETE_ENTITY',
+  RESTORE_DEFAULT_SETTINGS = 'RESTORE_DEFAULT_SETTINGS',
 }
 
 export interface ActivityLog {
-    id: string;
-    userId: string;
-    actionType: ActivityActionType;
-    details: any;
-    createdAt: string;
+  id: string;
+  userId: string;
+  actionType: ActivityActionType;
+  details: any;
+  createdAt: string;
 }
 
 // Broadcast System Types
 export type BroadcastTargetRole = 'ALL' | 'AGENCY' | 'CLIENT' | 'GUIDE';
 
 export interface BroadcastMessage {
-    id: string;
-    title: string;
-    message: string;
-    target_role: BroadcastTargetRole;
-    created_by: string; // admin_id
-    created_at: string;
-    // Computed fields (from joins)
-    read_count?: number;
-    liked_count?: number;
-    total_recipients?: number;
+  id: string;
+  title: string;
+  message: string;
+  target_role: BroadcastTargetRole;
+  created_by: string; // admin_id
+  created_at: string;
+  // Computed fields (from joins)
+  read_count?: number;
+  liked_count?: number;
+  total_recipients?: number;
 }
 
 export interface BroadcastInteraction {
-    id: string;
-    broadcast_id: string;
-    user_id: string;
-    read_at: string | null;
-    liked_at: string | null;
-    is_deleted: boolean;
-    created_at: string;
-    // Computed fields (from joins)
-    user_name?: string;
-    user_email?: string;
-    user_role?: UserRole;
+  id: string;
+  broadcast_id: string;
+  user_id: string;
+  read_at: string | null;
+  liked_at: string | null;
+  is_deleted: boolean;
+  created_at: string;
+  // Computed fields (from joins)
+  user_name?: string;
+  user_email?: string;
+  user_role?: UserRole;
 }
 
 export interface BroadcastWithInteractions extends BroadcastMessage {
-    interactions: BroadcastInteraction[];
+  interactions: BroadcastInteraction[];
+}
+
+export interface GuideDetails {
+  userId: string;
+  bio: string;
+  languages: string[];
+  regions: string[];
+  specialties: string[];
+  portfolioImages: string[];
+  cadasturStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
+}
+
+export interface EnhancedGuide extends Agency {
+  guideDetails?: GuideDetails;
 }

@@ -28,7 +28,7 @@ const INTEREST_CHIPS = [
 const Home: React.FC = () => {
   const { searchTrips, agencies, loading: dataLoading, fetchTripImages } = useData();
   const navigate = useNavigate();
-  
+
   // Hero Data
   const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -55,43 +55,43 @@ const Home: React.FC = () => {
     }
 
     const loadHero = async () => {
-        setHeroLoading(true);
-        try {
-            let tripsData: Trip[] = [];
-            
-            // Try to fetch a larger pool of featured trips
-            const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
-            if (featuredData && featuredData.length > 0) {
-                tripsData = featuredData;
-            } else {
-                // Fallback: If no featured trips, get general active trips
-                const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
-                tripsData = generalData || [];
-            }
+      setHeroLoading(true);
+      try {
+        let tripsData: Trip[] = [];
 
-            // Shuffle the results to randomize the hero
-            if (tripsData.length > 0) {
-                tripsData.sort(() => 0.5 - Math.random());
-            }
-            
-            // FIX: Load images on-demand for each trip
-            const tripsWithImages = await Promise.all(
-                tripsData.map(async (trip) => {
-                    if (!trip.images || trip.images.length === 0) {
-                        const images = await fetchTripImages(trip.id);
-                        return { ...trip, images };
-                    }
-                    return trip;
-                })
-            );
-            
-            setHeroTrips(tripsWithImages);
-        } catch (error) {
-            logger.error('Error loading hero trips:', error);
-            setHeroTrips([]);
-        } finally {
-            setHeroLoading(false);
+        // Try to fetch a larger pool of featured trips
+        const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
+        if (featuredData && featuredData.length > 0) {
+          tripsData = featuredData;
+        } else {
+          // Fallback: If no featured trips, get general active trips
+          const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
+          tripsData = generalData || [];
         }
+
+        // Shuffle the results to randomize the hero
+        if (tripsData.length > 0) {
+          tripsData.sort(() => 0.5 - Math.random());
+        }
+
+        // FIX: Load images on-demand for each trip
+        const tripsWithImages = await Promise.all(
+          tripsData.map(async (trip) => {
+            if (!trip.images || trip.images.length === 0) {
+              const images = await fetchTripImages(trip.id);
+              return { ...trip, images };
+            }
+            return trip;
+          })
+        );
+
+        setHeroTrips(tripsWithImages);
+      } catch (error) {
+        logger.error('Error loading hero trips:', error);
+        setHeroTrips([]);
+      } finally {
+        setHeroLoading(false);
+      }
     };
     loadHero();
   }, [searchTrips, dataLoading, fetchTripImages]);
@@ -104,46 +104,46 @@ const Home: React.FC = () => {
     }
 
     const loadFeaturedDock = async () => {
-        setDockLoading(true);
-        try {
-            // First try to get featured trips sorted by views
-            const { data: featuredData } = await searchTrips({ 
-                limit: 10, 
-                featured: true, 
-                sort: 'RATING' // Will sort by rating, but we'll re-sort by views
-            });
-            
-            let dockTrips: Trip[] = [];
-            if (featuredData && featuredData.length > 0) {
-                dockTrips = featuredData;
-            } else {
-                // Fallback: Get all trips and sort by views
-                const { data: allData } = await searchTrips({ limit: 20, sort: 'RATING' });
-                dockTrips = allData || [];
-            }
+      setDockLoading(true);
+      try {
+        // First try to get featured trips sorted by views
+        const { data: featuredData } = await searchTrips({
+          limit: 10,
+          featured: true,
+          sort: 'RATING' // Will sort by rating, but we'll re-sort by views
+        });
 
-            // Sort by views (descending) and take top 4
-            dockTrips.sort((a, b) => (b.views || 0) - (a.views || 0));
-            const top4Trips = dockTrips.slice(0, 4);
-            
-            // FIX: Load images on-demand for each trip
-            const dockTripsWithImages = await Promise.all(
-                top4Trips.map(async (trip) => {
-                    if (!trip.images || trip.images.length === 0) {
-                        const images = await fetchTripImages(trip.id);
-                        return { ...trip, images };
-                    }
-                    return trip;
-                })
-            );
-            
-            setFeaturedDockTrips(dockTripsWithImages);
-        } catch (error) {
-            logger.error('Error loading featured dock trips:', error);
-            setFeaturedDockTrips([]);
-        } finally {
-            setDockLoading(false);
+        let dockTrips: Trip[] = [];
+        if (featuredData && featuredData.length > 0) {
+          dockTrips = featuredData;
+        } else {
+          // Fallback: Get all trips and sort by views
+          const { data: allData } = await searchTrips({ limit: 20, sort: 'RATING' });
+          dockTrips = allData || [];
         }
+
+        // Sort by views (descending) and take top 4
+        dockTrips.sort((a, b) => (b.views || 0) - (a.views || 0));
+        const top4Trips = dockTrips.slice(0, 4);
+
+        // FIX: Load images on-demand for each trip
+        const dockTripsWithImages = await Promise.all(
+          top4Trips.map(async (trip) => {
+            if (!trip.images || trip.images.length === 0) {
+              const images = await fetchTripImages(trip.id);
+              return { ...trip, images };
+            }
+            return trip;
+          })
+        );
+
+        setFeaturedDockTrips(dockTripsWithImages);
+      } catch (error) {
+        logger.error('Error loading featured dock trips:', error);
+        setFeaturedDockTrips([]);
+      } finally {
+        setDockLoading(false);
+      }
     };
     loadFeaturedDock();
   }, [searchTrips, dataLoading, fetchTripImages]);
@@ -156,51 +156,51 @@ const Home: React.FC = () => {
     }
 
     const loadGrid = async () => {
-        setGridLoading(true);
-        try {
-            // If 'Todos' or empty, just fetch generic latest
-            const category = selectedInterests.length > 0 && selectedInterests[0] !== 'Todos' 
-                ? selectedInterests[0].toUpperCase().replace(' ', '_') // Simple mapping
-                : undefined;
+      setGridLoading(true);
+      try {
+        // If 'Todos' or empty, just fetch generic latest
+        const category = selectedInterests.length > 0 && selectedInterests[0] !== 'Todos'
+          ? selectedInterests[0].toUpperCase().replace(' ', '_') // Simple mapping
+          : undefined;
 
-            // Map UI labels to API enum if needed, or rely on fuzzy search
-            const { data } = await searchTrips({ 
-                limit: 20, // Fetch more to allow for random shuffling
-                // If mapping fails, the search might return empty, so ideally we map correctly or use tags
-                // For now, simpler implementation:
-                category: category === 'VIAGEM_BARATA' ? 'VIAGEM_BARATA' : undefined,
-                // Fallback for tags if category not strict
-                query: !category ? undefined : undefined 
-            });
+        // Map UI labels to API enum if needed, or rely on fuzzy search
+        const { data } = await searchTrips({
+          limit: 20, // Fetch more to allow for random shuffling
+          // If mapping fails, the search might return empty, so ideally we map correctly or use tags
+          // For now, simpler implementation:
+          category: category === 'VIAGEM_BARATA' ? 'VIAGEM_BARATA' : undefined,
+          // Fallback for tags if category not strict
+          query: !category ? undefined : undefined
+        });
 
-            if (data && data.length > 0) {
-                // Shuffle the results for the grid as well
-                const shuffled = [...data].sort(() => 0.5 - Math.random()).slice(0, 9);
-                
-                // FIX: Load images on-demand for each trip
-                const gridTripsWithImages = await Promise.all(
-                    shuffled.map(async (trip) => {
-                        if (!trip.images || trip.images.length === 0) {
-                            const images = await fetchTripImages(trip.id);
-                            return { ...trip, images };
-                        }
-                        return trip;
-                    })
-                );
-                
-                setGridTrips(gridTripsWithImages);
-            } else {
-                // If no data, set empty array
-                setGridTrips([]);
-            }
-        } catch (error) {
-            logger.error('Error loading grid trips:', error);
-            setGridTrips([]);
-        } finally {
-            setGridLoading(false);
+        if (data && data.length > 0) {
+          // Shuffle the results for the grid as well
+          const shuffled = [...data].sort(() => 0.5 - Math.random()).slice(0, 9);
+
+          // FIX: Load images on-demand for each trip
+          const gridTripsWithImages = await Promise.all(
+            shuffled.map(async (trip) => {
+              if (!trip.images || trip.images.length === 0) {
+                const images = await fetchTripImages(trip.id);
+                return { ...trip, images };
+              }
+              return trip;
+            })
+          );
+
+          setGridTrips(gridTripsWithImages);
+        } else {
+          // If no data, set empty array
+          setGridTrips([]);
         }
+      } catch (error) {
+        logger.error('Error loading grid trips:', error);
+        setGridTrips([]);
+      } finally {
+        setGridLoading(false);
+      }
     };
-    
+
     // FIX: Ensure loadGrid runs on mount and when dependencies change
     loadGrid();
   }, [selectedInterests, searchTrips, dataLoading, fetchTripImages]);
@@ -216,23 +216,23 @@ const Home: React.FC = () => {
   }, [heroTrips.length]);
 
   const currentHeroTrip = heroTrips[currentSlide];
-  
+
   // Find Agency for WhatsApp (Assumes Agencies are small list or we fetch on demand)
   // For optimization, we are checking the pre-loaded agencies from context or could fetch
   const currentHeroAgency = useMemo(() => {
     return currentHeroTrip ? agencies.find(a => a.agencyId === currentHeroTrip.agencyId) : undefined;
   }, [currentHeroTrip, agencies]);
 
-  const heroWhatsAppLink = (currentHeroAgency?.whatsapp && currentHeroTrip) 
-      ? buildWhatsAppLink(currentHeroAgency.whatsapp, currentHeroTrip) 
-      : null;
+  const heroWhatsAppLink = (currentHeroAgency?.whatsapp && currentHeroTrip)
+    ? buildWhatsAppLink(currentHeroAgency.whatsapp, currentHeroTrip)
+    : null;
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const scrollAmount = scrollRef.current.clientWidth / 2;
-      scrollRef.current.scrollBy({ 
-        left: direction === 'left' ? -scrollAmount : scrollAmount, 
-        behavior: 'smooth' 
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
       });
     }
   };
@@ -252,13 +252,13 @@ const Home: React.FC = () => {
   }, []);
 
   const handleInterestClick = (label: string, id: string, e: React.MouseEvent<HTMLButtonElement>) => {
-     if (label === 'Todos') {
-         setSelectedInterests([]);
-     } else {
-         // Single select for this implementation to keep server query simple
-         setSelectedInterests([label]);
-     }
-     e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    if (label === 'Todos') {
+      setSelectedInterests([]);
+    } else {
+      // Single select for this implementation to keep server query simple
+      setSelectedInterests([label]);
+    }
+    e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   };
 
 
@@ -273,57 +273,57 @@ const Home: React.FC = () => {
     <div className="space-y-12 pb-12">
       {/* HERO SECTION - IMERSIVA */}
       <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[600px] md:min-h-[700px] flex flex-col group bg-gray-900">
-        
+
         {/* Background Images Carousel */}
         {heroTrips.length > 0 ? (
-            heroTrips.map((trip, index) => {
-                // FIX: Rigorously check if trip has valid images before using fallback
-                const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
-                const displayImage = hasValidImages ? trip.images[0] : null;
-                
-                return (
-                    <div 
-                        key={trip.id} 
-                        className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                    >
-                        {hasValidImages ? (
-                            <img 
-                                key={`hero-img-${trip.id}-${index}`}
-                                src={trip.images[0]}
-                                alt={trip.title} 
-                                className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'} blur-[2px]`}
-                                onError={(e) => { 
-                                    // Hide image on error, placeholder will show
-                                    e.currentTarget.style.display = 'none';
-                                }}
-                            />
-                        ) : null}
-                        {/* Show placeholder only if no valid image */}
-                        {!hasValidImages && (
-                            <div className="w-full h-full">
-                                <NoImagePlaceholder 
-                                    title={trip.title}
-                                    category={trip.category}
-                                    size="large"
-                                    className="w-full h-full"
-                                />
-                            </div>
-                        )}
-                    </div>
-                );
-            })
+          heroTrips.map((trip, index) => {
+            // FIX: Rigorously check if trip has valid images before using fallback
+            const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
+            const displayImage = hasValidImages ? trip.images[0] : null;
+
+            return (
+              <div
+                key={trip.id}
+                className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+              >
+                {hasValidImages ? (
+                  <img
+                    key={`hero-img-${trip.id}-${index}`}
+                    src={trip.images[0]}
+                    alt={trip.title}
+                    className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'} blur-[2px]`}
+                    onError={(e) => {
+                      // Hide image on error, placeholder will show
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                {/* Show placeholder only if no valid image */}
+                {!hasValidImages && (
+                  <div className="w-full h-full">
+                    <NoImagePlaceholder
+                      title={trip.title}
+                      category={trip.category}
+                      size="large"
+                      className="w-full h-full"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
         ) : (
-            <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="text-6xl font-bold text-gray-300 mb-4">ViajaStore</div>
-                    <div className="text-gray-400">Carregando viagens...</div>
-                </div>
+          <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-6xl font-bold text-gray-300 mb-4">ViajaStore</div>
+              <div className="text-gray-400">Carregando viagens...</div>
             </div>
+          </div>
         )}
 
         {/* Enhanced Gradient Overlay - Stronger at bottom for dock readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90 z-20 pointer-events-none"></div>
-        
+
         {/* Main Content - Centered */}
         <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 flex-1 flex flex-col justify-center py-12 md:py-20">
           {/* Centered Typography */}
@@ -345,9 +345,9 @@ const Home: React.FC = () => {
         {/* Featured Dock - Bottom Overlap - FIX: Lower z-index than search bar */}
         <div className="relative z-[20] w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
           {dockLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-stretch">
+            <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 gap-4 md:grid md:grid-cols-4 md:pb-0 scrollbar-hide">
               {[1, 2, 3, 4].map((n) => (
-                <div key={n} className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl animate-pulse">
+                <div key={n} className="flex-shrink-0 w-[85vw] md:w-auto snap-center bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl animate-pulse">
                   <div className="w-full h-24 bg-gray-200 rounded-xl mb-3"></div>
                   <div className="h-4 bg-gray-200 rounded mb-2"></div>
                   <div className="h-6 bg-gray-200 rounded w-2/3"></div>
@@ -355,13 +355,13 @@ const Home: React.FC = () => {
               ))}
             </div>
           ) : featuredDockTrips.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-stretch">
+            <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 gap-4 md:grid md:grid-cols-4 md:pb-0 scrollbar-hide">
               {featuredDockTrips.map((trip) => {
                 // Find agency and WhatsApp link
                 const tripAgency = agencies.find(a => a.agencyId === trip.agencyId);
                 const contactNumber = tripAgency?.whatsapp || tripAgency?.phone;
                 const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
-                
+
                 const handleWhatsAppClick = (e: React.MouseEvent) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -371,105 +371,106 @@ const Home: React.FC = () => {
                 };
 
                 return (
-                <div
-                  key={trip.id}
-                  className="group/dock relative h-full"
-                  style={{ overflow: 'visible' }}
-                >
-                <Link
-                  to={`/viagem/${trip.slug || trip.id}`}
-                  className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible h-full min-h-[320px]"
-                >
-                  <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3 flex-shrink-0">
-                    {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
-                      <img
-                        key={`dock-img-${trip.id}`}
-                        src={trip.images[0]}
-                        alt={trip.title}
-                        className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
-                        onError={(e) => { 
-                            // Hide image on error, placeholder will show
-                            e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <NoImagePlaceholder 
-                        title={trip.title}
-                        category={trip.category}
-                        size="small"
-                        className="w-full h-full"
-                      />
-                    )}
-                    {(trip.featured || (trip.views || 0) > 100) && (
-                      <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
-                        <TrendingUp size={10} />
-                        {trip.featured ? 'Em Alta' : 'Oferta'}
+                  <div
+                    key={trip.id}
+                    className="flex-shrink-0 w-[85vw] md:w-auto snap-center group/dock relative h-full"
+                    style={{ overflow: 'visible' }}
+                  >
+                    <Link
+                      to={`/viagem/${trip.slug || trip.id}`}
+                      className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible h-full min-h-[320px]"
+                    >
+                      <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3 flex-shrink-0">
+                        {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
+                          <img
+                            key={`dock-img-${trip.id}`}
+                            src={trip.images[0]}
+                            alt={trip.title}
+                            className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                            onError={(e) => {
+                              // Hide image on error, placeholder will show
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <NoImagePlaceholder
+                            title={trip.title}
+                            category={trip.category}
+                            size="small"
+                            className="w-full h-full"
+                          />
+                        )}
+                        {(trip.featured || (trip.views || 0) > 100) && (
+                          <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
+                            <TrendingUp size={10} />
+                            {trip.featured ? 'Em Alta' : 'Oferta'}
+                          </div>
+                        )}
+                        {((trip as any).tripRating || trip.rating) && (
+                          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10">
+                            <Star size={10} className="fill-amber-400 text-amber-400" />
+                            {((trip as any).tripRating || trip.rating || 0).toFixed(1)}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {((trip as any).tripRating || trip.rating) && (
-                      <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10">
-                        <Star size={10} className="fill-amber-400 text-amber-400" />
-                        {((trip as any).tripRating || trip.rating || 0).toFixed(1)}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 flex flex-col min-h-0">
-                    {/* Title with fixed height to ensure consistency */}
-                    <div className="h-10 mb-2 flex flex-col justify-center">
-                      <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 group-hover/dock:text-primary-600 transition-colors">
-                        {trip.title}
-                      </h3>
-                    </div>
-                    
-                    {/* Destination & Duration */}
-                    <div className="flex flex-col gap-1.5 mb-3 flex-shrink-0">
-                      {trip.destination && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <MapPin size={12} className="text-primary-600 flex-shrink-0" />
-                          <span className="truncate">{trip.destination}</span>
+
+                      <div className="flex-1 flex flex-col min-h-0">
+                        {/* Title with fixed height to ensure consistency */}
+                        <div className="h-10 mb-2 flex flex-col justify-center">
+                          <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 group-hover/dock:text-primary-600 transition-colors">
+                            {trip.title}
+                          </h3>
                         </div>
-                      )}
-                      {trip.durationDays && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Clock size={12} className="text-primary-600 flex-shrink-0" />
-                          <span>{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+
+                        {/* Destination & Duration */}
+                        <div className="flex flex-col gap-1.5 mb-3 flex-shrink-0">
+                          {trip.destination && (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                              <MapPin size={12} className="text-primary-600 flex-shrink-0" />
+                              <span className="truncate">{trip.destination}</span>
+                            </div>
+                          )}
+                          {trip.durationDays && (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                              <Clock size={12} className="text-primary-600 flex-shrink-0" />
+                              <span>{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    
-                    {/* Price - Always at bottom */}
-                    <div className="mt-auto pt-2 border-t border-gray-100 flex-shrink-0">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">A partir de</span>
-                          <div className="flex items-baseline gap-0.5">
-                            <span className="text-xs text-gray-500 font-semibold">R$</span>
-                            <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+
+                        {/* Price - Always at bottom */}
+                        <div className="mt-auto pt-2 border-t border-gray-100 flex-shrink-0">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">A partir de</span>
+                              <div className="flex items-baseline gap-0.5">
+                                <span className="text-xs text-gray-500 font-semibold">R$</span>
+                                <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
+                              </div>
+                            </div>
+                            <ArrowRight size={16} className="text-primary-600 opacity-0 group-hover/dock:opacity-100 group-hover/dock:translate-x-1 transition-all" />
                           </div>
                         </div>
-                        <ArrowRight size={16} className="text-primary-600 opacity-0 group-hover/dock:opacity-100 group-hover/dock:translate-x-1 transition-all" />
                       </div>
-                    </div>
+                    </Link>
+                    {whatsappLink && (
+                      <button
+                        onClick={handleWhatsAppClick}
+                        className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-[#25D366] text-white opacity-0 group-hover/dock:opacity-100 shadow-lg hover:bg-[#20BA5A] hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center z-50 border-2 border-white pointer-events-auto"
+                        style={{
+                          transform: 'translateZ(0)',
+                          willChange: 'transform, opacity',
+                          backfaceVisibility: 'hidden'
+                        }}
+                        title="Falar com a agência"
+                        aria-label="WhatsApp"
+                      >
+                        <MessageCircle size={14} className="fill-white" strokeWidth={0} />
+                      </button>
+                    )}
                   </div>
-                </Link>
-                {whatsappLink && (
-                  <button
-                    onClick={handleWhatsAppClick}
-                    className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-[#25D366] text-white opacity-0 group-hover/dock:opacity-100 shadow-lg hover:bg-[#20BA5A] hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center z-50 border-2 border-white pointer-events-auto"
-                    style={{
-                      transform: 'translateZ(0)',
-                      willChange: 'transform, opacity',
-                      backfaceVisibility: 'hidden'
-                    }}
-                    title="Falar com a agência"
-                    aria-label="WhatsApp"
-                  >
-                    <MessageCircle size={14} className="fill-white" strokeWidth={0} />
-                  </button>
-                )}
-                </div>
-              )})}
+                )
+              })}
             </div>
           ) : null}
         </div>
@@ -477,17 +478,17 @@ const Home: React.FC = () => {
         {/* Carousel Navigation */}
         {heroTrips.length > 1 && (
           <>
-            <button 
-              onClick={prevSlide} 
+            <button
+              onClick={prevSlide}
               className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
             >
-              <ChevronLeft size={32}/>
+              <ChevronLeft size={32} />
             </button>
-            <button 
-              onClick={nextSlide} 
+            <button
+              onClick={nextSlide}
               className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
             >
-              <ChevronRight size={32}/>
+              <ChevronRight size={32} />
             </button>
           </>
         )}
@@ -496,45 +497,45 @@ const Home: React.FC = () => {
       {/* FILTERS & GRID */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-           <div className="flex items-center justify-between mb-3 px-1"><div className="flex items-center gap-2 text-gray-500"><Filter size={16} /><span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span></div></div>
-           <div className="relative group/scroll bg-white/60 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl py-3">
-             {canScrollLeft && (<button onClick={() => scroll('left')} className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50"><ChevronLeft size={18} /></button>)}
-             {canScrollRight && (<button onClick={() => scroll('right')} className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50"><ChevronRight size={18} /></button>)}
-             <div ref={scrollRef} onScroll={checkScroll} className="flex gap-3 overflow-x-auto px-4 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
-                {INTEREST_CHIPS.map(({label, icon: Icon, id}) => {
-                   const isActive = selectedInterests.includes(label);
-                   return (
-                     <button key={label} id={id} onClick={(e) => handleInterestClick(label, id, e)} className={`snap-center flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-                        <Icon size={14} fill={isActive ? "currentColor" : "none"} /> {label}
-                     </button>
-                   );
-                })}
-             </div>
-           </div>
+          <div className="flex items-center justify-between mb-3 px-1"><div className="flex items-center gap-2 text-gray-500"><Filter size={16} /><span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span></div></div>
+          <div className="relative group/scroll bg-white/60 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl py-3">
+            {canScrollLeft && (<button onClick={() => scroll('left')} className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50"><ChevronLeft size={18} /></button>)}
+            {canScrollRight && (<button onClick={() => scroll('right')} className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-white shadow-md p-1.5 rounded-full hover:bg-gray-50"><ChevronRight size={18} /></button>)}
+            <div ref={scrollRef} onScroll={checkScroll} className="flex gap-3 overflow-x-auto px-4 scrollbar-hide snap-x snap-mandatory scroll-smooth items-center">
+              {INTEREST_CHIPS.map(({ label, icon: Icon, id }) => {
+                const isActive = selectedInterests.includes(label);
+                return (
+                  <button key={label} id={id} onClick={(e) => handleInterestClick(label, id, e)} className={`snap-center flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-300 border select-none ${isActive ? 'bg-gray-900 text-white border-gray-900 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+                    <Icon size={14} fill={isActive ? "currentColor" : "none"} /> {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="mb-8">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-6 px-1 gap-4">
-              <div className="animate-[fadeIn_0.3s]">
-                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
-                    {!gridLoading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{gridTrips.length}</span>}
-                  </h2>
-              </div>
-              {selectedInterests.length > 0 && (<button onClick={clearFilters} className="text-sm text-red-500 font-bold hover:underline bg-red-50 px-3 py-1 rounded-lg">Limpar Filtros</button>)}
+          <div className="flex flex-col md:flex-row justify-between items-end mb-6 px-1 gap-4">
+            <div className="animate-[fadeIn_0.3s]">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                {selectedInterests.length === 0 ? 'Pacotes em Destaque' : `Explorando: ${selectedInterests.join(', ')}`}
+                {!gridLoading && <span className="text-sm font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{gridTrips.length}</span>}
+              </h2>
             </div>
-            
-            {gridLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
-            ) : gridTrips.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s] items-stretch">{gridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}</div>
-            ) : (
-                <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
-                  <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Search className="text-gray-300" size={32} /></div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
-                  <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">Limpar todos os filtros</button>
-                </div>
-            )}
+            {selectedInterests.length > 0 && (<button onClick={clearFilters} className="text-sm text-red-500 font-bold hover:underline bg-red-50 px-3 py-1 rounded-lg">Limpar Filtros</button>)}
+          </div>
+
+          {gridLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">{[1, 2, 3].map((n) => <TripCardSkeleton key={n} />)}</div>
+          ) : gridTrips.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-[fadeInUp_0.5s] items-stretch">{gridTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}</div>
+          ) : (
+            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-gray-200 shadow-sm">
+              <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Search className="text-gray-300" size={32} /></div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma viagem encontrada</h3>
+              <button onClick={clearFilters} className="text-primary-600 font-bold hover:underline hover:text-primary-700 transition-colors">Limpar todos os filtros</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

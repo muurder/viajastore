@@ -13,13 +13,16 @@ import GuideList from './pages/GuideList';
 import AgencyProfile from './pages/AgencyProfile';
 import TestAccounts from './pages/TestAccounts';
 // Corrected import path for AdminDashboard component
-import { AdminDashboard } from './pages/AdminDashboard'; 
+import { AdminDashboard } from './pages/AdminDashboard';
 import { AgencyDashboard } from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import GuideDashboard from './pages/guide/GuideDashboard';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
 import ErrorBoundary from './components/ErrorBoundary';
+import { AgencyLayout } from './pages/agency/AgencyLayout';
+import { HireGuides } from './pages/agency/HireGuides';
 
 const App: React.FC = () => {
   return (
@@ -31,14 +34,14 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<Home />} />
-                  
+
                   {/* Global Routes (ViajaStore Context) */}
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />
                   <Route path="guides" element={<GuideList />} />
                   <Route path="agency/:id" element={<AgencyProfile />} /> {/* Perfil público legado/visualização rápida */}
-                  
+
                   {/* Static Pages */}
                   <Route path="about" element={<About />} />
                   <Route path="contact" element={<Contact />} />
@@ -48,7 +51,7 @@ const App: React.FC = () => {
                   <Route path="blog" element={<Blog />} />
                   <Route path="careers" element={<Careers />} />
                   <Route path="press" element={<Press />} />
-                  
+
                   {/* Utility Routes */}
                   <Route path="checkout/success" element={<CheckoutSuccess />} />
                   <Route path="unauthorized" element={<Unauthorized />} />
@@ -57,15 +60,19 @@ const App: React.FC = () => {
                   {import.meta.env.DEV && (
                     <Route path="test-accounts" element={<TestAccounts />} />
                   )}
-                  
-                  {/* Protected Routes */}
-                  <Route path="agency/dashboard" element={
+
+                  {/* Agency Protected Routes */}
+                  <Route path="agency" element={
                     <ErrorBoundary>
-                      <AgencyDashboard />
+                      <AgencyLayout />
                     </ErrorBoundary>
-                  } />
+                  }>
+                    <Route path="dashboard" element={<AgencyDashboard />} />
+                    <Route path="guides" element={<HireGuides />} />
+                  </Route>
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
+                  <Route path="guide/dashboard" element={<GuideDashboard />} />
 
                   {/* --- AGENCY MODE ROUTES --- */}
                   {/* Captura /:agencySlug e suas sub-rotas */}
@@ -74,7 +81,7 @@ const App: React.FC = () => {
                   <Route path=":agencySlug/guides" element={<GuideList />} />
                   <Route path=":agencySlug/viagem/:tripSlug" element={<TripDetails />} />
                   <Route path=":agencySlug/checkout/success" element={<CheckoutSuccess />} />
-                  
+
                   {/* Microsite Client Dashboard */}
                   <Route path=":agencySlug/client/:tab?" element={<ClientDashboard />} />
 

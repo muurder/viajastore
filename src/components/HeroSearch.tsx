@@ -39,7 +39,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   const clickInsideRef = useRef<boolean>(false);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [guestsPickerPosition, setGuestsPickerPosition] = useState<{ top: number; right: number } | null>(null);
-  
+
   const datePickerRef = useRef<HTMLDivElement>(null);
   const datePickerButtonRef = useRef<HTMLButtonElement>(null);
   const guestsPickerRef = useRef<HTMLDivElement>(null);
@@ -59,40 +59,40 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   useEffect(() => {
     if (showDatePicker) {
       updateDatePickerPosition();
-      
+
       // Close picker on scroll for better UX (common pattern)
       let scrollTimeout: NodeJS.Timeout | null = null;
       let lastScrollY = window.scrollY;
-      
+
       const handleScroll = () => {
         const currentScrollY = window.scrollY;
         const scrollDelta = Math.abs(currentScrollY - lastScrollY);
-        
+
         // If user scrolled significantly, close the picker
         if (scrollDelta > 50) {
           setShowDatePicker(false);
           lastScrollY = currentScrollY;
           return;
         }
-        
+
         lastScrollY = currentScrollY;
-        
+
         // Throttle position updates using requestAnimationFrame
         if (scrollTimeout) {
           clearTimeout(scrollTimeout);
         }
-        
+
         scrollTimeout = setTimeout(() => {
           updateDatePickerPosition();
         }, 16); // ~60fps
       };
-      
+
       // Use passive listeners for better performance
       window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
       window.addEventListener('resize', () => {
         updateDatePickerPosition();
       }, { passive: true });
-      
+
       return () => {
         if (scrollTimeout) {
           clearTimeout(scrollTimeout);
@@ -121,40 +121,40 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   useEffect(() => {
     if (showGuestsPicker) {
       updateGuestsPickerPosition();
-      
+
       // Close picker on scroll for better UX (common pattern)
       let scrollTimeout: NodeJS.Timeout | null = null;
       let lastScrollY = window.scrollY;
-      
+
       const handleScroll = () => {
         const currentScrollY = window.scrollY;
         const scrollDelta = Math.abs(currentScrollY - lastScrollY);
-        
+
         // If user scrolled significantly, close the picker
         if (scrollDelta > 50) {
           setShowGuestsPicker(false);
           lastScrollY = currentScrollY;
           return;
         }
-        
+
         lastScrollY = currentScrollY;
-        
+
         // Throttle position updates using setTimeout
         if (scrollTimeout) {
           clearTimeout(scrollTimeout);
         }
-        
+
         scrollTimeout = setTimeout(() => {
           updateGuestsPickerPosition();
         }, 16); // ~60fps
       };
-      
+
       // Use passive listeners for better performance
       window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
       window.addEventListener('resize', () => {
         updateGuestsPickerPosition();
       }, { passive: true });
-      
+
       return () => {
         if (scrollTimeout) {
           clearTimeout(scrollTimeout);
@@ -181,21 +181,21 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
       }
 
       const target = event.target as Node;
-      
+
       // Check if click is on the button itself - if so, let the button's onClick handle it
       if (showDatePicker && datePickerButtonRef.current && datePickerButtonRef.current.contains(target)) {
         return; // Let the button's onClick handle the toggle
       }
-      
+
       if (showGuestsPicker && guestsPickerButtonRef.current && guestsPickerButtonRef.current.contains(target)) {
         return; // Let the button's onClick handle the toggle
       }
-      
+
       // Check if click is outside date picker
       if (showDatePicker && datePickerRef.current && !datePickerRef.current.contains(target)) {
         setShowDatePicker(false);
       }
-      
+
       // Check if click is outside guests picker
       if (showGuestsPicker && guestsPickerRef.current && !guestsPickerRef.current.contains(target)) {
         setShowGuestsPicker(false);
@@ -255,20 +255,20 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   // Get guests display text - Improved UX for solo travelers
   const getGuestsText = (): string => {
     const total = guests.adults + guests.children;
-    
+
     // If no guests selected (shouldn't happen, but fallback)
     if (total === 0) return 'Passageiros';
-    
+
     // Solo traveler (1 adult, no children)
     if (guests.adults === 1 && guests.children === 0) {
       return '1 Passageiro';
     }
-    
+
     // Multiple adults, no children
     if (guests.adults > 1 && guests.children === 0) {
       return `${guests.adults} Passageiros`;
     }
-    
+
     // With children - show detailed breakdown
     const parts: string[] = [];
     if (guests.adults > 0) {
@@ -286,52 +286,52 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     const days: (Date | null)[] = [];
-    
+
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(year, month, day));
     }
-    
+
     return days;
   };
 
   // Check if date is in range - FIX: Normalize dates for accurate comparison
   const isDateInRange = (date: Date): boolean => {
     if (!dateRange.start || !dateRange.end) return false;
-    
+
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
-    
+
     const normalizedStart = new Date(dateRange.start);
     normalizedStart.setHours(0, 0, 0, 0);
-    
+
     const normalizedEnd = new Date(dateRange.end);
     normalizedEnd.setHours(0, 0, 0, 0);
-    
+
     return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
   };
 
   // Check if date is selected - FIX: Normalize dates for accurate comparison
   const isDateSelected = (date: Date): boolean => {
     if (!dateRange.start) return false;
-    
+
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
-    
+
     const normalizedStart = new Date(dateRange.start);
     normalizedStart.setHours(0, 0, 0, 0);
-    
+
     if (dateRange.end) {
       const normalizedEnd = new Date(dateRange.end);
       normalizedEnd.setHours(0, 0, 0, 0);
       return normalizedDate.getTime() === normalizedStart.getTime() || normalizedDate.getTime() === normalizedEnd.getTime();
     }
-    
+
     return normalizedDate.getTime() === normalizedStart.getTime();
   };
 
@@ -341,7 +341,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
     today.setHours(0, 0, 0, 0);
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
-    
+
     if (normalizedDate < today) return;
 
     // Normalize existing dates for comparison
@@ -377,7 +377,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
       if (dateRange.end) params.set('endDate', dateRange.end.toISOString().split('T')[0]);
       if (guests.adults > 0) params.set('adults', guests.adults.toString());
       if (guests.children > 0) params.set('children', guests.children.toString());
-      
+
       navigate(`/trips?${params.toString()}`);
     }
   };
@@ -385,7 +385,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
   // Get current month/year for calendar
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  
+
   const calendarDays = generateCalendarDays(currentYear, currentMonth);
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -468,7 +468,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           </button>
 
           {showDatePicker && datePickerPosition && (
-            <div 
+            <div
               ref={datePickerRef}
               className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[320px]"
               style={{
@@ -480,41 +480,41 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               }}
             >
               <div className="flex items-center justify-between mb-4">
-                <button 
+                <button
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     prevMonth();
-                  }} 
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
                 >
                   <ChevronDown size={16} className="rotate-90 text-gray-600" />
                 </button>
                 <h3 className="font-bold text-gray-900">{monthNames[currentMonth]} {currentYear}</h3>
-                <button 
+                <button
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     nextMonth();
-                  }} 
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
                 >
                   <ChevronDown size={16} className="-rotate-90 text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-7 gap-1 mb-2">
                 {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
                   <div key={day} className="text-xs font-bold text-gray-500 text-center py-2">{day}</div>
                 ))}
               </div>
-              
+
               <div className="grid grid-cols-7 gap-1">
                 {calendarDays.map((date, idx) => {
                   if (!date) return <div key={idx} className="aspect-square" />;
-                  
+
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   const normalizedDate = new Date(date);
@@ -522,7 +522,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                   const isPast = normalizedDate < today;
                   const isSelected = isDateSelected(date);
                   const isInRange = isDateInRange(date);
-                  
+
                   return (
                     <button
                       key={idx}
@@ -602,7 +602,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           </button>
 
           {showGuestsPicker && guestsPickerPosition && (
-            <div 
+            <div
               ref={guestsPickerRef}
               className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[240px]"
               style={{
@@ -657,7 +657,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -729,7 +729,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Para onde você vai?"
-            className="w-full pl-10 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium outline-none bg-gray-50 rounded-xl border border-gray-200"
+            className="w-full pl-10 pr-4 py-3 text-gray-900 placeholder-gray-400 font-medium text-base outline-none bg-gray-50 rounded-xl border border-gray-200"
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
@@ -748,8 +748,58 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               <span className="text-xs flex-1 text-left">{getDateRangeText()}</span>
               <ChevronDown size={14} className={`text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
             </button>
-            {/* Date picker modal for mobile would go here - simplified for now */}
-            {/* If implemented, use z-[9999] for the dropdown */}
+            {showDatePicker && (
+              <>
+                <div className="fixed inset-0 bg-black/60 z-[9998]" onClick={() => setShowDatePicker(false)} />
+                <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl p-4 z-[9999] animate-[slideUp_0.3s]">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg">Selecionar Datas</h3>
+                    <button onClick={() => setShowDatePicker(false)} className="p-2 bg-gray-100 rounded-full">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(day => (
+                      <div key={day} className="text-center text-xs font-bold text-gray-400">{day}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 max-h-[60vh] overflow-y-auto">
+                    {/* Simplified calendar for mobile - reusing desktop logic but rendered here */}
+                    {calendarDays.map((date, idx) => {
+                      if (!date) return <div key={idx} className="aspect-square" />;
+
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const normalizedDate = new Date(date);
+                      normalizedDate.setHours(0, 0, 0, 0);
+                      const isPast = normalizedDate < today;
+                      const isSelected = isDateSelected(date);
+                      const isInRange = isDateInRange(date);
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (!isPast) handleDateClick(date);
+                          }}
+                          disabled={isPast}
+                          className={`
+                            aspect-square text-sm font-medium rounded-lg flex items-center justify-center
+                            ${isPast ? 'text-gray-300' : 'text-gray-900'}
+                            ${isSelected ? 'bg-primary-600 text-white' : ''}
+                            ${isInRange && !isSelected ? 'bg-primary-50 text-primary-700' : ''}
+                          `}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="relative z-[110]" ref={guestsPickerRef}>
@@ -765,8 +815,76 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               <span className="text-xs flex-1 text-left">{getGuestsText()}</span>
               <ChevronDown size={14} className={`text-gray-400 transition-transform ${showGuestsPicker ? 'rotate-180' : ''}`} />
             </button>
-            {/* Guests picker modal for mobile would go here - simplified for now */}
-            {/* If implemented, use z-[9999] for the dropdown */}
+            {showGuestsPicker && (
+              <>
+                <div className="fixed inset-0 bg-black/60 z-[9998]" onClick={() => setShowGuestsPicker(false)} />
+                <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 z-[9999] animate-[slideUp_0.3s]">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg">Passageiros</h3>
+                    <button onClick={() => setShowGuestsPicker(false)} className="p-2 bg-gray-100 rounded-full">
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-gray-900">Adultos</div>
+                        <div className="text-xs text-gray-500">13 anos ou mais</div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }))}
+                          className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-xl text-gray-600"
+                        >
+                          -
+                        </button>
+                        <span className="font-bold text-xl">{guests.adults}</span>
+                        <button
+                          type="button"
+                          onClick={() => setGuests(prev => ({ ...prev, adults: prev.adults + 1 }))}
+                          className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-xl text-gray-600"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-gray-900">Crianças</div>
+                        <div className="text-xs text-gray-500">0 a 12 anos</div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }))}
+                          className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-xl text-gray-600"
+                        >
+                          -
+                        </button>
+                        <span className="font-bold text-xl">{guests.children}</span>
+                        <button
+                          type="button"
+                          onClick={() => setGuests(prev => ({ ...prev, children: prev.children + 1 }))}
+                          className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-xl text-gray-600"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowGuestsPicker(false)}
+                    className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl mt-8"
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

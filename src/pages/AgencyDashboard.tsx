@@ -1,6120 +1,720 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import {
+    X, Loader, Copy, ExternalLink, Star,
+    BarChart2, DollarSign, Users, Calendar, Plane, MapPin,
+    ShoppingBag, Settings, PauseCircle, PlayCircle,
+    Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle,
+    LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon,
+    FileText, Download, Rocket, LogOut, Globe, Trash2, CheckCircle, ChevronDown,
+    MessageCircle, Info, Palette, Search, Zap, Camera, Upload, FileDown,
+    Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore,
+    Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone,
+    Briefcase, Edit3, CreditCard as CreditCardIcon, QrCode, CheckCircle2,
+    Plus, Edit, Save, ArrowLeft, MoreHorizontal, PenTool, Eye, Binoculars
+} from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { usePlanPermissions } from '../hooks/usePlanPermissions';
-import { 
-  Trip, Agency, Plan, OperationalData, PassengerSeat, RoomConfig, ManualPassenger, Booking, ThemeColors, AgencyTheme, VehicleType, VehicleLayoutConfig, DashboardStats, TransportConfig, VehicleInstance, HotelInstance
-} from '../types'; 
+import {
+    Trip, Agency, Plan, OperationalData, Booking, AgencyTheme, DashboardStats
+} from '../types';
 import { PLANS } from '../services/mockData';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom'; 
-import { 
-  Plus, Edit, Save, ArrowLeft, X, Loader, Copy, Eye, ExternalLink, Star, BarChart2, DollarSign, Users, Calendar, Plane, CreditCard, MapPin, ShoppingBag, MoreHorizontal, PauseCircle, PlayCircle, Settings, BedDouble, Bus, ListChecks, Tags, Check, Settings2, Car, Clock, User, AlertTriangle, PenTool, LayoutGrid, List, ChevronRight, Truck, Grip, UserCheck, ImageIcon, FileText, Download, Rocket,
-  LogOut, Globe, Trash2, CheckCircle, ChevronDown, MessageCircle, Info, Palette, Search, LucideProps, Zap, Camera, Upload, FileDown, Building, Armchair, MousePointer2, RefreshCw, Archive, ArchiveRestore, Trash, Ban, Send, ArrowRight, CornerDownRight, Menu, ChevronLeft, Phone, Briefcase, Edit3, CreditCard as CreditCardIcon, QrCode, CheckCircle2
-} from 'lucide-react';
+import { logger } from '../utils/logger';
+import { slugify } from '../utils/slugify';
+
 import SubscriptionModal from '../components/SubscriptionModal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import { jsPDF } from 'jspdf';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
-import BusVisualizer from '../components/agency/BusVisualizer';
 import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
-import { slugify } from '../utils/slugify';
-import { logger } from '../utils/logger';
+import DashboardMobileTabs from '../components/mobile/DashboardMobileTabs';
 
-// --- HELPER CONSTANTS & COMPONENTS ---
+// Modular Imports
+import { UpgradeModal } from './agency/dashboard/components/UpgradeModal';
+import SubscriptionConfirmationModal from './agency/dashboard/components/SubscriptionConfirmationModal';
+import { DEFAULT_OPERATIONAL_DATA } from './agency/dashboard/constants';
+import { Badge, ActionMenu } from './agency/dashboard/components/DashboardHelpers';
+import { RecentBookingsTable, BookingDetailsView } from './agency/dashboard/AgencyBookings';
+import { OperationsModule } from './agency/dashboard/components/OperationsModule';
+import { AgencyReviews } from './agency/dashboard/components/AgencyReviews';
+import OverviewTab from './agency/dashboard/tabs/OverviewTab';
+import { TransportManager } from './agency/dashboard/AgencyTransport';
+import { RoomingManager } from './agency/dashboard/AgencyRooming';
+import { useAgencyData } from '../hooks/useAgencyData';
 
-const VEHICLE_TYPES: Record<VehicleType, VehicleLayoutConfig> = {
-    'CAR_4': { type: 'CAR_4', label: 'Carro de Passeio (4L)', totalSeats: 4, cols: 2, aisleAfterCol: 1 },
-    'VAN_15': { type: 'VAN_15', label: 'Van Executiva (15L)', totalSeats: 15, cols: 3, aisleAfterCol: 1 }, 
-    'VAN_20': { type: 'VAN_20', label: 'Van Alongada (20L)', totalSeats: 20, cols: 3, aisleAfterCol: 1 },
-    'MICRO_26': { type: 'MICRO_26', label: 'Micro-ônibus (26L)', totalSeats: 26, cols: 4, aisleAfterCol: 2 }, 
-    'BUS_46': { type: 'BUS_46', label: 'Ônibus Executivo (46L)', totalSeats: 46, cols: 4, aisleAfterCol: 2 },
-    'BUS_50': { type: 'BUS_50', label: 'Ônibus Leito Turismo (50L)', totalSeats: 50, cols: 4, aisleAfterCol: 2 },
-    'DD_60': { type: 'DD_60', label: 'Double Decker (60L)', totalSeats: 60, cols: 4, aisleAfterCol: 2, lowerDeckSeats: 12 }, 
-    'CUSTOM': { type: 'CUSTOM', label: 'Personalizado', totalSeats: 0, cols: 2, aisleAfterCol: 1 }
-};
-
-const DEFAULT_OPERATIONAL_DATA: OperationalData = {
-    transport: undefined, 
-    rooming: [],
-    manualPassengers: []
-};
-
-const safeDate = (dateStr: string | undefined) => {
-    if (!dateStr) return 'Data n/a';
-    try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return 'Data Inválida';
-        return d.toLocaleDateString();
-    } catch (e) {
-        return 'Data Erro';
-    }
-};
-
-const Badge: React.FC<{ children: React.ReactNode; color: 'green' | 'red' | 'blue' | 'purple' | 'gray' | 'amber' }> = ({ children, color }) => {
-  const colors = {
-    green: 'bg-green-50 text-green-700 border-green-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    gray: 'bg-gray-50 text-gray-600 border-gray-200',
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-  };
-  return (
-    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${colors[color]} inline-flex items-center gap-1.5 w-fit`}>
-      {children}
-    </span>
-  );
-};
-
-interface StatCardProps { 
-    title: string; 
-    value: string | number; 
-    subtitle: string; 
-    icon: React.ComponentType<LucideProps>; 
-    color: 'green' | 'blue' | 'purple' | 'amber';
-    onClick?: () => void;
-}
-const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon: Icon, color, onClick }) => {
-    const bgColors = {
-        green: 'bg-green-50 text-green-600',
-        blue: 'bg-blue-50 text-blue-600',
-        purple: 'bg-purple-50 text-purple-600',
-        amber: 'bg-amber-50 text-amber-600',
-    };
-    return (
-        <div 
-            onClick={onClick} 
-            className={`bg-white p-6 rounded-2xl shadow-sm border border-gray-100 group 
-                ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-primary-100 hover:scale-[1.02] transition-all' : ''}
-            `}
-        >
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-xl ${bgColors[color]} group-hover:scale-105 transition-transform`}><Icon size={24}/></div>
-            </div>
-            <p className="text-sm text-gray-500 font-medium">{title}</p>
-            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">{value}</h3>
-            <p className="text-xs text-gray-400 mt-2">{subtitle}</p>
-        </div>
-    );
-};
-
-interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default' }[] }
-const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    return (
-        <div className="relative" ref={menuRef}>
-            <button 
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsOpen(!isOpen);
-                }} 
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors group"
-            >
-                <MoreHorizontal size={18} className="group-hover:scale-110 transition-transform" />
-            </button>
-            {isOpen && (
-                <>
-                    <div 
-                        className="fixed inset-0 z-40" 
-                        onClick={() => setIsOpen(false)}
-                    ></div>
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-2 ring-primary-100">
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-3 text-white">
-                            <p className="text-xs font-bold uppercase tracking-wide">Ações do Pacote</p>
-                        </div>
-                        <div className="py-2">
-                            {actions.map((action, idx) => (
-                                <button 
-                                    key={idx} 
-                                    onClick={(e) => { 
-                                        e.stopPropagation();
-                                        action.onClick(); 
-                                        setIsOpen(false); 
-                                    }}
-                                    disabled={action.isLoading}
-                                    className={`w-full text-left px-4 py-3 text-sm font-medium flex items-center gap-3 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                                        action.variant === 'danger' 
-                                            ? 'text-red-600 hover:bg-red-50 border-l-4 border-red-500' 
-                                            : 'text-gray-700 hover:bg-primary-50 border-l-4 border-transparent hover:border-primary-500'
-                                    }`}
-                                >
-                                    {action.isLoading ? (
-                                        <Loader size={18} className="animate-spin text-gray-400" />
-                                    ) : (
-                                        <action.icon size={18} className={action.variant === 'danger' ? 'text-red-500' : 'text-primary-600'} />
-                                    )}
-                                    <span>{action.isLoading ? 'Processando...' : action.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>
-            )}
-        </div>
-    );
-};
-
-
-const NavButton: React.FC<{ tabId: string; label: string; icon: React.ComponentType<LucideProps>; activeTab: string; onClick: (tabId: string) => void; hasNotification?: boolean; }> = ({ tabId, label, icon: Icon, activeTab, onClick, hasNotification }) => (
-  <button onClick={() => onClick(tabId)} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === tabId ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
-    <Icon size={16} /> {label} {hasNotification && ( <span className="absolute top-2 right-2 flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span> </span> )} 
-  </button>
-);
-
-// Upgrade Modal Component
-const UpgradeModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-  currentPlan: string;
-  maxTrips: number;
-  currentActiveTrips: number;
-  onUpgrade: () => void;
-}> = ({ isOpen, onClose, currentPlan, maxTrips, currentActiveTrips, onUpgrade }) => {
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-[scaleIn_0.2s_ease-out]">
-        <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <Rocket size={32} />
-            <h3 className="text-2xl font-bold">Limite do Plano Atingido</h3>
-          </div>
-          <p className="text-amber-50 text-sm">Faça upgrade para criar mais viagens</p>
-        </div>
-        <div className="p-6">
-          <p className="text-gray-700 mb-4">
-            Você atingiu o limite do plano <strong>{currentPlan}</strong>.
-          </p>
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Viagens ativas:</span>
-              <span className="font-bold text-gray-900">{currentActiveTrips} / {maxTrips === Infinity ? '∞' : maxTrips}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-amber-500 h-2 rounded-full transition-all"
-                style={{ width: `${Math.min(100, (currentActiveTrips / (maxTrips === Infinity ? 1 : maxTrips)) * 100)}%` }}
-              />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={() => {
-                onUpgrade();
-                onClose();
-              }}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold hover:from-amber-600 hover:to-orange-600 transition-colors shadow-lg"
-            >
-              Ver Planos
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const SubscriptionConfirmationModal: React.FC<{ 
-  plan: Plan; 
-  onClose: () => void; 
-  onConfirm: () => void; 
-  isSubmitting: boolean;
-  agencyName?: string;
-}> = ({ plan, onClose, onConfirm, isSubmitting, agencyName = '' }) => {
-  const { showToast } = useToast();
-  const [copied, setCopied] = useState(false);
-  
-  // PIX Configuration
-  const PIX_KEY = '401.334.708-30';
-  const PIX_BENEFICIARY = 'Juan Nicolas Galindo Primo';
-  const WHATSAPP_NUMBER = '5511987697684';
-  
-  // Nubank PIX Links by Plan
-  const NUBANK_PIX_LINKS: Record<string, string> = {
-    'BASIC': 'https://nubank.com.br/cobrar/43zc9/693a4b0c-9628-4b2a-8cc3-a2606154b8ac', // R$ 59,90
-    'PREMIUM': 'https://nubank.com.br/cobrar/43zc9/693a4ae6-28e1-4e55-ba8d-e52d3a7ffbd0', // R$ 99,90
-  };
-  
-  // Get Nubank link for current plan
-  const nubankLink = NUBANK_PIX_LINKS[plan.id] || '';
-  const hasNubankLink = !!nubankLink;
-  
-  // QR Code: Use Nubank link if available, otherwise generate from PIX key
-  const qrCodeUrl = hasNubankLink 
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(nubankLink)}`
-    : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(PIX_KEY)}`;
-  
-  const handleCopyPixKey = async () => {
-    try {
-      await navigator.clipboard.writeText(PIX_KEY);
-      setCopied(true);
-      showToast('Chave PIX copiada!', 'success');
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      showToast('Erro ao copiar. Tente novamente.', 'error');
-    }
-  };
-  
-  const handleOpenWhatsApp = () => {
-    const planName = plan.name;
-    const message = encodeURIComponent(
-      `Olá, fiz o pix para o plano ${planName} da agência ${agencyName || 'minha agência'}. Segue o comprovante.`
-    );
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
-  };
-  
-  const formatPrice = (price: number) => {
-    if (price === 0) return 'Grátis';
-    return `R$ ${price.toFixed(2).replace('.', ',')}`;
-  };
-  
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors z-10">
-          <X size={20}/>
-        </button>
-        
-        {/* Header */}
-        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-white/20 p-2 rounded-lg">
-              <Rocket size={24} className="text-white"/>
-            </div>
-            <h2 className="text-2xl font-bold">Ativar Plano {plan.name}</h2>
-          </div>
-          <p className="text-primary-50 text-sm">Siga os passos abaixo para finalizar sua assinatura</p>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          {/* Step 1: PIX Payment */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary-100 text-primary-600 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
-                1
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Faça o Pagamento via PIX</h3>
-            </div>
-            
-            {/* PIX Card */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 mb-3">
-                <QrCode size={20} className="text-green-600"/>
-                <span className="text-sm font-bold text-green-700 uppercase tracking-wide">
-                  {hasNubankLink ? 'Pagamento via Nubank' : 'Chave PIX (CPF)'}
-                </span>
-              </div>
-              
-              {/* QR Code Section */}
-              {hasNubankLink && (
-                <div className="bg-white rounded-lg p-4 border border-green-200 flex flex-col items-center gap-3">
-                  <img 
-                    src={qrCodeUrl} 
-                    alt="QR Code PIX Nubank" 
-                    className="w-40 h-40 rounded-lg"
-                  />
-                  <button
-                    onClick={() => window.open(nubankLink, '_blank')}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-lg transition-all shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 text-sm"
-                  >
-                    <QrCode size={16} className="text-white"/>
-                    Abrir QR Code
-                  </button>
-                  <p className="text-xs text-gray-500 text-center">
-                    Clique no botão para abrir o QR Code
-                  </p>
-                </div>
-              )}
-              
-              <div className="bg-white rounded-lg p-4 border border-green-200">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500 mb-1">Chave PIX</p>
-                    <p className="text-lg font-mono font-bold text-gray-900 break-all">{PIX_KEY}</p>
-                  </div>
-                  <button
-                    onClick={handleCopyPixKey}
-                    className={`flex-shrink-0 px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-                      copied 
-                        ? 'bg-green-600 text-white' 
-                        : 'bg-green-100 text-green-700 hover:bg-green-200'
-                    }`}
-                  >
-                    {copied ? (
-                      <>
-                        <CheckCircle2 size={16} className="text-white"/>
-                        Copiado!
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={16}/>
-                        Copiar
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              <div className="bg-white rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-gray-500 mb-1">Beneficiário</p>
-                <p className="text-sm font-bold text-gray-900">{PIX_BENEFICIARY}</p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-4 border-2 border-green-500">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-600">Valor do Plano</span>
-                  <span className="text-2xl font-extrabold text-green-600">
-                    {formatPrice(plan.price)}<span className="text-sm font-normal text-gray-500">/mês</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Step 2: Send Receipt */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary-100 text-primary-600 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm">
-                2
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Envie o Comprovante</h3>
-            </div>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <p className="text-sm text-gray-700 leading-relaxed">
-                Após realizar a transferência, envie o comprovante no nosso WhatsApp para ativarmos sua conta imediatamente.
-              </p>
-            </div>
-            
-            <button
-              onClick={handleOpenWhatsApp}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-green-500/30 flex items-center justify-center gap-3"
-            >
-              <MessageCircle size={20}/>
-              <span>Enviar Comprovante no WhatsApp</span>
-            </button>
-          </div>
-          
-          {/* Footer Note */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-            <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5"/>
-            <p className="text-xs text-amber-800 leading-relaxed">
-              <strong>Atenção:</strong> A liberação do plano ocorre em instantes após a conferência do pagamento.
-            </p>
-          </div>
-          
-          {/* Cancel Button */}
-          <button
-            onClick={onClose}
-            className="w-full py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
-          >
-            Fechar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ManualPassengerForm: React.FC<{ onAdd: (p: ManualPassenger) => void; onClose: () => void }> = ({ onAdd, onClose }) => {
-    const [name, setName] = useState('');
-    const [doc, setDoc] = useState('');
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name) return;
-        onAdd({ id: `manual-${Date.now()}`, name, document: doc });
-        onClose();
-    };
-    return (
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4 animate-[fadeIn_0.2s]">
-            <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Novo Passageiro Manual</h4>
-            <form onSubmit={handleSubmit} className="space-y-3">
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="Nome Completo" className="w-full text-sm border p-2 rounded focus:ring-1 focus:ring-primary-500 outline-none" autoFocus />
-                <input value={doc} onChange={e => setDoc(e.target.value)} placeholder="RG/CPF (Opcional)" className="w-full text-sm border p-2 rounded focus:ring-1 focus:ring-primary-500 outline-none" />
-                <div className="flex gap-2">
-                    <button type="button" onClick={onClose} className="flex-1 text-xs bg-white border border-gray-300 text-gray-700 p-2 rounded hover:bg-gray-50 font-medium">Cancelar</button>
-                    <button type="submit" className="flex-1 text-xs bg-primary-600 text-white p-2 rounded hover:bg-primary-700 font-bold shadow-sm">Adicionar</button>
-                </div>
-            </form>
-        </div>
-    );
-};
-
-// --- REFACTORED BOOKING TABLE (SORTED) ---
-interface RecentBookingsTableProps {
-    bookings: Booking[];
-    clients: any[];
-}
-
-interface BookingDetailsViewProps {
-    bookings: Booking[];
-    clients: any[];
-}
-const BookingDetailsView: React.FC<BookingDetailsViewProps> = ({ bookings, clients }) => {
-    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-    const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
+const AgencyDashboard: React.FC = () => {
+    const {
+        refreshData, loading: dataLoading,
+        createTrip, updateTrip, deleteTrip, updateAgencyReview,
+        clients, updateTripOperationalData, saveAgencyTheme,
+        getAgencyTheme
+    } = useData();
+    const { currentAgency, myTrips, myBookings, agencyReviews } = useAgencyData();
+    const { user, login, logout, updateUser, uploadImage } = useAuth();
+    const { activeTheme, setTheme, setAgencyTheme } = useTheme();
     const { showToast } = useToast();
-
-    const sortedBookings = useMemo(() => {
-        return [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [bookings]);
-
-    const isNewBooking = (dateStr: string) => {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffTime = Math.abs(now.getTime() - date.getTime());
-        const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); 
-        return diffHours <= 24;
-    };
-
-    // Fetch passengers when booking is selected
-    useEffect(() => {
-        const fetchPassengers = async () => {
-            if (!selectedBooking) {
-                setBookingPassengers([]);
-                return;
-            }
-            
-            try {
-                const { supabase } = await import('../services/supabase');
-                if (supabase) {
-                    const { data, error } = await supabase
-                        .from('booking_passengers')
-                        .select('*')
-                        .eq('booking_id', selectedBooking.id)
-                        .order('passenger_index', { ascending: true });
-                    
-                    if (!error && data) {
-                        setBookingPassengers(data);
-                    }
-                }
-            } catch (err) {
-                logger.error('Error fetching passengers:', err);
-            }
-        };
-
-        fetchPassengers();
-    }, [selectedBooking]);
-
-    const openWhatsApp = (phone: string) => {
-        const cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone) {
-            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
-        } else {
-            showToast('Número de WhatsApp não disponível', 'warning');
-        }
-    };
-
-    return (
-        <>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Minhas Reservas ({bookings.length})</h2>
-            {sortedBookings.length > 0 ? (
-                <div className="overflow-x-auto custom-scrollbar">
-                    <table className="min-w-full divide-y divide-gray-100">
-                        <thead className="bg-gray-50/50">
-                            <tr>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider"># Reserva</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Pacote</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Passageiros</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Data</th>
-                                <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Valor Total</th>
-                                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                            {sortedBookings.map(booking => {
-                                const client = clients.find(c => c.id === booking.clientId);
-                                const isNew = isNewBooking(booking.date);
-                                return (
-                                    <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 font-mono text-xs text-gray-700 font-bold">{booking.voucherCode}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-gray-900">{booking._trip?.title || 'N/A'}</span>
-                                                <span className="text-xs text-gray-500">{booking._trip?.destination || ''}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                {client?.avatar ? (
-                                                    <img src={client.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
-                                                ) : (
-                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                                                        {client?.name?.charAt(0) || '?'}
-                                                    </div>
-                                                )}
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-gray-900">{client?.name || 'Cliente Desconhecido'}</span>
-                                                    {client?.phone && (
-                                                        <span className="text-xs text-gray-500">{client.phone}</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <Users size={16} className="text-primary-600"/>
-                                                <span className="text-sm font-bold text-gray-900">{booking.passengers}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">
-                                            <div className="flex items-center gap-2">
-                                                {new Date(booking.date).toLocaleDateString('pt-BR')}
-                                                {isNew && <span className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded-full font-bold">NOVO</span>}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="px-6 py-4">
-                                            <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>{booking.status}</Badge>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <button
-                                                onClick={() => setSelectedBooking(booking)}
-                                                className="px-4 py-2 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 mx-auto"
-                                            >
-                                                <Eye size={14}/> Ver Detalhes
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            ) : (
-                <div className="text-center py-12 text-gray-400">
-                    <ShoppingBag size={48} className="mx-auto mb-4 opacity-50"/>
-                    <p className="text-lg">Nenhuma reserva ainda</p>
-                </div>
-            )}
-        </div>
-
-        {/* Premium Booking Details Modal */}
-        {selectedBooking && (() => {
-            // Get full client data from clients array
-            const clientData = clients.find(c => c.id === selectedBooking.clientId);
-            const paymentMethodLabels = {
-                'PIX': 'PIX',
-                'CREDIT_CARD': 'Cartão de Crédito',
-                'BOLETO': 'Boleto Bancário'
-            };
-
-            const generatePDF = async () => {
-                if (!selectedBooking) return;
-                const trip = selectedBooking._trip;
-                const agency = selectedBooking._agency;
-
-                if (!trip) {
-                    showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
-                    return;
-                }
-
-                try {
-                    const doc = new jsPDF();
-                    doc.setFillColor(59, 130, 246);
-                    doc.rect(0, 0, 210, 40, 'F');
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(22);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
-                    doc.setTextColor(0, 0, 0);
-                    doc.setFontSize(12);
-                    let y = 60;
-                    const addField = (label: string, value: string) => { 
-                        doc.setFont('helvetica', 'bold'); 
-                        doc.text(label, 20, y); 
-                        doc.setFont('helvetica', 'normal'); 
-                        doc.text(value, 70, y); 
-                        y += 10; 
-                    };
-                    addField('Código da Reserva:', selectedBooking.voucherCode);
-                    y += 5;
-                    addField('Pacote:', trip.title || '---');
-                    addField('Destino:', trip.destination || '---');
-                    const dateStr = trip.startDate;
-                    addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString('pt-BR') : '---');
-                    const duration = trip.durationDays;
-                    addField('Duração:', `${duration} Dias`);
-                    y += 5;
-                    addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
-                    if (agency?.phone) addField('Contato Agência:', agency.phone);
-                    y += 10;
-                    
-                    // Passenger section
-                    doc.setDrawColor(200, 200, 200);
-                    doc.line(20, y, 190, y);
-                    y += 15;
-                    doc.setFontSize(14);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Passageiros', 20, y);
-                    y += 10;
-                    
-                    if (bookingPassengers.length > 0) {
-                        bookingPassengers.forEach((passenger, index) => {
-                            if (y > 250) {
-                                doc.addPage();
-                                y = 20;
-                            }
-                            doc.setFontSize(11);
-                            doc.setFont('helvetica', 'bold');
-                            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
-                            doc.setFont('helvetica', 'normal');
-                            y += 7;
-                            doc.setFontSize(10);
-                            doc.text(`Nome: ${passenger.full_name}`, 25, y);
-                            y += 6;
-                            if (passenger.cpf) {
-                                doc.text(`CPF: ${passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`, 25, y);
-                                y += 6;
-                            }
-                            if (passenger.birth_date) {
-                                doc.text(`Data de Nascimento: ${new Date(passenger.birth_date).toLocaleDateString('pt-BR')}`, 25, y);
-                                y += 6;
-                            }
-                            if (passenger.whatsapp) {
-                                doc.text(`WhatsApp: ${passenger.whatsapp}`, 25, y);
-                                y += 6;
-                            }
-                            y += 5;
-                        });
-                    } else {
-                        doc.setFontSize(10);
-                        doc.setFont('helvetica', 'normal');
-                        doc.text(`Passageiro Principal: ${clientData?.name || 'N/A'}`, 25, y);
-                        y += 6;
-                        if (clientData?.cpf) {
-                            doc.text(`CPF: ${clientData.cpf}`, 25, y);
-                            y += 6;
-                        }
-                        if (selectedBooking.passengers > 1) {
-                            doc.text(`Total de passageiros: ${selectedBooking.passengers}`, 25, y);
-                            y += 6;
-                        }
-                    }
-                    
-                    y += 10;
-                    doc.setDrawColor(200, 200, 200);
-                    doc.line(20, y, 190, y);
-                    y += 15;
-                    doc.setFontSize(14);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Instruções', 20, y);
-                    y += 10;
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
-                    y += 6;
-                    doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
-                    y += 6;
-                    doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
-                    y = 280;
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 150);
-                    doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
-                    doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
-                    showToast('Voucher baixado com sucesso!', 'success');
-                } catch (error) {
-                    logger.error('Erro ao gerar PDF:', error);
-                    showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
-                    <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex-1">
-                                    <h2 className="text-2xl font-bold mb-2">Detalhes Completos da Reserva</h2>
-                                    <div className="flex items-center gap-4 flex-wrap">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-primary-200 text-sm font-medium">ID:</span>
-                                            <span className="text-primary-100 text-sm font-mono">{selectedBooking.id.substring(0, 8)}...</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-primary-200 text-sm font-medium">Código do Voucher:</span>
-                                            <span className="text-white text-base font-mono font-bold bg-white/20 px-2 py-1 rounded">{selectedBooking.voucherCode}</span>
-                                        </div>
-                                        <Badge color={selectedBooking.status === 'CONFIRMED' ? 'green' : selectedBooking.status === 'CANCELLED' ? 'red' : 'amber'}>
-                                            {selectedBooking.status === 'CONFIRMED' ? 'CONFIRMADO' : selectedBooking.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedBooking(null)}
-                                    className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/20 transition-colors"
-                                >
-                                    <X size={24}/>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Booking Info Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Pacote</p>
-                                    <p className="text-lg font-bold text-gray-900 mb-1">{selectedBooking._trip?.title || 'N/A'}</p>
-                                    <p className="text-sm text-gray-600">{selectedBooking._trip?.destination || ''}</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valor Total</p>
-                                    <p className="text-2xl font-bold text-green-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    <p className="text-xs text-gray-500 mt-1">R$ {(selectedBooking.totalPrice / selectedBooking.passengers).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por passageiro</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Passageiros</p>
-                                    <p className="text-2xl font-bold text-purple-600">{selectedBooking.passengers}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{selectedBooking.passengers === 1 ? 'passageiro' : 'passageiros'}</p>
-                                </div>
-                            </div>
-
-                            {/* Financial Section */}
-                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-100">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                    <CreditCardIcon size={20} className="text-amber-600"/> Informações Financeiras
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Método de Pagamento</p>
-                                        <p className="text-base font-bold text-gray-900">
-                                            {paymentMethodLabels[selectedBooking.paymentMethod] || selectedBooking.paymentMethod || 'N/A'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Valor Total</p>
-                                        <p className="text-2xl font-bold text-green-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Client Info */}
-                            {clientData ? (
-                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <User size={20} className="text-primary-600"/> Dados do Comprador
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</p>
-                                            <p className="text-base font-bold text-gray-900">{clientData.name || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Email</p>
-                                            <p className="text-base text-gray-700">{clientData.email || 'N/A'}</p>
-                                        </div>
-                                        {clientData.phone && (
-                                            <div>
-                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</p>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-base text-gray-700 flex-1">{clientData.phone}</p>
-                                                    <button
-                                                        onClick={() => openWhatsApp(clientData.phone!)}
-                                                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-md"
-                                                    >
-                                                        <MessageCircle size={16}/> Chamar no WhatsApp
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {clientData.cpf && (
-                                            <div>
-                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">CPF</p>
-                                                <p className="text-base text-gray-700 font-mono">{clientData.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                                    <p className="text-sm text-gray-500">Dados do comprador não disponíveis</p>
-                                </div>
-                            )}
-
-                            {/* Passengers List */}
-                            {bookingPassengers.length > 0 ? (
-                                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <Users size={20} className="text-primary-600"/> Passageiros ({bookingPassengers.length})
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {bookingPassengers.map((passenger, index) => (
-                                            <div key={passenger.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
-                                                            {index + 1}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-bold text-gray-900">{passenger.full_name || `Passageiro ${index + 1}`}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {index === 0 ? 'Passageiro Principal (Titular)' : `Acompanhante ${index}`}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    {passenger.whatsapp && (
-                                                        <button
-                                                            onClick={() => openWhatsApp(passenger.whatsapp)}
-                                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                        >
-                                                            <MessageCircle size={14}/> WhatsApp
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                                    {passenger.cpf && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">CPF</p>
-                                                            <p className="font-medium text-gray-900 font-mono">{passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
-                                                        </div>
-                                                    )}
-                                                    {passenger.birth_date && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">Data de Nascimento</p>
-                                                            <p className="font-medium text-gray-900">{new Date(passenger.birth_date).toLocaleDateString('pt-BR')}</p>
-                                                        </div>
-                                                    )}
-                                                    {passenger.whatsapp && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">WhatsApp</p>
-                                                            <p className="font-medium text-gray-900">{passenger.whatsapp}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                                    <p className="text-sm text-gray-500">Nenhum passageiro cadastrado ainda</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer Actions */}
-                        <div className="border-t border-gray-200 p-6 bg-gray-50 flex items-center justify-end gap-3">
-                            <button
-                                onClick={() => setSelectedBooking(null)}
-                                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                            >
-                                Fechar
-                            </button>
-                            <button
-                                onClick={generatePDF}
-                                className="px-6 py-2.5 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 shadow-md"
-                            >
-                                <FileText size={18}/> Baixar Voucher (PDF)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        })()}
-        </>
-    );
-};
-const RecentBookingsTable: React.FC<RecentBookingsTableProps> = ({ bookings, clients }) => {
-    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-    const [bookingPassengers, setBookingPassengers] = useState<any[]>([]);
-    const { showToast } = useToast();
-
-    const recentBookings = useMemo(() => {
-        return [...bookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
-    }, [bookings]);
-
-    const isNew = (date: string) => {
-        return (new Date().getTime() - new Date(date).getTime()) < 24 * 60 * 60 * 1000;
-    };
-
-    // Fetch passengers when booking is selected
-    useEffect(() => {
-        const fetchPassengers = async () => {
-            if (!selectedBooking) {
-                setBookingPassengers([]);
-                return;
-            }
-            
-            try {
-                const { supabase } = await import('../services/supabase');
-                if (supabase) {
-                    const { data, error } = await supabase
-                        .from('booking_passengers')
-                        .select('*')
-                        .eq('booking_id', selectedBooking.id)
-                        .order('passenger_index', { ascending: true });
-                    
-                    if (!error && data) {
-                        setBookingPassengers(data);
-                    }
-                }
-            } catch (err) {
-                logger.error('Error fetching passengers:', err);
-            }
-        };
-
-        fetchPassengers();
-    }, [selectedBooking]);
-
-    const openWhatsApp = (phone: string) => {
-        const cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone) {
-            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
-        } else {
-            showToast('Número de WhatsApp não disponível', 'warning');
-        }
-    };
-
-    return (
-        <>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><ShoppingBag size={20} className="mr-2 text-primary-600"/> Últimas Vendas</h3>
-            {recentBookings.length > 0 ? (
-                <div className="overflow-x-auto custom-scrollbar">
-                    <table className="min-w-full divide-y divide-gray-100 text-sm">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Cliente</th>
-                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th>
-                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
-                                <th className="px-4 py-2 text-right text-xs font-bold text-gray-500 uppercase">Valor</th>
-                                <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
-                                <th className="px-4 py-2 text-center text-xs font-bold text-gray-500 uppercase">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {recentBookings.map(booking => {
-                                const clientData = (booking as any)._client || clients.find(c => c.id === booking.clientId);
-                                return (
-                                    <tr key={booking.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                {clientData?.avatar ? (
-                                                    <img src={clientData.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
-                                                ) : (
-                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                                                        {clientData?.name?.charAt(0) || '?'}
-                                                    </div>
-                                                )}
-                                                <span className="font-medium text-gray-900 truncate max-w-[120px]">{clientData?.name || 'Cliente'}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-700 truncate max-w-[150px]">{booking._trip?.title || 'N/A'}</td>
-                                        <td className="px-4 py-3 text-gray-500 flex items-center gap-2">
-                                            {new Date(booking.date).toLocaleDateString()}
-                                            {isNew(booking.date) && <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">NOVO</span>}
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-bold text-gray-900">R$ {booking.totalPrice.toLocaleString()}</td>
-                                        <td className="px-4 py-3">
-                                            <Badge color={booking.status === 'CONFIRMED' ? 'green' : 'amber'}>
-                                                {booking.status}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <button
-                                                onClick={() => setSelectedBooking(booking)}
-                                                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors flex items-center gap-1 mx-auto"
-                                            >
-                                                <Eye size={14}/> Ver Detalhes
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            ) : (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                    <ShoppingBag size={32} className="mx-auto mb-3"/>
-                    <p>Nenhuma venda recente ainda. Sua primeira venda está chegando!</p>
-                </div>
-            )}
-        </div>
-
-        {/* Premium Booking Details Modal */}
-        {selectedBooking && (() => {
-            // Get full client data from clients array
-            const clientData = clients.find(c => c.id === selectedBooking.clientId);
-            const paymentMethodLabels = {
-                'PIX': 'PIX',
-                'CREDIT_CARD': 'Cartão de Crédito',
-                'BOLETO': 'Boleto Bancário'
-            };
-
-            const generatePDF = async () => {
-                if (!selectedBooking) return;
-                const trip = selectedBooking._trip;
-                const agency = selectedBooking._agency;
-
-                if (!trip) {
-                    showToast('Não foi possível carregar todos os dados para o voucher. Tente novamente.', 'error');
-                    return;
-                }
-
-                try {
-                    const doc = new jsPDF();
-                    doc.setFillColor(59, 130, 246);
-                    doc.rect(0, 0, 210, 40, 'F');
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(22);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('VOUCHER DE VIAGEM', 105, 25, { align: 'center' });
-                    doc.setTextColor(0, 0, 0);
-                    doc.setFontSize(12);
-                    let y = 60;
-                    const addField = (label: string, value: string) => { 
-                        doc.setFont('helvetica', 'bold'); 
-                        doc.text(label, 20, y); 
-                        doc.setFont('helvetica', 'normal'); 
-                        doc.text(value, 70, y); 
-                        y += 10; 
-                    };
-                    addField('Código da Reserva:', selectedBooking.voucherCode);
-                    y += 5;
-                    addField('Pacote:', trip.title || '---');
-                    addField('Destino:', trip.destination || '---');
-                    const dateStr = trip.startDate;
-                    addField('Data da Viagem:', dateStr ? new Date(dateStr).toLocaleDateString('pt-BR') : '---');
-                    const duration = trip.durationDays;
-                    addField('Duração:', `${duration} Dias`);
-                    y += 5;
-                    addField('Agência Responsável:', agency?.name || 'ViajaStore Partner');
-                    if (agency?.phone) addField('Contato Agência:', agency.phone);
-                    y += 10;
-                    
-                    // Passenger section
-                    doc.setDrawColor(200, 200, 200);
-                    doc.line(20, y, 190, y);
-                    y += 15;
-                    doc.setFontSize(14);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Passageiros', 20, y);
-                    y += 10;
-                    
-                    if (bookingPassengers.length > 0) {
-                        bookingPassengers.forEach((passenger, index) => {
-                            if (y > 250) {
-                                doc.addPage();
-                                y = 20;
-                            }
-                            doc.setFontSize(11);
-                            doc.setFont('helvetica', 'bold');
-                            doc.text(`${index === 0 ? 'Passageiro Principal' : `Acompanhante ${index}`}:`, 20, y);
-                            doc.setFont('helvetica', 'normal');
-                            y += 7;
-                            doc.setFontSize(10);
-                            doc.text(`Nome: ${passenger.full_name}`, 25, y);
-                            y += 6;
-                            if (passenger.cpf) {
-                                doc.text(`CPF: ${passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`, 25, y);
-                                y += 6;
-                            }
-                            if (passenger.birth_date) {
-                                doc.text(`Data de Nascimento: ${new Date(passenger.birth_date).toLocaleDateString('pt-BR')}`, 25, y);
-                                y += 6;
-                            }
-                            if (passenger.whatsapp) {
-                                doc.text(`WhatsApp: ${passenger.whatsapp}`, 25, y);
-                                y += 6;
-                            }
-                            y += 5;
-                        });
-                    } else {
-                        doc.setFontSize(10);
-                        doc.setFont('helvetica', 'normal');
-                        doc.text(`Passageiro Principal: ${clientData?.name || 'N/A'}`, 25, y);
-                        y += 6;
-                        if (clientData?.cpf) {
-                            doc.text(`CPF: ${clientData.cpf}`, 25, y);
-                            y += 6;
-                        }
-                        if (selectedBooking.passengers > 1) {
-                            doc.text(`Total de passageiros: ${selectedBooking.passengers}`, 25, y);
-                            y += 6;
-                        }
-                    }
-                    
-                    y += 10;
-                    doc.setDrawColor(200, 200, 200);
-                    doc.line(20, y, 190, y);
-                    y += 15;
-                    doc.setFontSize(14);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Instruções', 20, y);
-                    y += 10;
-                    doc.setFontSize(10);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text('1. Apresente este voucher (digital ou impresso) no momento do check-in.', 20, y);
-                    y += 6;
-                    doc.text('2. É obrigatória a apresentação de documento original com foto.', 20, y);
-                    y += 6;
-                    doc.text('3. Chegue com pelo menos 30 minutos de antecedência ao ponto de encontro.', 20, y);
-                    y = 280;
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 150);
-                    doc.text('Emitido por ViajaStore - O maior marketplace de viagens do Brasil.', 105, y, { align: 'center' });
-                    doc.save(`voucher_${selectedBooking.voucherCode}.pdf`);
-                    showToast('Voucher baixado com sucesso!', 'success');
-                } catch (error) {
-                    logger.error('Erro ao gerar PDF:', error);
-                    showToast('Ocorreu um erro ao gerar o PDF. Tente novamente.', 'error');
-                }
-            };
-
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setSelectedBooking(null)}>
-                    <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-6 text-white">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex-1">
-                                    <h2 className="text-2xl font-bold mb-2">Detalhes Completos da Reserva</h2>
-                                    <div className="flex items-center gap-4 flex-wrap">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-primary-200 text-sm font-medium">ID:</span>
-                                            <span className="text-primary-100 text-sm font-mono">{selectedBooking.id.substring(0, 8)}...</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-primary-200 text-sm font-medium">Código do Voucher:</span>
-                                            <span className="text-white text-base font-mono font-bold bg-white/20 px-2 py-1 rounded">{selectedBooking.voucherCode}</span>
-                                        </div>
-                                        <Badge color={selectedBooking.status === 'CONFIRMED' ? 'green' : selectedBooking.status === 'CANCELLED' ? 'red' : 'amber'}>
-                                            {selectedBooking.status === 'CONFIRMED' ? 'CONFIRMADO' : selectedBooking.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedBooking(null)}
-                                    className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/20 transition-colors"
-                                >
-                                    <X size={24}/>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Booking Info Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Pacote</p>
-                                    <p className="text-lg font-bold text-gray-900 mb-1">{selectedBooking._trip?.title || 'N/A'}</p>
-                                    <p className="text-sm text-gray-600">{selectedBooking._trip?.destination || ''}</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border border-green-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valor Total</p>
-                                    <p className="text-2xl font-bold text-green-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    <p className="text-xs text-gray-500 mt-1">R$ {(selectedBooking.totalPrice / selectedBooking.passengers).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} por passageiro</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-100">
-                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Passageiros</p>
-                                    <p className="text-2xl font-bold text-purple-600">{selectedBooking.passengers}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{selectedBooking.passengers === 1 ? 'passageiro' : 'passageiros'}</p>
-                                </div>
-                            </div>
-
-                            {/* Financial Section */}
-                            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-100">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                    <CreditCardIcon size={20} className="text-amber-600"/> Informações Financeiras
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Método de Pagamento</p>
-                                        <p className="text-base font-bold text-gray-900">
-                                            {paymentMethodLabels[selectedBooking.paymentMethod] || selectedBooking.paymentMethod || 'N/A'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Valor Total</p>
-                                        <p className="text-2xl font-bold text-green-600">R$ {selectedBooking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Client Info */}
-                            {clientData ? (
-                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <User size={20} className="text-primary-600"/> Dados do Comprador
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</p>
-                                            <p className="text-base font-bold text-gray-900">{clientData.name || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Email</p>
-                                            <p className="text-base text-gray-700">{clientData.email || 'N/A'}</p>
-                                        </div>
-                                        {clientData.phone && (
-                                            <div>
-                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</p>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-base text-gray-700 flex-1">{clientData.phone}</p>
-                                                    <button
-                                                        onClick={() => openWhatsApp(clientData.phone!)}
-                                                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-md"
-                                                    >
-                                                        <MessageCircle size={16}/> Chamar no WhatsApp
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {clientData.cpf && (
-                                            <div>
-                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">CPF</p>
-                                                <p className="text-base text-gray-700 font-mono">{clientData.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                                    <p className="text-sm text-gray-500">Dados do comprador não disponíveis</p>
-                                </div>
-                            )}
-
-                            {/* Passengers List */}
-                            {bookingPassengers.length > 0 ? (
-                                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <Users size={20} className="text-primary-600"/> Passageiros ({bookingPassengers.length})
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {bookingPassengers.map((passenger, index) => (
-                                            <div key={passenger.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
-                                                            {index + 1}
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-bold text-gray-900">{passenger.full_name || `Passageiro ${index + 1}`}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {index === 0 ? 'Passageiro Principal (Titular)' : `Acompanhante ${index}`}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    {passenger.whatsapp && (
-                                                        <button
-                                                            onClick={() => openWhatsApp(passenger.whatsapp)}
-                                                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                        >
-                                                            <MessageCircle size={14}/> WhatsApp
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                                    {passenger.cpf && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">CPF</p>
-                                                            <p className="font-medium text-gray-900 font-mono">{passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p>
-                                                        </div>
-                                                    )}
-                                                    {passenger.birth_date && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">Data de Nascimento</p>
-                                                            <p className="font-medium text-gray-900">{new Date(passenger.birth_date).toLocaleDateString('pt-BR')}</p>
-                                                        </div>
-                                                    )}
-                                                    {passenger.whatsapp && (
-                                                        <div>
-                                                            <p className="text-xs text-gray-500 mb-1">WhatsApp</p>
-                                                            <p className="font-medium text-gray-900">{passenger.whatsapp}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                                    <p className="text-sm text-gray-500">Nenhum passageiro cadastrado ainda</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer Actions */}
-                        <div className="border-t border-gray-200 p-6 bg-gray-50 flex items-center justify-end gap-3">
-                            <button
-                                onClick={() => setSelectedBooking(null)}
-                                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                            >
-                                Fechar
-                            </button>
-                            <button
-                                onClick={generatePDF}
-                                className="px-6 py-2.5 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2 shadow-md"
-                            >
-                                <FileText size={18}/> Baixar Voucher (PDF)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        })()}
-        </>
-    );
-};
-
-// --- SUB-COMPONENTS FOR OPERATIONS ---
-
-interface TransportManagerProps {
-    trip: Trip; 
-    bookings: Booking[]; 
-    clients: any[]; 
-    onSave: (data: OperationalData) => void; 
-}
-const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookings, clients, onSave }) => {
-    // Legacy support: Check for old structure
-    const legacyTransport = trip.operationalData?.transport;
-    
-    // New State for Multiple Vehicles
-    const [vehicles, setVehicles] = useState<VehicleInstance[]>([]);
-    const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
-    const [isVehicleMenuOpen, setIsVehicleMenuOpen] = useState(false); // For click menu
-    const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null); // To know if we are creating or updating
-    
-    // UI States
-    const [showManualForm, setShowManualForm] = useState(false);
-    const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(trip.operationalData?.manualPassengers || []);
-    const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
-    const [dragOverSeat, setDragOverSeat] = useState<string | null>(null);
-    const [seatToDelete, setSeatToDelete] = useState<{ seatNum: string; name: string } | null>(null);
-    const [showResetConfirm, setShowResetConfirm] = useState(false);
-    
-    // Passenger Edit Modal
-    const [passengerEditId, setPassengerEditId] = useState<string | null>(null);
-    const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '', birthDate: '', rg: '', rgOrg: '' });
-    const [passengerToDelete, setPassengerToDelete] = useState<string | null>(null);
-    
-    // Passenger Details Modal
-    const [passengerDetailsModal, setPassengerDetailsModal] = useState<{
-        name: string;
-        status: string;
-        document: string;
-        phone: string;
-        birthDate: string;
-        avatar?: string;
-    } | null>(null);
-    
-    const [isAutoFilling, setIsAutoFilling] = useState(false);
-
-    // Config Mode
-    const [showCustomVehicleForm, setShowCustomVehicleForm] = useState(false);
-    const [customVehicleData, setCustomVehicleData] = useState({ label: '', totalSeats: 4, cols: 2 });
-    const [filterText, setFilterText] = useState('');
-
-    const { showToast } = useToast();
-
-    // Data Migration & Initialization Effect - Só inicializa uma vez
-    const [isInitialized, setIsInitialized] = useState(false);
-    
-    useEffect(() => {
-        // Só inicializar uma vez quando o componente monta
-        if (isInitialized || vehicles.length > 0) return;
-        
-        if (legacyTransport?.vehicles && legacyTransport.vehicles.length > 0) {
-            // New structure exists
-            const currentVehicles = legacyTransport.vehicles;
-            setVehicles(currentVehicles);
-            if (!activeVehicleId) {
-                setActiveVehicleId(currentVehicles[0].id);
-            }
-            setIsInitialized(true);
-        } else if (legacyTransport?.vehicleConfig) {
-            // Migrate legacy single vehicle to array
-            const migratedVehicle: VehicleInstance = {
-                id: 'v-legacy',
-                name: 'Veículo Principal',
-                type: legacyTransport.vehicleConfig.type,
-                config: legacyTransport.vehicleConfig,
-                seats: legacyTransport.seats || []
-            };
-            setVehicles([migratedVehicle]);
-            if (!activeVehicleId) {
-                setActiveVehicleId(migratedVehicle.id);
-            }
-            setIsInitialized(true);
-        }
-    }, [trip.operationalData?.transport]); // Só roda quando transport muda pela primeira vez
-
-    // Derived State: Active Vehicle
-    const activeVehicle = useMemo(() => vehicles.find(v => v.id === activeVehicleId), [vehicles, activeVehicleId]);
-
-    // Fetch passenger data from database
-    const [dbPassengers, setDbPassengers] = useState<Map<string, any>>(new Map());
-    
-    useEffect(() => {
-        const fetchPassengers = async () => {
-            try {
-                const { supabase } = await import('../services/supabase');
-                if (supabase && bookings.length > 0) {
-                    const bookingIds = bookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
-                    if (bookingIds.length > 0) {
-                        const { data, error } = await supabase
-                            .from('booking_passengers')
-                            .select('*')
-                            .in('booking_id', bookingIds)
-                            .order('booking_id', { ascending: true })
-                            .order('passenger_index', { ascending: true });
-                        
-                        if (!error && data) {
-                            const map = new Map<string, any>();
-                            data.forEach(p => {
-                                const key = `${p.booking_id}-${p.passenger_index}`;
-                                map.set(key, p);
-                            });
-                            setDbPassengers(map);
-                        }
-                    }
-                }
-            } catch (err) {
-                logger.error('Error fetching passengers:', err);
-            }
-        };
-        fetchPassengers();
-    }, [bookings]);
-
-    // Derived Passengers List
-    const opData = trip.operationalData as any;
-    const nameOverrides = opData?.passengerNameOverrides || {};
-    const passengerDetails = opData?.passengerDetails || {}; // New: Details map { [id]: { name, document, phone } }
-
-    const allPassengers = useMemo(() => {
-        // Safety check: Only process bookings for the current trip
-        const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
-        const booked = validBookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
-            const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
-            return Array.from({ length: b.passengers }).map((_, i) => {
-                const id = `${b.id}-${i}`;
-                // Try database first, then operational data, then fallback
-                const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
-                const dbName = dbPassenger?.full_name;
-                const detailName = passengerDetails[id]?.name || nameOverrides[id];
-                
-                // For main passenger (i === 0), use client name as fallback
-                // For companions (i > 0), only use database or details - don't use "Acompanhante X" as name
-                let finalName: string;
-                if (i === 0) {
-                    // Main passenger: database > details > override > client name > "Passageiro"
-                    finalName = dbName || detailName || nameOverrides[id] || clientName || 'Passageiro';
-                } else {
-                    // Companion: database > details > override > empty (will show "Acompanhante" label below)
-                    finalName = dbName || detailName || nameOverrides[id] || '';
-                }
-                
-                return { 
-                    id, 
-                    bookingId: b.id, 
-                    name: finalName,
-                    isMain: i === 0,
-                    isAccompaniment: i > 0,
-                    isManual: false,
-                    passengerIndex: i,
-                    // Pass extra details for display - prioritize database
-                    details: dbPassenger ? {
-                        name: dbPassenger.full_name,
-                        document: dbPassenger.cpf,
-                        phone: dbPassenger.whatsapp,
-                        birthDate: dbPassenger.birth_date
-                    } : passengerDetails[id]
-                };
-            });
-        });
-        const manual = manualPassengers.map(p => ({
-            id: p.id, 
-            bookingId: p.id, 
-            name: passengerDetails[p.id]?.name || nameOverrides[p.id] || p.name, 
-            isManual: true,
-            isMain: false,
-            isAccompaniment: false,
-            details: passengerDetails[p.id]
-        }));
-        return [...booked, ...manual];
-    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers]);
-
-    // Global Assignment Map (Passenger ID -> Vehicle Name + Seat)
-    const globalAssignmentMap = useMemo(() => {
-        const map = new Map<string, string>();
-        vehicles.forEach(v => {
-            v.seats.forEach(s => map.set(s.bookingId, `${v.name} - ${s.seatNumber}`));
-        });
-        return map;
-    }, [vehicles]);
-
-    const filteredPassengers = useMemo(() => {
-        if (!filterText) return allPassengers;
-        return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
-    }, [allPassengers, filterText]);
-
-    const isSeatOccupied = (seatNum: string) => activeVehicle?.seats.find(s => s.seatNumber === seatNum);
-    
-    // --- ACTIONS ---
-
-    const saveVehicles = (updatedVehicles: VehicleInstance[]) => {
-        // Atualizar estado local primeiro
-        setVehicles(updatedVehicles);
-        
-        // Salvar no banco
-        onSave({ 
-            ...trip.operationalData, 
-            transport: { ...trip.operationalData?.transport, vehicles: updatedVehicles } 
-        });
-    };
-
-    const handleAssign = (seatNum: string, passenger: { id: string, name: string, bookingId: string }) => {
-        if (!activeVehicle) return;
-        if (isSeatOccupied(seatNum)) {
-            showToast(`Assento ${seatNum} já ocupado.`, 'warning');
-            return;
-        }
-        
-        // Remove from ANY other vehicle first (prevent duplicates)
-        const cleanedVehicles = vehicles.map(v => ({
-            ...v,
-            seats: v.seats.filter(s => s.bookingId !== passenger.id)
-        }));
-
-        const targetVehicleIndex = cleanedVehicles.findIndex(v => v.id === activeVehicle.id);
-        if (targetVehicleIndex === -1) return;
-
-        // Get passenger name from database or details first
-        const passengerName = passenger.details?.name || passenger.name;
-        
-        const newSeat: PassengerSeat = {
-            seatNumber: seatNum,
-            passengerName: passengerName,
-            bookingId: passenger.id,
-            status: 'occupied'
-        };
-
-        cleanedVehicles[targetVehicleIndex].seats.push(newSeat);
-        saveVehicles(cleanedVehicles);
-        if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
-    };
-
-    const confirmRemoveSeat = () => {
-        if (!seatToDelete || !activeVehicle) return;
-        
-        const updatedVehicles = vehicles.map(v => {
-            if (v.id === activeVehicle.id) {
-                return { ...v, seats: v.seats.filter(s => s.seatNumber !== seatToDelete.seatNum) };
-            }
-            return v;
-        });
-
-        saveVehicles(updatedVehicles);
-        // Modal will close via onClose() in ConfirmDialog button
-    };
-
-    // Auto-preenchimento inteligente
-    const handleAutoFill = async () => {
-        if (!activeVehicle) {
-            showToast('Selecione um veículo primeiro', 'warning');
-            return;
-        }
-        
-        setIsAutoFilling(true);
-        try {
-            // Filtrar apenas passageiros não atribuídos
-        const unassignedPassengers = allPassengers.filter(p => !globalAssignmentMap.has(p.id));
-
-        if (unassignedPassengers.length === 0) {
-            showToast('Todos os passageiros já estão atribuídos', 'info');
-            return;
-        }
-
-        // Agrupar passageiros por bookingId (titular + acompanhantes juntos)
-        const passengerGroups: Map<string, typeof unassignedPassengers> = new Map();
-        
-        unassignedPassengers.forEach(p => {
-            const groupKey = p.bookingId;
-            if (!passengerGroups.has(groupKey)) {
-                passengerGroups.set(groupKey, []);
-            }
-            passengerGroups.get(groupKey)!.push(p);
-        });
-
-        // Ordenar grupos: grupos maiores primeiro (mais acompanhantes)
-        const sortedGroups = Array.from(passengerGroups.values()).sort((a, b) => b.length - a.length);
-
-        // Obter assentos disponíveis do veículo ativo
-        const occupiedSeats = new Set(activeVehicle.seats.map(s => s.seatNumber));
-        const availableSeats: number[] = [];
-        for (let i = 1; i <= activeVehicle.config.totalSeats; i++) {
-            if (!occupiedSeats.has(i.toString())) {
-                availableSeats.push(i);
-            }
-        }
-
-        if (availableSeats.length === 0) {
-            showToast('Não há assentos disponíveis neste veículo', 'warning');
-            return;
-        }
-
-        if (availableSeats.length < unassignedPassengers.length) {
-            showToast(`Apenas ${availableSeats.length} assentos disponíveis para ${unassignedPassengers.length} passageiros`, 'warning');
-        }
-
-        // Limpar assentos atuais do veículo ativo (apenas os que serão realocados)
-        const cleanedVehicles = vehicles.map(v => {
-            if (v.id === activeVehicle.id) {
-                // Manter apenas assentos de passageiros que não estão na lista de não atribuídos
-                const keepSeats = v.seats.filter(s => {
-                    const passenger = allPassengers.find(p => p.id === s.bookingId);
-                    return passenger && globalAssignmentMap.has(passenger.id);
-                });
-                return { ...v, seats: keepSeats };
-            }
-            return v;
-        });
-
-        const newSeats: PassengerSeat[] = [...cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats];
-        const usedSeats = new Set(newSeats.map(s => parseInt(s.seatNumber)));
-        let availableIndex = 0;
-
-        // Preencher grupos tentando manter juntos
-        sortedGroups.forEach(group => {
-            const groupSize = group.length;
-            let startIndex = availableIndex;
-            let foundConsecutive = false;
-
-            // Tentar encontrar assentos consecutivos para o grupo
-            for (let i = 0; i <= availableSeats.length - groupSize; i++) {
-                const consecutive = availableSeats.slice(i, i + groupSize);
-                if (consecutive.length === groupSize) {
-                    // Verificar se esses assentos ainda estão disponíveis
-                    const stillAvailable = consecutive.every(seat => !usedSeats.has(seat));
-                    if (stillAvailable) {
-                        startIndex = i;
-                        foundConsecutive = true;
-                        break;
-                    }
-                }
-            }
-
-            // Atribuir assentos ao grupo
-            group.forEach((passenger, idx) => {
-                let seatNum: number;
-                if (foundConsecutive && startIndex + idx < availableSeats.length) {
-                    seatNum = availableSeats[startIndex + idx];
-                } else {
-                    // Encontrar próximo assento disponível
-                    while (availableIndex < availableSeats.length && usedSeats.has(availableSeats[availableIndex])) {
-                        availableIndex++;
-                    }
-                    if (availableIndex < availableSeats.length) {
-                        seatNum = availableSeats[availableIndex];
-                        availableIndex++;
-                    } else {
-                        return; // Sem mais assentos disponíveis
-                    }
-                }
-
-                if (!usedSeats.has(seatNum)) {
-                    newSeats.push({
-                        seatNumber: seatNum.toString(),
-                        passengerName: passenger.name,
-                        bookingId: passenger.id,
-                        status: 'occupied'
-                    });
-                    usedSeats.add(seatNum);
-                }
-            });
-
-            // Atualizar índice para próximo grupo
-            if (foundConsecutive) {
-                availableIndex = startIndex + groupSize;
-            }
-        });
-
-        // Atualizar veículo com novos assentos
-        const finalVehicles = cleanedVehicles.map(v => {
-            if (v.id === activeVehicle.id) {
-                return { ...v, seats: newSeats };
-            }
-            return v;
-        });
-
-            saveVehicles(finalVehicles);
-            const newlyAssigned = newSeats.length - cleanedVehicles.find(v => v.id === activeVehicle.id)!.seats.length;
-            showToast(`${newlyAssigned} passageiros atribuídos automaticamente!`, 'success');
-        } catch (error: any) {
-            logger.error('Error auto-filling seats:', error);
-            showToast(`Erro ao preencher assentos: ${error.message || 'Erro desconhecido'}`, 'error');
-        } finally {
-            setIsAutoFilling(false);
-        }
-    };
-
-    // Limpar todos os assentos
-    const [showClearSeatsModal, setShowClearSeatsModal] = useState(false);
-    
-    const handleClearAllSeats = () => {
-        if (!activeVehicle) {
-            showToast('Selecione um veículo primeiro', 'warning');
-            return;
-        }
-        setShowClearSeatsModal(true);
-    };
-
-    const confirmClearSeats = () => {
-        if (!activeVehicle) return;
-        
-        const updatedVehicles = vehicles.map(v => {
-            if (v.id === activeVehicle.id) {
-                return { ...v, seats: [] };
-            }
-            return v;
-        });
-
-        saveVehicles(updatedVehicles);
-        showToast('Todos os assentos foram limpos', 'success');
-        // Modal will close via onClose() in ConfirmDialog button
-    };
-
-    const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
-    
-    const handleDeleteVehicle = (vehicleId: string) => {
-        setVehicleToDelete(vehicleId);
-    };
-
-    const confirmDeleteVehicle = () => {
-        if (!vehicleToDelete) return;
-        
-        try {
-            const updatedVehicles = vehicles.filter(v => v.id !== vehicleToDelete);
-            saveVehicles(updatedVehicles);
-            if (activeVehicleId === vehicleToDelete) {
-                setActiveVehicleId(updatedVehicles[0]?.id || null);
-            }
-            showToast('Veículo removido com sucesso', 'success');
-            // Don't close modal here - ConfirmDialog will handle it via onClose()
-        } catch (error: any) {
-            logger.error('Error deleting vehicle:', error);
-            showToast(`Erro ao remover veículo: ${error.message || 'Erro desconhecido'}`, 'error');
-        }
-    };
-
-    const handleEditVehicle = (vehicle: VehicleInstance) => {
-        setCustomVehicleData({
-            label: vehicle.name, // Use vehicle name as label here for editing
-            totalSeats: vehicle.config.totalSeats,
-            cols: vehicle.config.cols
-        });
-        setEditingVehicleId(vehicle.id);
-        setShowCustomVehicleForm(true);
-    };
-
-    // Handlers for New Vehicle
-    const handleSelectVehicleType = (type: VehicleType) => {
-        if (type === 'CUSTOM') { 
-            setEditingVehicleId(null);
-            setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
-            setShowCustomVehicleForm(true); 
-            setIsVehicleMenuOpen(false);
-            return; 
-        }
-        
-        const config = VEHICLE_TYPES[type];
-        if (!config) {
-            logger.error('[TransportManager] Invalid vehicle type:', type);
-            showToast('Tipo de veículo inválido', 'error');
-            return;
-        }
-        
-        // Count existing vehicles of this type to generate proper name
-        const existingOfType = vehicles.filter(v => v.type === type).length;
-        const vehicleNumber = existingOfType + 1;
-        const vehicleName = config.label.split('(')[0].trim();
-        const newVehicleName = vehicleNumber > 1 ? `${vehicleName} ${vehicleNumber}` : vehicleName;
-        
-        const newVehicle: VehicleInstance = {
-            id: `v-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: newVehicleName,
-            type,
-            config,
-            seats: []
-        };
-        
-        const updatedVehicles = [...vehicles, newVehicle];
-        
-        // Save vehicles (updates local state AND saves to database)
-        saveVehicles(updatedVehicles);
-        
-        // CRITICAL: Set active vehicle ID immediately
-        setActiveVehicleId(newVehicle.id);
-        
-        // Marcar como inicializado para evitar que o useEffect sobrescreva
-        setIsInitialized(true);
-        
-        // Feedback ao usuário
-        showToast(`Veículo "${newVehicle.name}" criado com sucesso!`, 'success');
-        
-        // Fechar menu
-        setIsVehicleMenuOpen(false);
-    };
-
-    const handleSaveCustomVehicle = (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        // Base config object
-        const config: VehicleLayoutConfig = { 
-            type: 'CUSTOM', 
-            label: 'Personalizado', 
-            totalSeats: customVehicleData.totalSeats, 
-            cols: customVehicleData.cols, 
-            aisleAfterCol: Math.floor(customVehicleData.cols / 2) 
-        };
-
-        let updatedVehicles: VehicleInstance[];
-
-        if (editingVehicleId) {
-            // Updating existing vehicle - use map to update the specific vehicle
-            updatedVehicles = vehicles.map(v => {
-                if (v.id === editingVehicleId) {
-                    return {
-                        ...v,
-                        name: customVehicleData.label || v.name, // Update name
-                        config: config // Update config (seats count etc)
-                    };
-                }
-                return v;
-            });
-        } else {
-            // Creating new vehicle
-            const newVehicle: VehicleInstance = {
-                id: `v-${Date.now()}`,
-                name: customVehicleData.label || `Veículo ${vehicles.length + 1}`,
-                type: 'CUSTOM',
-                config,
-                seats: []
-            };
-            updatedVehicles = [...vehicles, newVehicle];
-            
-            // Set the new vehicle as active
-            setActiveVehicleId(newVehicle.id);
-        }
-
-        // Save vehicles (updates local state AND saves to database)
-        saveVehicles(updatedVehicles);
-        
-        // Feedback ao usuário
-        if (!editingVehicleId) {
-            showToast(`Veículo "${customVehicleData.label || `Veículo ${vehicles.length + 1}`}" criado com sucesso!`, 'success');
-        } else {
-            showToast('Veículo atualizado com sucesso!', 'success');
-        }
-        
-        // Reset form and close modal
-        setShowCustomVehicleForm(false);
-        setEditingVehicleId(null);
-        setCustomVehicleData({ label: '', totalSeats: 4, cols: 2 });
-    };
-    
-    // Drag & Drop Handlers
-    const handleDragStart = (e: React.DragEvent, passenger: any) => {
-        // Ensure passenger object has complete data for drag&drop
-        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
-        const passengerWithData = {
-            ...passenger,
-            name: dbPassenger?.full_name || passenger.details?.name || passenger.name || 'Passageiro (Sem nome)',
-            document: dbPassenger?.cpf || passenger.details?.document || '',
-            phone: dbPassenger?.whatsapp || passenger.details?.phone || '',
-            birthDate: dbPassenger?.birth_date || passenger.details?.birthDate || ''
-        };
-        e.dataTransfer.setData('application/json', JSON.stringify(passengerWithData));
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDrop = (e: React.DragEvent, seatNum: string) => {
-        e.preventDefault();
-        setDragOverSeat(null);
-        try {
-            const data = e.dataTransfer.getData('application/json');
-            const passenger = JSON.parse(data);
-            if (passenger?.id) handleAssign(seatNum, passenger);
-        } catch (err) {}
-    };
-
-    const handleSeatClick = (seatNum: string) => {
-        const occupant = isSeatOccupied(seatNum);
-        if (occupant) setSeatToDelete({ seatNum, name: occupant.passengerName });
-        else if (selectedPassenger) handleAssign(seatNum, selectedPassenger);
-    };
-    
-    const handleAddManual = (p: ManualPassenger) => {
-        const newManuals = [...manualPassengers, p];
-        setManualPassengers(newManuals);
-        onSave({ ...trip.operationalData, manualPassengers: newManuals });
-    };
-
-    // Passenger Editing Logic
-    const handleOpenPassengerEdit = (p: any) => {
-        setPassengerEditId(p.id);
-        // Prioritize database data, then operational data, then passenger name
-        // Extract bookingId and passengerIndex from the passenger object
-        const bookingId = p.bookingId;
-        const passengerIndex = p.passengerIndex !== undefined ? p.passengerIndex : (p.id.includes('-') ? parseInt(p.id.split('-')[1]) : 0);
-        
-        const dbPassenger = dbPassengers.get(`${bookingId}-${passengerIndex}`);
-        const details = p.details || passengerDetails?.[p.id]; // Access safely
-        
-        // Get name - prioritize database, then details, then name (but avoid "Acompanhante X" as name)
-        let passengerName = dbPassenger?.full_name || details?.name || p.name || '';
-        // If name is still "Acompanhante X (...)", try to extract from details or leave empty
-        if (passengerName.match(/^Acompanhante \d+ \(/)) {
-            passengerName = details?.name || '';
-        }
-        
-        setPassengerEditForm({
-            name: passengerName,
-            document: dbPassenger?.cpf || details?.document || '',
-            phone: dbPassenger?.whatsapp || details?.phone || '',
-            birthDate: dbPassenger?.birth_date || details?.birthDate || '',
-            rg: details?.rg || '',
-            rgOrg: details?.rgOrg || ''
-        });
-    };
-
-    const handleSavePassengerDetails = () => {
-        if (!passengerEditId) return;
-        
-        // Construct new details object
-        const newDetails = {
-            ...passengerDetails,
-            [passengerEditId]: {
-                name: passengerEditForm.name,
-                document: passengerEditForm.document,
-                phone: passengerEditForm.phone,
-                birthDate: passengerEditForm.birthDate,
-                rg: passengerEditForm.rg,
-                rgOrg: passengerEditForm.rgOrg
-            }
-        };
-
-        // Also update name overrides for backward compatibility in list display
-        const newNameOverrides = {
-            ...nameOverrides,
-            [passengerEditId]: passengerEditForm.name
-        };
-
-        onSave({ 
-            ...trip.operationalData, 
-            passengerDetails: newDetails,
-            passengerNameOverrides: newNameOverrides
-        });
-        setPassengerEditId(null);
-        showToast('Dados do passageiro salvos.', 'success');
-    };
-    const handleDeletePassenger = () => {
-        if (!passengerToDelete) return;
-        
-        // Remove from manual passengers if it's a manual passenger
-        if (passengerToDelete.startsWith('manual-')) {
-            const updatedManual = manualPassengers.filter(p => p.id !== passengerToDelete);
-            setManualPassengers(updatedManual);
-            // Remove from operational data
-            const newPassengerDetails = { ...passengerDetails };
-            delete newPassengerDetails[passengerToDelete];
-            const newNameOverrides = { ...nameOverrides };
-            delete newNameOverrides[passengerToDelete];
-            onSave({ 
-                ...trip.operationalData, 
-                passengerDetails: newPassengerDetails,
-                passengerNameOverrides: newNameOverrides
-            });
-        } else {
-            // For booked passengers, we can't delete them from the booking, but we can remove them from operational data
-            const newPassengerDetails = { ...passengerDetails };
-            delete newPassengerDetails[passengerToDelete];
-            const newNameOverrides = { ...nameOverrides };
-            delete newNameOverrides[passengerToDelete];
-            onSave({ 
-                ...trip.operationalData, 
-                passengerDetails: newPassengerDetails,
-                passengerNameOverrides: newNameOverrides
-            });
-        }
-        
-        // Remove from any assigned seats
-        const updatedVehicles = vehicles.map(v => ({
-            ...v,
-            seats: v.seats.filter(s => s.bookingId !== passengerToDelete)
-        }));
-        saveVehicles(updatedVehicles);
-        
-        setPassengerToDelete(null);
-        showToast('Passageiro removido.', 'success');
-    };
-
-    // Helper to get passenger details for tooltip
-    const getPassengerDetails = (seat: PassengerSeat) => {
-        // Try multiple matching strategies
-        let passenger = allPassengers.find(p => p.id === seat.bookingId);
-        
-        // If not found, try with bookingId-passengerIndex format
-        if (!passenger) {
-            const parts = seat.bookingId.split('-');
-            if (parts.length >= 2) {
-                const bookingId = parts[0];
-                const passengerIndex = parseInt(parts[1]) || 0;
-                passenger = allPassengers.find(p => 
-                    p.bookingId === bookingId && 
-                    (p.passengerIndex === passengerIndex || p.id === seat.bookingId)
-                );
-            }
-        }
-        
-        // If still not found, try searching in manual passengers
-        if (!passenger) {
-            passenger = allPassengers.find(p => p.id === seat.bookingId || p.name === seat.passengerName);
-        }
-        
-        // Fallback: create a minimal passenger object
-        if (!passenger) {
-            logger.warn('[TransportManager] Passenger not found for seat:', seat.bookingId, 'Name:', seat.passengerName);
-            return {
-                name: seat.passengerName || 'Passageiro (Sem nome)',
-                avatar: undefined,
-                status: 'Desconhecido'
-            };
-        }
-        
-        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
-        // Safety check: Only find booking if it belongs to current trip
-        const booking = bookings.find(b => b.id === passenger.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-        const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
-        
-        // Use database name if available, otherwise use seat name, otherwise use passenger name
-        const finalName = dbPassenger?.full_name || passenger.details?.name || seat.passengerName || passenger.name || 'Passageiro (Sem nome)';
-        
-        return {
-            name: finalName,
-            avatar: client?.avatar || dbPassenger?.avatar || passenger.details?.avatar || undefined,
-            status: passenger.isMain ? 'Titular' : passenger.isAccompaniment ? `Acompanhante ${passenger.passengerIndex}` : passenger.isManual ? 'Manual' : 'Desconhecido'
-        };
-    };
-
-    // Handlers for BusVisualizer
-    const handleDragOverSeat = (e: React.DragEvent, seatNum: string) => {
-        e.preventDefault();
-        const occupant = isSeatOccupied(seatNum);
-        if (!occupant) setDragOverSeat(seatNum);
-    };
-
-    const handleDragLeaveSeat = () => {
-        setDragOverSeat(null);
-    };
-
-    // If no vehicles, show empty state selection
-    if (vehicles.length === 0) {
-        return (
-            <div className="flex-1 h-full flex flex-col items-center justify-center p-8 bg-slate-50 animate-[fadeIn_0.3s]">
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-200 max-w-2xl w-full text-center">
-                    {!showCustomVehicleForm && !isVehicleMenuOpen ? (
-                        <>
-                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-primary-600"><Settings2 size={32}/></div>
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Adicione o Primeiro Veículo</h2>
-                            <p className="text-gray-500 mb-6">Escolha o tipo de transporte para começar a organizar sua frota.</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-                                {Object.values(VEHICLE_TYPES).map(v => (
-                                    <button 
-                                        key={v.type} 
-                                        onClick={() => handleSelectVehicleType(v.type)} 
-                                        className="flex flex-col items-center p-4 rounded-xl border border-gray-200 hover:border-primary-500 hover:bg-primary-50 transition-all"
-                                    >
-                                        <Truck size={24} className="mb-3 text-gray-400"/>
-                                        <span className="font-bold text-gray-700 text-sm">{v.label}</span>
-                                        <span className="text-xs text-gray-400 mt-1">{v.totalSeats > 0 ? `${v.totalSeats} Lugares` : 'Definir'}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </>
-                    ) : showCustomVehicleForm ? (
-                        <form onSubmit={handleSaveCustomVehicle} className="text-left max-w-sm mx-auto">
-                             <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-gray-900">{editingVehicleId ? 'Editar Veículo' : 'Veículo Personalizado'}</h3><button type="button" onClick={() => setShowCustomVehicleForm(false)}><X size={20}/></button></div>
-                             <div className="space-y-4">
-                                <div><label className="text-sm font-bold">Nome</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-2 rounded"/></div>
-                                <div><label className="text-sm font-bold">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"/></div>
-                                <div><label className="text-sm font-bold">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-2 rounded"><option value={2}>2</option><option value={3}>3</option><option value={4}>4</option></select></div>
-                                <button className="w-full bg-primary-600 text-white py-2 rounded font-bold">
-                                    {editingVehicleId ? 'Salvar Alterações' : 'Criar'}
-                                </button>
-                             </div>
-                        </form>
-                    ) : null}
-                </div>
-            </div>
-        );
-    }
-    
-    const assignedCount = globalAssignmentMap.size;
-    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
-
-    return (
-        <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
-            {/* Modals */}
-            <ConfirmDialog isOpen={!!seatToDelete} onClose={() => setSeatToDelete(null)} onConfirm={confirmRemoveSeat} title="Liberar Assento" message={`Remover ${seatToDelete?.name} do assento ${seatToDelete?.seatNum}?`} variant="warning" />
-            <ConfirmDialog isOpen={showClearSeatsModal} onClose={() => setShowClearSeatsModal(false)} onConfirm={confirmClearSeats} title="Limpar Todos os Assentos" message="Tem certeza que deseja limpar todos os assentos deste veículo? Esta ação não pode ser desfeita." variant="warning" confirmText="Limpar" />
-            <ConfirmDialog isOpen={!!vehicleToDelete} onClose={() => setVehicleToDelete(null)} onConfirm={confirmDeleteVehicle} title="Remover Veículo" message="Tem certeza que deseja remover este veículo? Todos os passageiros serão desvinculados." variant="danger" confirmText="Remover" />
-            <ConfirmDialog isOpen={!!passengerToDelete} onClose={() => setPassengerToDelete(null)} onConfirm={handleDeletePassenger} title="Remover Passageiro" message="Tem certeza que deseja remover este passageiro da lista? Ele será desvinculado de qualquer assento atribuído." variant="danger" confirmText="Remover" />
-            
-            {/* Passenger Details Modal - Bottom Sheet on Mobile */}
-            {passengerDetailsModal && (
-                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl max-w-md w-full p-6 md:animate-[scaleIn_0.2s] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {/* Mobile: Drag Handle */}
-                        <div className="md:hidden flex justify-center mb-4 pt-2">
-                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-                        </div>
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg md:text-xl font-bold text-gray-900">Detalhes do Passageiro</h3>
-                            <button 
-                                onClick={() => setPassengerDetailsModal(null)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                            >
-                                <X size={24}/>
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {/* Avatar and Name */}
-                            <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-                                {passengerDetailsModal.avatar ? (
-                                    <img 
-                                        src={passengerDetailsModal.avatar} 
-                                        alt={passengerDetailsModal.name}
-                                        className="w-16 h-16 rounded-full object-cover border-2 border-primary-200"
-                                    />
-                                ) : (
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-xl font-bold border-2 border-primary-200">
-                                        {passengerDetailsModal.name.substring(0, 2).toUpperCase()}
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className="text-lg font-bold text-gray-900">{passengerDetailsModal.name}</h4>
-                                    <p className="text-sm text-gray-500">{passengerDetailsModal.status}</p>
-                                </div>
-                            </div>
-                            
-                            {/* Details Grid */}
-                            <div className="grid grid-cols-1 gap-3">
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-bold text-gray-600">CPF:</span>
-                                    <span className="text-sm text-gray-900">{passengerDetailsModal.document}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-bold text-gray-600">Telefone:</span>
-                                    <span className="text-sm text-gray-900">{passengerDetailsModal.phone}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-bold text-gray-600">Data de Nascimento:</span>
-                                    <span className="text-sm text-gray-900">{passengerDetailsModal.birthDate}</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="mt-6 flex justify-end">
-                            <button 
-                                onClick={() => setPassengerDetailsModal(null)}
-                                className="px-6 py-2 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors"
-                            >
-                                Fechar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* Passenger Edit Modal - Bottom Sheet on Mobile */}
-            {passengerEditId && (
-                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-t-2xl md:rounded-xl shadow-2xl max-w-sm w-full p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {/* Mobile: Drag Handle */}
-                        <div className="md:hidden flex justify-center mb-4 pt-2">
-                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-                        </div>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-gray-900">Editar Passageiro</h3>
-                            <button 
-                                onClick={() => setPassengerEditId(null)}
-                                className="text-gray-400 hover:text-gray-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                            >
-                                <X size={24}/>
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome Completo</label>
-                                <input value={passengerEditForm.name} onChange={e => setPassengerEditForm({...passengerEditForm, name: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CPF</label>
-                                <input value={passengerEditForm.document} onChange={e => setPassengerEditForm({...passengerEditForm, document: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="000.000.000-00" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">RG</label>
-                                    <input value={passengerEditForm.rg} onChange={e => setPassengerEditForm({...passengerEditForm, rg: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="00.000.000-0" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Órgão Emissor</label>
-                                    <input value={passengerEditForm.rgOrg} onChange={e => setPassengerEditForm({...passengerEditForm, rgOrg: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="SSP" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Telefone / WhatsApp</label>
-                                <div className="flex gap-2">
-                                    <input value={passengerEditForm.phone} onChange={e => setPassengerEditForm({...passengerEditForm, phone: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="(00) 00000-0000" />
-                                    {passengerEditForm.phone && (
-                                        <a href={`https://wa.me/55${passengerEditForm.phone.replace(/\D/g, '')}`} target="_blank" className="p-2 bg-green-500 text-white rounded hover:bg-green-600 flex items-center justify-center" title="Abrir WhatsApp">
-                                            <MessageCircle size={18}/>
-                                        </a>
-                                    )}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Data de Nascimento</label>
-                                <input type="date" value={passengerEditForm.birthDate} onChange={e => setPassengerEditForm({...passengerEditForm, birthDate: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" />
-                            </div>
-                        </div>
-                        <div className="flex gap-2 mt-6">
-                            <button onClick={() => setPassengerEditId(null)} className="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold min-h-[48px]">Cancelar</button>
-                            <button onClick={handleSavePassengerDetails} className="flex-1 py-3 text-white bg-primary-600 hover:bg-primary-700 rounded-lg font-bold min-h-[48px]">Salvar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Left Sidebar - Passenger List */}
-            <aside className="w-full lg:w-80 border-r border-gray-200 bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
-                <div className="p-4 border-b bg-gray-50 space-y-3">
-                    <div className="flex justify-between items-center">
-                        <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedCount}/{allPassengers.length})</h4>
-                        <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded" title="Adicionar Manual"><Plus size={18}/></button>
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-green-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <div className="relative">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar passageiro..." 
-                            className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
-                            value={filterText}
-                            onChange={(e) => setFilterText(e.target.value)}
-                        />
-                    </div>
-                </div>
-                <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                    {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                    {filteredPassengers.map(p => {
-                        const isAssigned = globalAssignmentMap.has(p.id);
-                        const assignedInfo = globalAssignmentMap.get(p.id);
-                        const isSelected = selectedPassenger?.id === p.id;
-                        
-                        // Get passenger name from database first, then details, then name
-                        // When selected, use the name from selectedPassenger to ensure consistency
-                        let passengerName: string;
-                        if (isSelected && selectedPassenger?.name && selectedPassenger.name.trim() !== '') {
-                            // Use the name from selectedPassenger when selected (only if it's not empty)
-                            passengerName = selectedPassenger.name;
-                        } else {
-                            // Calculate name normally when not selected - prioritize database
-                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                            passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
-                            // If name is "Acompanhante X (...)", try to get from database or details
-                            if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                passengerName = dbPassenger?.full_name || p.details?.name || '';
-                            }
-                            // For main passenger, use client name as fallback
-                            if (!passengerName && !p.isAccompaniment) {
-                                // Safety check: Only find booking if it belongs to current trip
-                                const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-                                const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
-                                passengerName = clientName || 'Passageiro';
-                            }
-                            // For companions, use a descriptive fallback
-                            if (!passengerName && p.isAccompaniment) {
-                                passengerName = 'Acompanhante';
-                            }
-                            // Last resort fallback
-                            if (!passengerName) {
-                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                            }
-                        }
-                        const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                        const displayInitial = displayName.charAt(0).toUpperCase();
-
-                        return (
-                            <div 
-                                key={p.id} 
-                                draggable={!isAssigned} 
-                                onDragStart={(e) => handleDragStart(e, p)} 
-                                onClick={() => {
-                                    if (!isAssigned) {
-                                        // Get passenger name - prioritize database first
-                                        const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                                        let passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
-                                        
-                                        // If name is "Acompanhante X (...)", try to get from database or details
-                                        if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                            passengerName = dbPassenger?.full_name || p.details?.name || '';
-                                        }
-                                        
-                                        // For main passenger, use client name as fallback
-                                        if (!passengerName && !p.isAccompaniment) {
-                                            // Safety check: Only find booking if it belongs to current trip
-                                            const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-                                            const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
-                                            passengerName = clientName || 'Passageiro';
-                                        }
-                                        
-                                        // For companions, use a descriptive fallback
-                                        if (!passengerName && p.isAccompaniment) {
-                                            passengerName = 'Acompanhante';
-                                        }
-                                        
-                                        // Ensure we always have a valid name
-                                        if (!passengerName || passengerName.trim() === '') {
-                                            logger.warn('[TransportManager] Warning: passengerName is empty, using fallback');
-                                            passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                                        }
-                                        
-                                        setSelectedPassenger(isSelected ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
-                                    }
-                                }} 
-                                className={`
-                                    p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all relative
-                                    ${isSelected ? 'bg-primary-600 border-primary-600 shadow-md ring-2 ring-primary-100 text-white' : ''}
-                                    ${isAssigned && !isSelected ? 'bg-green-50/50 border-green-200 text-gray-500 opacity-90 cursor-default' : ''}
-                                    ${!isAssigned && !isSelected ? 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing' : ''}
-                                `}
-                            >
-                                <div className="flex items-center gap-3 overflow-hidden pr-6">
-                                    {!isAssigned && <Grip size={12} className={isSelected ? 'text-white/50' : 'text-gray-300'}/>}
-                                    {isAssigned && <CheckCircle size={14} className="text-green-600 flex-shrink-0"/>}
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
-                                    
-                                    {/* Always show full name on top, type below */}
-                                    <div className={`min-w-0 flex flex-col`}>
-                                        <span className={`font-bold text-sm truncate leading-tight`} style={{ color: isSelected ? '#ffffff' : '#111827' }}>
-                                            {displayName}
-                                        </span>
-                                        <div className={`flex items-center text-xs mt-0.5`} style={{ color: isSelected ? 'rgba(255, 255, 255, 0.8)' : '#6b7280' }}>
-                                            {p.isManual ? (
-                                                <>
-                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                    <span className="truncate">Manual</span>
-                                                </>
-                                            ) : p.isAccompaniment ? (
-                                                <>
-                                                    <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                    <span className="truncate">Acompanhante {p.passengerIndex}</span>
-                                                </>
-                                            ) : (
-                                                <span className={`text-[10px] uppercase font-bold tracking-wide ${isSelected ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                    Titular
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                                {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap truncate max-w-[80px]">{assignedInfo}</span>}
-                                
-                                {/* Action Buttons - Always visible */}
-                                <div className="flex items-center gap-1">
-                                    <button 
-                                        onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                                            // Safety check: Only find booking if it belongs to current trip
-                                            const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-                                            const client = booking ? ((booking as any)._client || clients.find(c => c.id === booking.clientId)) : null;
-                                            const avatar = client?.avatar || dbPassenger?.avatar;
-                                            const name = dbPassenger?.full_name || p.details?.name || p.name || 'Passageiro';
-                                            const status = p.isMain ? 'Titular' : p.isAccompaniment ? `Acompanhante ${p.passengerIndex}` : 'Manual';
-                                            const document = dbPassenger?.cpf || p.details?.document || '-';
-                                            const phone = dbPassenger?.whatsapp || p.details?.phone || '-';
-                                            const birthDate = dbPassenger?.birth_date ? new Date(dbPassenger.birth_date).toLocaleDateString('pt-BR') : (p.details?.birthDate || '-');
-                                            
-                                            setPassengerDetailsModal({
-                                                name,
-                                                status,
-                                                document,
-                                                phone,
-                                                birthDate,
-                                                avatar
-                                            });
-                                        }}
-                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-gray-500 hover:bg-gray-50 bg-gray-50/50'}`}
-                                        title="Ver detalhes do passageiro"
-                                    >
-                                        <Eye size={14}/>
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }}
-                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-blue-500 hover:bg-blue-50 bg-blue-50/50'}`}
-                                        title="Editar dados do passageiro"
-                                    >
-                                        <Edit3 size={14}/>
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setPassengerToDelete(p.id); }}
-                                        className={`p-1.5 rounded-full transition-all ${isSelected ? 'text-white hover:bg-white/20 bg-white/10' : 'text-red-500 hover:bg-red-50 bg-red-50/50'}`}
-                                        title="Remover passageiro"
-                                    >
-                                        <Trash2 size={14}/>
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-                <div className="p-3 bg-gray-50 border-t text-[10px] text-gray-400 text-center">Arraste para o assento ou clique para selecionar.</div>
-            </aside>
-            {/* Main Content Area - Vehicle Management */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100 relative">
-                
-                {/* Vehicle Tabs Header */}
-                <header className="relative flex items-center bg-white border-b border-gray-200 px-4 py-2 gap-2 overflow-x-auto scrollbar-hide flex-shrink-0" style={{ overflowY: 'visible' }}>
-                    {vehicles.map(vehicle => (
-                        <div 
-                            key={vehicle.id} 
-                            onClick={() => setActiveVehicleId(vehicle.id)}
-                            className={`
-                                flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-2 cursor-pointer transition-all min-w-[120px] justify-between group
-                                ${activeVehicleId === vehicle.id ? 'border-primary-500 text-primary-600 bg-primary-50 font-bold' : 'border-transparent text-gray-500 hover:bg-gray-50'}
-                            `}
-                        >
-                            <span className="truncate max-w-[100px] text-xs">{vehicle.name} <span className="opacity-50 font-normal">({vehicle.config.totalSeats})</span></span>
-                            {activeVehicleId === vehicle.id && (
-                                <div className="flex items-center gap-1 ml-2">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleEditVehicle(vehicle); }} 
-                                        className="p-1 hover:bg-blue-100 rounded-full text-blue-400 hover:text-blue-600 transition-colors"
-                                        title="Editar veículo"
-                                    >
-                                        <Edit3 size={12}/>
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteVehicle(vehicle.id); }}
-                                        className="p-1 hover:bg-red-100 rounded-full text-red-500 hover:text-red-600 transition-colors"
-                                        title="Remover veículo"
-                                    >
-                                        <Trash2 size={12}/>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                    
-                    {/* Add Vehicle Button - Always show dropdown menu */}
-                    <div className="relative z-[100]">
-                        <button 
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setIsVehicleMenuOpen(!isVehicleMenuOpen);
-                            }}
-                            className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg transition-colors ${isVehicleMenuOpen ? 'bg-primary-100 text-primary-700' : 'text-primary-600 hover:bg-primary-50'}`}
-                        >
-                            <Plus size={14}/> Add Veículo
-                        </button>
-                        
-                        {isVehicleMenuOpen && (
-                            <>
-                                {/* Backdrop */}
-                                <div 
-                                    className="fixed inset-0 bg-black/20 z-[99]" 
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setIsVehicleMenuOpen(false);
-                                    }}
-                                />
-                                {/* Dropdown Menu */}
-                                <div 
-                                    className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-200 p-3 animate-[scaleIn_0.15s] z-[100]"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                    }}
-                                >
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase px-2 mb-3 tracking-wider">Selecione o Tipo de Veículo</p>
-                                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
-                                        {Object.values(VEHICLE_TYPES)
-                                            .filter(v => v.type !== 'CUSTOM')
-                                            .map(v => (
-                                                <button 
-                                                    key={v.type} 
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleSelectVehicleType(v.type);
-                                                    }} 
-                                                    className="w-full text-left px-3 py-2.5 hover:bg-primary-50 text-sm text-gray-700 rounded-lg flex items-center gap-3 transition-colors group"
-                                                >
-                                                    <Truck size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors flex-shrink-0"/> 
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="font-bold block truncate">{v.label.split('(')[0].trim()}</span>
-                                                        <span className="text-xs text-gray-500">{v.totalSeats} lugares</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        <div className="border-t border-gray-200 my-2"></div>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleSelectVehicleType('CUSTOM');
-                                            }} 
-                                            className="w-full text-left px-3 py-2.5 hover:bg-primary-50 text-sm text-primary-600 font-bold rounded-lg flex items-center gap-3 transition-colors"
-                                        >
-                                            <Settings2 size={16} className="text-primary-500"/> 
-                                            <span>Personalizado...</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </header>
-
-                {/* Action Buttons Bar */}
-                {activeVehicle && vehicles.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-gray-200 flex-shrink-0">
-                        <button
-                            onClick={handleAutoFill}
-                            disabled={isAutoFilling}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                            title="Preencher automaticamente mantendo acompanhantes juntos"
-                        >
-                            {isAutoFilling ? <Loader size={14} className="animate-spin"/> : <Zap size={14}/>} 
-                            {isAutoFilling ? 'Preenchendo...' : 'Auto Preencher'}
-                        </button>
-                        <button
-                            onClick={handleClearAllSeats}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm"
-                            title="Limpar todos os assentos deste veículo"
-                        >
-                            <Trash2 size={14}/> Limpar Assentos
-                        </button>
-                    </div>
-                )}
-
-                {/* Bus Visualization Area */}
-                <section className="flex-1 overflow-auto p-8 flex justify-center scrollbar-hide relative">
-                    {activeVehicle ? (
-                        <>
-                            {/* Botões de Ação do Veículo - Visíveis sempre */}
-                            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                                <button 
-                                    onClick={() => handleEditVehicle(activeVehicle)} 
-                                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg shadow-lg hover:bg-primary-700 transition-colors text-xs font-bold"
-                                    title="Editar veículo (alterar número de vagas)"
-                                >
-                                    <Edit3 size={14}/> Editar Veículo
-                                </button>
-                                <button 
-                                    onClick={() => handleDeleteVehicle(activeVehicle.id)} 
-                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-700 transition-colors text-xs font-bold"
-                                    title="Remover veículo"
-                                >
-                                    <Trash2 size={14}/> Remover
-                                </button>
-                            </div>
-                            {/* Bus Container with Horizontal Scroll for Mobile */}
-                            <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar snap-x snap-mandatory md:overflow-x-visible">
-                                <div className="bg-white px-4 md:px-8 py-8 md:py-16 rounded-[40px] border-[6px] border-slate-300 shadow-2xl relative min-h-[600px] w-fit min-w-full md:min-w-fit h-fit my-auto animate-[scaleIn_0.3s] mx-auto md:mx-0">
-                                    <div className="absolute top-0 left-0 right-0 h-24 border-b-2 border-slate-200 bg-slate-50 flex justify-center items-center rounded-t-[34px]"><User size={24} className="text-slate-300"/></div>
-                                    
-                                    {/* Legend - Above bus on mobile, below on desktop */}
-                                    {activeVehicle && (
-                                        <div className="md:hidden mb-4 flex items-center justify-center gap-4 text-xs px-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-4 rounded bg-green-100 border border-green-300 flex items-center justify-center">
-                                                    <span className="text-xs font-bold text-green-700">1</span>
-                                                </div>
-                                                <span className="text-gray-600">Livre</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-4 rounded bg-primary-100 border border-primary-600 flex items-center justify-center">
-                                                    <span className="text-[10px] font-bold text-primary-700">JD</span>
-                                                </div>
-                                                <span className="text-gray-600">Ocupado</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="mt-12 space-y-2 select-none">
-                                        {activeVehicle && (
-                                            <BusVisualizer
-                                                vehicle={activeVehicle}
-                                                selectedPassenger={selectedPassenger}
-                                                dragOverSeat={dragOverSeat}
-                                                onDragOver={handleDragOverSeat}
-                                                onDragLeave={handleDragLeaveSeat}
-                                                onDrop={handleDrop}
-                                                onSeatClick={handleSeatClick}
-                                                isSeatOccupied={isSeatOccupied}
-                                                getPassengerDetails={getPassengerDetails}
-                                            />
-                                        )}
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-slate-100 rounded-b-[34px] border-t border-slate-200"></div>
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">Selecione ou crie um veículo.</div>
-                    )}
-                </section>
-            </main>
-            
-            {/* Custom Vehicle Modal (Create/Edit) - Bottom Sheet on Mobile */}
-            {showCustomVehicleForm && (
-                <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-[fadeIn_0.2s]">
-                    <div className="bg-white rounded-t-2xl md:rounded-2xl p-6 w-full md:max-w-sm shadow-2xl relative md:animate-[scaleIn_0.2s] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                        {/* Mobile: Drag Handle */}
-                        <div className="md:hidden flex justify-center mb-4 pt-2">
-                            <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-                        </div>
-                        <button onClick={() => setShowCustomVehicleForm(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"><X size={24}/></button>
-                        <h3 className="text-lg font-bold mb-4">{editingVehicleId ? 'Editar Veículo' : 'Novo Veículo'}</h3>
-                        <form onSubmit={handleSaveCustomVehicle} className="space-y-4">
-                            <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Nome do Veículo</label><input required value={customVehicleData.label} onChange={e => setCustomVehicleData({...customVehicleData, label: e.target.value})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]" placeholder="Ex: Ônibus 1"/></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Lugares</label><input type="number" required value={customVehicleData.totalSeats} onChange={e => setCustomVehicleData({...customVehicleData, totalSeats: parseInt(e.target.value) || 0})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]"/></div>
-                                <div><label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Colunas</label><select value={customVehicleData.cols} onChange={e => setCustomVehicleData({...customVehicleData, cols: parseInt(e.target.value) || 0})} className="w-full border p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 min-h-[48px]"><option value={2}>2 (Van)</option><option value={3}>3 (Exec)</option><option value={4}>4 (Padrão)</option></select></div>
-                            </div>
-                            <button className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 transition-colors shadow-sm min-h-[48px]">{editingVehicleId ? 'Salvar Alterações' : 'Criar Veículo'}</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// 2. ROOMING MANAGER (Config em Lote + Smart Click)
-interface RoomingManagerProps {
-    trip: Trip; 
-    bookings: Booking[]; 
-    clients: any[]; 
-    onSave: (data: OperationalData) => void;
-}
-
-const RoomingManager: React.FC<RoomingManagerProps> = ({ trip, bookings, clients, onSave }) => {
-    // State for Hotels
-    const [hotels, setHotels] = useState<HotelInstance[]>([]);
-    const [activeHotelId, setActiveHotelId] = useState<string | null>(null);
-    const [editHotelNameId, setEditHotelNameId] = useState<string | null>(null); // ID of hotel being renamed
-    const [tempHotelName, setTempHotelName] = useState('');
-
-    const [manualPassengers, setManualPassengers] = useState<ManualPassenger[]>(trip.operationalData?.manualPassengers || []);
-    const [nameOverrides, setNameOverrides] = useState<Record<string, string>>((trip.operationalData as any)?.passengerNameOverrides || {});
-    
-    // UI
-    const [selectedPassenger, setSelectedPassenger] = useState<{id: string, name: string, bookingId: string} | null>(null);
-    const [showManualForm, setShowManualForm] = useState(false);
-    const [dragOverRoom, setDragOverRoom] = useState<string | null>(null);
-    const [filterText, setFilterText] = useState('');
-    
-    // Batch Config
-    const [invQty, setInvQty] = useState(1);
-    const [invType, setInvType] = useState<'DOUBLE' | 'TRIPLE' | 'QUAD' | 'COLLECTIVE'>('DOUBLE');
-    const [invCustomCap, setInvCustomCap] = useState<number | ''>(''); 
-
-    // Delete/Remove States
-    const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
-    const [guestToRemove, setGuestToRemove] = useState<{roomId: string, guestId: string, guestName: string} | null>(null);
-    const [hotelToDelete, setHotelToDelete] = useState<string | null>(null);
-
-    // Initialization & Migration
-    useEffect(() => {
-        if (trip.operationalData?.hotels && trip.operationalData.hotels.length > 0) {
-            setHotels(trip.operationalData.hotels);
-            if (!activeHotelId) setActiveHotelId(trip.operationalData.hotels[0].id);
-        } else if (trip.operationalData?.rooming && trip.operationalData.rooming.length > 0) {
-            // Migrate legacy rooms
-            const legacyHotel: HotelInstance = {
-                id: 'h-legacy',
-                name: 'Hotel Principal',
-                rooms: trip.operationalData.rooming
-            };
-            setHotels([legacyHotel]);
-            setActiveHotelId(legacyHotel.id);
-        } else {
-            // Default empty state
-            const defaultHotel: HotelInstance = { id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] };
-            setHotels([defaultHotel]);
-            setActiveHotelId(defaultHotel.id);
-        }
-    }, [trip.operationalData]);
-
-    const activeHotel = useMemo(() => hotels.find(h => h.id === activeHotelId), [hotels, activeHotelId]);
-
-    // Fetch passenger data from database
-    const [dbPassengers, setDbPassengers] = useState<Map<string, any>>(new Map());
-    
-    useEffect(() => {
-        const fetchPassengers = async () => {
-            try {
-                const { supabase } = await import('../services/supabase');
-                // Safety check: Only fetch passengers for bookings of the current trip
-                const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
-                if (supabase && validBookings.length > 0) {
-                    const bookingIds = validBookings.filter(b => b.status === 'CONFIRMED').map(b => b.id);
-                    if (bookingIds.length > 0) {
-                        const { data, error } = await supabase
-                            .from('booking_passengers')
-                            .select('*')
-                            .in('booking_id', bookingIds)
-                            .order('booking_id', { ascending: true })
-                            .order('passenger_index', { ascending: true });
-                        
-                        if (!error && data) {
-                            const map = new Map<string, any>();
-                            data.forEach(p => {
-                                const key = `${p.booking_id}-${p.passenger_index}`;
-                                map.set(key, p);
-                            });
-                            setDbPassengers(map);
-                        }
-                    }
-                }
-            } catch (err) {
-                logger.error('Error fetching passengers:', err);
-            }
-        };
-        fetchPassengers();
-    }, [bookings, trip.id]);
-
-    const allPassengers = useMemo(() => {
-        // Safety check: Only process bookings for the current trip
-        const validBookings = bookings.filter(b => b.tripId && String(b.tripId) === String(trip.id));
-        const booked = validBookings.filter(b => b.status === 'CONFIRMED').flatMap(b => {
-            const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name;
-            return Array.from({ length: b.passengers }).map((_, i) => {
-                const id = `${b.id}-${i}`;
-                // Try database first, then override, then fallback
-                const dbPassenger = dbPassengers.get(`${b.id}-${i}`);
-                const dbName = dbPassenger?.full_name;
-                
-                // For main passenger (i === 0), use client name as fallback
-                // For companions (i > 0), only use database or details - don't use "Acompanhante X" as name
-                let finalName: string;
-                if (i === 0) {
-                    // Main passenger: database > override > client name > "Passageiro"
-                    finalName = dbName || nameOverrides[id] || clientName || 'Passageiro';
-                } else {
-                    // Companion: database > override > empty (will show "Acompanhante" label below)
-                    finalName = dbName || nameOverrides[id] || '';
-                }
-                
-                return { 
-                    id, 
-                    bookingId: b.id, 
-                    name: finalName,
-                    isMain: i === 0,
-                    isAccompaniment: i > 0,
-                    isManual: false,
-                    passengerIndex: i,
-                    details: dbPassenger ? {
-                        name: dbPassenger.full_name,
-                        document: dbPassenger.cpf,
-                        phone: dbPassenger.whatsapp,
-                        birthDate: dbPassenger.birth_date
-                    } : undefined
-                };
-            });
-        });
-        const manual = manualPassengers.map(p => ({ 
-            id: p.id, 
-            bookingId: p.id, 
-            name: nameOverrides[p.id] || p.name, 
-            isManual: true,
-            isMain: false,
-            isAccompaniment: false
-        }));
-        return [...booked, ...manual];
-    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, dbPassengers]);
-
-    // Global Assignment Map across all hotels
-    const assignedMap = useMemo(() => {
-        const map = new Map<string, string>();
-        hotels.forEach(h => {
-            h.rooms.forEach(r => {
-                r.guests.forEach(g => map.set(g.bookingId, `${h.name} - ${r.name}`));
-            });
-        });
-        return map;
-    }, [hotels]);
-
-    const filteredPassengers = useMemo(() => {
-        if (!filterText) return allPassengers;
-        return allPassengers.filter(p => p.name.toLowerCase().includes(filterText.toLowerCase()));
-    }, [allPassengers, filterText]);
-
-    // Actions
-    const saveHotels = (updatedHotels: HotelInstance[]) => {
-        setHotels(updatedHotels);
-        onSave({ ...trip.operationalData, hotels: updatedHotels });
-    };
-
-    const handleBatchCreate = () => {
-        if (!activeHotelId) return;
-        const newRooms: RoomConfig[] = [];
-        const capMap = { 'DOUBLE': 2, 'TRIPLE': 3, 'QUAD': 4, 'COLLECTIVE': 6 };
-        
-        let capacity = capMap[invType];
-        if (invType === 'COLLECTIVE' && invCustomCap !== '' && Number(invCustomCap) > 0) {
-            capacity = Number(invCustomCap);
-        }
-
-        // Calculate start index based on active hotel's rooms
-        const currentRooms = activeHotel?.rooms || [];
-        const startIdx = currentRooms.length + 1;
-        
-        for(let i=0; i<invQty; i++) {
-            newRooms.push({ id: crypto.randomUUID(), name: `Quarto ${startIdx+i}`, type: invType, capacity: capacity, guests: [] });
-        }
-
-        const updatedHotels = hotels.map(h => {
-            if (h.id === activeHotelId) {
-                return { ...h, rooms: [...h.rooms, ...newRooms] };
-            }
-            return h;
-        });
-        
-        saveHotels(updatedHotels);
-    };
-
-    const handleAssign = (roomId: string, passenger: { id: string, name: string, bookingId: string, details?: any }) => {
-        // Remove from ANY existing hotel/room first
-        const cleanedHotels = hotels.map(h => ({
-            ...h,
-            rooms: h.rooms.map(r => ({
-                ...r,
-                guests: r.guests.filter(g => g.bookingId !== passenger.id)
-            }))
-        }));
-
-        // Find target hotel and room
-        const targetHotelIndex = cleanedHotels.findIndex(h => h.id === activeHotelId);
-        if (targetHotelIndex === -1) return;
-
-        const targetHotel = cleanedHotels[targetHotelIndex];
-        const targetRoomIndex = targetHotel.rooms.findIndex(r => r.id === roomId);
-        
-        if (targetRoomIndex !== -1) {
-            const room = targetHotel.rooms[targetRoomIndex];
-            if (room.guests.length < room.capacity) {
-                // Get passenger name from details first
-                const passengerName = passenger.details?.name || passenger.name;
-                room.guests.push({ name: passengerName, bookingId: passenger.id });
-                saveHotels(cleanedHotels);
-                if (selectedPassenger?.id === passenger.id) setSelectedPassenger(null);
-            } else {
-                showToast('Quarto lotado! Não há mais vagas disponíveis.', 'warning');
-            }
-        }
-    };
-
-    const confirmRemoveGuest = () => {
-        if (!guestToRemove || !activeHotelId) return;
-        
-        const updatedHotels = hotels.map(h => {
-            // Only search in the current hotel context logic, but since IDs are unique, we map all
-            // To be safe, we iterate rooms
-            return {
-                ...h,
-                rooms: h.rooms.map(r => {
-                    if (r.id === guestToRemove.roomId) {
-                        return { ...r, guests: r.guests.filter(g => g.bookingId !== guestToRemove.guestId) };
-                    }
-                    return r;
-                })
-            };
-        });
-        
-        saveHotels(updatedHotels);
-        // Modal will close via onClose() in ConfirmDialog button
-    };
-    
-    const confirmDeleteRoom = () => {
-        if (!roomToDelete) return;
-        
-        const updatedHotels = hotels.map(h => ({
-            ...h,
-            rooms: h.rooms.filter(r => r.id !== roomToDelete)
-        }));
-        
-        saveHotels(updatedHotels);
-        // Modal will close via onClose() in ConfirmDialog button
-    };
-    
-    // Hotel Management Actions
-    const handleAddHotel = () => {
-        const newHotel: HotelInstance = {
-            id: `h-${Date.now()}`,
-            name: `Hotel ${hotels.length + 1}`,
-            rooms: []
-        };
-        const updated = [...hotels, newHotel];
-        saveHotels(updated);
-        setActiveHotelId(newHotel.id);
-    };
-
-    const handleDeleteHotel = (hotelId: string) => {
-        setHotelToDelete(hotelId);
-    };
-
-    const confirmDeleteHotel = () => {
-        if (!hotelToDelete) return;
-        
-        const updated = hotels.filter(h => h.id !== hotelToDelete);
-        // Ensure at least one hotel remains
-        if (updated.length === 0) {
-            updated.push({ id: `h-${Date.now()}`, name: 'Hotel Principal', rooms: [] });
-        }
-        saveHotels(updated);
-        if (activeHotelId === hotelToDelete) setActiveHotelId(updated[0].id);
-        // Modal will close via onClose() in ConfirmDialog button
-    };
-
-    const startRenameHotel = (hotelId: string, currentName: string) => {
-        setEditHotelNameId(hotelId);
-        setTempHotelName(currentName);
-    };
-
-    const saveRenameHotel = () => {
-        if (!editHotelNameId) return;
-        const updated = hotels.map(h => h.id === editHotelNameId ? { ...h, name: tempHotelName } : h);
-        saveHotels(updated);
-        setEditHotelNameId(null);
-    };
-
-    const handleAddManual = (p: ManualPassenger) => {
-        const newManuals = [...manualPassengers, p];
-        setManualPassengers(newManuals);
-        onSave({ ...trip.operationalData, manualPassengers: newManuals });
-    };
-
-    // Drag Handlers
-    const handleDragStart = (e: React.DragEvent, passenger: any) => {
-        // Ensure passenger object has complete data for drag&drop
-        const dbPassenger = dbPassengers.get(`${passenger.bookingId}-${passenger.passengerIndex}`);
-        const passengerWithData = {
-            ...passenger,
-            name: dbPassenger?.full_name || passenger.details?.name || passenger.name || 'Passageiro (Sem nome)',
-            document: dbPassenger?.cpf || passenger.details?.document || '',
-            phone: dbPassenger?.whatsapp || passenger.details?.phone || '',
-            birthDate: dbPassenger?.birth_date || passenger.details?.birthDate || ''
-        };
-        e.dataTransfer.setData('application/json', JSON.stringify(passengerWithData));
-        e.dataTransfer.effectAllowed = 'move';
-    };
-
-    const handleDrop = (e: React.DragEvent, roomId: string) => {
-        e.preventDefault();
-        setDragOverRoom(null);
-        try {
-            const data = e.dataTransfer.getData('application/json');
-            const passenger = JSON.parse(data);
-            if (passenger?.id) handleAssign(roomId, passenger);
-        } catch (err) {}
-    };
-
-    // Stats
-    const totalCap = activeHotel?.rooms.reduce((sum, r) => sum + r.capacity, 0) || 0;
-    const occupied = activeHotel?.rooms.reduce((sum, r) => sum + r.guests.length, 0) || 0;
-    const assignedCount = assignedMap.size;
-    const progress = Math.min(100, Math.round((assignedCount / (allPassengers.length || 1)) * 100));
-
-    // Helper for Quick Selectors
-    const QuickSelector = ({ type, label, active }: { type: string; label: string; active: boolean }) => (
-        <button 
-            onClick={() => setInvType(type as any)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${active ? 'bg-primary-600 text-white border-primary-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-        >
-            {label}
-        </button>
-    );
-    return (
-        <div className="flex flex-col h-full overflow-hidden bg-white">
-            <ConfirmDialog isOpen={!!roomToDelete} onClose={() => setRoomToDelete(null)} onConfirm={confirmDeleteRoom} title="Excluir Quarto" message="Tem certeza que deseja excluir este quarto? Os passageiros voltarão para a lista." variant="danger" />
-            <ConfirmDialog isOpen={!!guestToRemove} onClose={() => setGuestToRemove(null)} onConfirm={confirmRemoveGuest} title="Remover Passageiro" message={`Remover ${guestToRemove?.guestName} deste quarto?`} variant="warning" confirmText="Remover" />
-            <ConfirmDialog isOpen={!!hotelToDelete} onClose={() => setHotelToDelete(null)} onConfirm={confirmDeleteHotel} title="Remover Hotel" message="Tem certeza que deseja remover este hotel? Todos os quartos e alocações serão perdidos." variant="danger" confirmText="Remover" />
-
-            {/* Header Config */}
-            <div className="bg-slate-50 border-b p-4 flex flex-col gap-4 flex-shrink-0">
-                {/* Hotel Tabs Row */}
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                    {hotels.map(hotel => (
-                        <div 
-                            key={hotel.id}
-                            onClick={() => setActiveHotelId(hotel.id)}
-                            className={`
-                                flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border transition-all min-w-[140px] justify-between group
-                                ${activeHotelId === hotel.id ? 'bg-white border-primary-500 text-primary-700 shadow-sm ring-1 ring-primary-100' : 'bg-white/50 border-transparent hover:bg-white text-gray-600'}
-                            `}
-                        >
-                            {editHotelNameId === hotel.id ? (
-                                <input 
-                                    value={tempHotelName}
-                                    onChange={e => setTempHotelName(e.target.value)}
-                                    onBlur={saveRenameHotel}
-                                    onKeyDown={e => e.key === 'Enter' && saveRenameHotel()}
-                                    autoFocus
-                                    className="w-full text-xs font-bold bg-transparent outline-none border-b border-primary-300"
-                                />
-                            ) : (
-                                <div className="flex items-center gap-2 w-full">
-                                    <Building size={14} className={activeHotelId === hotel.id ? "text-primary-500" : "text-gray-400"} />
-                                    <span className="text-xs font-bold truncate">{hotel.name}</span>
-                                    {activeHotelId === hotel.id && (
-                                        <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={(e) => { e.stopPropagation(); startRenameHotel(hotel.id, hotel.name); }} className="text-gray-400 hover:text-blue-500"><Edit size={10}/></button>
-                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteHotel(hotel.id); }} className="text-gray-400 hover:text-red-500"><Trash2 size={10}/></button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                    <button onClick={handleAddHotel} className="p-2 rounded-lg bg-white border border-dashed border-gray-300 text-gray-400 hover:text-primary-600 hover:border-primary-300 transition-colors">
-                        <Plus size={16}/>
-                    </button>
-                </div>
-
-                {/* Room Config Row */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-gray-500 uppercase mr-2">Adicionar:</span>
-                        <div className="flex gap-2 mr-2">
-                            <QuickSelector type="DOUBLE" label="Single/Duplo" active={invType === 'DOUBLE'} />
-                            <QuickSelector type="TRIPLE" label="Triplo" active={invType === 'TRIPLE'} />
-                            <QuickSelector type="QUAD" label="Quádruplo" active={invType === 'QUAD'} />
-                            <QuickSelector type="COLLECTIVE" label="Personalizado" active={invType === 'COLLECTIVE'} />
-                        </div>
-
-                        {invType === 'COLLECTIVE' && (
-                            <div className="relative animate-[fadeIn_0.2s]">
-                                <input 
-                                    type="number" 
-                                    min="1" 
-                                    placeholder="Cap." 
-                                    value={invCustomCap} 
-                                    onChange={e => setInvCustomCap(e.target.value === '' ? '' : parseInt(e.target.value))} 
-                                    className="w-16 border rounded-lg p-1.5 text-center text-xs font-bold focus:ring-2 focus:ring-primary-500 outline-none"
-                                />
-                            </div>
-                        )}
-
-                        <div className="h-6 w-px bg-gray-300 mx-2"></div>
-
-                        <div className="flex items-center bg-white rounded-lg border border-gray-200 p-0.5">
-                            <button onClick={() => setInvQty(Math.max(1, invQty-1))} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-l-md font-bold">-</button>
-                            <span className="px-2 text-xs font-bold min-w-[20px] text-center">{invQty}</span>
-                            <button onClick={() => setInvQty(invQty+1)} className="px-2 py-1 text-gray-500 hover:bg-gray-100 rounded-r-md font-bold">+</button>
-                        </div>
-
-                        <button onClick={handleBatchCreate} className="bg-primary-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary-700 flex items-center gap-1 shadow-sm ml-2">
-                            <Plus size={14}/> Criar
-                        </button>
-                    </div>
-                    
-                    <div className="flex gap-4 text-xs text-gray-600 font-medium bg-white px-4 py-2 rounded-full border shadow-sm">
-                        <span>Total: <b>{totalCap}</b></span><span>Ocupado: <b className="text-blue-600">{occupied}</b></span><span>Livre: <b className="text-green-600">{totalCap - occupied}</b></span>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left List */}
-                <div className="w-80 border-r bg-white flex flex-col h-full shadow-sm z-10 flex-shrink-0">
-                    <div className="p-4 border-b bg-gray-50 space-y-3">
-                        <div className="flex justify-between items-center">
-                            <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2"><Users size={16}/> Passageiros ({assignedCount}/{allPassengers.length})</h4>
-                            <button onClick={() => setShowManualForm(!showManualForm)} className="text-primary-600 hover:bg-primary-50 p-1.5 rounded" title="Adicionar Manual"><Plus size={18}/></button>
-                        </div>
-                        {/* Progress Bar */}
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div className="bg-blue-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
-                        </div>
-                        <div className="relative">
-                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={14}/>
-                            <input 
-                                type="text" 
-                                placeholder="Buscar passageiro..." 
-                                className="w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-1 focus:ring-primary-500 outline-none"
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                         {showManualForm && <ManualPassengerForm onAdd={handleAddManual} onClose={() => setShowManualForm(false)} />}
-                         {filteredPassengers.map(p => {
-                             const assignedInfo = assignedMap.get(p.id); // "Hotel Name - Room Name"
-                             const isSelected = selectedPassenger?.id === p.id;
-
-                             return (
-                                 <div 
-                                    key={p.id} 
-                                    draggable={!assignedInfo} 
-                                    onDragStart={(e) => handleDragStart(e, p)} 
-                                    onClick={() => {
-                                        if (!assignedInfo) {
-                                            // Get passenger name - prioritize database first
-                                            const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                                            let passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
-                                            
-                                            // If name is "Acompanhante X (...)", try to get from database or details
-                                            if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                                passengerName = dbPassenger?.full_name || p.details?.name || '';
-                                            }
-                                            
-                                            // For main passenger, use client name as fallback
-                                            if (!passengerName && !p.isAccompaniment) {
-                                                // Safety check: Only find booking if it belongs to current trip
-                                                const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-                                                const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
-                                                passengerName = clientName || 'Passageiro';
-                                            }
-                                            
-                                            // For companions, use a descriptive fallback
-                                            if (!passengerName && p.isAccompaniment) {
-                                                passengerName = 'Acompanhante';
-                                            }
-                                            
-                                            // Ensure we always have a valid name
-                                            if (!passengerName || passengerName.trim() === '') {
-                                                logger.warn('[RoomingManager] Warning: passengerName is empty, using fallback');
-                                                passengerName = p.name || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                                            }
-                                            
-                                            setSelectedPassenger(selectedPassenger?.id === p.id ? null : {id: p.id, name: passengerName, bookingId: p.bookingId});
-                                        }
-                                    }} 
-                                    className={`
-                                        p-3 rounded-lg border text-sm flex items-center justify-between group transition-all select-none
-                                        ${selectedPassenger?.id === p.id ? 'bg-primary-600 border-primary-600 text-white shadow-md scale-[1.02]' : ''}
-                                        ${assignedInfo && selectedPassenger?.id !== p.id ? 'bg-gray-50 border-gray-100 text-gray-500 cursor-default' : ''}
-                                        ${!assignedInfo && selectedPassenger?.id !== p.id ? 'bg-white border-gray-200 hover:border-primary-300 cursor-grab active:cursor-grabbing' : ''}
-                                    `}
-                                 >
-                                     <div className="flex items-center gap-3 overflow-hidden">
-                                         {!assignedInfo && <Grip size={12} className={selectedPassenger?.id === p.id ? 'text-white/50' : 'text-gray-300'}/>}
-                                         {assignedInfo && <CheckCircle size={14} className="text-blue-600 flex-shrink-0"/>}
-                                         {(() => {
-                                             const isSelected = selectedPassenger?.id === p.id;
-                                             // When selected, use the name from selectedPassenger to ensure consistency
-                                             let passengerName: string;
-                                             if (isSelected && selectedPassenger?.name) {
-                                                 // Use the name from selectedPassenger when selected
-                                                 passengerName = selectedPassenger.name;
-                                             } else {
-                                                 // Calculate name normally when not selected - prioritize database
-                                                 const dbPassenger = dbPassengers.get(`${p.bookingId}-${p.passengerIndex}`);
-                                                 passengerName = dbPassenger?.full_name || p.details?.name || p.name || '';
-                                                 // If name is "Acompanhante X (...)", try to get from database or details
-                                                 if (passengerName.match(/^Acompanhante \d+ \(/)) {
-                                                     passengerName = dbPassenger?.full_name || p.details?.name || '';
-                                                 }
-                                                 // For main passenger, use client name as fallback
-                                                 if (!passengerName && !p.isAccompaniment) {
-                                                     // Safety check: Only find booking if it belongs to current trip
-                                                     const booking = bookings.find(b => b.id === p.bookingId && b.tripId && String(b.tripId) === String(trip.id));
-                                                     const clientName = booking ? ((booking as any)._client?.name || clients.find(c => c.id === booking.clientId)?.name) : '';
-                                                     passengerName = clientName || 'Passageiro';
-                                                 }
-                                                 // For companions, use a descriptive fallback
-                                                 if (!passengerName && p.isAccompaniment) {
-                                                     passengerName = 'Acompanhante';
-                                                 }
-                                             }
-                                             const displayName = passengerName || (p.isAccompaniment ? 'Acompanhante' : 'Passageiro');
-                                             const displayInitial = displayName.charAt(0).toUpperCase();
-                                             return (
-                                                 <>
-                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{displayInitial}</div>
-                                                     
-                                                     {/* Always show full name on top, type below */}
-                                                     <div className={`min-w-0 flex flex-col`}>
-                                                         <span className={`font-bold text-sm truncate leading-tight`} style={{ color: isSelected ? '#ffffff' : '#111827' }}>
-                                                             {displayName}
-                                                         </span>
-                                                         <div className={`flex items-center text-xs mt-0.5 ${selectedPassenger?.id === p.id ? 'text-white/80' : 'text-gray-500'}`}>
-                                                             {p.isManual ? (
-                                                                 <>
-                                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                                     <span className="truncate">Manual</span>
-                                                                 </>
-                                                             ) : p.isAccompaniment ? (
-                                                                 <>
-                                                                     <CornerDownRight size={10} className="mr-1 flex-shrink-0" />
-                                                                     <span className="truncate">Acompanhante {p.passengerIndex}</span>
-                                                                 </>
-                                                             ) : (
-                                                                 <span className={`text-[10px] uppercase font-bold tracking-wide ${selectedPassenger?.id === p.id ? 'text-white/90' : 'text-primary-600/70'}`}>
-                                                                     Titular
-                                                                 </span>
-                                                             )}
-                                                         </div>
-                                                     </div>
-                                                 </>
-                                             );
-                                         })()}
-                                     </div>
-                                     {assignedInfo && <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 truncate max-w-[80px]" title={assignedInfo}>{assignedInfo.split(' - ').pop()}</span>}
-                                 </div>
-                             );
-                         })}
-                    </div>
-                    <div className="p-2 bg-gray-50 text-[10px] text-gray-400 text-center border-t">Arraste para o quarto ou clique para selecionar.</div>
-                </div>
-
-                {/* Right Grid */}
-                <div className="flex-1 bg-slate-100 overflow-y-auto p-6 custom-scrollbar">
-                    {activeHotel ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5 pb-20">
-                            {activeHotel.rooms.map(room => {
-                                const isFull = room.guests.length >= room.capacity;
-                                const isTarget = (selectedPassenger && !isFull) || dragOverRoom === room.id;
-                                return (
-                                    <div 
-                                        key={room.id} 
-                                        onDragOver={(e) => { e.preventDefault(); if(!isFull) setDragOverRoom(room.id); }}
-                                        onDragLeave={() => setDragOverRoom(null)}
-                                        onDrop={(e) => handleDrop(e, room.id)}
-                                        onClick={() => selectedPassenger && handleAssign(room.id, selectedPassenger)}
-                                        className={`bg-white rounded-2xl border transition-all relative overflow-hidden group shadow-sm ${isTarget ? 'cursor-pointer ring-2 ring-primary-400 border-primary-400 shadow-lg scale-[1.01]' : 'border-gray-200'}`}
-                                    >
-                                        <div className="p-3 border-b flex justify-between items-center bg-gray-50/50 w-full">
-                                            <div className="flex items-center gap-3 flex-1 min-w-0 truncate">
-                                                <div className={`p-2 rounded-lg ${isFull ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-600'}`}><BedDouble size={18}/></div>
-                                                <div className="truncate flex-1">
-                                                    <h5 className="font-bold text-gray-800 text-sm truncate" title={room.name}>{room.name}</h5>
-                                                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase"><span>{room.type}</span><span className={isFull?'text-green-600':'text-blue-600'}>{room.guests.length}/{room.capacity}</span></div>
-                                                </div>
-                                            </div>
-                                            <button onClick={(e) => {e.stopPropagation(); setRoomToDelete(room.id);}} className="text-gray-300 hover:text-red-500 p-1.5 flex-shrink-0"><Trash2 size={16}/></button>
-                                        </div>
-                                        <div className="p-3 space-y-2 min-h-[80px]">
-                                            {room.guests.map(g => (
-                                                <div key={g.bookingId} className="bg-blue-50/50 px-3 py-2 rounded text-xs font-medium flex justify-between items-center group/guest border border-blue-100/50">
-                                                    <div className="flex items-center gap-2"><User size={12} className="text-blue-400"/><span className="truncate max-w-[120px]">{g.name}</span></div>
-                                                    <button onClick={(e)=>{e.stopPropagation(); setGuestToRemove({roomId: room.id, guestId: g.bookingId, guestName: g.name});}} className="text-blue-300 hover:text-red-500 opacity-0 group-hover/guest:opacity-100"><X size={14}/></button>
-                                                </div>
-                                            ))}
-                                            {Array.from({length: Math.max(0, room.capacity - room.guests.length)}).map((_,i) => (
-                                                <div key={i} className={`border-2 border-dashed rounded px-3 py-2 text-xs flex items-center justify-center gap-1 select-none ${isTarget ? 'border-primary-200 bg-primary-50 text-primary-600 font-bold' : 'border-gray-100 text-gray-300'}`}>
-                                                    {isTarget ? <><MousePointer2 size={12}/> Alocar Aqui</> : 'Vaga Livre'}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-gray-400 text-sm">Selecione ou adicione um hotel para gerenciar os quartos.</div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 3. OPERATIONS MODULE (MASTER-DETAIL LAYOUT REFACTOR)
-interface OperationsModuleProps {
-    myTrips: Trip[];
-    myBookings: Booking[];
-    clients: any[];
-    selectedTripId: string | null;
-    onSelectTrip: (id: string | null) => void;
-    onSaveTripData: (tripId: string, data: OperationalData) => void;
-    currentAgency: Agency;
-}
-const OperationsModule: React.FC<OperationsModuleProps & { isGuide?: boolean }> = ({ myTrips, myBookings, clients, selectedTripId, onSelectTrip, onSaveTripData, currentAgency, isGuide = false }) => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    // Derived State
+    const activeTab = searchParams.get('tab') || 'OVERVIEW';
+    const isGuide = currentAgency?.isGuide === true || (currentAgency?.role as any) === 'GUIDE';
+    const entityName = isGuide ? 'Guia' : 'Agência';
+    const entityNameLower = isGuide ? 'guia' : 'agência';
     const tripLabel = isGuide ? 'Experiência' : 'Pacote';
     const tripLabelLower = isGuide ? 'experiência' : 'pacote';
-    const selectedTrip = myTrips.find(t => t.id === selectedTripId);
-    const [activeView, setActiveView] = useState<'TRANSPORT' | 'ROOMING'>('TRANSPORT');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Added collapsible state
-    const { showToast } = useToast();
+
+    const planPermissions = usePlanPermissions();
+
+    // Local State
+    const [showCreateTrip, setShowCreateTrip] = useState(false);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const { deleteTrip, refreshData } = useData(); // Import deleteTrip and refreshData
+    const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>('GRID');
+    const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
+
+    // Subscription & Payment State
+    const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+    const [showPaymentManagementDialog, setShowPaymentManagementDialog] = useState(false);
+    const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
+    const [isSubmittingSubscription, setIsSubmittingSubscription] = useState(false);
+
+    // Deletion State
     const [tripToDelete, setTripToDelete] = useState<string | null>(null);
+    const [isDeletingTrip, setIsDeletingTrip] = useState(false);
 
-    const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Theme & Profile State
+    const [profileForm, setProfileForm] = useState<Partial<Agency>>({});
+    const [heroForm, setHeroForm] = useState<Partial<Agency>>({});
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
-    // Reload data when trip is selected to ensure fresh data
+    // Duplication State
+    const [isDuplicatingTrip, setIsDuplicatingTrip] = useState<string | null>(null);
+
+    // Initial Data Load
     useEffect(() => {
-        if (selectedTripId) {
+        if (currentAgency) {
+            setProfileForm({
+                name: currentAgency.name,
+                whatsapp: currentAgency.whatsapp,
+                phone: currentAgency.phone,
+                website: currentAgency.website,
+                description: currentAgency.description,
+                logo: currentAgency.logo || '',
+                slug: currentAgency.slug || slugify(currentAgency.name)
+            });
+            setHeroForm({
+                heroMode: currentAgency.heroMode || 'TRIPS',
+                heroBannerUrl: currentAgency.heroBannerUrl,
+                heroTitle: currentAgency.heroTitle,
+                heroSubtitle: currentAgency.heroSubtitle
+            });
             refreshData();
         }
-    }, [selectedTripId, refreshData]);
+    }, [currentAgency?.id]); // Only re-run if ID changes to avoid loops
 
-    const [isDeletingTripInOps, setIsDeletingTripInOps] = useState(false);
-    
+    // Handlers
+    const handleTabChange = (tab: string) => {
+        setSearchParams({ tab });
+        if (tab === 'OPERATIONS') {
+            // Auto-select first active trip if none selected
+            if (!selectedOperationalTripId) {
+                const firstActive = myTrips.find(t => t.is_active);
+                if (firstActive) setSelectedOperationalTripId(firstActive.id);
+            }
+        }
+    };
+
+    const handleCreateTrip = async (tripData: any) => {
+        if (!planPermissions.canPostTrip) {
+            setShowUpgradeModal(true);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            // Ensure unique slug
+            const { generateSlugFromName, generateUniqueSlug } = await import('../utils/slugUtils');
+            const baseSlug = generateSlugFromName(tripData.title);
+            const uniqueSlug = await generateUniqueSlug(baseSlug, 'trips');
+
+            const newTrip = await createTrip({
+                ...tripData,
+                slug: uniqueSlug,
+                agencyId: currentAgency!.agencyId,
+                status: 'DRAFT',
+                sales: 0,
+                views: 0,
+                operationalData: DEFAULT_OPERATIONAL_DATA
+            });
+
+            setShowCreateTrip(false);
+            showToast(`${tripLabel} criado com sucesso!`, 'success');
+            refreshData(); // Refresh list
+        } catch (err: any) {
+            logger.error('Error creating trip:', err);
+            showToast(`Erro ao criar ${tripLabelLower}: ${err.message}`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEditTrip = (trip: Trip) => {
+        setEditingTrip(trip);
+        setShowCreateTrip(true);
+    };
+
+    const handleDuplicateTrip = async (trip: Trip) => {
+        if (!planPermissions.canPostTrip) {
+            setShowUpgradeModal(true);
+            return;
+        }
+
+        setIsDuplicatingTrip(trip.id);
+        try {
+            const { generateSlugFromName, generateUniqueSlug } = await import('../utils/slugUtils');
+            const newTitle = `${trip.title} (Cópia)`;
+            const baseSlug = generateSlugFromName(newTitle);
+            const uniqueSlug = await generateUniqueSlug(baseSlug, 'trips');
+
+            // Omit ID and created_at/updated_at
+            const { id, created_at, updated_at, ...tripData } = trip;
+
+            const newTrip = {
+                ...tripData,
+                title: newTitle,
+                slug: uniqueSlug,
+                is_active: false,
+                sales: 0,
+                views: 0,
+                tripRating: 0,
+                tripTotalReviews: 0,
+                operationalData: DEFAULT_OPERATIONAL_DATA // Reset op data for copy
+            };
+
+            await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
+            showToast(`${tripLabel} duplicado com sucesso!`, 'success');
+            refreshData();
+        } catch (error: any) {
+            logger.error('Error duplicating trip:', error);
+            showToast(`Erro ao duplicar ${tripLabelLower}: ${error.message || 'Erro desconhecido'}`, 'error');
+        } finally {
+            setIsDuplicatingTrip(null);
+        }
+    };
+
+    const handleDeleteTrip = (id: string) => {
+        setTripToDelete(id);
+    };
+
     const confirmDeleteTrip = async () => {
         if (!tripToDelete) return;
-        setIsDeletingTripInOps(true);
+        setIsDeletingTrip(true);
         try {
             await deleteTrip(tripToDelete);
             setTripToDelete(null);
             showToast(`${tripLabel} excluído com sucesso.`, 'success');
-            // If the deleted trip was selected, clear the selection
-            if (selectedTripId === tripToDelete) {
-                onSelectTrip(null);
-            }
         } catch (error: any) {
             logger.error('Error deleting trip:', error);
             showToast(`Erro ao excluir ${tripLabelLower}: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
-            setIsDeletingTripInOps(false);
+            setIsDeletingTrip(false);
         }
     };
 
-    // Auto-close sidebar on selection
-    const handleTripSelect = (id: string) => {
-        onSelectTrip(id);
-        setIsSidebarOpen(false);
-    };
+    const toggleTripStatus = async (tripId: string) => {
+        const trip = myTrips.find(t => t.id === tripId);
+        if (!trip) return;
 
-    // PDF Generator - Melhorado com desenhos visuais (sem autoTable)
-    const generateManifest = async () => {
-        if (!selectedTrip) return;
         try {
-            const doc = new jsPDF();
-            const primaryColor = [59, 130, 246]; // Blue
-            
-            // COVER PAGE
-            doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-            doc.rect(0, 0, 210, 40, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(22);
-            doc.text(currentAgency.name.toUpperCase(), 15, 20);
-            doc.setFontSize(10);
-            doc.text('MANIFESTO DE VIAGEM', 195, 20, { align: 'right' });
-            
-            doc.setTextColor(30, 30, 30);
-            doc.setFontSize(18);
-            doc.text(selectedTrip.title, 15, 55);
-            doc.setFontSize(10);
-            doc.text(`Destino: ${selectedTrip.destination}`, 15, 65);
-            doc.text(`Data: ${safeDate(selectedTrip.startDate)} - ${safeDate(selectedTrip.endDate)}`, 15, 70);
-
-            // Stats
-            const opData = selectedTrip.operationalData || DEFAULT_OPERATIONAL_DATA;
-            const tripBookings = myBookings.filter(b => b.tripId && String(b.tripId) === String(selectedTrip.id) && b.status === 'CONFIRMED');
-            const totalPax = (opData.manualPassengers?.length || 0) + tripBookings.reduce((sum, b) => sum + b.passengers, 0);
-            doc.text(`Total Passageiros: ${totalPax}`, 15, 80);
-
-            // Helper para obter assento do passageiro
-            const getPassengerSeat = (passengerId: string) => {
-                if (!opData.transport?.vehicles) return '-';
-                for (const vehicle of opData.transport.vehicles) {
-                    const seat = vehicle.seats?.find(s => s.bookingId === passengerId);
-                    if (seat) {
-                        return `${vehicle.name} - Assento ${seat.seatNumber}`;
-                    }
-                }
-                return '-';
-            };
-
-            // Fetch passenger data from database
-            let bookingPassengersMap = new Map<string, any>();
-            try {
-                const { supabase } = await import('../services/supabase');
-                if (supabase) {
-                    const bookingIds = tripBookings.map(b => b.id);
-                    if (bookingIds.length > 0) {
-                        const { data, error } = await supabase
-                            .from('booking_passengers')
-                            .select('*')
-                            .in('booking_id', bookingIds)
-                            .order('booking_id', { ascending: true })
-                            .order('passenger_index', { ascending: true });
-                        
-                        if (!error && data) {
-                            data.forEach(p => {
-                                const key = `${p.booking_id}-${p.passenger_index}`;
-                                bookingPassengersMap.set(key, p);
-                            });
-                        }
-                    }
-                }
-            } catch (err) {
-                logger.error('Error fetching passengers from DB:', err);
-            }
-
-            // Helper to get detail completo - busca do banco primeiro
-            const getPaxDetail = (id: string, bookingId: string, passengerIndex: number, fallbackName: string) => {
-                // Try database first
-                const dbPassenger = bookingPassengersMap.get(`${bookingId}-${passengerIndex}`);
-                if (dbPassenger) {
-                    return {
-                        name: dbPassenger.full_name || fallbackName,
-                        document: dbPassenger.cpf ? dbPassenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '-',
-                        phone: dbPassenger.whatsapp || '-',
-                        birthDate: dbPassenger.birth_date ? new Date(dbPassenger.birth_date).toLocaleDateString('pt-BR') : '-',
-                        seat: getPassengerSeat(id)
-                    };
-                }
-                // Fallback to operational data
-                const detail = opData.passengerDetails?.[id];
-                return {
-                    name: detail?.name || fallbackName,
-                    document: detail?.document || '-',
-                    phone: detail?.phone || '-',
-                    birthDate: detail?.birthDate || '-',
-                    seat: getPassengerSeat(id)
-                };
-            };
-
-            // LISTA DE PASSAGEIROS (Primeiro) - Tabela manual
-            doc.addPage();
-            doc.setFontSize(16);
-            doc.setFont(undefined, 'bold');
-            doc.text('LISTA COMPLETA DE PASSAGEIROS', 15, 20);
-            doc.setFont(undefined, 'normal');
-            
-            const allPax: Array<{name: string, phone: string, seat: string, document: string, birthDate: string, type: string}> = [];
-
-            tripBookings.forEach(b => {
-                const clientName = (b as any)._client?.name || clients.find(c => c.id === b.clientId)?.name || 'Cliente';
-                
-                // Main Passenger
-                const mainPaxId = `${b.id}-0`;
-                const mainInfo = getPaxDetail(mainPaxId, b.id, 0, clientName);
-                allPax.push({
-                    name: mainInfo.name,
-                    phone: mainInfo.phone,
-                    seat: mainInfo.seat,
-                    document: mainInfo.document,
-                    birthDate: mainInfo.birthDate,
-                    type: 'Principal'
-                });
-
-                // Accompanying
-                for(let i=1; i<b.passengers; i++) {
-                    const accId = `${b.id}-${i}`;
-                    const originalAccName = `Acompanhante ${i} de ${clientName}`;
-                    const accInfo = getPaxDetail(accId, b.id, i, originalAccName);
-                    allPax.push({
-                        name: accInfo.name,
-                        phone: accInfo.phone,
-                        seat: accInfo.seat,
-                        document: accInfo.document,
-                        birthDate: accInfo.birthDate,
-                        type: 'Acompanhante'
-                    });
-                }
-            });
-            
-            opData.manualPassengers?.forEach(p => {
-                const info = getPaxDetail(p.id, '', -1, p.name);
-                allPax.push({
-                    name: info.name,
-                    phone: info.phone,
-                    seat: info.seat,
-                    document: info.document !== '-' ? info.document : (p.document || '-'),
-                    birthDate: info.birthDate,
-                    type: 'Manual'
-                });
-            });
-
-            // Desenhar tabela manualmente com coluna de foto
-            let yPos = 30;
-            const rowHeight = 10; // Increased for photo
-            const colWidths = [8, 45, 28, 32, 28, 23, 18]; // Foto, Nome, Telefone, Assento, RG, Nascimento, Tipo
-            
-            // Cabeçalho
-            doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-            doc.setTextColor(255, 255, 255);
-            doc.setFont(undefined, 'bold');
-            doc.setFontSize(8);
-            let xOffset = 15;
-            doc.rect(xOffset, yPos, colWidths[0], rowHeight, 'F');
-            doc.text('Foto', xOffset + colWidths[0]/2, yPos + 5.5, { align: 'center' });
-            xOffset += colWidths[0];
-            doc.rect(xOffset, yPos, colWidths[1], rowHeight, 'F');
-            doc.text('Nome', xOffset + 2, yPos + 5.5);
-            xOffset += colWidths[1];
-            doc.rect(xOffset, yPos, colWidths[2], rowHeight, 'F');
-            doc.text('Telefone', xOffset + 2, yPos + 5.5);
-            xOffset += colWidths[2];
-            doc.rect(xOffset, yPos, colWidths[3], rowHeight, 'F');
-            doc.text('Assento', xOffset + 2, yPos + 5.5);
-            xOffset += colWidths[3];
-            doc.rect(xOffset, yPos, colWidths[4], rowHeight, 'F');
-            doc.text('RG/CPF', xOffset + 2, yPos + 5.5);
-            xOffset += colWidths[4];
-            doc.rect(xOffset, yPos, colWidths[5], rowHeight, 'F');
-            doc.text('Nasc.', xOffset + 2, yPos + 5.5);
-            xOffset += colWidths[5];
-            doc.rect(xOffset, yPos, colWidths[6], rowHeight, 'F');
-            doc.text('Tipo', xOffset + 2, yPos + 5.5);
-            
-            yPos += rowHeight;
-            doc.setTextColor(0, 0, 0);
-            doc.setFont(undefined, 'normal');
-            doc.setFontSize(8);
-            
-            // Helper to get initials
-            const getInitials = (name: string): string => {
-                const parts = name.trim().split(' ').filter(p => p.length > 0);
-                if (parts.length === 0) return '??';
-                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-            };
-            
-            // Linhas de dados
-            allPax.forEach((pax, index) => {
-                if (yPos > 270) { // Nova página se necessário
-                    doc.addPage();
-                    yPos = 20;
-                }
-                
-                const isEven = index % 2 === 0;
-                if (isEven) {
-                    doc.setFillColor(245, 245, 245);
-                    doc.rect(15, yPos, 190, rowHeight, 'F');
-                }
-                
-                // Foto (avatar ou iniciais)
-                xOffset = 15;
-                doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-                doc.circle(xOffset + colWidths[0]/2, yPos + rowHeight/2, 3, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(6);
-                doc.text(getInitials(pax.name), xOffset + colWidths[0]/2, yPos + rowHeight/2 + 1.5, { align: 'center' });
-                doc.setTextColor(0, 0, 0);
-                xOffset += colWidths[0];
-                
-                // Nome
-                doc.setFontSize(7);
-                doc.text(pax.name.length > 30 ? pax.name.substring(0, 28) + '...' : pax.name, xOffset + 2, yPos + 5.5);
-                xOffset += colWidths[1];
-                
-                // Telefone
-                doc.text(pax.phone, xOffset + 2, yPos + 5.5);
-                xOffset += colWidths[2];
-                doc.text(pax.seat.length > 18 ? pax.seat.substring(0, 16) + '...' : pax.seat, 17 + colWidths[0] + colWidths[1], yPos + 5.5);
-                doc.text(pax.document, 17 + colWidths[0] + colWidths[1] + colWidths[2], yPos + 5.5);
-                doc.text(pax.birthDate !== '-' ? new Date(pax.birthDate).toLocaleDateString('pt-BR') : '-', 17 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos + 5.5);
-                doc.text(pax.type, 17 + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], yPos + 5.5);
-                
-                // Linha divisória
-                doc.setDrawColor(200, 200, 200);
-                doc.setLineWidth(0.1);
-                doc.line(15, yPos + rowHeight, 205, yPos + rowHeight);
-                
-                yPos += rowHeight;
-            });
-
-            // DESENHO VISUAL DO ÔNIBUS
-            if (opData.transport?.vehicles && opData.transport.vehicles.length > 0) {
-                opData.transport.vehicles.forEach((vehicle, vIndex) => {
-                    doc.addPage();
-                    const { cols, totalSeats, aisleAfterCol } = vehicle.config;
-                    
-                    // Título
-                    doc.setFontSize(16);
-                    doc.setFont(undefined, 'bold');
-                    doc.text(`MAPA DE ASSENTOS - ${vehicle.name.toUpperCase()}`, 15, 20);
-                    doc.setFontSize(10);
-                    doc.setFont(undefined, 'normal');
-                    doc.text(`${vehicle.config.label} - ${totalSeats} lugares`, 15, 27);
-                    
-                    // Desenho visual do ônibus
-                    const seatSize = 8; // Tamanho de cada assento em mm
-                    const seatSpacing = 2;
-                    const rowHeight = seatSize + seatSpacing;
-                    const rows = Math.ceil(totalSeats / cols);
-                    const startX = 20;
-                    const startY = 40;
-                    const aisleWidth = 8;
-                    
-                    // Desenhar contorno do ônibus
-                    const busWidth = (cols * (seatSize + seatSpacing)) + aisleWidth;
-                    const busHeight = rows * rowHeight + 10;
-                    doc.setDrawColor(100, 100, 100);
-                    doc.setLineWidth(0.5);
-                    doc.rect(startX - 5, startY - 5, busWidth + 10, busHeight + 10);
-                    
-                    // Desenhar assentos
-                    let currentY = startY;
-                    for(let r = 1; r <= rows; r++) {
-                        let currentX = startX;
-                        for(let c = 1; c <= cols; c++) {
-                            const seatNum = ((r - 1) * cols) + c;
-                            if (seatNum <= totalSeats) {
-                                const occupant = vehicle.seats?.find(s => s.seatNumber === seatNum.toString());
-                                
-                                // Desenhar retângulo do assento
-                                if (occupant) {
-                                    doc.setFillColor(59, 130, 246); // Azul para ocupado
-                                    doc.setDrawColor(59, 130, 246);
-                                } else {
-                                    doc.setFillColor(240, 240, 240); // Cinza para livre
-                                    doc.setDrawColor(200, 200, 200);
-                                }
-                                doc.rect(currentX, currentY, seatSize, seatSize, 'FD');
-                                
-                                // Número do assento
-                                doc.setTextColor(occupant ? 255 : 100);
-                                doc.setFontSize(6);
-                                doc.text(seatNum.toString(), currentX + seatSize/2, currentY + seatSize/2 + 1, { align: 'center' });
-                                
-                                // Nome do passageiro (se ocupado)
-                                if (occupant) {
-                                    doc.setFontSize(5);
-                                    const nameParts = occupant.passengerName.split(' ');
-                                    const shortName = nameParts.length > 1 
-                                        ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}` 
-                                        : occupant.passengerName;
-                                    const displayName = shortName.length > 12 ? shortName.substring(0, 10) + '...' : shortName;
-                                    doc.text(displayName, currentX + seatSize/2, currentY + seatSize + 3, { align: 'center' });
-                                }
-                                
-                                currentX += seatSize + seatSpacing;
-                            }
-                            
-                            // Adicionar corredor
-                            if (c === aisleAfterCol) {
-                                currentX += aisleWidth;
-                            }
-                        }
-                        currentY += rowHeight;
-                    }
-                    
-                    // Legenda
-                    const legendY = startY + busHeight + 15;
-                    doc.setFontSize(8);
-                    doc.setTextColor(0, 0, 0);
-                    doc.setFillColor(59, 130, 246);
-                    doc.rect(15, legendY, 4, 4, 'F');
-                    doc.text('Ocupado', 21, legendY + 3);
-                    
-                    doc.setFillColor(240, 240, 240);
-                    doc.setDrawColor(200, 200, 200);
-                    doc.rect(50, legendY, 4, 4, 'FD');
-                    doc.text('Livre', 56, legendY + 3);
-                    
-                    // Lista textual de assentos abaixo do desenho
-                    let listY = legendY + 12;
-                    const occupiedSeats = vehicle.seats?.filter(s => s.seatNumber) || [];
-                    if (occupiedSeats.length > 0) {
-                        doc.setFontSize(10);
-                        doc.setFont(undefined, 'bold');
-                        doc.text('LISTA DE ASSENTOS OCUPADOS:', 15, listY);
-                        listY += 6;
-                        doc.setFont(undefined, 'normal');
-                        doc.setFontSize(8);
-                        
-                        // Sort by seat number
-                        const sortedSeats = [...occupiedSeats].sort((a, b) => parseInt(a.seatNumber) - parseInt(b.seatNumber));
-                        sortedSeats.forEach((seat, idx) => {
-                            if (listY > 280) { // New page if needed
-                                doc.addPage();
-                                listY = 20;
-                            }
-                            const dbPassenger = bookingPassengersMap.get(seat.bookingId.split('-')[0] + '-' + (seat.bookingId.includes('-') ? seat.bookingId.split('-')[1] : '0'));
-                            const passengerName = dbPassenger?.full_name || seat.passengerName;
-                            doc.text(`Assento ${seat.seatNumber}: ${passengerName}`, 15, listY);
-                            listY += 5;
-                        });
-                    }
-                });
-            } else if (opData.transport?.vehicleConfig) {
-                // Legacy single vehicle support - desenho visual
-                const { cols, totalSeats, aisleAfterCol } = opData.transport.vehicleConfig;
-                doc.addPage();
-                doc.setFontSize(16);
-                doc.setFont(undefined, 'bold');
-                doc.text('MAPA DE ASSENTOS', 15, 20);
-                doc.setFont(undefined, 'normal');
-                
-                const seatSize = 8;
-                const seatSpacing = 2;
-                const rowHeight = seatSize + seatSpacing;
-                const rows = Math.ceil(totalSeats / cols);
-                const startX = 20;
-                const startY = 40;
-                const aisleWidth = 8;
-                
-                const busWidth = (cols * (seatSize + seatSpacing)) + aisleWidth;
-                const busHeight = rows * rowHeight + 10;
-                doc.setDrawColor(100, 100, 100);
-                doc.setLineWidth(0.5);
-                doc.rect(startX - 5, startY - 5, busWidth + 10, busHeight + 10);
-                
-                let currentY = startY;
-                for(let r = 1; r <= rows; r++) {
-                    let currentX = startX;
-                    for(let c = 1; c <= cols; c++) {
-                        const seatNum = ((r - 1) * cols) + c;
-                        if (seatNum <= totalSeats) {
-                            const occupant = opData.transport.seats?.find((s: PassengerSeat) => s.seatNumber === seatNum.toString());
-                            
-                            if (occupant) {
-                                doc.setFillColor(59, 130, 246);
-                                doc.setDrawColor(59, 130, 246);
-                            } else {
-                                doc.setFillColor(240, 240, 240);
-                                doc.setDrawColor(200, 200, 200);
-                            }
-                            doc.rect(currentX, currentY, seatSize, seatSize, 'FD');
-                            
-                            doc.setTextColor(occupant ? 255 : 100);
-                            doc.setFontSize(6);
-                            doc.text(seatNum.toString(), currentX + seatSize/2, currentY + seatSize/2 + 1, { align: 'center' });
-                            
-                            if (occupant) {
-                                doc.setFontSize(5);
-                                const nameParts = occupant.passengerName.split(' ');
-                                const shortName = nameParts.length > 1 
-                                    ? `${nameParts[0]} ${nameParts[nameParts.length - 1]}` 
-                                    : occupant.passengerName;
-                                const displayName = shortName.length > 12 ? shortName.substring(0, 10) + '...' : shortName;
-                                doc.text(displayName, currentX + seatSize/2, currentY + seatSize + 3, { align: 'center' });
-                            }
-                            
-                            currentX += seatSize + seatSpacing;
-                        }
-                        
-                        if (c === aisleAfterCol) {
-                            currentX += aisleWidth;
-                        }
-                    }
-                    currentY += rowHeight;
-                }
-            }
-
-            // DESENHO VISUAL DOS QUARTOS
-            if (opData.hotels && opData.hotels.length > 0) {
-                opData.hotels.forEach((hotel, hIndex) => {
-                    // Check if we need a new page before starting hotel section
-                    let currentY = 20;
-                    if (currentY < 40) {
-                        doc.addPage();
-                        currentY = 20;
-                    }
-                    
-                    // Hotel Header with background
-                    doc.setFillColor(100, 100, 100); // Dark gray background
-                    doc.rect(15, currentY, 180, 12, 'F');
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(16);
-                    doc.setFont(undefined, 'bold');
-                    doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 20, currentY + 8);
-                    doc.setFont(undefined, 'normal');
-                    currentY += 18;
-                    
-                    // Table header for rooms
-                    doc.setFillColor(59, 130, 246); // Blue header
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(10);
-                    doc.setFont(undefined, 'bold');
-                    const headerY = currentY;
-                    doc.rect(15, headerY, 180, 8, 'F');
-                    doc.text('Quarto', 20, headerY + 5.5);
-                    doc.text('Tipo', 60, headerY + 5.5);
-                    doc.text('Hóspedes', 100, headerY + 5.5);
-                    doc.text('Capacidade', 150, headerY + 5.5);
-                    currentY += 10;
-                    
-                    doc.setTextColor(0, 0, 0);
-                    doc.setFont(undefined, 'normal');
-                    doc.setFontSize(9);
-                    
-                    hotel.rooms?.forEach((room, rIndex) => {
-                        // Check page break before each room
-                        if (currentY > 270) {
-                            doc.addPage();
-                            // Redraw header on new page
-                            doc.setFillColor(100, 100, 100);
-                            doc.rect(15, 20, 180, 12, 'F');
-                            doc.setTextColor(255, 255, 255);
-                            doc.setFontSize(16);
-                            doc.setFont(undefined, 'bold');
-                            doc.text(`HOSPEDAGEM - ${hotel.name.toUpperCase()}`, 20, 28);
-                            doc.setFont(undefined, 'normal');
-                            
-                            // Redraw table header
-                            doc.setFillColor(59, 130, 246);
-                            doc.rect(15, 35, 180, 8, 'F');
-                            doc.setFontSize(10);
-                            doc.setFont(undefined, 'bold');
-                            doc.text('Quarto', 20, 40.5);
-                            doc.text('Tipo', 60, 40.5);
-                            doc.text('Hóspedes', 100, 40.5);
-                            doc.text('Capacidade', 150, 40.5);
-                            currentY = 45;
-                            doc.setTextColor(0, 0, 0);
-                            doc.setFont(undefined, 'normal');
-                            doc.setFontSize(9);
-                        }
-                        
-                        // Alternate row background
-                        const isEven = rIndex % 2 === 0;
-                        if (isEven) {
-                            doc.setFillColor(245, 245, 245);
-                            doc.rect(15, currentY, 180, 8, 'F');
-                        }
-                        
-                        // Room border
-                        doc.setDrawColor(200, 200, 200);
-                        doc.setLineWidth(0.1);
-                        doc.rect(15, currentY, 180, 8, 'S');
-                        
-                        // Quarto
-                        doc.text(room.name || `Quarto ${rIndex + 1}`, 20, currentY + 5.5);
-                        
-                        // Tipo
-                        doc.text(room.type || 'Padrão', 60, currentY + 5.5);
-                        
-                        // Hóspedes (lista de nomes) - with fallback
-                        const guestNames = room.guests && room.guests.length > 0 
-                            ? room.guests.map(g => {
-                                // Try to get name from database or details
-                                const guestId = g.id || g.bookingId || '';
-                                const dbGuest = bookingPassengersMap.get(guestId);
-                                return dbGuest?.full_name || g.name || 'Hóspede (Sem nome)';
-                            }).join(', ')
-                            : 'Vazio';
-                        const truncatedGuests = guestNames.length > 40 ? guestNames.substring(0, 38) + '...' : guestNames;
-                        doc.text(truncatedGuests, 100, currentY + 5.5);
-                        
-                        // Capacidade
-                        const guestCount = room.guests ? room.guests.length : 0;
-                        doc.text(`${guestCount}/${room.capacity || 0}`, 150, currentY + 5.5);
-                        
-                        currentY += 9; // Row height
-                    });
-                });
-            } else if (opData.rooming && opData.rooming.length > 0) {
-                // Legacy Rooming
-                doc.addPage();
-                doc.setFontSize(16);
-                doc.setFont(undefined, 'bold');
-                doc.text('HOSPEDAGEM', 15, 20);
-                doc.setFont(undefined, 'normal');
-                
-                let currentY = 35;
-                const roomWidth = 60;
-                const roomHeight = 40;
-                const roomSpacing = 10;
-                let currentX = 15;
-                let roomsPerRow = 0;
-                const maxRoomsPerRow = 3;
-                
-                opData.rooming.forEach((room, rIndex) => {
-                    if (roomsPerRow >= maxRoomsPerRow) {
-                        currentX = 15;
-                        currentY += roomHeight + roomSpacing;
-                        roomsPerRow = 0;
-                    }
-                    
-                    doc.setDrawColor(100, 100, 100);
-                    doc.setLineWidth(0.5);
-                    doc.setFillColor(250, 250, 250);
-                    doc.rect(currentX, currentY, roomWidth, roomHeight, 'FD');
-                    
-                    doc.setFontSize(10);
-                    doc.setFont(undefined, 'bold');
-                    doc.setTextColor(0, 0, 0);
-                    doc.text(room.name, currentX + 2, currentY + 6);
-                    doc.setFont(undefined, 'normal');
-                    doc.setFontSize(8);
-                    doc.setTextColor(100, 100, 100);
-                    doc.text(`Tipo: ${room.type} (${room.capacity} pessoas)`, currentX + 2, currentY + 12);
-                    
-                    const bedWidth = 28;
-                    const bedHeight = 10;
-                    const bedSpacing = 2;
-                    let bedY = currentY + 18;
-                    let bedX = currentX + 2;
-                    let bedsInRow = 0;
-                    const maxBedsPerRow = 2;
-                    
-                    room.guests.forEach((guest, gIndex) => {
-                        if (bedsInRow >= maxBedsPerRow) {
-                            bedY += bedHeight + bedSpacing;
-                            bedX = currentX + 2;
-                            bedsInRow = 0;
-                        }
-                        
-                        doc.setFillColor(200, 220, 255);
-                        doc.setDrawColor(100, 150, 255);
-                        doc.setLineWidth(0.3);
-                        doc.rect(bedX, bedY, bedWidth, bedHeight, 'FD');
-                        
-                        doc.setFontSize(6);
-                        doc.setTextColor(0, 0, 0);
-                        const guestName = guest.name.length > 18 ? guest.name.substring(0, 16) + '...' : guest.name;
-                        doc.text(guestName, bedX + bedWidth/2, bedY + bedHeight/2 + 2, { align: 'center' });
-                        
-                        bedX += bedWidth + bedSpacing;
-                        bedsInRow++;
-                    });
-                    
-                    currentX += roomWidth + roomSpacing;
-                    roomsPerRow++;
-                });
-            }
-
-            doc.save(`manifesto_${selectedTrip.slug}.pdf`);
-            showToast('PDF gerado com sucesso!', 'success');
-        } catch (e: any) { 
-            logger.error(e); 
-            showToast('Erro ao gerar PDF: '+e.message, 'error'); 
+            await updateTrip(tripId, { is_active: !trip.is_active });
+            showToast(`${tripLabel} ${!trip.is_active ? 'publicado' : 'pausado'} com sucesso.`, 'success');
+        } catch (error: any) {
+            showToast(`Erro ao alterar status: ${error.message}`, 'error');
         }
     };
 
-    const tripBookings = selectedTrip && selectedTripId 
-        ? myBookings.filter(b => b.tripId && String(b.tripId) === String(selectedTripId)) 
-        : [];
-    return (
-        <div className="flex h-full overflow-hidden bg-white relative">
-            <ConfirmDialog 
-                isOpen={!!tripToDelete} 
-                onClose={() => setTripToDelete(null)} 
-                onConfirm={confirmDeleteTrip} 
-                title="Excluir Pacote" 
-                message="Tem certeza que deseja excluir este pacote? Esta ação não pode ser desfeita." 
-                variant="danger" 
-                confirmText={isDeletingTripInOps ? "Excluindo..." : "Excluir"}
-                isConfirming={isDeletingTripInOps}
-            />
-            
-            {/* LEFT SIDEBAR: TRIP LIST (Collapsible) */}
-            <aside className={`
-                flex-shrink-0 border-r border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out overflow-hidden
-                ${isSidebarOpen ? 'w-80' : 'w-0'}
-            `}>
-                <div className={`min-w-[20rem] h-full flex flex-col transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    {/* Sidebar Header */}
-                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
-                        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Selecione a Viagem</h3>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                            <input 
-                                type="text" 
-                                placeholder="Buscar viagem..." 
-                                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                    
-                    {/* Trip List */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        {filteredTrips.length === 0 ? (
-                            <div className="p-6 text-center text-gray-400 text-sm">
-                                <Bus size={24} className="mx-auto mb-2 opacity-50"/>
-                                <p>Nenhuma viagem ativa.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-50">
-                                {filteredTrips.map(trip => (
-                                    <button 
-                                        key={trip.id}
-                                        onClick={() => handleTripSelect(trip.id)}
-                                        className={`w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4 ${selectedTripId === trip.id ? 'bg-primary-50 border-primary-500' : 'border-transparent'}`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            {/* Trip Image */}
-                                            {trip.images && trip.images.length > 0 ? (
-                                                <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 shadow-sm">
-                                                    <img 
-                                                        src={trip.images[0]} 
-                                                        alt={trip.title}
-                                                        loading="lazy"
-                                                        decoding="async"
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=IMG';
-                                                        }}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="w-16 h-16 rounded-lg flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                                                    <Bus size={20} className="text-gray-400"/>
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className={`font-bold text-sm mb-1 line-clamp-2 ${selectedTripId === trip.id ? 'text-primary-700' : 'text-gray-800'}`}>
-                                                    {trip.title}
-                                                </h4>
-                                                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                                                    <Calendar size={12}/>
-                                                    <span>{safeDate(trip.startDate)}</span>
-                                                </div>
-                                                {trip.destination && (
-                                                    <p className="text-xs text-gray-400 line-clamp-1">{trip.destination}</p>
-                                                )}
-                                            </div>
-                                            {selectedTripId === trip.id && (
-                                                <ChevronRight size={16} className="text-primary-500 flex-shrink-0 mt-1"/>
-                                            )}
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </aside>
+    const handleGoToOperational = (tripId: string) => {
+        setSearchParams({ tab: 'OPERATIONS', tripId });
+        setSelectedOperationalTripId(tripId);
+    };
 
-            {/* MAIN CONTENT AREA: DETAILS */}
-            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative">
-                
-                {/* Header Bar */}
-                <header className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {/* Toggle Sidebar Button */}
-                        <button 
-                            onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-                            className="text-gray-500 hover:text-primary-600 p-2 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
-                            title={isSidebarOpen ? "Fechar Menu" : "Abrir Menu"}
-                        >
-                            {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-                        </button>
+    // Subscription Handlers
+    const handleConfirmSubscription = async () => {
+        if (!showConfirmSubscription || !currentAgency) return;
+        setIsSubmittingSubscription(true);
+        try {
+            await updateUser({ subscriptionPlan: showConfirmSubscription.id });
+            await refreshData();
+            showToast(`Plano ${showConfirmSubscription.name} assinado com sucesso!`, 'success');
+            setShowConfirmSubscription(null);
 
-                        {/* Selected Trip Info */}
-                        {selectedTrip ? (
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                {selectedTrip.images && selectedTrip.images.length > 0 && (
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 hidden md:block">
-                                        <img 
-                                            src={selectedTrip.images[0]} 
-                                            alt={selectedTrip.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <h2 className="text-sm md:text-lg font-bold text-gray-900 flex items-center gap-2 line-clamp-1">
-                                        {selectedTrip.title}
-                                        <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase hidden md:inline-block">Ativa</span>
-                                    </h2>
-                                    {selectedTrip.destination && (
-                                        <p className="text-xs text-gray-500 hidden md:block line-clamp-1">{selectedTrip.destination}</p>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex-1 min-w-0">
-                                <h2 className="text-sm md:text-lg font-bold text-gray-400">Nenhuma viagem selecionada</h2>
-                            </div>
-                        )}
-                    </div>
+            // Redirect to WhatsApp for proof if needed (optional logic could go here)
+            const message = encodeURIComponent(`Olá, acabei de assinar o plano ${showConfirmSubscription.name} para a agência ${currentAgency.name}. Gostaria de confirmar.`);
+            window.open(`https://wa.me/5511987697684?text=${message}`, '_blank');
+        } catch (error: any) {
+            showToast('Erro ao assinar plano: ' + error.message, 'error');
+        } finally {
+            setIsSubmittingSubscription(false);
+        }
+    };
 
-                    {/* Action Buttons */}
-                    {selectedTrip && (
-                        <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-                            {/* Navigation Tabs */}
-                            <div className="flex bg-gray-100 p-1 rounded-lg">
-                                <button 
-                                    onClick={() => setActiveView('TRANSPORT')}
-                                    className={`px-3 md:px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'TRANSPORT' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <Bus size={14} className="inline mr-1 mb-0.5"/> <span className="hidden md:inline">Transporte</span>
-                                </button>
-                                <button 
-                                    onClick={() => setActiveView('ROOMING')}
-                                    className={`px-3 md:px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeView === 'ROOMING' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    <BedDouble size={14} className="inline mr-1 mb-0.5"/> <span className="hidden md:inline">Hospedagem</span>
-                                </button>
-                            </div>
-                            <div className="h-6 w-px bg-gray-200 hidden md:block"></div>
-                            <button 
-                                onClick={generateManifest} 
-                                className="flex items-center gap-2 text-gray-600 hover:text-primary-600 text-xs font-bold transition-colors px-2 py-1.5 rounded-lg hover:bg-gray-50" 
-                                title="Exportar Manifesto para PDF"
-                            >
-                                <Download size={16}/> <span className="hidden md:inline">Exportar PDF</span>
-                            </button>
-                        </div>
-                    )}
-                </header>
+    // Profile & Theme Handlers
+    const handleSaveProfile = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await updateUser(profileForm);
+            await updateUser({
+                heroMode: heroForm.heroMode,
+                heroBannerUrl: heroForm.heroBannerUrl,
+                heroTitle: heroForm.heroTitle,
+                heroSubtitle: heroForm.heroSubtitle
+            });
+            showToast('Perfil atualizado!', 'success');
+            refreshData();
+        } catch (err: any) {
+            showToast('Erro ao atualizar perfil: ' + err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-                {/* Content Area with Independent Scroll */}
-                <section className="flex-1 overflow-hidden relative">
-                    {selectedTrip ? (
-                        activeView === 'TRANSPORT' ? (
-                            <TransportManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
-                        ) : (
-                            <RoomingManager trip={selectedTrip} bookings={tripBookings} clients={clients} onSave={(data) => onSaveTripData(selectedTrip.id, data)} />
-                        )
-                    ) : (
-                        // Empty State - Elegant Placeholder
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-8">
-                            <div className="w-24 h-24 bg-gradient-to-br from-primary-50 to-primary-100 rounded-full flex items-center justify-center shadow-sm mb-6">
-                                <Bus size={40} className="text-primary-300"/>
-                            </div>
-                            <h3 className="text-2xl font-bold text-gray-600 mb-3">Selecione uma viagem</h3>
-                            <p className="text-sm max-w-md text-center text-gray-500 mb-6">
-                                {isSidebarOpen 
-                                    ? "Clique em uma viagem na lista à esquerda para começar a gerenciar o transporte e a hospedagem."
-                                    : "Clique no botão de menu para abrir a lista de viagens e selecionar uma viagem."
-                                }
-                            </p>
-                            {!isSidebarOpen && (
-                                <button 
-                                    onClick={() => setIsSidebarOpen(true)} 
-                                    className="flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-lg font-bold text-sm hover:bg-primary-700 transition-colors shadow-md"
-                                >
-                                    <Menu size={18}/>
-                                    Abrir Lista de Viagens
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </section>
-            </main>
-        </div>
-    );
-};
-
-// Define TopTripsCard component
-interface TopTripsCardProps {
-  trips: Trip[];
-  isGuide?: boolean;
-}
-
-const TopTripsCard: React.FC<TopTripsCardProps> = ({ trips, isGuide = false }) => {
-  const tripLabelPlural = isGuide ? 'Experiências' : 'Pacotes';
-  const tripLabelPluralLower = isGuide ? 'experiências' : 'pacotes';
-  
-  const topTrips = useMemo(() => {
-    // Sort by sales descending
-    return [...trips].sort((a, b) => ((b.sales || 0) - (a.sales || 0))).slice(0, 5);
-  }, [trips]);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-        <Plane size={20} className="mr-2 text-primary-600"/> Top {tripLabelPlural}
-      </h3>
-      {topTrips.length > 0 && topTrips[0].sales && topTrips[0].sales > 0 ? (
-        <div className="space-y-4">
-          {topTrips.map((trip, idx) => (
-            <div key={trip.id} className="flex items-center gap-4 p-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer" onClick={() => window.open(`/#/${trip.slug}`, '_blank')}>
-              <span className={`font-bold text-lg w-6 text-center ${idx < 3 ? 'text-amber-500' : 'text-gray-300'}`}>{idx + 1}</span>
-              <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-                 <img src={trip.images[0] || 'https://placehold.co/100x100?text=IMG'} className="w-full h-full object-cover" alt="" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-gray-900 text-sm truncate">{trip.title}</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span className="flex items-center"><ShoppingBag size={10} className="mr-1"/> {trip.sales || 0} vendas</span>
-                    <span className="flex items-center"><Eye size={10} className="mr-1"/> {trip.views || 0} views</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-gray-900 text-sm">R$ {trip.price.toLocaleString()}</p>
-                <div className="flex items-center justify-end text-amber-500 text-xs font-bold">
-                    <Star size={10} className="fill-current mr-0.5"/> {trip.tripRating?.toFixed(1) || 'N/A'}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12 text-gray-400 text-sm">
-          <Plane size={32} className="mx-auto mb-3 opacity-50" />
-          <p>Suas {tripLabelPluralLower} mais vendidas aparecerão aqui.</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const AgencyDashboard: React.FC = () => {
-  const { user, logout, loading: authLoading, updateUser, uploadImage } = useAuth(); // Import uploadImage
-  const { agencies, bookings, trips: allTrips, createTrip, updateTrip, deleteTrip, toggleTripStatus, updateAgencySubscription, agencyReviews, getAgencyStats, getAgencyTheme, saveAgencyTheme, updateTripOperationalData, clients, updateAgencyReview, refreshData, fetchTripImages } = useData(); // Import fetchTripImages for image loading
-  const { showToast } = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get('tab') as string) || 'OVERVIEW';
-  const { setAgencyTheme: setGlobalAgencyTheme } = useTheme();
-  const planPermissions = usePlanPermissions();
-
-  // Safe access to currentAgency with proper checks
-  const currentAgency = useMemo(() => {
-    if (!user || !agencies || agencies.length === 0) return undefined;
-    return agencies.find(a => a.id === user.id);
-  }, [user, agencies]);
-  
-  const isGuide = currentAgency?.isGuide === true;
-  const navigate = useNavigate();
-  
-  // Terminology helpers - adapt text based on whether user is a guide or agency
-  // Only define if currentAgency exists to prevent errors
-  const entityName = currentAgency ? (isGuide ? 'Guia de Turismo' : 'Agência') : 'Agência';
-  const entityNameLower = currentAgency ? (isGuide ? 'guia de turismo' : 'agência') : 'agência';
-  const entityNamePlural = currentAgency ? (isGuide ? 'Guias de Turismo' : 'Agências') : 'Agências';
-  const tripsLabel = currentAgency ? (isGuide ? 'Minhas Experiências' : 'Meus Pacotes') : 'Meus Pacotes';
-  const tripLabel = currentAgency ? (isGuide ? 'Experiência' : 'Pacote') : 'Pacote';
-  const tripLabelLower = currentAgency ? (isGuide ? 'experiência' : 'pacote') : 'pacote';
-  const createTripLabel = currentAgency ? (isGuide ? 'Nova Experiência' : 'Novo Pacote') : 'Novo Pacote';
-  const profileLabel = currentAgency ? (isGuide ? 'Meu Perfil de Guia' : 'Gerenciar Perfil') : 'Gerenciar Perfil';
-  
-  const [isEditingTrip, setIsEditingTrip] = useState(false);
-  const [editingTripId, setEditingTripId] = useState<string | null>(null);
-  const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
-  const [tripViewMode, setTripViewMode] = useState<'GRID' | 'TABLE'>(() => {
-      return (localStorage.getItem('agencyTripViewMode') as 'GRID' | 'TABLE') || 'GRID';
-  });
-
-  // FILTERS STATE
-  const [tripSearch, setTripSearch] = useState('');
-  const [tripStatusFilter, setTripStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DRAFT'>('ALL');
-
-  const [tripForm, setTripForm] = useState<Partial<Trip>>(() => ({ 
-      title: '', description: '', destination: '', price: 0, durationDays: 1, startDate: '', endDate: '', images: [], category: 'PRAIA', tags: [], travelerTypes: [], itinerary: [], paymentMethods: [], included: [], notIncluded: [], featured: false, is_active: true, boardingPoints: [],
-      operationalData: DEFAULT_OPERATIONAL_DATA
-  }));
-
-  const [profileForm, setProfileForm] = useState<Partial<Agency>>(() => ({ 
-      name: '', description: '', whatsapp: '', phone: '', website: '', 
-      address: { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
-      bankInfo: { bank: '', agency: '', account: '', pixKey: '' }, 
-      slug: '', // FIX: Added default for slug
-      is_active: false, // FIX: Added default for is_active
-      heroMode: 'TRIPS', // FIX: Added default
-      subscriptionStatus: 'INACTIVE', // FIX: Added default
-      subscriptionPlan: 'BASIC', // FIX: Added default
-      subscriptionExpiresAt: new Date().toISOString(), // FIX: Added default
-  }));
-  const [currentTheme, setCurrentTheme] = useState<AgencyTheme | null>(null);
-  const [heroForm, setHeroForm] = useState(() => ({ heroMode: 'TRIPS' as 'TRIPS' | 'STATIC', heroBannerUrl: '', heroTitle: '', heroSubtitle: '' })); // FIX: Explicit type for heroMode
-
-  const [loading, setLoading] = useState(false);
-  const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
-  const [showConfirmSubscription, setShowConfirmSubscription] = useState<Plan | null>(null);
-  const [showPaymentManagementDialog, setShowPaymentManagementDialog] = useState(false);
-  const [stats, setStats] = useState<DashboardStats>(() => ({ totalRevenue: 0, totalViews: 0, totalSales: 0, conversionRate: 0, averageRating: 0, totalReviews: 0 }));
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-
-  // Helper to determine new booking
-  const isNewBooking = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - date.getTime());
-      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60)); 
-      return diffHours <= 24;
-  };
-
-  useEffect(() => {
-      const loadStats = async () => {
-          if (currentAgency?.agencyId) { // Ensure agencyId exists
-              const loadedStats = await getAgencyStats(currentAgency.agencyId);
-              setStats(loadedStats);
-          }
-      };
-      loadStats();
-  }, [currentAgency?.agencyId, getAgencyStats]); // Depend on agencyId
-
-  // Safe filtering - only if currentAgency exists
-  const rawTrips = useMemo(() => {
-    if (!currentAgency?.agencyId || !allTrips) return [];
-    return allTrips.filter(t => t.agencyId === currentAgency.agencyId);
-  }, [allTrips, currentAgency?.agencyId]);
-  
-  const myBookings = useMemo(() => {
-    if (!currentAgency?.agencyId || !bookings) return [];
-    return bookings.filter(b => b._trip?.agencyId === currentAgency.agencyId);
-  }, [bookings, currentAgency?.agencyId]);
-
-  // Apply filters to trips - safe with empty array fallback
-  const myTrips = useMemo(() => {
-    if (!rawTrips || rawTrips.length === 0) return [];
-    return rawTrips.filter(trip => {
-      const matchesSearch = trip.title?.toLowerCase().includes(tripSearch.toLowerCase()) || 
-                            trip.destination?.toLowerCase().includes(tripSearch.toLowerCase());
-      const matchesStatus = tripStatusFilter === 'ALL' ? true : 
-                            tripStatusFilter === 'ACTIVE' ? trip.is_active : !trip.is_active;
-      return matchesSearch && matchesStatus;
-    });
-  }, [rawTrips, tripSearch, tripStatusFilter]);
-  
-  // Track trip IDs to detect changes
-  const tripIdsString = useMemo(() => myTrips.map(t => t.id).sort().join(','), [myTrips]);
-  
-  // FIX: Load images for trips that don't have them yet
-  useEffect(() => {
-      if (myTrips.length > 0 && fetchTripImages) {
-          myTrips.forEach(trip => {
-              // Always fetch images to ensure they're up to date after creation/editing
-              // Force refresh if trip has no images (newly created/edited)
-              const forceRefresh = !trip.images || trip.images.length === 0;
-              fetchTripImages(trip.id, forceRefresh).catch(err => {
-                  logger.error(`[AgencyDashboard] Error fetching images for trip ${trip.id}:`, err);
-              });
-          });
-      }
-  }, [tripIdsString, fetchTripImages]); // Re-run when trip IDs change (new trips added/removed)
-
-  useEffect(() => { 
-    if (currentAgency) { 
-        setProfileForm({ 
-            name: currentAgency.name, 
-            description: currentAgency.description, 
-            whatsapp: currentAgency.whatsapp || '', 
-            phone: currentAgency.phone || '', 
-            website: currentAgency.website || '', 
-            slug: currentAgency.slug || '',
-            logo: currentAgency.logo || '', // Include logo in form initialization
-            address: currentAgency.address || { zipCode: '', street: '', number: '', complement: '', district: '', city: '', state: '' }, 
-            bankInfo: currentAgency.bankInfo || { bank: '', agency: '', account: '', pixKey: '' }, 
-        }); 
-        setHeroForm({ 
-            heroMode: currentAgency.heroMode || 'TRIPS', 
-            heroBannerUrl: currentAgency.heroBannerUrl || '', 
-            heroTitle: currentAgency.heroTitle || '', 
-            heroSubtitle: currentAgency.heroSubtitle || '' 
-        }); 
-    } 
-  }, [currentAgency]);
-
-  useEffect(() => { 
-    const fetchTheme = async () => { 
-        if (currentAgency?.agencyId) { // Ensure agencyId exists before fetching theme
-            const savedTheme = await getAgencyTheme(currentAgency.agencyId); 
-            if (savedTheme) { 
-                setCurrentTheme(savedTheme); 
-            } else {
-                setCurrentTheme(null);
+    const handleLogoUploadInstant = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files?.[0] || !currentAgency) return;
+        const file = e.target.files[0];
+        setLoading(true);
+        try {
+            const url = await uploadImage(file, 'agency-logos');
+            if (url) {
+                setProfileForm(prev => ({ ...prev, logo: url }));
+                const result = await updateUser({ logo: url });
+                if (result.success) {
+                    await refreshData();
+                    showToast('Logo atualizada com sucesso!', 'success');
+                } else {
+                    throw new Error(result.error || 'Erro ao atualizar logo');
+                }
             }
-        } 
-    }; 
-    fetchTheme(); 
-  }, [currentAgency?.agencyId, getAgencyTheme]);
+        } catch (error: any) {
+            showToast('Erro ao fazer upload do logo: ' + (error.message || 'Erro desconhecido'), 'error');
+        } finally {
+            setLoading(false);
+            e.target.value = '';
+        }
+    };
 
-  const handleTabChange = (tabId: string) => { setSearchParams({ tab: tabId }); setIsEditingTrip(false); setEditingTripId(null); setSelectedOperationalTripId(null); };
-  
-  // Custom handler for switching to operational view with a pre-selected trip
-  const handleGoToOperational = (tripId: string) => {
-      if (!planPermissions.canAccessOperational) {
-          setShowUpgradeModal(true);
-          return;
-      }
-      setSearchParams({ tab: 'OPERATIONS' });
-      setSelectedOperationalTripId(tripId);
-      // We manually set this here because handleTabChange clears the selection
-  };
+    const handleSaveTheme = async (theme: Partial<AgencyTheme>) => {
+        setLoading(true);
+        try {
+            const success = await saveAgencyTheme(currentAgency!.agencyId, theme);
+            if (success) {
+                setAgencyTheme(theme.colors || { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
+                // const updatedTheme = await getAgencyTheme(currentAgency!.agencyId);
+                // No need to call setTheme as setAgencyTheme handles the override
+                showToast('Tema salvo com sucesso!', 'success');
+            } else {
+                throw new Error('Falha ao salvar tema');
+            }
+        } catch (err: any) {
+            showToast('Erro ao salvar tema: ' + err.message, 'error');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const handleEditTrip = (trip: Trip) => { 
-      const opData = trip.operationalData || DEFAULT_OPERATIONAL_DATA;
-      setTripForm({ ...trip, operationalData: opData }); 
-      setEditingTripId(trip.id); 
-      setIsEditingTrip(true); 
-      window.scrollTo({ top: 0, behavior: 'smooth' }); 
-  };
-  
-  const handleCreateTrip = () => {
-    // Check if user can post trip
-    if (!planPermissions.canPostTrip) {
-      setShowUpgradeModal(true);
-      return;
-    }
-    setIsEditingTrip(true);
-    setEditingTripId(null);
-    setTripForm({});
-  };
-  
-  const [tripToDelete, setTripToDelete] = useState<string | null>(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [isDeletingTrip, setIsDeletingTrip] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  
-  const handleDeleteTrip = async (id: string) => { 
-    setTripToDelete(id);
-  };
-  
-  const confirmDeleteTrip = async () => {
-    if (!tripToDelete) return;
-    setIsDeletingTrip(true);
-    try {
-      await deleteTrip(tripToDelete);
-      // Refresh data to update the trips list
-      await refreshData();
-      showToast('Pacote excluído com sucesso.', 'success');
-      setTripToDelete(null);
-      // If the deleted trip was selected, clear the selection
-      if (selectedOperationalTripId === tripToDelete) {
-        setSelectedOperationalTripId(null);
-      }
-    } catch (error: any) {
-      logger.error('Error deleting trip:', error);
-      showToast(`Erro ao excluir pacote: ${error.message || 'Erro desconhecido'}`, 'error');
-    } finally {
-      setIsDeletingTrip(false);
-    }
-  };
-  const [isDuplicatingTrip, setIsDuplicatingTrip] = useState<string | null>(null);
-  
-  const handleDuplicateTrip = async (trip: Trip) => {
-    setIsDuplicatingTrip(trip.id);
-    try {
-      // FIX: Generate new unique slug for duplicated trip
-      const { generateSlugFromName, generateUniqueSlug } = await import('../utils/slugUtils');
-      const newTitle = `${trip.title} (Cópia)`;
-      const baseSlug = generateSlugFromName(newTitle);
-      const uniqueSlug = await generateUniqueSlug(baseSlug, 'trips');
-      
-      const { id, ...tripData } = trip;
-      const newTrip = { 
-        ...tripData, 
-        title: newTitle,
-        slug: uniqueSlug, // FIX: New unique slug
-        is_active: false 
-      };
-      await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
-      showToast(`${tripLabel} duplicado com sucesso!`, 'success');
-    } catch (error: any) {
-      logger.error('Error duplicating trip:', error);
-      showToast(`Erro ao duplicar ${tripLabelLower}: ${error.message || 'Erro desconhecido'}`, 'error');
-    } finally {
-      setIsDuplicatingTrip(null);
-    }
-  };
-  const handleSaveProfile = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      setLoading(true); 
-      try { 
-          await updateUser(profileForm); // FIX: call updateUser with profileForm
-          await updateUser({ // FIX: call updateUser with heroForm data
-              heroMode: heroForm.heroMode, 
-              heroBannerUrl: heroForm.heroBannerUrl, 
-              heroTitle: heroForm.heroTitle, 
-              heroSubtitle: heroForm.heroSubtitle 
-          }); 
-          showToast('Perfil atualizado!', 'success'); 
-      } catch (err: any) { 
-          showToast('Erro ao atualizar perfil: ' + err.message, 'error'); // FIX: Added error message
-      } finally { 
-          setLoading(false); 
-      } 
-  };
-  const handleSaveTheme = async (theme: Partial<AgencyTheme>) => { 
-      setLoading(true); 
-      try { 
-          const success = await saveAgencyTheme(currentAgency!.agencyId, theme); 
-          if (success) {
-              setGlobalAgencyTheme(theme.colors || { primary: '#3b82f6', secondary: '#f97316', background: '#f9fafb', text: '#111827' });
-              // Refresh theme
-              const updatedTheme = await getAgencyTheme(currentAgency!.agencyId);
-              if (updatedTheme) setCurrentTheme(updatedTheme);
-          } else {
-              throw new Error('Falha ao salvar tema');
-          }
-      } catch (err: any) { 
-          showToast('Erro ao salvar tema: ' + err.message, 'error');
-          throw err;
-      } finally { 
-          setLoading(false);
-      } 
-  };
+    const handleLogoUploadWrapper = async (file: File): Promise<string> => {
+        // Reuse logic for ThemeManager
+        const url = await uploadImage(file, 'agency-logos');
+        if (url) {
+            await updateUser({ logo: url });
+            await refreshData();
+            return url;
+        }
+        throw new Error('Upload falhou');
+    };
 
-  // FIX: Instant logo upload - updates immediately without needing to save
-  const handleLogoUploadInstant = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files?.[0] || !currentAgency) return;
-      
-      const file = e.target.files[0];
-      setLoading(true);
-      
-      try {
-          // Upload image immediately
-          const url = await uploadImage(file, 'agency-logos');
-          
-          if (url) {
-              // Update local form state
-              setProfileForm(prev => ({ ...prev, logo: url }));
-              
-              // Update in AuthContext and database immediately (this updates the header automatically)
-              const result = await updateUser({ logo: url });
-              
-              if (result.success) {
-                  // Refresh data to update currentAgency with new logo
-                  await refreshData();
-                  showToast('Logo atualizada com sucesso!', 'success');
-              } else {
-                  throw new Error(result.error || 'Erro ao atualizar logo');
-              }
-          }
-      } catch (error: any) {
-          showToast('Erro ao fazer upload do logo: ' + (error.message || 'Erro desconhecido'), 'error');
-      } finally {
-          setLoading(false);
-          // Reset input to allow selecting the same file again
-          e.target.value = '';
-      }
-  };
+    const handleLogout = async () => { await logout(); navigate('/'); };
 
-  // Avatar upload handler - for header avatar
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files?.[0] || !currentAgency) return;
-      
-      const file = e.target.files[0];
-      setIsUploadingAvatar(true);
-      
-      try {
-          // Upload image immediately
-          const url = await uploadImage(file, 'agency-logos');
-          
-          if (url) {
-              // Update in AuthContext and database immediately
-              const result = await updateUser({ logo: url });
-              
-              if (result.success) {
-                  // Refresh data to update currentAgency with new logo
-                  await refreshData();
-                  showToast('Foto atualizada com sucesso!', 'success');
-              } else {
-                  throw new Error(result.error || 'Erro ao atualizar foto');
-              }
-          }
-      } catch (error: any) {
-          showToast('Erro ao fazer upload da foto: ' + (error.message || 'Erro desconhecido'), 'error');
-      } finally {
-          setIsUploadingAvatar(false);
-          // Reset input to allow selecting the same file again
-          e.target.value = '';
-      }
-  };
+    // Stats Calculation
+    // Stats Calculation
 
-  // Legacy function for AgencyThemeManager (also uses instant update)
-  const handleLogoUpload = async (file: File): Promise<string> => {
-      try {
-          if (!currentAgency) {
-              throw new Error(`${entityName} não encontrada`);
-          }
-          const url = await uploadImage(file, 'agency-logos');
-          
-          if (url) {
-              // Update in AuthContext and database immediately
-              const result = await updateUser({ logo: url });
-              
-              if (!result.success) {
-                  throw new Error(result.error || 'Erro ao atualizar logo');
-              }
-              
-              // Update local state
-              setProfileForm(prev => ({ ...prev, logo: url }));
-              
-              // Refresh data to update currentAgency with new logo
-              await refreshData();
-              
-              showToast('Logo atualizada com sucesso!', 'success');
-              
-              return url;
-          }
-          throw new Error('URL não retornada do upload');
-      } catch (error: any) {
-          showToast('Erro ao fazer upload do logo: ' + error.message, 'error');
-          throw error;
-      }
-  };
-  const handleLogout = async () => { await logout(); navigate('/'); };
-  
-  const handleSelectPlan = (plan: Plan) => {
-      // Only show modal if it's not the current plan
-      if (currentAgency && currentAgency.subscriptionPlan !== plan.id) {
-          setShowConfirmSubscription(plan);
-      }
-  };
-  
-  const handleOpenSupportWhatsApp = () => {
-      const message = encodeURIComponent('Olá, preciso de ajuda com minha assinatura.');
-      window.open(`https://wa.me/5511987697684?text=${message}`, '_blank');
-  };
 
-  // Reusable Action Menu Generator
-  const getTripActions = (trip: Trip) => {
-    const actions = [
-      { label: 'Ver Online', icon: ExternalLink, onClick: () => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank') },
-      { label: 'Editar', icon: Edit, onClick: () => handleEditTrip(trip) },
-      { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip), isLoading: isDuplicatingTrip === trip.id },
-      { label: 'Pausar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
-      { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' as const }
-    ];
-    
-    // Only show "Gerenciar Operacional" for PREMIUM plans
-    if (planPermissions.canAccessOperational) {
-      actions.splice(2, 0, { label: 'Gerenciar Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) });
-    }
-    
-    return actions;
-  };
+    const stats: DashboardStats = useMemo(() => {
+        if (!myTrips || !myBookings) return { activeTrips: 0, totalSales: 0, totalViews: 0, conversionRate: 0, totalRevenue: 0 };
+        const activeTrips = myTrips.filter(t => t.is_active).length;
+        const totalSales = myBookings.reduce((sum, b) => sum + b.totalPrice, 0); // Use bookings for sales
+        const totalViews = myTrips.reduce((acc, t) => acc + (t.views || 0), 0);
+        const conversionRate = totalViews > 0 ? (myBookings.length / totalViews) * 100 : 0;
+        return { activeTrips, totalSales, totalViews, conversionRate, totalRevenue: totalSales };
+    }, [myTrips, myBookings]);
 
-  // Reply State
-  const [replyText, setReplyText] = useState('');
-  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+    const filteredTrips = useMemo(() => {
+        return myTrips.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [myTrips, searchTerm]);
 
-  const [isSendingReply, setIsSendingReply] = useState<string | null>(null);
-  
-  const handleSendReply = async (reviewId: string) => {
-      if (!replyText.trim()) return;
-      setIsSendingReply(reviewId);
-      try {
-          await updateAgencyReview(reviewId, { response: replyText });
-          setReplyText('');
-          setActiveReplyId(null);
-          showToast('Resposta enviada com sucesso!', 'success');
-      } catch (error: any) {
-          logger.error('Error sending reply:', error);
-          showToast(`Erro ao enviar resposta: ${error.message || 'Erro desconhecido'}`, 'error');
-      } finally {
-          setIsSendingReply(null);
-      }
-  };
-  // Render Plan Tab Content
-  const renderPlanTab = () => {
-      const today = new Date();
-      const expiryDate = new Date(currentAgency?.subscriptionExpiresAt || '');
-      const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      const totalCycleDays = 30; // Assuming monthly cycle for visuals
-      const progressPercent = Math.max(0, Math.min(100, (daysLeft / totalCycleDays) * 100));
-      
-      const currentPlanId = currentAgency?.subscriptionPlan || 'STARTER';
-      const currentPlanObj = PLANS.find(p => p.id === currentPlanId) || PLANS[0];
-      const isPremium = currentPlanId === 'PREMIUM';
-      const isBasic = currentPlanId === 'BASIC';
-      const isStarter = currentPlanId === 'STARTER';
-      const planColor = isPremium ? 'bg-purple-600' : isBasic ? 'bg-blue-600' : 'bg-gray-600';
-      const planName = currentPlanObj.name;
-      const planPrice = isStarter ? 'Grátis' : `R$ ${currentPlanObj.price.toFixed(2).replace('.', ',')}`;
-      
-      // FIX: Check if this is a new agency (onboarding)
-      const isNewAgency = searchParams.get('new') === 'true';
+    // Render Helpers
+    const renderPlanTab = () => {
+        const today = new Date();
+        const expiryDate = new Date(currentAgency?.subscriptionExpiresAt || '');
+        const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const totalCycleDays = 30;
+        const progressPercent = Math.max(0, Math.min(100, (daysLeft / totalCycleDays) * 100));
+        const currentPlanId = currentAgency?.subscriptionPlan || 'STARTER';
+        const currentPlanObj = PLANS.find(p => p.id === currentPlanId) || PLANS[0];
+        const isStarter = currentPlanId === 'STARTER';
+        const planColor = currentPlanId === 'PREMIUM' ? 'bg-purple-600' : currentPlanId === 'BASIC' ? 'bg-blue-600' : 'bg-gray-600';
 
-      return (
-          <div className="space-y-8 animate-[fadeIn_0.3s]">
-              {/* Welcome Message for New Agencies */}
-              {isNewAgency && (
-                  <div className="bg-gradient-to-r from-primary-50 via-blue-50 to-purple-50 border-2 border-primary-200 rounded-2xl p-6 shadow-lg">
-                      <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0">
-                              <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-purple-600 rounded-full flex items-center justify-center">
-                                  <Rocket size={24} className="text-white" />
-                              </div>
-                          </div>
-                          <div className="flex-1">
-                              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                  🎉 Parabéns! Sua agência foi criada com sucesso!
-                              </h3>
-                              <p className="text-gray-700 leading-relaxed mb-3">
-                                  Você está no <strong>plano Grátis (STARTER)</strong>. Veja o que você ganha ao fazer o upgrade:
-                              </p>
-                              <ul className="space-y-2 text-sm text-gray-600">
-                                  <li className="flex items-center gap-2">
-                                      <Check size={16} className="text-green-500 flex-shrink-0" />
-                                      <span><strong>Plano Básico (R$ 59,90):</strong> 5 viagens, suporte WhatsApp e Email</span>
-                                  </li>
-                                  <li className="flex items-center gap-2">
-                                      <Check size={16} className="text-green-500 flex-shrink-0" />
-                                      <span><strong>Plano Premium (R$ 99,90):</strong> Viagens ilimitadas, gestão de frota, suporte 24/7</span>
-                                  </li>
-                              </ul>
-                          </div>
-                          <button
-                              onClick={() => setSearchParams({ tab: 'PLAN' })}
-                              className="flex-shrink-0 text-primary-600 hover:text-primary-700"
-                          >
-                              <X size={20} />
-                          </button>
-                      </div>
-                  </div>
-              )}
-              {/* Subscription Status Card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className={`h-2 ${planColor}`}></div>
-                  <div className="p-8">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-                          <div>
-                              <div className="flex items-center gap-3 mb-2">
-                                  <h2 className="text-2xl font-bold text-gray-900">Meu Plano</h2>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wider ${planColor}`}>
-                                      {planName}
-                                  </span>
-                              </div>
-                              <p className="text-gray-500 text-sm">Gerencie sua assinatura e cobranças.</p>
-                          </div>
-                          <div className="flex gap-3">
-                              {/* FIX: Hide "Gerenciar Pagamento" and "Renovar Agora" for STARTER plan */}
-                              {!isStarter && (
-                                  <>
-                                      <button 
-                                          onClick={() => {
-                                              // Show alert dialog for active subscriptions
-                                              setShowPaymentManagementDialog(true);
-                                          }}
-                                          className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-sm cursor-pointer"
-                                      >
-                                          Gerenciar Pagamento
-                                      </button>
-                                      <button 
-                                          onClick={() => {
-                                              if (currentAgency) {
-                                                  const currentPlan = PLANS.find(p => p.id === currentAgency.subscriptionPlan) || PLANS[0];
-                                                  setShowConfirmSubscription(currentPlan);
-                                              }
-                                          }}
-                                          className={`text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-lg shadow-gray-200 text-sm ${planColor} hover:opacity-90 cursor-pointer`}
-                                      >
-                                          Renovar Agora
-                                      </button>
-                                  </>
-                              )}
-                              {/* Show badge for STARTER plan */}
-                              {isStarter && (
-                                  <div className="bg-gray-100 text-gray-600 font-bold py-2.5 px-5 rounded-xl text-sm border border-gray-200">
-                                      Plano Gratuito
-                                  </div>
-                              )}
-                          </div>
-                      </div>
+        return (
+            <div className="space-y-8 animate-[fadeIn_0.3s]">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className={`h-2 ${planColor}`}></div>
+                    <div className="p-8">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-1">Meu Plano: <span className={isStarter ? 'text-gray-600' : 'text-primary-600'}>{currentPlanObj.name}</span></h2>
+                                <p className="text-gray-500 text-sm">Gerencie sua assinatura.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                {!isStarter && (
+                                    <>
+                                        <button onClick={() => setShowPaymentManagementDialog(true)} className="bg-white border border-gray-200 text-gray-700 font-bold py-2.5 px-5 rounded-xl hover:bg-gray-50 text-sm">Gerenciar Pagamento</button>
+                                        <button onClick={() => setShowConfirmSubscription(currentPlanObj)} className={`text-white font-bold py-2.5 px-5 rounded-xl text-sm ${planColor} hover:opacity-90`}>Renovar Agora</button>
+                                    </>
+                                )}
+                                {isStarter && <div className="bg-gray-100 text-gray-600 font-bold py-2.5 px-5 rounded-xl text-sm border border-gray-200">Plano Gratuito</div>}
+                            </div>
+                        </div>
 
-                      {/* Progress Bar Section */}
-                      <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8">
-                          <div className="flex justify-between items-center mb-2 text-sm font-bold text-gray-700">
-                              <span>Dias Restantes</span>
-                              <span className={daysLeft < 7 ? 'text-red-500' : 'text-green-600'}>{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                              <div 
-                                  className={`h-2.5 rounded-full transition-all duration-1000 ${daysLeft < 7 ? 'bg-red-500' : daysLeft < 15 ? 'bg-amber-500' : 'bg-green-500'}`} 
-                                  style={{ width: `${progressPercent}%` }}
-                              ></div>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Calendar size={16}/></div>
-                                  <div>
-                                      <p className="text-gray-500 text-xs uppercase font-bold">Próxima Cobrança</p>
-                                      <p className="font-bold text-gray-900">{expiryDate.toLocaleDateString()}</p>
-                                  </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><DollarSign size={16}/></div>
-                                  <div>
-                                      <p className="text-gray-500 text-xs uppercase font-bold">Valor do Plano</p>
-                                      <p className="font-bold text-gray-900">{planPrice}/mês</p>
-                                  </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Zap size={16}/></div>
-                                  <div>
-                                      <p className="text-gray-500 text-xs uppercase font-bold">Status</p>
-                                      <p className="font-bold text-green-600 flex items-center gap-1">
-                                          <span className="w-2 h-2 bg-green-500 rounded-full"></span> Ativo
-                                      </p>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-
-              {/* Premium Pricing Table */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-                  {PLANS.map((plan) => {
-                      const isCurrentPlan = currentAgency?.subscriptionPlan === plan.id;
-                      const isPremium = plan.id === 'PREMIUM';
-                      const isStarter = plan.id === 'STARTER';
-                      
-                      // Determine card styling based on plan
-                      const cardClasses = isStarter
-                          ? 'bg-gray-50 border-gray-300' // STARTER: Simple gray
-                          : plan.id === 'BASIC'
-                          ? 'bg-white border-blue-200' // BASIC: Blue accent
-                          : 'bg-white md:scale-105 border-2 border-purple-500 ring-4 ring-purple-200/50 shadow-2xl shadow-purple-500/20'; // PREMIUM: Highlighted
-                      
-                      return (
-                          <div 
-                              key={plan.id} 
-                              className={`rounded-2xl shadow-lg border transition-all hover:shadow-xl relative ${cardClasses} ${isCurrentPlan && !isPremium ? 'ring-2 ring-primary-500' : ''}`}
-                          >
-                              {/* Premium Badge */}
-                              {isPremium && (
-                                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
-                                      ⭐ RECOMENDADO
-                                  </div>
-                              )}
-                              
-                              {/* Current Plan Badge */}
-                              {isCurrentPlan && (
-                                  <div className={`absolute top-4 right-4 text-xs font-bold px-3 py-1 rounded-full border ${
-                                      isStarter 
-                                          ? 'bg-gray-200 text-gray-700 border-gray-300' 
-                                          : 'bg-primary-50 text-primary-700 border-primary-100'
-                                  }`}>
-                                      Plano Atual
-                                  </div>
-                              )}
-                              
-                              <div className={`p-8 ${isPremium ? 'pt-12' : ''}`}>
-                                  {/* Plan Header */}
-                                  <div className="mb-6">
-                                      <h3 className="text-2xl font-extrabold text-gray-900 mb-2">{plan.name}</h3>
-                                      {isStarter && (
-                                          <p className="text-sm text-gray-500 mb-4">Para quem está começando</p>
-                                      )}
-                                      {plan.id === 'BASIC' && (
-                                          <p className="text-sm text-gray-500 mb-4">Para agências em crescimento</p>
-                                      )}
-                                      {isPremium && (
-                                          <p className="text-sm text-gray-500 mb-4">Controle total</p>
-                                      )}
-                                  </div>
-                                  
-                                  {/* Price */}
-                                  <div className="mb-6">
-                                      {isStarter ? (
-                                          <div className="flex items-baseline gap-2">
-                                              <span className="text-4xl font-extrabold text-gray-900">Grátis</span>
-                                          </div>
-                                      ) : (
-                                          <div className="flex items-baseline gap-2">
-                                              <span className="text-4xl font-extrabold text-gray-900">R$ {plan.price.toFixed(2).replace('.', ',')}</span>
-                                              <span className="text-gray-500 font-medium">/mês</span>
-                                          </div>
-                                      )}
-                                  </div>
-                                  
-                                  {/* Features */}
-                                  <ul className="space-y-3 mb-8 min-h-[280px]">
-                                      {plan.features.map((feature, i) => {
-                                          // Highlight premium-exclusive features
-                                          const isExclusiveFeature = isPremium && (
-                                              feature.includes('Frota') || 
-                                              feature.includes('Assentos') || 
-                                              feature.includes('Quartos')
-                                          );
-                                          
-                                          return (
-                                              <li key={i} className={`flex items-start text-sm ${
-                                                  isStarter ? 'text-gray-600' : 'text-gray-700'
-                                              }`}>
-                                                  <Check 
-                                                      size={18} 
-                                                      className={`mr-3 flex-shrink-0 mt-0.5 ${
-                                                          isExclusiveFeature 
-                                                              ? 'text-purple-600' 
-                                                              : isPremium 
-                                                              ? 'text-purple-500' 
-                                                              : 'text-green-500'
-                                                      }`} 
-                                                  />
-                                                  <span className={`leading-relaxed ${
-                                                      isExclusiveFeature ? 'font-semibold text-purple-700' : ''
-                                                  }`}>
-                                                      {feature}
-                                                      {isExclusiveFeature && (
-                                                          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                                                              EXCLUSIVO
-                                                          </span>
-                                                      )}
-                                                  </span>
-                                              </li>
-                                          );
-                                      })}
-                                  </ul>
-                                  
-                                  {/* CTA Button */}
-                                  <button
-                                      onClick={() => handleSelectPlan(plan)}
-                                      disabled={isCurrentPlan}
-                                      className={`w-full py-4 rounded-xl font-bold transition-all ${
-                                          isCurrentPlan
-                                              ? isStarter
-                                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                              : isPremium
-                                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transform hover:scale-105'
-                                              : plan.id === 'BASIC'
-                                              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
-                                              : 'bg-gray-400 text-white hover:bg-gray-500'
-                                      }`}
-                                  >
-                                      {isCurrentPlan ? 'Plano Atual' : isStarter ? 'Começar Grátis' : isPremium ? 'Assinar Agora' : 'Assinar Agora'}
-                                  </button>
-                              </div>
-                          </div>
-                      );
-                  })}
-              </div>
-          </div>
-      );
-  };
-
-  const sortedBookings = useMemo(() => {
-      return [...myBookings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [myBookings]);
-
-  // Enhanced loading and error handling
-  if (authLoading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="animate-spin text-primary-600 mx-auto mb-4" size={32} />
-          <p className="text-gray-500">Carregando dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="text-red-500 mx-auto mb-4" size={32} />
-          <p className="text-gray-700 font-medium mb-2">Usuário não autenticado</p>
-          <p className="text-gray-500 text-sm">Por favor, faça login para acessar o dashboard.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentAgency) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="animate-spin text-primary-600 mx-auto mb-4" size={32} />
-          <p className="text-gray-500">Carregando dados da {entityNameLower}...</p>
-          <p className="text-gray-400 text-sm mt-2">Se o problema persistir, tente recarregar a página.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-[1600px] mx-auto pb-12 min-h-screen flex flex-col px-4 md:px-6">
-      {/* Mobile Header with Hamburger */}
-      <div className="md:hidden flex items-center justify-between mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <label className="cursor-pointer block">
-              <div className="relative">
-                <img 
-                  src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
-                  alt={currentAgency?.name} 
-                  className={`w-10 h-10 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
-                />
-                {isUploadingAvatar ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
-                    <Loader size={16} className="text-white animate-spin" />
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Camera size={14} className="text-white" />
-                  </div>
-                )}
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full z-10"></span>
-              </div>
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleAvatarUpload}
-                disabled={isUploadingAvatar}
-              />
-            </label>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 truncate max-w-[180px]">{currentAgency?.name}</h1>
-          </div>
-        </div>
-        <button
-          onClick={() => setIsMobileDrawerOpen(true)}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          aria-label="Abrir menu"
-        >
-          <Menu size={24} className="text-gray-700" />
-        </button>
-      </div>
-
-      {/* Desktop Header */}
-      <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-         <div className="flex items-center gap-4">
-            <div className="relative group">
-              <label className="cursor-pointer block">
-                <div className="relative">
-                  <img 
-                    src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
-                    alt={currentAgency?.name} 
-                    className={`w-16 h-16 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
-                  />
-                  {isUploadingAvatar ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
-                      <Loader size={20} className="text-white animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Camera size={20} className="text-white" />
-                    </div>
-                  )}
-                  <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full z-10"></span>
-                </div>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleAvatarUpload}
-                  disabled={isUploadingAvatar}
-                />
-              </label>
-            </div>
-            <div><h1 className="text-2xl font-bold text-gray-900">{currentAgency?.name}</h1><div className="flex items-center gap-3 text-sm text-gray-500"><span className="flex items-center"><Globe size={14} className="mr-1"/> {currentAgency?.slug}.viajastore.com</span><a href={`/#/${currentAgency?.slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline flex items-center">Ver site <ExternalLink size={10} className="ml-1"/></a></div></div>
-         </div>
-         <div className="flex flex-wrap gap-3">
-            <button onClick={() => handleTabChange('PROFILE')} className="bg-white text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-100 transition-colors shadow-sm border border-gray-200">
-                <Settings size={18} className="mr-2"/> {profileLabel}
-            </button>
-            <button onClick={handleLogout} className="bg-red-50 text-red-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-red-100 transition-colors shadow-sm border border-red-100">
-                <LogOut size={18} className="mr-2"/> Sair
-            </button>
-         </div>
-      </div>
-
-      {/* Mobile Drawer (Slide-over) */}
-      {isMobileDrawerOpen && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/50 z-[9998] md:hidden animate-[fadeIn_0.2s]"
-            onClick={() => setIsMobileDrawerOpen(false)}
-          />
-          {/* Drawer */}
-          <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl z-[9999] md:hidden transform transition-transform duration-300 ease-out animate-[slideInRight_0.3s] overflow-y-auto">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="relative group">
-                    <label className="cursor-pointer block">
-                      <div className="relative">
-                        <img 
-                          src={currentAgency?.logo || `https://ui-avatars.com/api/?name=${currentAgency?.name}`} 
-                          alt={currentAgency?.name} 
-                          className={`w-10 h-10 rounded-full object-cover border-2 border-gray-200 transition-opacity ${isUploadingAvatar ? 'opacity-50' : 'group-hover:opacity-80'}`} 
-                        />
-                        {isUploadingAvatar ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-full">
-                            <Loader size={16} className="text-white animate-spin" />
-                          </div>
-                        ) : (
-                          <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Camera size={14} className="text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        onChange={handleAvatarUpload}
-                        disabled={isUploadingAvatar}
-                      />
-                    </label>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">{currentAgency?.name}</h2>
-                    <p className="text-xs text-gray-500">{currentAgency?.slug}.viajastore.com</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  aria-label="Fechar menu"
-                >
-                  <X size={24} className="text-gray-700" />
-                </button>
-              </div>
-
-              {/* Navigation Menu */}
-              <nav className="space-y-2 mb-6">
-                <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="TRIPS" label={tripsLabel} icon={Plane} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                {planPermissions.canAccessOperational && (
-                  <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                )}
-                <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="PLAN" label="Meu Plano" icon={CreditCard} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="PROFILE" label="Meu Perfil" icon={User} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-                <NavButton tabId="THEME" label="Meu Tema" icon={Palette} activeTab={activeTab} onClick={(tab) => { handleTabChange(tab); setIsMobileDrawerOpen(false); }} />
-              </nav>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-gray-200 space-y-2">
-                <button 
-                  onClick={() => { handleTabChange('PROFILE'); setIsMobileDrawerOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-                >
-                  <Settings size={20} />
-                  <span>Gerenciar Perfil</span>
-                </button>
-                <button 
-                  onClick={() => { handleLogout(); setIsMobileDrawerOpen(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 bg-red-50 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors"
-                >
-                  <LogOut size={20} />
-                  <span>Sair</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-      
-      {isEditingTrip && (
-          <CreateTripWizard 
-              onClose={() => { setIsEditingTrip(false); setEditingTripId(null); setTripForm({}); }} 
-              onSuccess={async () => { 
-                setIsEditingTrip(false); 
-                setEditingTripId(null); 
-                setTripForm({}); 
-                // Refresh data to load new/updated trip with images
-                await refreshData();
-                handleTabChange('TRIPS');
-              }} 
-              initialTripData={editingTripId ? myTrips.find(t => t.id === editingTripId) : undefined}
-          />
-      )}
-
-      {/* New Subscription Modal for PIX Payment */}
-      {showConfirmSubscription && currentAgency && (
-        <SubscriptionModal 
-          plan={showConfirmSubscription}
-          agency={currentAgency}
-          onClose={() => setShowConfirmSubscription(null)}
-        />
-      )}
-      
-      {/* Payment Management Dialog */}
-      {showPaymentManagementDialog && (
-        <ConfirmDialog
-          isOpen={showPaymentManagementDialog}
-          title="Assinatura Ativa"
-          message="Seu plano é renovado via PIX mensalmente. Para cancelar ou alterar dados, entre em contato com nosso suporte financeiro."
-          confirmText="Falar com Suporte"
-          cancelText="Fechar"
-          onConfirm={() => {
-              handleOpenSupportWhatsApp();
-              setShowPaymentManagementDialog(false);
-          }}
-          onClose={() => setShowPaymentManagementDialog(false)}
-          variant="info"
-        />
-      )}
-      
-      <UpgradeModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        currentPlan={planPermissions.plan}
-        maxTrips={planPermissions.maxTrips}
-        currentActiveTrips={planPermissions.currentActiveTrips}
-        onUpgrade={() => {
-          setShowUpgradeModal(false);
-          handleTabChange('PLAN');
-        }}
-      />
-
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-        <NavButton tabId="OVERVIEW" label="Visão Geral" icon={BarChart2} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="TRIPS" label={tripsLabel} icon={Plane} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="BOOKINGS" label="Reservas" icon={ShoppingBag} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="OPERATIONS" label="Operacional" icon={Bus} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="REVIEWS" label="Avaliações" icon={Star} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="PLAN" label="Meu Plano" icon={CreditCard} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="PROFILE" label="Meu Perfil" icon={User} activeTab={activeTab} onClick={handleTabChange} />
-        <NavButton tabId="THEME" label="Meu Tema" icon={Palette} activeTab={activeTab} onClick={handleTabChange} />
-      </div>
-
-      {/* Content based on activeTab */}
-      {activeTab === 'OVERVIEW' && (
-        <div className="space-y-8 animate-[fadeIn_0.3s]">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard 
-                    title="Receita Total" 
-                    value={`R$ ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} 
-                    subtitle="Total acumulado em vendas" 
-                    icon={DollarSign} 
-                    color="green"
-                    onClick={() => handleTabChange('BOOKINGS')}
-                />
-                <StatCard
-                    title={isGuide ? "Experiências Ativas" : "Pacotes Ativos"}
-                    value={myTrips.filter(t => t.is_active).length} 
-                    subtitle={`${myTrips.filter(t => !t.is_active).length} rascunhos`} 
-                    icon={Plane} 
-                    color="blue"
-                    onClick={() => handleTabChange('TRIPS')}
-                />
-                <StatCard 
-                    title="Reservas Confirmadas" 
-                    value={myBookings.filter(b => b.status === 'CONFIRMED').length} 
-                    subtitle={`${myBookings.filter(b => b.status === 'PENDING').length} pendentes`} 
-                    icon={ShoppingBag} 
-                    color="purple"
-                    onClick={() => handleTabChange('BOOKINGS')}
-                />
-                <StatCard 
-                    title="Avaliação Média" 
-                    value={stats.averageRating ? stats.averageRating.toFixed(1) : '-'} 
-                    subtitle={`${stats.totalReviews || 0} avaliações no total`} 
-                    icon={Star} 
-                    color="amber"
-                    onClick={() => handleTabChange('REVIEWS')}
-                />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Últimas Vendas */}
-                <RecentBookingsTable bookings={myBookings} clients={clients} />
-
-                {/* Top Pacotes */}
-                <TopTripsCard trips={myTrips} isGuide={isGuide} />
-            </div>
-        </div>
-      )}
-      {activeTab === 'TRIPS' && (
-        <div className="space-y-6 animate-[fadeIn_0.3s]">
-            <ConfirmDialog 
-                isOpen={!!tripToDelete} 
-                onClose={() => setTripToDelete(null)} 
-                onConfirm={confirmDeleteTrip} 
-                title={`Excluir ${tripLabel}`} 
-                message={`Tem certeza que deseja excluir esta ${tripLabelLower}? Esta ação não pode ser desfeita.`} 
-                variant="danger" 
-                confirmText={isDeletingTrip ? "Excluindo..." : "Excluir"}
-                isConfirming={isDeletingTrip}
-            />
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Meus Pacotes ({myTrips.length})</h2>
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative w-full sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome ou destino..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm transition-all text-sm"
-                            value={tripSearch}
-                            onChange={(e) => setTripSearch(e.target.value)}
-                        />
-                    </div>
-                    <div className="relative w-full sm:w-40">
-                        <ListChecks className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <select
-                            value={tripStatusFilter}
-                            onChange={(e) => setTripStatusFilter(e.target.value as any)}
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none shadow-sm appearance-none cursor-pointer text-gray-700 font-medium text-sm"
-                        >
-                            <option value="ALL">Todos os Status</option>
-                            <option value="ACTIVE">Ativos</option>
-                            <option value="DRAFT">Rascunhos</option>
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                    </div>
-                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 flex-shrink-0">
-                        <button 
-                            onClick={() => {
-                                setTripViewMode('GRID');
-                                localStorage.setItem('agencyTripViewMode', 'GRID');
-                            }} 
-                            className={`p-2 rounded-lg transition-all ${tripViewMode === 'GRID' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="Visualização em Cards"
-                        >
-                            <LayoutGrid size={18} />
-                        </button>
-                        <button 
-                            onClick={() => {
-                                setTripViewMode('TABLE');
-                                localStorage.setItem('agencyTripViewMode', 'TABLE');
-                            }} 
-                            className={`p-2 rounded-lg transition-all ${tripViewMode === 'TABLE' ? 'bg-white text-primary-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                            title="Visualização em Lista"
-                        >
-                            <List size={18} />
-                        </button>
+                        <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-8">
+                            <div className="flex justify-between items-center mb-2 text-sm font-bold text-gray-700">
+                                <span>Dias Restantes</span>
+                                <span className={daysLeft < 7 ? 'text-red-500' : 'text-green-600'}>{daysLeft > 0 ? `${daysLeft} dias` : 'Expirado'}</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                                <div className={`h-2.5 rounded-full transition-all duration-1000 ${daysLeft < 7 ? 'bg-red-500' : daysLeft < 15 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${progressPercent}%` }}></div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Calendar size={16} /></div>
+                                    <div><p className="text-gray-500 text-xs uppercase font-bold">Cobrança</p><p className="font-bold text-gray-900">{isValidDate(expiryDate) ? expiryDate.toLocaleDateString() : 'N/A'}</p></div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><DollarSign size={16} /></div>
+                                    <div><p className="text-gray-500 text-xs uppercase font-bold">Valor</p><p className="font-bold text-gray-900">{isStarter ? 'Grátis' : `R$ ${currentPlanObj.price.toFixed(2)}/mês`}</p></div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400"><Zap size={16} /></div>
+                                    <div><p className="text-gray-500 text-xs uppercase font-bold">Status</p><p className="font-bold text-green-600">Ativo</p></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <button 
-                onClick={handleCreateTrip}
-                className="bg-primary-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30 flex items-center justify-center gap-2 mb-6"
-            >
-                <Plus size={18}/> Novo Pacote
-            </button>
 
-            {myTrips.length === 0 ? (
-                <div className="bg-white rounded-2xl p-16 text-center border border-dashed border-gray-200">
-                    <Plane size={32} className="text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum {tripLabelLower} criado ainda</h3>
-                    <p className="text-gray-500 mt-1 mb-6">Crie sua primeira {tripLabelLower} de viagem para começar a vender na ViajaStore!</p>
-                    <button onClick={handleCreateTrip} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 w-fit mx-auto hover:bg-primary-700">
-                        <Plus size={16}/> Criar {tripLabel}
-                    </button>
-                </div>
-            ) : tripViewMode === 'GRID' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">
-                    {myTrips.map(trip => {
-                        // Helper to format categories
-                        const displayCategories = trip.categories && trip.categories.length > 0 
-                            ? trip.categories 
-                            : trip.category 
-                                ? [trip.category] 
-                                : [];
-                        const categoryLabels = displayCategories.map(cat => cat.replace(/_/g, ' '));
-                        
-                        // Helper to format dates
-                        const formatDate = (dateStr: string | undefined) => {
-                            if (!dateStr) return 'Data não definida';
-                            try {
-                                return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-                            } catch {
-                                return 'Data inválida';
-                            }
-                        };
-                        
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+                    {PLANS.map((plan) => {
+                        const isCurrent = currentAgency?.subscriptionPlan === plan.id;
+                        const isPremium = plan.id === 'PREMIUM';
+                        const isStarterPlan = plan.id === 'STARTER';
                         return (
-                            <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full hover:shadow-xl hover:border-primary-200 transition-all duration-300 group relative">
-                                {/* Trip Image with Overlay */}
-                                <div className="relative h-56 w-full bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-                                    {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
-                                        <>
-                                        <img 
-                                            src={trip.images[0]} 
-                                            alt={trip.title} 
-                                            loading="lazy"
-                                            decoding="async"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = 'https://placehold.co/800x600/e2e8f0/94a3b8?text=Sem+Imagem';
-                                            }}
-                                        />
-                                            {/* Gradient Overlay - Only show when image exists */}
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                        </>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 relative overflow-hidden">
-                                            {/* Decorative elements */}
-                                            <div className="absolute top-0 right-0 w-24 h-24 bg-primary-100/20 rounded-full -translate-y-12 translate-x-12"></div>
-                                            <div className="absolute bottom-0 left-0 w-20 h-20 bg-slate-200/30 rounded-full translate-y-10 -translate-x-10"></div>
-                                            
-                                            {/* Content */}
-                                            <div className="relative z-10 text-center px-4">
-                                                <div className="bg-white/70 backdrop-blur-sm p-3 rounded-xl shadow-sm border border-white/50 inline-block mb-3">
-                                                    <Plane size={28} className="text-primary-400/80" strokeWidth={1.5} />
-                                                </div>
-                                                <p className="text-xs font-semibold text-gray-600">Sem Imagem</p>
-                                                <p className="text-[10px] text-gray-400 mt-1">Adicione uma foto para destacar</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {/* Status Badge */}
-                                    <div className="absolute top-3 left-3 z-10">
-                                        <Badge color={trip.is_active ? 'green' : 'gray'}>
-                                            <Check size={12}/> {trip.is_active ? 'Ativo' : 'Rascunho'}
-                                        </Badge>
-                                    </div>
-                                    
-                                    {/* Featured Badge */}
-                                    {trip.featured && (
-                                        <div className="absolute top-3 right-3 z-10">
-                                            <Badge color="amber">
-                                                <Star size={12} className="fill-current"/> Destaque
-                                            </Badge>
-                                        </div>
-                                    )}
-                                    
-                                    {/* Rating Overlay */}
-                                    {trip.tripRating && trip.tripRating > 0 && (
-                                        <div className="absolute bottom-3 left-3 z-10 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md">
-                                            <Star size={14} className="text-amber-400 fill-amber-400" />
-                                            <span className="text-xs font-bold text-gray-900">{(trip.tripRating as number).toFixed(1)}</span>
-                                            {trip.tripTotalReviews && trip.tripTotalReviews > 0 && (
-                                                <span className="text-xs text-gray-500">({trip.tripTotalReviews})</span>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Content Section */}
-                                <div className="p-5 flex-1 flex flex-col">
-                                    {/* Title & Destination */}
-                                    <div className="mb-3">
-                                        <div className="min-h-[3.5rem] flex flex-col justify-center mb-1.5">
-                                            <h3 
-                                                onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
-                                                className="font-bold text-xl text-gray-900 line-clamp-2 hover:text-primary-600 hover:underline cursor-pointer transition-colors group/title"
-                                            >
-                                                {trip.title}
-                                            </h3>
-                                        </div>
-                                        <div className="flex items-center text-sm text-gray-600 mb-2">
-                                            <MapPin size={14} className="mr-1.5 text-primary-500 flex-shrink-0"/>
-                                            <span className="truncate">{trip.destination}</span>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Categories Tags */}
-                                    {categoryLabels.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 mb-3">
-                                            {categoryLabels.slice(0, 2).map((label, idx) => (
-                                                <span 
-                                                    key={idx}
-                                                    className="px-2 py-0.5 bg-primary-50 text-primary-700 text-[10px] font-semibold rounded-full border border-primary-200"
-                                                >
-                                                    {label}
-                                                </span>
-                                            ))}
-                                            {categoryLabels.length > 2 && (
-                                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-semibold rounded-full">
-                                                    +{categoryLabels.length - 2}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                    
-                                    {/* Trip Details Grid */}
-                                    <div className="grid grid-cols-2 gap-2 mb-4">
-                                        {trip.durationDays && (
-                                            <div className="bg-gray-50 rounded-lg p-2 border border-gray-100">
-                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <Calendar size={12} className="text-gray-400"/>
-                                                    <span className="text-[10px] font-semibold text-gray-500 uppercase">Duração</span>
-                                                </div>
-                                                <p className="text-sm font-bold text-gray-900">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</p>
-                                            </div>
-                                        )}
-                                        {trip.startDate && (
-                                            <div className="bg-gray-50 rounded-lg p-2 border border-gray-100">
-                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <Clock size={12} className="text-gray-400"/>
-                                                    <span className="text-[10px] font-semibold text-gray-500 uppercase">Partida</span>
-                                                </div>
-                                                <p className="text-xs font-bold text-gray-900 leading-tight">{formatDate(trip.startDate)}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    {/* Performance Stats */}
-                                    <div className="flex items-center justify-between py-3 px-3 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-lg mb-4 border border-gray-100">
-                                        <div className="flex items-center gap-4 text-xs">
-                                            <div className="flex items-center text-blue-600 font-semibold" title="Visualizações">
-                                                <Eye size={14} className="mr-1.5"/> 
-                                                {trip.views || 0}
-                                            </div>
-                                            <div className="flex items-center text-green-600 font-semibold" title="Vendas">
-                                                <ShoppingBag size={14} className="mr-1.5"/> 
-                                                {trip.sales || 0}
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-semibold text-gray-500 uppercase">A partir de</p>
-                                            <p className="text-lg font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Actions - Two Rows */}
-                                    <div className="space-y-2 pt-2 border-t border-gray-200">
-                                        {/* Primary Actions */}
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank');
-                                                }}
-                                                className="flex-1 px-3 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-xs font-bold hover:from-green-600 hover:to-green-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
-                                            >
-                                                <ExternalLink size={14} />
-                                                Ver Online
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleEditTrip(trip);
-                                                }}
-                                                className="flex-1 px-3 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-xs font-bold hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5"
-                                            >
-                                                <Edit size={14} />
-                                                Editar
-                                            </button>
-                                        </div>
-
-                                        {/* Secondary Actions */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDuplicateTrip(trip);
-                                                }}
-                                                disabled={isDuplicatingTrip === trip.id}
-                                                className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title="Duplicar viagem"
-                                            >
-                                                {isDuplicatingTrip === trip.id ? (
-                                                    <Loader size={14} className="animate-spin" />
-                                                ) : (
-                                                    <Copy size={14} />
-                                                )}
-                                                Duplicar
-                                            </button>
-                                            {planPermissions.canAccessOperational && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleGoToOperational(trip.id);
-                                                    }}
-                                                    className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1.5"
-                                                    title="Gerenciar Operacional"
-                                                >
-                                                    <Bus size={14} />
-                                                    Operacional
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleTripStatus(trip.id);
-                                                }}
-                                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                                                    trip.is_active
-                                                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                                                        : 'bg-green-50 text-green-600 hover:bg-green-100'
-                                                }`}
-                                                title={trip.is_active ? 'Pausar' : 'Publicar'}
-                                            >
-                                                {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
-                                                {trip.is_active ? 'Pausar' : 'Ativar'}
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteTrip(trip.id);
-                                                }}
-                                                className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
-                                                title="Excluir"
-                                            >
-                                                <Trash2 size={14} />
-                                                Excluir
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div key={plan.id} className={`rounded-2xl shadow-lg border p-8 relative ${isCurrent ? 'ring-2 ring-primary-500 bg-gray-50' : 'bg-white'} ${isPremium ? 'border-purple-200' : 'border-gray-200'}`}>
+                                {isPremium && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-4 py-1 rounded-full">RECOMENDADO</div>}
+                                <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                                <div className="text-3xl font-extrabold mb-6">{isStarterPlan ? 'Grátis' : `R$ ${plan.price}`}<span className="text-sm font-normal text-gray-500">/mês</span></div>
+                                <ul className="space-y-3 mb-8">
+                                    {plan.features.map((f, i) => (
+                                        <li key={i} className="flex items-start text-sm text-gray-700">
+                                            <Check size={16} className={`mr-2 flex-shrink-0 mt-0.5 ${isPremium ? 'text-purple-500' : 'text-green-500'}`} /> {f}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <button
+                                    onClick={() => isCurrent ? null : setShowConfirmSubscription(plan)}
+                                    disabled={isCurrent}
+                                    className={`w-full py-3 rounded-xl font-bold ${isCurrent ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-primary-600 text-white hover:bg-primary-700'}`}
+                                >
+                                    {isCurrent ? 'Plano Atual' : 'Assinar Agora'}
+                                </button>
                             </div>
                         );
                     })}
                 </div>
-            ) : ( // TABLE VIEW - Enhanced
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-100">
-                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Pacote</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Destino</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Duração</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Data Partida</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Preço</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Performance</th>
-                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 bg-white">
-                                {myTrips.map(trip => {
-                                    const displayCategories = trip.categories && trip.categories.length > 0 
-                                        ? trip.categories 
-                                        : trip.category 
-                                            ? [trip.category] 
-                                            : [];
-                                    const formatDate = (dateStr: string | undefined) => {
-                                        if (!dateStr) return '-';
-                                        try {
-                                            return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-                                        } catch {
-                                            return '-';
-                                        }
-                                    };
-                                    
-                                    return (
-                                        <tr key={trip.id} className="hover:bg-primary-50/30 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-20 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 ring-2 ring-gray-200 group-hover:ring-primary-300 transition-all">
-                                                        {trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0] ? (
-                                                            <img 
-                                                                src={trip.images[0]} 
-                                                                className="w-full h-full object-cover" 
-                                                                alt={trip.title}
-                                                                onError={(e) => {
-                                                                    (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/e2e8f0/94a3b8?text=IMG';
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                                                <Plane size={24} className="text-gray-400"/>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p 
-                                                            onClick={() => window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank')}
-                                                            className="font-bold text-gray-900 text-sm line-clamp-1 hover:text-primary-600 hover:underline cursor-pointer transition-colors mb-1"
-                                                        >
-                                                            {trip.title}
-                                                        </p>
-                                                        {displayCategories.length > 0 && (
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {displayCategories.slice(0, 2).map((cat, idx) => (
-                                                                    <span 
-                                                                        key={idx}
-                                                                        className="px-1.5 py-0.5 bg-primary-50 text-primary-700 text-[9px] font-semibold rounded border border-primary-200"
-                                                                    >
-                                                                        {cat.replace(/_/g, ' ')}
-                                                                    </span>
-                                                                ))}
-                                                                {displayCategories.length > 2 && (
-                                                                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-semibold rounded">
-                                                                        +{displayCategories.length - 2}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center text-sm text-gray-700">
-                                                    <MapPin size={14} className="mr-1.5 text-primary-500 flex-shrink-0"/>
-                                                    <span>{trip.destination}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {trip.durationDays ? (
-                                                    <div className="flex items-center text-sm text-gray-700">
-                                                        <Calendar size={14} className="mr-1.5 text-gray-400"/>
-                                                        <span className="font-medium">{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-sm text-gray-400">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {trip.startDate ? (
-                                                    <div className="flex items-center text-sm text-gray-700">
-                                                        <Clock size={14} className="mr-1.5 text-gray-400"/>
-                                                        <span className="font-medium">{formatDate(trip.startDate)}</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-sm text-gray-400">-</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm">
-                                                    <p className="text-[10px] font-semibold text-gray-500 uppercase mb-0.5">A partir de</p>
-                                                    <p className="font-extrabold text-primary-600 text-base">R$ {trip.price.toLocaleString('pt-BR')}</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>
-                                                        {trip.is_active ? 'ATIVO' : 'RASCUNHO'}
-                                                    </Badge>
-                                                    {trip.featured && (
-                                                        <Badge color="amber" className="w-fit">
-                                                            <Star size={10} className="fill-current"/> Destaque
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex items-center gap-4 text-xs">
-                                                        <div className="flex items-center text-blue-600 font-semibold" title="Visualizações">
-                                                            <Eye size={14} className="mr-1.5"/> 
-                                                            {trip.views || 0}
-                                                        </div>
-                                                        <div className="flex items-center text-green-600 font-semibold" title="Vendas">
-                                                            <ShoppingBag size={14} className="mr-1.5"/> 
-                                                            {trip.sales || 0}
-                                                        </div>
-                                                    </div>
-                                                    {trip.tripRating && trip.tripRating > 0 && (
-                                                        <div className="flex items-center gap-1 text-xs">
-                                                            <Star size={12} className="text-amber-400 fill-amber-400" />
-                                                            <span className="font-bold text-gray-700">{(trip.tripRating as number).toFixed(1)}</span>
-                                                            {trip.tripTotalReviews && trip.tripTotalReviews > 0 && (
-                                                                <span className="text-gray-500">({trip.tripTotalReviews})</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            window.open(`/#/${currentAgency?.slug}/viagem/${trip.slug || trip.id}`, '_blank');
-                                                        }}
-                                                        className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                                                        title="Ver Online"
-                                                    >
-                                                        <ExternalLink size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleEditTrip(trip);
-                                                        }}
-                                                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="Editar"
-                                                    >
-                                                        <Edit size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDuplicateTrip(trip);
-                                                        }}
-                                                        disabled={isDuplicatingTrip === trip.id}
-                                                        className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        title="Duplicar"
-                                                    >
-                                                        {isDuplicatingTrip === trip.id ? (
-                                                            <Loader size={18} className="animate-spin" />
-                                                        ) : (
-                                                            <Copy size={18} />
-                                                        )}
-                                                    </button>
-                                                    {planPermissions.canAccessOperational && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleGoToOperational(trip.id);
-                                                            }}
-                                                            className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                            title="Operacional"
-                                                        >
-                                                            <Bus size={18} />
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleTripStatus(trip.id);
-                                                        }}
-                                                        className={`p-2 rounded-lg transition-colors ${
-                                                            trip.is_active
-                                                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                                                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                                                        }`}
-                                                        title={trip.is_active ? 'Pausar' : 'Publicar'}
-                                                    >
-                                                        {trip.is_active ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteTrip(trip.id);
-                                                        }}
-                                                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Excluir"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+            </div>
+        );
+    };
+
+    const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
+    const formatDate = (dStr: string | undefined) => {
+        if (!dStr) return '-';
+        const d = new Date(dStr);
+        return isValidDate(d) ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+    };
+
+    if (dataLoading || !currentAgency) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-gray-50">
+                <div className="text-center">
+                    <Loader size={48} className="animate-spin text-primary-600 mx-auto mb-4" />
+                    <p className="text-gray-500 font-medium">Carregando painel...</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (showCreateTrip) {
+        return (
+            <div className="fixed inset-0 bg-white z-[9999] overflow-y-auto">
+                <CreateTripWizard
+                    onClose={() => { setShowCreateTrip(false); setEditingTrip(null); }}
+                    onSuccess={() => {
+                        setShowCreateTrip(false);
+                        setEditingTrip(null);
+                        refreshData();
+                    }}
+                    initialTripData={editingTrip || undefined}
+                />
+            </div>
+        );
+    }
+
+    const tabs = [
+        { id: 'OVERVIEW', label: 'Visão Geral', icon: BarChart2 },
+        { id: 'TRIPS', label: `${isGuide ? 'Experiências' : 'Pacotes'}`, icon: Plane },
+        { id: 'BOOKINGS', label: 'Reservas', icon: ListChecks },
+        ...(planPermissions.canAccessOperational ? [{ id: 'OPERATIONS', label: 'Operacional', icon: Bus }] : []),
+        { id: 'REVIEWS', label: 'Avaliações', icon: Star },
+        { id: 'PROFILE', label: 'Perfil', icon: User },
+    ];
+
+    return (
+        <>
+            {/* Upgrade & Subscription Modals */}
+            <UpgradeModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} currentPlan={currentAgency.subscriptionPlan as 'STARTER' | 'BASIC' | 'PREMIUM'} maxTrips={PLANS.find(p => p.id === currentAgency.subscriptionPlan)?.maxTrips || 5} currentActiveTrips={stats.activeTrips || 0} onUpgrade={() => { setShowUpgradeModal(false); setSearchParams({ tab: 'PLAN' }); }} />
+            {showConfirmSubscription && (
+                <SubscriptionConfirmationModal
+                    plan={showConfirmSubscription}
+                    onClose={() => setShowConfirmSubscription(null)}
+                    onConfirm={handleConfirmSubscription}
+                    isSubmitting={isSubmittingSubscription}
+                    agencyName={currentAgency.name}
+                />
             )}
-        </div>
-      )}
 
-      {activeTab === 'BOOKINGS' && (
-          <BookingDetailsView bookings={myBookings} clients={clients} />
-      )}
+            {/* Delete Confirmation */}
+            <ConfirmDialog isOpen={!!tripToDelete} onClose={() => setTripToDelete(null)} onConfirm={confirmDeleteTrip} title={`Excluir ${tripLabel}`} message={`Tem certeza que deseja excluir? Esta ação é irreversível.`} variant="danger" confirmText={isDeletingTrip ? "Excluindo..." : "Excluir"} isConfirming={isDeletingTrip} />
 
-      {activeTab === 'OPERATIONS' && (
-          <div className="animate-[fadeIn_0.3s] h-[calc(100vh-140px)] flex flex-col overflow-hidden">
-              {currentAgency ? (
-                  <OperationsModule 
-                      myTrips={myTrips} 
-                      myBookings={myBookings} 
-                      clients={clients} 
-                      selectedTripId={selectedOperationalTripId} 
-                      onSelectTrip={setSelectedOperationalTripId}
-                      onSaveTripData={updateTripOperationalData}
-                      currentAgency={currentAgency}
-                      isGuide={isGuide}
-                  />
-              ) : (
-                  <div className="p-8 text-center text-gray-500">Carregando dados do {entityNameLower}...</div>
-              )}
-          </div>
-      )}
+            {/* Payment Mgmt Dialog (Simple Alert for Now) */}
+            <ConfirmDialog isOpen={showPaymentManagementDialog} onClose={() => setShowPaymentManagementDialog(false)} onConfirm={() => window.open('https://wa.me/5511987697684?text=Quero%20gerenciar%20meu%20plano', '_blank')} title="Gerenciar Assinatura" message="Para alterar dados de pagamento ou cancelar, entre em contato com nosso suporte financeiro." confirmText="Falar com Suporte" variant="info" />
 
-      {activeTab === 'REVIEWS' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.3s]">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Avaliações da Minha Agência ({agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).length})</h2>
-              {agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).length > 0 ? (
-                  <div className="space-y-4">
-                      {agencyReviews.filter(r => r.agencyId === currentAgency?.agencyId).map(review => (
-                          <div key={review.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              <div className="flex justify-between items-start mb-3">
-                                  <div className="flex items-center gap-3">
-                                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">{review.clientName?.charAt(0)}</div>
-                                      <div>
-                                          <p className="font-bold text-gray-900 text-sm">{review.clientName || 'Cliente ViajaStore'}</p>
-                                          <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
-                                      </div>
-                                  </div>
-                                  <div className="flex text-amber-400">{[...Array(5)].map((_, i) => (<Star key={i} size={14} className={i < review.rating ? 'fill-current' : 'text-gray-300'} />))}</div>
-                              </div>
-                              <p className="text-gray-700 text-sm italic mb-3">"{review.comment}"</p>
-                              {review.tags && review.tags.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mb-3">
-                                      {review.tags.map(tag => (
-                                          <span key={tag} className="text-xs bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full border border-blue-100">{tag}</span>
-                                      ))}
-                                  </div>
-                              )}
-                              {review.tripTitle && (
-                                  <p className="text-xs text-gray-500 mb-3">Avaliação do pacote: <span className="font-bold">{review.tripTitle}</span></p>
-                              )}
 
-                              <div className="mt-4 pt-4 border-t border-gray-100 flex items-start gap-3">
-                                   <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-xs flex-shrink-0">
-                                       {currentAgency?.name.charAt(0)}
-                                   </div>
-                                  <div className="flex-1 w-full relative group/reply">
-                                      {review.response ? (
-                                           <div className="bg-white p-3 rounded-lg border border-gray-200 w-full relative">
-                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Sua Resposta:</p>
-                                                <p className="text-sm text-gray-700 italic">{review.response}</p>
-                                                <button onClick={() => { setReplyText(review.response || ''); setActiveReplyId(review.id); }} className="absolute top-2 right-2 text-gray-400 hover:text-primary-600 opacity-0 group-hover/reply:opacity-100 transition-opacity"><Edit size={14}/></button>
-                                           </div>
-                                      ) : (
-                                           activeReplyId === review.id ? (
-                                                <div className="bg-white p-3 rounded-lg border border-primary-200 shadow-sm w-full">
-                                                    <textarea 
-                                                        value={replyText}
-                                                        onChange={(e) => setReplyText(e.target.value)}
-                                                        placeholder="Escreva sua resposta..."
-                                                        className="w-full text-sm p-2 outline-none resize-none h-20 bg-transparent"
-                                                        autoFocus
-                                                    />
-                                                    <div className="flex justify-end gap-2 mt-2">
-                                                        <button onClick={() => setActiveReplyId(null)} className="text-xs text-gray-500 font-bold hover:bg-gray-100 px-3 py-1.5 rounded">Cancelar</button>
-                                                        <button onClick={() => handleSendReply(review.id)} className="text-xs bg-primary-600 text-white font-bold px-4 py-1.5 rounded hover:bg-primary-700 flex items-center gap-1"><Send size={12}/> Enviar</button>
-                                                    </div>
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+                {/* Dashboard Tabs for Mobile - Only show if not in Layout? 
+                        Actually, AgencyLayout handles the frame. AgencyDashboard now just renders content.
+                        But on mobile, we might want the tabs within the content area if the layout doesn't provide them. 
+                        For now, let's keep them here as they control the TABS within this specific page.
+                    */}
+                <DashboardMobileTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={tabs} />
+
+                <div className="max-w-7xl mx-auto space-y-6">
+
+                    {/* OVERVIEW TAB */}
+                    {activeTab === 'OVERVIEW' && (
+                        <OverviewTab
+                            stats={stats}
+                            myTrips={myTrips}
+                            myBookings={myBookings}
+                            clients={clients}
+                            onTabChange={handleTabChange}
+                            currentAgency={currentAgency}
+                            onCreateTrip={() => setShowCreateTrip(true)}
+                        />
+                    )}
+
+                    {/* TRIPS TAB */}
+                    {activeTab === 'TRIPS' && (
+                        <div className="space-y-6 animate-[fadeIn_0.3s]">
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm sticky top-0 z-10">
+                                <div className="relative w-full sm:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                    <input type="text" placeholder="Buscar viagens..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none" />
+                                </div>
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                                        <button onClick={() => setTripViewMode('GRID')} className={`p-1.5 rounded-md transition-all ${tripViewMode === 'GRID' ? 'bg-white shadow-sm text-primary-600' : 'text-gray-500'}`}><LayoutGrid size={18} /></button>
+                                        <button onClick={() => setTripViewMode('TABLE')} className={`p-1.5 rounded-md transition-all ${tripViewMode === 'TABLE' ? 'bg-white shadow-sm text-primary-600' : 'text-gray-500'}`}><List size={18} /></button>
+                                    </div>
+                                    <button onClick={() => setShowCreateTrip(true)} className="flex-1 sm:flex-none bg-primary-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-primary-700 flex items-center justify-center gap-2"><Plus size={18} /> Nova Viagem</button>
+                                </div>
+                            </div>
+
+                            {filteredTrips.length === 0 ? (
+                                <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
+                                    <Rocket size={48} className="mx-auto text-gray-300 mb-4" />
+                                    <p className="text-gray-500 font-medium">Nenhuma viagem encontrada.</p>
+                                    <button onClick={() => setShowCreateTrip(true)} className="mt-4 text-primary-600 font-bold hover:underline">Criar minha primeira viagem</button>
+                                </div>
+                            ) : tripViewMode === 'GRID' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {filteredTrips.map(trip => (
+                                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group flex flex-col h-full">
+                                            <div className="relative h-48 bg-gray-100">
+                                                {trip.images?.[0] ? <img src={trip.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={trip.title} /> : <div className="flex items-center justify-center h-full text-gray-400"><ImageIcon size={32} /></div>}
+                                                <div className="absolute top-3 right-3 flex flex-col gap-2">
+                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
                                                 </div>
-                                           ) : (
-                                                <button onClick={() => { setActiveReplyId(review.id); setReplyText(''); }} className="text-sm text-gray-500 hover:text-primary-600 font-medium flex items-center gap-2 py-1.5">
-                                                    <MessageCircle size={16}/> Responder
-                                                </button>
-                                           )
-                                      )}
-                                  </div>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              ) : (
-                  <div className="text-center py-16 text-gray-400 text-sm">
-                      <Star size={32} className="mx-auto mb-3" />
-                      <p>Nenhuma avaliação ainda. Mantenha a qualidade para receber feedback!</p>
-                  </div>
-              )}
-          </div>
-      )}
+                                            </div>
+                                            <div className="p-4 flex-1 flex flex-col">
+                                                <h3 className="font-bold text-gray-900 mb-2 line-clamp-1" title={trip.title}>{trip.title}</h3>
+                                                <div className="text-sm text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14} className="text-primary-500" /><span className="truncate">{trip.destination}</span></div>
 
-      {activeTab === 'PLAN' && renderPlanTab()}
+                                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                                    <div className="bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Partida</p><p className="text-xs font-bold">{formatDate(trip.startDate)}</p></div>
+                                                    <div className="text-right bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Preço</p><p className="text-sm font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</p></div>
+                                                </div>
 
-      {activeTab === 'PROFILE' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Meu Perfil</h2>
-              <form onSubmit={handleSaveProfile} className="space-y-6">
-                  {/* Logo Upload */}
-                  <div className="mb-6">
-                      <label className="block text-sm font-bold text-gray-700 mb-2">Logo da Agência</label>
-                      <div className="flex items-center gap-4">
-                          {(profileForm.logo || currentAgency?.logo) && (
-                              <div className="relative">
-                                  <img 
-                                      src={profileForm.logo || currentAgency?.logo} 
-                                      alt="Logo" 
-                                      className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm" 
-                                  />
-                                  {profileForm.logo && (
-                                      <button
-                                          type="button"
-                                          onClick={() => setProfileForm(prev => ({ ...prev, logo: '' }))}
-                                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                                          title="Remover logo"
-                                      >
-                                          <X size={12} />
-                                      </button>
-                                  )}
-                              </div>
-                          )}
-                          <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                              {loading ? (
-                                  <>
-                                      <Loader size={16} className="animate-spin"/>
-                                      Carregando...
-                                  </>
-                              ) : (
-                                  <>
-                                      <Upload size={16}/> {profileForm.logo ? 'Alterar Logo' : 'Fazer Upload'}
-                                  </>
-                              )}
-                              <input 
-                                  type="file" 
-                                  accept="image/*" 
-                                  className="hidden" 
-                                  onChange={handleLogoUploadInstant}
-                                  disabled={loading}
-                              />
-                          </label>
-                      </div>
-                  </div>
+                                                <div className="mt-auto border-t border-gray-100 pt-3 flex gap-2">
+                                                    <button onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1"><ExternalLink size={14} /> Ver</button>
+                                                    <button onClick={() => handleEditTrip(trip)} className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1"><Edit size={14} /> Editar</button>
+                                                    <ActionMenu actions={[
+                                                        { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
+                                                        { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
+                                                        { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' },
+                                                        ...(planPermissions.canAccessOperational ? [{ label: 'Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) }] : [])
+                                                    ]} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    {/* Desktop Table */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-100">
+                                            <thead className="bg-gray-50"><tr><th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ações</th></tr></thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {filteredTrips.map(trip => (
+                                                    <tr key={trip.id} className="hover:bg-gray-50">
+                                                        <td className="px-6 py-4"><div className="font-bold text-gray-900 text-sm">{trip.title}</div><div className="text-xs text-gray-500">{trip.destination} • {formatDate(trip.startDate)}</div></td>
+                                                        <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge></td>
+                                                        <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={() => handleEditTrip(trip)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Edit size={16} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button></div></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome da Agência</label><input value={profileForm.name || ''} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({...profileForm, whatsapp: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXXX-XXXX" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Telefone Fixo</label><input value={profileForm.phone || ''} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="(XX) XXXX-XXXX" /></div>
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">Website / Redes Sociais</label><input value={profileForm.website || ''} onChange={e => setProfileForm({...profileForm, website: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="https://instagram.com/suaagencia ou https://facebook.com/suaagencia" /></div>
-                      
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-bold text-gray-700 mb-1">Link do seu Site (Slug)</label>
-                        <div className="flex">
-                            <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
-                                viajastore.com/
-                            </span>
-                            <input 
-                                value={profileForm.slug || ''} 
-                                onChange={e => setProfileForm({...profileForm, slug: slugify(e.target.value)})} 
-                                className="flex-1 min-w-0 block w-full px-3 py-2.5 bg-white text-gray-900 rounded-none rounded-r-lg border border-gray-300 focus:ring-primary-500 focus:border-primary-500 sm:text-sm outline-none"
-                                placeholder="minha-agencia"
+                                    {/* Mobile Stacked Cards */}
+                                    <div className="md:hidden divide-y divide-gray-100">
+                                        {filteredTrips.map(trip => (
+                                            <div key={trip.id} className="p-4 space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-bold text-gray-900 text-sm line-clamp-2">{trip.title}</h4>
+                                                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                                            <MapPin size={12} /> {trip.destination}
+                                                        </div>
+                                                    </div>
+                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+                                                    <span className="flex items-center gap-1"><Calendar size={12} /> {formatDate(trip.startDate)}</span>
+                                                    <span className="font-bold">R$ {trip.price.toLocaleString('pt-BR')}</span>
+                                                </div>
+
+                                                <div className="flex gap-2 pt-1">
+                                                    <button
+                                                        onClick={() => handleEditTrip(trip)}
+                                                        className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1"
+                                                    >
+                                                        <Edit size={14} /> Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTrip(trip.id)}
+                                                        className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* OTHER TABS */}
+                    {activeTab === 'BOOKINGS' && <BookingDetailsView bookings={myBookings} clients={clients} />}
+
+                    {activeTab === 'OPERATIONS' && (
+                        <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                            <OperationsModule
+                                myTrips={myTrips}
+                                myBookings={myBookings}
+                                clients={clients}
+                                selectedTripId={selectedOperationalTripId}
+                                onSelectTrip={setSelectedOperationalTripId}
+                                onSaveTripData={updateTripOperationalData}
+                                currentAgency={currentAgency}
+                                isGuide={isGuide}
                             />
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">Este é o endereço do seu site exclusivo.</p>
-                      </div>
+                    )}
 
-                      <div className="md:col-span-2">
-                          <label className="block text-sm font-bold text-gray-700 mb-1">Descrição Curta</label>
-                          <textarea value={profileForm.description || ''} onChange={e => setProfileForm({...profileForm, description: e.target.value})} rows={3} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Fale um pouco sobre sua agência..." />
-                      </div>
-                  </div>
-                  <div className="border-t pt-6">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4">Configurações do Microsite (Página de Agência)</h3>
-                      <div className="space-y-4">
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">Modo Hero</label>
-                              <select value={heroForm.heroMode} onChange={e => setHeroForm({...heroForm, heroMode: e.target.value as 'TRIPS' | 'STATIC'})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500 cursor-pointer">
-                                  <option value="TRIPS">Carrossel de Viagens</option>
-                                  <option value="STATIC">Imagem Estática</option>
-                              </select>
-                              <p className="text-xs text-gray-500 mt-1">Define o que aparece no topo da sua página pública.</p>
-                          </div>
-                          {heroForm.heroMode === 'STATIC' && (
-                              <div className="space-y-4 animate-[fadeIn_0.3s]">
-                                  <div>
-                                      <label className="block text-sm font-bold text-gray-700 mb-1">Imagem do Hero</label>
-                                      <div className="flex items-center gap-4">
-                                          {heroForm.heroBannerUrl && <img src={heroForm.heroBannerUrl} alt="Preview" className="w-20 h-12 object-cover rounded-lg border border-gray-200" />}
-                                          <label className="cursor-pointer bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
-                                              <Upload size={16}/> Fazer Upload
-                                              <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                                  if(e.target.files?.[0]) {
-                                                      const url = await uploadImage(e.target.files[0], 'agency-logos');
-                                                      if(url) setHeroForm({...heroForm, heroBannerUrl: url});
-                                                  }
-                                              }}/>
-                                          </label>
-                                      </div>
-                                  </div>
-                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Título do Hero</label><input value={heroForm.heroTitle || ''} onChange={e => setHeroForm({...heroForm, heroTitle: e.target.value})} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="Bem-vindo à Sua Agência" /></div>
-                                  <div><label className="block text-sm font-bold text-gray-700 mb-1">Subtítulo do Hero</label><textarea value={heroForm.heroSubtitle || ''} onChange={e => setHeroForm({...heroForm, heroSubtitle: e.target.value})} rows={2} className="w-full bg-white border border-gray-300 text-gray-900 p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="As melhores experiências esperam por você!" /></div>
-                              </div>
-                          )}
-                      </div>
-                  </div>
+                    {activeTab === 'REVIEWS' && <AgencyReviews reviews={agencyReviews} currentAgency={currentAgency} />}
 
-                  <button type="submit" disabled={loading} className="w-full bg-primary-600 text-white py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50">
-                      {loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações
-                  </button>
-              </form>
-          </div>
-      )}
+                    {activeTab === 'PLAN' && renderPlanTab()}
 
-      {activeTab === 'THEME' && currentAgency && (
-          <AgencyThemeManager
-              agencyId={currentAgency.agencyId}
-              currentTheme={currentTheme}
-              onSave={handleSaveTheme}
-              onLogoUpload={handleLogoUpload}
-              currentLogoUrl={currentAgency.logo}
-          />
-      )}
-    </div>
-  );
+                    {activeTab === 'PROFILE' && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-6">Meu Perfil</h2>
+                            <form onSubmit={handleSaveProfile} className="space-y-6">
+                                <div className="flex items-center gap-6 mb-6">
+                                    <div className="relative w-24 h-24">
+                                        <img src={profileForm.logo || 'https://placehold.co/100x100?text=LOGO'} className="w-full h-full rounded-2xl object-cover border-2 border-dashed border-gray-300" />
+                                        <label className="absolute -bottom-2 -right-2 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-sm"><Upload size={14} /><input type="file" className="hidden" accept="image/*" onChange={handleLogoUploadInstant} /></label>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-lg">{currentAgency.name}</h3>
+                                        <p className="text-sm text-gray-500">Faça upload de uma logo quadrada para melhor visualização.</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={profileForm.name || ''} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full p-2.5 border rounded-lg" /></div>
+                                    <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({ ...profileForm, whatsapp: e.target.value })} className="w-full p-2.5 border rounded-lg" /></div>
+                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Slug (Link)</label><div className="flex"><span className="bg-gray-100 px-3 py-2 border border-r-0 rounded-l-lg text-gray-500 text-sm flex items-center">viajastore.com/</span><input value={profileForm.slug || ''} onChange={e => setProfileForm({ ...profileForm, slug: slugify(e.target.value) })} className="flex-1 p-2.5 border rounded-r-lg" /></div></div>
+                                </div>
+                                <div className="pt-4 border-t"><button type="submit" disabled={loading} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center gap-2">{loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações</button></div>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'THEME' && currentAgency && (
+                        <AgencyThemeManager
+                            agencyId={currentAgency.agencyId}
+                            currentTheme={{
+                                agencyId: currentAgency.agencyId,
+                                colors: activeTheme.colors,
+                            } as AgencyTheme}
+                            onSave={handleSaveTheme}
+                            onLogoUpload={(f) => handleLogoUploadWrapper(f).then(u => u)}
+                            currentLogoUrl={currentAgency.logo}
+                        />
+                    )}
+
+                </div>
+            </div>
+
+        </>
+    );
 };
 
 export { AgencyDashboard };
