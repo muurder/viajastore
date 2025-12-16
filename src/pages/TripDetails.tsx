@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Trip, PassengerDetail } from '../types';
-import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe, Check } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { PassengerDataModal } from '../components/PassengerDataModal';
 import { BookingWidget } from '../components/BookingWidget';
@@ -457,12 +457,12 @@ const TripDetails: React.FC = () => {
 
           {/* Included / Not Included */}
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
-              <h4 className="font-bold text-green-800 mb-4 flex items-center"><CheckCircle size={18} className="mr-2" /> O que está incluso</h4>
+            <div className="bg-primary-50 p-6 rounded-2xl border border-primary-100">
+              <h4 className="font-bold text-primary-900 mb-4 flex items-center"><CheckCircle size={18} className="mr-2 text-primary-600" /> O que está incluso</h4>
               <ul className="space-y-2">
                 {trip.included.map((item, i) => (
-                  <li key={i} className="flex items-start text-sm text-green-700">
-                    <span className="mr-2">•</span> {item}
+                  <li key={i} className="flex items-start text-sm text-gray-700">
+                    <Check size={14} className="mr-2 text-primary-600 flex-shrink-0 mt-0.5" strokeWidth={3} /> {item}
                   </li>
                 ))}
               </ul>

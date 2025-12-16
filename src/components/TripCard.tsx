@@ -23,9 +23,9 @@ export const TripCardSkeleton = () => (
       </div>
       <div className="h-6 bg-gray-200 w-full rounded mb-2"></div>
       <div className="h-6 bg-gray-200 w-2/3 rounded mb-4"></div>
-      
+
       <div className="h-4 bg-gray-200 w-20 rounded mb-4"></div>
-      
+
       <div className="flex gap-2 mb-5">
         <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
         <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
@@ -47,7 +47,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
   const { showToast } = useToast();
   const [imgError, setImgError] = useState(false);
   const [tripWithImages, setTripWithImages] = useState<Trip>(trip);
-  
+
   // Context awareness for link generation
   const { agencySlug } = useParams<{ agencySlug?: string }>();
 
@@ -59,7 +59,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
         setTripWithImages(trip);
         return;
       }
-      
+
       // Otherwise, try to fetch images
       if (fetchTripImages) {
         try {
@@ -99,7 +99,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
   }, [trip, tripWithImages.id]);
 
   // Memoize computed values to prevent recalculation
-  const linkTarget = useMemo(() => 
+  const linkTarget = useMemo(() =>
     agencySlug ? `/${agencySlug}/viagem/${trip.slug}` : `/viagem/${trip.slug}`,
     [agencySlug, trip.slug]
   );
@@ -125,7 +125,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
   const handleFavorite = (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent Link navigation
     e.stopPropagation(); // Stop bubbling
-    
+
     if (!user) {
       showToast('Faça login para favoritar.', 'info');
       return;
@@ -142,7 +142,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
     e.preventDefault(); // Prevent Link navigation
     e.stopPropagation(); // Stop bubbling
     if (whatsappLink) {
-        window.open(whatsappLink, '_blank');
+      window.open(whatsappLink, '_blank');
     }
   };
 
@@ -156,13 +156,13 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
 
   // Check for popular features
   const includedItems = tripWithImages.included || [];
-  const hasBreakfast = includedItems.some(item => 
-    item.toLowerCase().includes('café') || 
-    item.toLowerCase().includes('cafe') || 
+  const hasBreakfast = includedItems.some(item =>
+    item.toLowerCase().includes('café') ||
+    item.toLowerCase().includes('cafe') ||
     item.toLowerCase().includes('café da manhã')
   );
-  const hasFreeCancellation = includedItems.some(item => 
-    item.toLowerCase().includes('cancelamento') || 
+  const hasFreeCancellation = includedItems.some(item =>
+    item.toLowerCase().includes('cancelamento') ||
     item.toLowerCase().includes('cancelamento grátis')
   );
 
@@ -171,19 +171,19 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
 
   return (
     <div className="h-full">
-      <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 h-full flex flex-col">
+      <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col relative z-0">
         <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0">
           {shouldShowPlaceholder ? (
-            <NoImagePlaceholder 
-              title={tripWithImages.title} 
+            <NoImagePlaceholder
+              title={tripWithImages.title}
               category={tripWithImages.category}
               size="medium"
             />
           ) : (
             <>
-              <img 
-                src={tripWithImages.images[0]} 
-                alt={tripWithImages.title} 
+              <img
+                src={tripWithImages.images[0]}
+                alt={tripWithImages.title}
                 loading="lazy"
                 onError={(e) => {
                   setImgError(true);
@@ -193,16 +193,16 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
                     target.style.display = 'none';
                   }
                 }}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                className="w-full h-full object-cover group-hover:scale-[1.15] transition-transform duration-700"
               />
               {/* Gradient overlay for better text readability */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </>
           )}
-          
+
           {/* Favorite button */}
           <div className="absolute top-3 right-3 z-10">
-            <button 
+            <button
               onClick={handleFavorite}
               className={`p-2 rounded-full backdrop-blur-md shadow-lg transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-200' : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'}`}
             >
@@ -231,7 +231,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
             </div>
           )}
         </div>
-        
+
         <div className="p-6 flex flex-col h-full flex-1 min-h-0 overflow-hidden relative pb-24">
           {/* Location & Duration */}
           <div className="flex items-start justify-between mb-3 gap-3">
@@ -287,7 +287,7 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
           )}
 
           {/* Price & CTA - Container que fica sempre no final */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 pt-4 border-t border-gray-100 group-hover:border-primary-200 transition-colors flex-shrink-0 bg-white">
+          <div className="absolute bottom-0 left-0 right-0 p-6 pt-4 border-t border-gray-100 group-hover:border-primary-200 transition-colors flex-shrink-0 bg-white z-10">
             <div className="flex items-end justify-between">
               <div className="flex flex-col">
                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">A partir de</span>
@@ -320,6 +320,9 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
             </div>
           </div>
         </div>
+
+        {/* Separated Border Overlay - Keeps borders crisp even on zoom */}
+        <div className="absolute inset-0 rounded-2xl border border-gray-200 pointer-events-none z-20 transition-colors group-hover:border-primary-200/50" />
       </Link>
     </div>
   );

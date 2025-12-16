@@ -378,15 +378,15 @@ const Home: React.FC = () => {
                   >
                     <Link
                       to={`/viagem/${trip.slug || trip.id}`}
-                      className="bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-105 transition-all duration-300 flex flex-col relative overflow-visible h-full min-h-[320px]"
+                      className="bg-white/90 backdrop-blur-md rounded-2xl border-0 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 flex flex-col relative overflow-hidden h-full min-h-[320px] group/card"
                     >
-                      <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3 flex-shrink-0">
+                      <div className="relative w-full h-32 rounded-t-2xl overflow-hidden flex-shrink-0">
                         {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
                           <img
                             key={`dock-img-${trip.id}`}
                             src={trip.images[0]}
                             alt={trip.title}
-                            className="w-full h-full object-cover group-hover/dock:scale-110 transition-transform duration-500"
+                            className="w-full h-full object-cover group-hover/dock:scale-[1.15] transition-transform duration-700"
                             onError={(e) => {
                               // Hide image on error, placeholder will show
                               e.currentTarget.style.display = 'none';
@@ -412,9 +412,11 @@ const Home: React.FC = () => {
                             {((trip as any).tripRating || trip.rating || 0).toFixed(1)}
                           </div>
                         )}
+                        {/* Overlay Border to fix corner glitch */}
+                        <div className="absolute inset-0 rounded-t-2xl border-t border-x border-black/5 pointer-events-none z-20" />
                       </div>
 
-                      <div className="flex-1 flex flex-col min-h-0">
+                      <div className="flex-1 flex flex-col min-h-0 p-4">
                         {/* Title with fixed height to ensure consistency */}
                         <div className="h-10 mb-2 flex flex-col justify-center">
                           <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 group-hover/dock:text-primary-600 transition-colors">
@@ -452,6 +454,9 @@ const Home: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Full Card Border Overlay - Separated for perfect corners */}
+                      <div className="absolute inset-0 rounded-2xl border border-white/20 pointer-events-none z-20 ring-1 ring-black/5" />
                     </Link>
                     {whatsappLink && (
                       <button

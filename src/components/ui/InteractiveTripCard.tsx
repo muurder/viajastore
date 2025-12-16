@@ -139,9 +139,9 @@ const InteractiveTripCardComponent: React.FC<InteractiveTripCardProps> = ({ trip
     const rating = (tripWithImages as any).tripRating || tripWithImages.rating || 0;
 
     return (
-        <div className="group bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full relative">
+        <div className="group bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full relative">
             {/* Image Section */}
-            <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+            <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden rounded-t-2xl">
                 <Link to={linkTarget} className="block w-full h-full">
                     {shouldShowPlaceholder ? (
                         <NoImagePlaceholder
@@ -153,7 +153,7 @@ const InteractiveTripCardComponent: React.FC<InteractiveTripCardProps> = ({ trip
                         <img
                             src={images[currentImageIndex]}
                             alt={`${tripWithImages.title} - ${currentImageIndex + 1}`}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.15]"
                             onError={() => setImgError(true)}
                         />
                     )}
@@ -212,8 +212,8 @@ const InteractiveTripCardComponent: React.FC<InteractiveTripCardProps> = ({ trip
                             onMouseEnter={() => setCurrentImageIndex(idx)}
                             onClick={(e) => handleDotClick(e, idx)}
                             className={`relative w-12 h-8 rounded-md overflow-hidden flex-shrink-0 transition-all ${idx === currentImageIndex
-                                    ? 'ring-2 ring-primary-500 ring-offset-1 z-10 scale-105'
-                                    : 'opacity-70 hover:opacity-100'
+                                ? 'ring-2 ring-primary-500 ring-offset-1 z-10 scale-105'
+                                : 'opacity-70 hover:opacity-100'
                                 }`}
                         >
                             <img src={img} className="w-full h-full object-cover" alt="" />
@@ -279,6 +279,9 @@ const InteractiveTripCardComponent: React.FC<InteractiveTripCardProps> = ({ trip
                     )}
                 </div>
             </div>
+
+            {/* Explicit Border Overlay */}
+            <div className="absolute inset-0 rounded-2xl border border-gray-100 pointer-events-none z-20" />
         </div>
     );
 };

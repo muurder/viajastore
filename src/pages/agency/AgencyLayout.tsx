@@ -62,9 +62,17 @@ export const AgencyLayout: React.FC = () => {
             <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-full flex-shrink-0 z-20">
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                            {currentAgency.name.charAt(0)}
-                        </div>
+                        {currentAgency.logo ? (
+                            <img
+                                src={currentAgency.logo}
+                                alt={currentAgency.name}
+                                className="w-8 h-8 rounded-lg object-cover shadow-sm bg-white"
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                                {currentAgency.name.charAt(0)}
+                            </div>
+                        )}
                         <div className="min-w-0">
                             <h1 className="text-sm font-bold text-gray-900 truncate max-w-[120px]" title={currentAgency.name}>{currentAgency.name}</h1>
                             <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">{entityName}</p>
@@ -117,9 +125,17 @@ export const AgencyLayout: React.FC = () => {
                 {/* Mobile Header (Only visible on mobile) */}
                 <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between flex-shrink-0 z-30">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-sm">
-                            {currentAgency.name.charAt(0)}
-                        </div>
+                        {currentAgency.logo ? (
+                            <img
+                                src={currentAgency.logo}
+                                alt={currentAgency.name}
+                                className="w-8 h-8 rounded-lg object-cover shadow-sm bg-white"
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-sm">
+                                {currentAgency.name.charAt(0)}
+                            </div>
+                        )}
                         <h1 className="text-sm font-bold text-gray-900 truncate max-w-[150px]">{currentAgency.name}</h1>
                     </div>
                     <button onClick={() => window.open(`/#/${currentAgency.slug}`, '_blank')} className="text-primary-600 p-2"><ExternalLink size={20} /></button>
