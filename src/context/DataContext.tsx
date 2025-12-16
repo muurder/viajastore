@@ -335,7 +335,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (platformSettingsData && !platformSettingsError) {
         setPlatformSettings({
           id: platformSettingsData.id,
-          platform_name: platformSettingsData.platform_name || 'ViajaStore',
+          platform_name: platformSettingsData.platform_name || 'SouNativo',
           platform_logo_url: platformSettingsData.platform_logo_url,
           maintenance_mode: platformSettingsData.maintenance_mode || false,
           created_at: platformSettingsData.created_at,
@@ -345,7 +345,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Fallback to default if not found
         setPlatformSettings({
           id: 1,
-          platform_name: 'ViajaStore',
+          platform_name: 'SouNativo',
           platform_logo_url: null,
           maintenance_mode: false
         });

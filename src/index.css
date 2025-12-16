@@ -3,16 +3,34 @@
 @tailwind utilities;
 
 :root {
-  /* Default Blue Theme - Will be overridden by JS */
-  --color-primary-50: 239 246 255;
-  --color-primary-100: 219 234 254;
-  --color-primary-500: 59 130 246;
-  --color-primary-600: 37 99 235;
-  --color-primary-700: 29 78 216;
-  --color-primary-900: 30 58 138;
+  /* Trilha de Barro Theme - Verde Musgo Profundo + Terracota */
+  /* Primary: Verde Musgo Profundo (#143d22) - hsl(148 45% 15%) */
+  --color-primary-50: 240 245 242;
+  --color-primary-100: 220 235 225;
+  --color-primary-200: 180 210 190;
+  --color-primary-300: 140 180 150;
+  --color-primary-400: 100 150 110;
+  --color-primary-500: 70 120 80;
+  --color-primary-600: 50 90 60;
+  --color-primary-700: 35 70 45;
+  --color-primary-800: 20 61 34; /* hsl(148 45% 15%) - Verde Musgo Profundo */
+  --color-primary-900: 15 45 25;
 
-  --color-secondary-500: 249 115 22;
-  --color-secondary-600: 234 88 12;
+  /* Secondary: Terracota/Barro (#d65a18) - hsl(24 85% 45%) */
+  --color-secondary-50: 255 247 240;
+  --color-secondary-100: 255 235 215;
+  --color-secondary-200: 255 210 170;
+  --color-secondary-300: 255 180 130;
+  --color-secondary-400: 255 140 90;
+  --color-secondary-500: 214 90 24; /* hsl(24 85% 45%) - Terracota */
+  --color-secondary-600: 180 70 20;
+  --color-secondary-700: 150 55 15;
+  --color-secondary-800: 120 45 12;
+  --color-secondary-900: 90 35 10;
+
+  /* Background/Muted: Stone (pedra/areia quente) */
+  --color-muted: 60 5% 96%; /* hsl(60 5% 96%) - Areia quente */
+  --color-background: 60 5% 98%;
 }
 
 body {

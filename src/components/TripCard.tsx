@@ -14,26 +14,25 @@ interface TripCardProps {
 }
 
 export const TripCardSkeleton = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col animate-pulse">
-    <div className="h-48 bg-gray-200 w-full"></div>
+  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-full flex flex-col animate-pulse">
+    {/* Image - Full Bleed, Tall */}
+    <div className="h-64 md:aspect-[4/5] bg-gray-200 w-full"></div>
+    {/* Content */}
     <div className="p-5 flex-1 flex flex-col">
-      <div className="flex justify-between mb-3">
-        <div className="h-4 bg-gray-200 w-24 rounded"></div>
-        <div className="h-4 bg-gray-200 w-12 rounded"></div>
+      <div className="h-3 bg-gray-200 w-32 rounded mb-2"></div>
+      <div className="h-5 bg-gray-200 w-full rounded mb-1"></div>
+      <div className="h-5 bg-gray-200 w-3/4 rounded mb-3"></div>
+      <div className="h-3 bg-gray-200 w-24 rounded mb-4"></div>
+      <div className="flex gap-2 mb-4">
+        <div className="h-4 bg-gray-200 w-20 rounded-full"></div>
       </div>
-      <div className="h-6 bg-gray-200 w-full rounded mb-2"></div>
-      <div className="h-6 bg-gray-200 w-2/3 rounded mb-4"></div>
-
-      <div className="h-4 bg-gray-200 w-20 rounded mb-4"></div>
-
-      <div className="flex gap-2 mb-5">
-        <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
-        <div className="h-5 bg-gray-200 w-16 rounded-full"></div>
-      </div>
-
-      <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-end">
-        <div className="h-8 bg-gray-200 w-24 rounded"></div>
-        <div className="h-8 bg-gray-200 w-24 rounded-full"></div>
+      <div className="mt-auto pt-4 border-t border-gray-100 flex items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="h-2 bg-gray-200 w-16 rounded"></div>
+          <div className="h-6 bg-gray-200 w-20 rounded"></div>
+          <div className="h-2 bg-gray-200 w-24 rounded"></div>
+        </div>
+        <div className="h-9 bg-gray-200 w-28 rounded-full"></div>
       </div>
     </div>
   </div>
@@ -169,10 +168,16 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
   // Check if popular/featured
   const isPopular = tripWithImages.featured || (tripWithImages.views || 0) > 100;
 
+  // Capitalize first letter helper
+  const capitalizeTitle = (title: string) => {
+    return title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+  };
+
   return (
     <div className="h-full">
-      <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-xl transition-all duration-300 h-full flex flex-col relative z-0">
-        <div className="relative h-56 w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0">
+      <Link to={linkTarget} className="group block bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-500 h-full flex flex-col relative z-0 border border-gray-100 hover:border-primary-200">
+        {/* Image Section - Full Bleed, Tall Format */}
+        <div className="relative h-64 md:aspect-[4/5] w-full overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 flex-shrink-0">
           {shouldShowPlaceholder ? (
             <NoImagePlaceholder
               title={tripWithImages.title}
@@ -187,142 +192,115 @@ const TripCardComponent: React.FC<TripCardProps> = ({ trip }) => {
                 loading="lazy"
                 onError={(e) => {
                   setImgError(true);
-                  // Fallback: try to hide broken image and show placeholder
                   const target = e.target as HTMLImageElement;
                   if (target) {
                     target.style.display = 'none';
                   }
                 }}
-                className="w-full h-full object-cover group-hover:scale-[1.15] transition-transform duration-700"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
               />
-              {/* Gradient overlay for better text readability */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              {/* Subtle gradient overlay at base for depth */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
             </>
           )}
 
-          {/* Favorite button */}
-          <div className="absolute top-3 right-3 z-10">
+          {/* Top Right Actions - Favorite & WhatsApp */}
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            {/* WhatsApp Icon Button - Floating */}
+            {whatsappLink && (
+              <button
+                onClick={handleWhatsAppClick}
+                className="p-2.5 rounded-full bg-white/95 backdrop-blur-md text-green-600 hover:bg-white hover:text-green-700 transition-all shadow-lg hover:shadow-xl border border-white/50 active:scale-95"
+                title="Falar no WhatsApp"
+              >
+                <MessageCircle size={18} className="fill-current" strokeWidth={0} />
+              </button>
+            )}
+            {/* Favorite button */}
             <button
               onClick={handleFavorite}
-              className={`p-2 rounded-full backdrop-blur-md shadow-lg transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-200' : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'}`}
+              className={`p-2.5 rounded-full backdrop-blur-md shadow-xl transition-all duration-200 active:scale-90 ${isFavorite ? 'bg-white text-red-500 shadow-red-200/50' : 'bg-white/95 text-gray-600 hover:bg-white hover:text-red-500'}`}
             >
               <Heart size={18} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-[pulse_0.3s]" : ""} />
             </button>
           </div>
 
-          {/* Badges */}
-          <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+          {/* Badges - Top Left - White Translucent */}
+          <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2">
             {isPopular && (
-              <div className="bg-primary-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg backdrop-blur-sm border border-primary-400/30">
-                <TrendingUp size={10} />
+              <div className="bg-white/90 backdrop-blur-md text-primary-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg border border-white/50 uppercase tracking-wide">
+                <TrendingUp size={12} />
                 Em Alta
               </div>
             )}
-            <div className="bg-black/70 backdrop-blur-md text-white px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/20 shadow-lg">
+            <div className="bg-white/90 backdrop-blur-md text-primary-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg border border-white/50">
               {tripWithImages.category.replace(/_/g, ' ')}
             </div>
           </div>
 
-          {/* Rating badge */}
+          {/* Rating badge - Bottom Right */}
           {hasRating && (
-            <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-gray-900 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-lg border border-white/50">
-              <Star size={12} className="fill-amber-400 text-amber-400" />
+            <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-md text-gray-900 px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 shadow-xl border border-white/50">
+              <Star size={14} className="fill-amber-400 text-amber-400" />
               {rating.toFixed(1)}
             </div>
           )}
         </div>
 
-        <div className="p-6 flex flex-col h-full flex-1 min-h-0 overflow-hidden relative pb-24">
-          {/* Location & Duration */}
-          <div className="flex items-start justify-between mb-3 gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center text-xs font-semibold text-gray-600 mb-2">
-                <MapPin size={13} className="mr-1.5 flex-shrink-0 text-primary-500" />
-                <span className="truncate">{tripWithImages.destination}</span>
-              </div>
-              <div className="flex items-center text-xs text-gray-500">
-                <Clock size={13} className="mr-1.5 flex-shrink-0 text-gray-400" />
-                <span className="font-medium">{tripWithImages.durationDays} {tripWithImages.durationDays === 1 ? 'dia' : 'dias'}</span>
-              </div>
-            </div>
+        {/* Content Section */}
+        <div className="p-5 flex flex-col h-full flex-1 min-h-0">
+          {/* Location - Compact */}
+          <div className="flex items-center text-xs text-gray-600 mb-2">
+            <MapPin size={12} className="mr-1.5 flex-shrink-0 text-primary-600" />
+            <span className="truncate font-medium">{tripWithImages.destination}</span>
           </div>
 
-          {/* Title - Altura fixa para manter consistência */}
-          <div className="mb-4 min-h-[4rem] flex flex-col justify-center">
-            <h3 className="text-xl font-bold text-gray-900 leading-tight group-hover:text-primary-600 transition-colors line-clamp-2 break-words">
-              {tripWithImages.title}
-            </h3>
+          {/* Title - Capitalized, Bold, Stone-900 */}
+          <h3 className="text-lg font-bold text-stone-900 leading-tight group-hover:text-primary-800 transition-colors line-clamp-2 mb-3">
+            {capitalizeTitle(tripWithImages.title)}
+          </h3>
+
+          {/* Duration - Subtle */}
+          <div className="flex items-center text-xs text-gray-500 mb-4">
+            <Clock size={12} className="mr-1.5 flex-shrink-0 text-gray-400" />
+            <span className="font-medium">{tripWithImages.durationDays} {tripWithImages.durationDays === 1 ? 'dia' : 'dias'}</span>
           </div>
 
-          {/* Features highlights */}
-          <div className="flex flex-wrap gap-2 mb-4 flex-shrink-0 min-h-[32px]">
-            {hasBreakfast && (
-              <div className="flex items-center gap-1 text-[10px] px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-semibold border border-green-100">
-                <Check size={10} className="text-green-600" />
-                Café da manhã
-              </div>
-            )}
-            {hasFreeCancellation && (
-              <div className="flex items-center gap-1 text-[10px] px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full font-semibold border border-blue-100">
-                <Check size={10} className="text-blue-600" />
-                Cancelamento grátis
-              </div>
-            )}
-            {!hasBreakfast && !hasFreeCancellation && tripWithImages.tags && tripWithImages.tags.slice(0, 2).map((tag, index) => (
-              <span key={index} className="text-[10px] px-2.5 py-1 bg-gray-50 text-gray-600 rounded-full font-semibold border border-gray-100">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Tags Section */}
-          {tripWithImages.tags && tripWithImages.tags.length > 0 && (hasBreakfast || hasFreeCancellation || tripWithImages.tags.length > 2) && (
-            <div className="flex flex-wrap gap-1.5 mb-5 flex-shrink-0">
-              {tripWithImages.tags.slice(hasBreakfast || hasFreeCancellation ? 0 : 2, 5).map((tag, index) => (
-                <span key={index} className="text-[10px] px-2 py-0.5 bg-gray-50/80 text-gray-600 rounded-full font-medium border border-gray-100">
-                  {tag}
-                </span>
-              ))}
+          {/* Features highlights - Compact */}
+          {(hasBreakfast || hasFreeCancellation) && (
+            <div className="flex flex-wrap gap-1.5 mb-4 flex-shrink-0">
+              {hasBreakfast && (
+                <div className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-green-50 text-green-700 rounded-full font-semibold border border-green-100">
+                  <Check size={9} className="text-green-600" />
+                  Café da manhã
+                </div>
+              )}
+              {hasFreeCancellation && (
+                <div className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-semibold border border-blue-100">
+                  <Check size={9} className="text-blue-600" />
+                  Cancelamento grátis
+                </div>
+              )}
             </div>
           )}
 
-          {/* Price & CTA - Container que fica sempre no final */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 pt-4 border-t border-gray-100 group-hover:border-primary-200 transition-colors flex-shrink-0 bg-white z-10">
-            <div className="flex items-end justify-between">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">A partir de</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xs text-gray-500 font-semibold">R$</span>
-                  <span className="text-2xl font-extrabold text-gray-900 group-hover:text-primary-600 transition-colors">{tripWithImages.price.toLocaleString('pt-BR')}</span>
-                </div>
-                <span className="text-[10px] text-gray-400 mt-0.5">por pessoa</span>
+          {/* Price & CTA - Bottom Section */}
+          <div className="mt-auto pt-4 border-t border-gray-100 flex items-end justify-between gap-3">
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">A partir de</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xs text-gray-500 font-semibold">R$</span>
+                <span className="text-2xl font-extrabold text-primary-800 group-hover:text-primary-900 transition-colors">{tripWithImages.price.toLocaleString('pt-BR')}</span>
               </div>
-              <div className="flex items-center gap-2">
-                {whatsappLink && (
-                  <button
-                    onClick={handleWhatsAppClick}
-                    className="p-2.5 rounded-full bg-[#25D366] text-white hover:bg-[#20BA5A] transition-all shadow-md hover:shadow-lg flex-shrink-0 hover:-translate-y-0.5 border-2 border-green-400/30 active:scale-95"
-                    style={{
-                      transform: 'translateZ(0)',
-                      willChange: 'transform',
-                      backfaceVisibility: 'hidden'
-                    }}
-                    title="Falar no WhatsApp"
-                  >
-                    <MessageCircle size={16} className="fill-white" strokeWidth={0} />
-                  </button>
-                )}
-                <div className="flex items-center gap-1.5 bg-primary-600 text-white px-4 py-2.5 rounded-full hover:bg-primary-700 transition-all shadow-sm hover:shadow-md group-hover:gap-2">
-                  <span className="text-xs font-bold">Ver detalhes</span>
-                  <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
+              <span className="text-[10px] text-gray-400 mt-0.5">por pessoa</span>
+            </div>
+            {/* Main CTA Button - Terracota, Full Width or Large */}
+            <div className="flex items-center gap-1.5 bg-secondary-500 hover:bg-secondary-600 text-white px-5 py-2.5 rounded-full transition-all shadow-md hover:shadow-lg group-hover:gap-2 font-bold text-sm whitespace-nowrap">
+              <span>Ver detalhes</span>
+              <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
             </div>
           </div>
         </div>
-
-        {/* Separated Border Overlay - Keeps borders crisp even on zoom */}
-        <div className="absolute inset-0 rounded-2xl border border-gray-200 pointer-events-none z-20 transition-colors group-hover:border-primary-200/50" />
       </Link>
     </div>
   );

@@ -323,7 +323,7 @@ export const PassengerDataModal: React.FC<PassengerDataModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-8 py-3 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center gap-2"
+              className="px-8 py-3 bg-secondary-500 hover:bg-secondary-600 text-white rounded-full font-bold transition-colors flex items-center gap-2 shadow-lg shadow-secondary-500/30"
             >
               Confirmar e Reservar
               <ArrowRight size={20} />

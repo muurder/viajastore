@@ -8,7 +8,7 @@ import { Trip, TripCategory, OperationalData, Agency, BoardingPoint } from '../.
 import { 
   X, ChevronLeft, ChevronRight, Save, Loader, Info,
   Plane, MapPin, Image as ImageIcon,
-  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw, Search, AlertTriangle, User, PawPrint, FileText, Shield, Ban
+  Upload, Check, Plus, Calendar, DollarSign, Clock, Tag, Bus, Trash2, RefreshCw, Search, AlertTriangle, User, PawPrint, FileText, Shield, Ban, CheckCircle, Users, ArrowUp, ArrowDown, GripVertical
 } from 'lucide-react';
 import { slugify } from '../../utils/slugify';
 import { normalizeSlug, generateUniqueSlug, validateSlug } from '../../utils/slugUtils';
@@ -93,6 +93,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   // Local state for raw files - strictly used only in handlePublish
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; fileName: string } | null>(null);
+  const [draggedImage, setDraggedImage] = useState<{ type: 'existing' | 'new'; index: number } | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<{ type: 'existing' | 'new'; index: number } | null>(null);
   
   
   // Initialize tripData with draft restoration
@@ -114,7 +116,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         startDate: '',
         endDate: '',
         durationDays: 1,
-        images: [],
+        // Preserve images from initialTripData if available
+        images: initialTripData?.images || [],
         // categories/category serão definidos abaixo com base em initialTripData
         tags: [],
         travelerTypes: [],
@@ -125,8 +128,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         featured: false,
         featuredInHero: false,
         popularNearSP: false,
-        included: [],
-        notIncluded: [],
+        included: initialTripData?.included || [],
+        notIncluded: initialTripData?.notIncluded || [],
         operationalData: DEFAULT_OPERATIONAL_DATA,
         latitude: undefined,
         longitude: undefined,
@@ -137,7 +140,9 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           allowSeniors: true,
           childAgeLimit: 12,
           allowLapChild: false,
-          childPriceMultiplier: 0.7
+          childPriceMultiplier: 1.0,
+          childPriceType: 'percentage',
+          childPriceFixed: undefined
         },
         ...initialWithDefaults
       };
@@ -219,19 +224,123 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   const [showImageFailureDialog, setShowImageFailureDialog] = useState(false);
   const [pendingFailedUploads, setPendingFailedUploads] = useState<string[]>([]);
 
+  // Helper function to normalize and validate date string
+  const normalizeDateString = (dateString: string | undefined): string | null => {
+    if (!dateString) return null;
+    
+    // Remove any whitespace
+    const trimmed = dateString.trim();
+    
+    // Check if it's already in YYYY-MM-DD format (standard for input type="date")
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      // Validate the date parts
+      const [year, month, day] = trimmed.split('-').map(Number);
+      if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        // Verify it's a valid date
+        const date = new Date(year, month - 1, day);
+        if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+          return trimmed;
+        }
+      }
+    }
+    
+    // Try to parse if it's in DD/MM/YYYY format (common in Brazil)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      const [day, month, year] = trimmed.split('/').map(Number);
+      if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const date = new Date(year, month - 1, day);
+        if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+          return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+    }
+    
+    // Try to parse as a general date string
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime()) && trimmed.length > 0) {
+      // Only accept if it's a reasonable date (not epoch 0 or invalid)
+      const year = date.getFullYear();
+      if (year >= 1900 && year <= 2100) {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    }
+    
+    return null;
+  };
+
   // Auto-calculate duration, but respect user edits
   useEffect(() => {
-    if (tripData.startDate && tripData.endDate) {
-      const start = new Date(tripData.startDate + 'T00:00:00');
-      const end = new Date(tripData.endDate + 'T00:00:00');
+    // Normalize dates before processing
+    const normalizedStartDate = normalizeDateString(tripData.startDate);
+    const normalizedEndDate = normalizeDateString(tripData.endDate);
+    
+    if (!normalizedStartDate || !normalizedEndDate) {
+      return;
+    }
+    
+    try {
+      // Input type="date" returns format YYYY-MM-DD, but normalize to be sure
+      const startParts = normalizedStartDate.split('-');
+      const endParts = normalizedEndDate.split('-');
+      
+      if (startParts.length !== 3 || endParts.length !== 3) {
+        return;
+      }
+      
+      const startYear = parseInt(startParts[0], 10);
+      const startMonth = parseInt(startParts[1], 10);
+      const startDay = parseInt(startParts[2], 10);
+      const endYear = parseInt(endParts[0], 10);
+      const endMonth = parseInt(endParts[1], 10);
+      const endDay = parseInt(endParts[2], 10);
+      
+      // Validate parsed dates
+      if (isNaN(startYear) || isNaN(startMonth) || isNaN(startDay) || 
+          isNaN(endYear) || isNaN(endMonth) || isNaN(endDay)) {
+        return;
+      }
+      
+      // Validate month and day ranges
+      if (startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12 ||
+          startDay < 1 || startDay > 31 || endDay < 1 || endDay > 31) {
+        return;
+      }
+      
+      // Create dates using local time (same as input date behavior)
+      const start = new Date(startYear, startMonth - 1, startDay);
+      const end = new Date(endYear, endMonth - 1, endDay);
+      
+      // Validate dates
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return;
+      }
+      
+      // Verify dates match what was parsed
+      if (start.getFullYear() !== startYear || start.getMonth() !== startMonth - 1 || start.getDate() !== startDay ||
+          end.getFullYear() !== endYear || end.getMonth() !== endMonth - 1 || end.getDate() !== endDay) {
+        return;
+      }
+      
       const diffTime = end.getTime() - start.getTime();
       
       if (!isNaN(diffTime) && diffTime >= 0) {
-          // Calculate days: if start and end are the same, it's 1 day
-          // If end is after start, calculate the difference in days
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          setTripData(prev => ({ ...prev, durationDays: diffDays > 0 ? diffDays : 1 }));
+        // Calculate days: difference in milliseconds / milliseconds per day
+        // Add 1 to include both start and end days (inclusive)
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        const finalDays = diffDays > 0 ? diffDays : 1;
+        
+        // Only update if the calculated value is different from current
+        setTripData(prev => {
+          if (prev.durationDays !== finalDays) {
+            return { ...prev, durationDays: finalDays };
+          }
+          return prev;
+        });
       }
+    } catch (error) {
+      logger.error('Error auto-calculating duration:', error);
     }
   }, [tripData.startDate, tripData.endDate]);
 
@@ -319,6 +428,8 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               startDate: formattedStartDate,
               endDate: formattedEndDate,
               operationalData: initialTripData.operationalData || DEFAULT_OPERATIONAL_DATA,
+              // Ensure images are preserved
+              images: initialTripData.images || [],
           });
       }
   }, [isEditing, initialTripData]);
@@ -564,13 +675,17 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
             allowSeniors: tripData.passengerConfig.allowSeniors ?? true,
             childAgeLimit: tripData.passengerConfig.childAgeLimit ?? 12,
             allowLapChild: tripData.passengerConfig.allowLapChild ?? false,
-            childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 0.7
+            childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 1.0,
+            childPriceType: tripData.passengerConfig.childPriceType || 'percentage',
+            childPriceFixed: tripData.passengerConfig.childPriceFixed
           } : {
             allowChildren: tripData.allowChildren !== false,
             allowSeniors: true,
             childAgeLimit: 12,
             allowLapChild: false,
-            childPriceMultiplier: 0.7
+            childPriceMultiplier: 1.0,
+            childPriceType: 'percentage',
+            childPriceFixed: undefined
           },
         };
 
@@ -730,13 +845,17 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
           allowSeniors: tripData.passengerConfig.allowSeniors ?? true,
           childAgeLimit: tripData.passengerConfig.childAgeLimit ?? 12,
           allowLapChild: tripData.passengerConfig.allowLapChild ?? false,
-          childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 0.7
+          childPriceMultiplier: tripData.passengerConfig.childPriceMultiplier ?? 1.0,
+          childPriceType: tripData.passengerConfig.childPriceType || 'percentage',
+          childPriceFixed: tripData.passengerConfig.childPriceFixed
         } : {
           allowChildren: tripData.allowChildren !== false,
           allowSeniors: true,
           childAgeLimit: 12,
           allowLapChild: false,
-          childPriceMultiplier: 0.7
+          childPriceMultiplier: 1.0,
+          childPriceType: 'percentage',
+          childPriceFixed: undefined
         },
       };
 
@@ -860,10 +979,29 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
       {/* Pricing & Dates Section */}
       <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-          <DollarSign className="text-primary-600" size={20} />
-          Preço e Datas
-        </h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <DollarSign className="text-primary-600" size={20} />
+            Preço e Datas
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              setTripData({
+                ...tripData,
+                price: 0,
+                startDate: '',
+                endDate: '',
+                durationDays: 1
+              });
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+            title="Limpar preço e datas"
+          >
+            <RefreshCw size={16} />
+            Limpar
+          </button>
+        </div>
         
         {/* P1: MOBILE - Stack on mobile, side-by-side on tablet+ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -892,6 +1030,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 type="date"
                 value={tripData.startDate}
                 onChange={e => setTripData({ ...tripData, startDate: e.target.value })}
+                onBlur={e => {
+                  // Normalize date when user finishes typing
+                  const normalized = normalizeDateString(e.target.value);
+                  if (normalized && normalized !== e.target.value) {
+                    setTripData({ ...tripData, startDate: normalized });
+                  }
+                }}
                 min={new Date().toISOString().split('T')[0]}
                 className={`w-full border ${errors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
               />
@@ -907,6 +1052,13 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 type="date"
                 value={tripData.endDate}
                 onChange={e => setTripData({ ...tripData, endDate: e.target.value })}
+                onBlur={e => {
+                  // Normalize date when user finishes typing
+                  const normalized = normalizeDateString(e.target.value);
+                  if (normalized && normalized !== e.target.value) {
+                    setTripData({ ...tripData, endDate: normalized });
+                  }
+                }}
                 min={tripData.startDate || new Date().toISOString().split('T')[0]}
                 className={`w-full border ${errors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 pr-3 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer`}
               />
@@ -916,15 +1068,115 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-              <input
-                type="number"
-                value={tripData.durationDays}
-                onChange={e => setTripData({ ...tripData, durationDays: parseInt(e.target.value) || 1 })}
-                className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
-                min="1"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                <input
+                  type="number"
+                  value={tripData.durationDays}
+                  onChange={e => setTripData({ ...tripData, durationDays: parseInt(e.target.value) || 1 })}
+                  className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                  min="1"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // Normalize dates before processing
+                  const normalizedStartDate = normalizeDateString(tripData.startDate);
+                  const normalizedEndDate = normalizeDateString(tripData.endDate);
+                  
+                  if (!normalizedStartDate || !normalizedEndDate) {
+                    showToast('Preencha as datas de início e fim primeiro', 'warning');
+                    return;
+                  }
+                  
+                  try {
+                    // Input type="date" returns format YYYY-MM-DD, but normalize to be sure
+                    const startParts = normalizedStartDate.split('-');
+                    const endParts = normalizedEndDate.split('-');
+                    
+                    if (startParts.length !== 3 || endParts.length !== 3) {
+                      showToast('Erro ao calcular: formato de data inválido', 'error');
+                      return;
+                    }
+                    
+                    const startYear = parseInt(startParts[0], 10);
+                    const startMonth = parseInt(startParts[1], 10);
+                    const startDay = parseInt(startParts[2], 10);
+                    const endYear = parseInt(endParts[0], 10);
+                    const endMonth = parseInt(endParts[1], 10);
+                    const endDay = parseInt(endParts[2], 10);
+                    
+                    // Validate parsed dates
+                    if (isNaN(startYear) || isNaN(startMonth) || isNaN(startDay) || 
+                        isNaN(endYear) || isNaN(endMonth) || isNaN(endDay)) {
+                      showToast('Erro ao calcular: formato de data inválido', 'error');
+                      return;
+                    }
+                    
+                    // Validate month and day ranges
+                    if (startMonth < 1 || startMonth > 12 || endMonth < 1 || endMonth > 12 ||
+                        startDay < 1 || startDay > 31 || endDay < 1 || endDay > 31) {
+                      showToast('Erro ao calcular: datas inválidas', 'error');
+                      return;
+                    }
+                    
+                    // Create dates using local time (same as input date behavior)
+                    const start = new Date(startYear, startMonth - 1, startDay);
+                    const end = new Date(endYear, endMonth - 1, endDay);
+                    
+                    // Validate dates
+                    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                      showToast('Erro ao calcular: datas inválidas', 'error');
+                      return;
+                    }
+                    
+                    // Verify dates match what was parsed
+                    if (start.getFullYear() !== startYear || start.getMonth() !== startMonth - 1 || start.getDate() !== startDay ||
+                        end.getFullYear() !== endYear || end.getMonth() !== endMonth - 1 || end.getDate() !== endDay) {
+                      showToast('Erro ao calcular: datas inválidas', 'error');
+                      return;
+                    }
+                    
+                    const diffTime = end.getTime() - start.getTime();
+                    
+                    if (diffTime < 0) {
+                      showToast('A data de fim deve ser depois da data de início', 'error');
+                      return;
+                    }
+                    
+                    // Calculate days: difference in milliseconds / milliseconds per day
+                    // Add 1 to include both start and end days (inclusive)
+                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    const finalDays = diffDays > 0 ? diffDays : 1;
+                    
+                    logger.log(`[CreateTripWizard] Recalculating duration: ${normalizedStartDate} to ${normalizedEndDate} = ${finalDays} days`);
+                    
+                    // Use functional update to avoid conflicts with useEffect
+                    setTripData(prev => {
+                      // Only update if the calculated value is different
+                      if (prev.durationDays !== finalDays) {
+                        return { ...prev, durationDays: finalDays };
+                      }
+                      return prev;
+                    });
+                    
+                    showToast(`Duração recalculada: ${finalDays} dia(s)`, 'success');
+                  } catch (error) {
+                    logger.error('Error recalculating duration:', error);
+                    showToast('Erro ao calcular duração. Verifique as datas.', 'error');
+                  }
+                }}
+                className="px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 font-medium whitespace-nowrap"
+                title="Recalcular duração baseado nas datas"
+              >
+                <RefreshCw size={16} />
+                <span className="hidden sm:inline">Recalcular</span>
+              </button>
             </div>
             <p className="text-xs text-gray-500 mt-1">Calculado automaticamente</p>
           </div>
@@ -1134,6 +1386,83 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
         setFilesToUpload(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Reorder existing images
+    const moveExistingImage = (index: number, direction: 'up' | 'down') => {
+        const images = [...(tripData.images || [])];
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= images.length) return;
+        
+        [images[index], images[newIndex]] = [images[newIndex], images[index]];
+        setTripData(prev => ({ ...prev, images }));
+    };
+
+    // Reorder new files
+    const moveNewImage = (index: number, direction: 'up' | 'down') => {
+        const files = [...filesToUpload];
+        const newIndex = direction === 'up' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= files.length) return;
+        
+        [files[index], files[newIndex]] = [files[newIndex], files[index]];
+        setFilesToUpload(files);
+    };
+
+    // Drag and Drop handlers
+    const handleDragStart = (type: 'existing' | 'new', index: number) => {
+        setDraggedImage({ type, index });
+    };
+
+    const handleDragOver = (e: React.DragEvent, type: 'existing' | 'new', index: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (draggedImage && (draggedImage.type !== type || draggedImage.index !== index)) {
+            setDragOverIndex({ type, index });
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null);
+    };
+
+    const handleDrop = (e: React.DragEvent, targetType: 'existing' | 'new', targetIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!draggedImage) return;
+
+        const { type: sourceType, index: sourceIndex } = draggedImage;
+
+        // Same type reordering
+        if (sourceType === targetType) {
+            if (sourceType === 'existing') {
+                const images = [...(tripData.images || [])];
+                const [moved] = images.splice(sourceIndex, 1);
+                images.splice(targetIndex, 0, moved);
+                setTripData(prev => ({ ...prev, images }));
+            } else {
+                const files = [...filesToUpload];
+                const [moved] = files.splice(sourceIndex, 1);
+                files.splice(targetIndex, 0, moved);
+                setFilesToUpload(files);
+            }
+        } else {
+            // Cross-type movement (existing <-> new)
+            // For now, we'll keep them separate but allow reordering within each group
+            // Moving between groups would require converting File to URL or vice versa
+            // which is complex, so we'll just reset the drag state
+        }
+
+        setDraggedImage(null);
+        setDragOverIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedImage(null);
+        setDragOverIndex(null);
+    };
+
+
     const addTag = async (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1211,21 +1540,166 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                 </label>
             )}
 
-            {/* Previews */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
-                {tripData.images?.map((url, idx) => (
-                    <div key={`old-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
-                        <img src={url} className="w-full h-full object-cover" alt="Preview"/>
-                        <button onClick={() => removeExisting(url)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
-                    </div>
-                ))}
-                {filesToUpload.map((file, idx) => (
-                    <div key={`new-${idx}`} className="relative aspect-square rounded-lg overflow-hidden border-2 border-amber-300 group">
-                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover opacity-80" alt="Preview"/>
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white text-xs font-bold">Novo</div>
-                        <button onClick={() => removeNew(idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
-                    </div>
-                ))}
+            {/* Previews - Premium Drag and Drop */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 mt-6">
+                {tripData.images?.map((url, idx) => {
+                    const isDragging = draggedImage?.type === 'existing' && draggedImage.index === idx;
+                    const isDragOver = dragOverIndex?.type === 'existing' && dragOverIndex.index === idx;
+                    
+                    return (
+                        <div
+                            key={`old-${idx}`}
+                            draggable
+                            onDragStart={() => handleDragStart('existing', idx)}
+                            onDragOver={(e) => handleDragOver(e, 'existing', idx)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, 'existing', idx)}
+                            onDragEnd={handleDragEnd}
+                            className={`relative aspect-square rounded-xl overflow-hidden transition-all duration-300 cursor-move group bg-gray-100 ${
+                                isDragging 
+                                    ? 'opacity-30 scale-90 rotate-2 shadow-2xl z-50' 
+                                    : isDragOver 
+                                    ? 'border-4 border-primary-500 ring-4 ring-primary-200/50 scale-110 shadow-2xl z-40 bg-primary-50' 
+                                    : 'border-2 border-gray-200 hover:border-primary-400 hover:shadow-xl hover:scale-105'
+                            }`}
+                        >
+                            <div className="absolute inset-0 z-0">
+                                <img 
+                                    src={url} 
+                                    className={`w-full h-full object-cover transition-transform duration-300 pointer-events-none select-none ${
+                                        isDragging ? 'blur-sm' : 'group-hover:scale-110'
+                                    }`} 
+                                    alt="Preview" 
+                                    draggable={false}
+                                />
+                            </div>
+                            
+                            {/* Overlay Gradient - Only on hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10" />
+                            
+                            {/* Drag Handle - Premium */}
+                            <div className={`absolute left-2 top-2 w-8 h-8 bg-white/95 backdrop-blur-md rounded-lg flex items-center justify-center shadow-xl transition-all z-20 ${
+                                isDragging 
+                                    ? 'opacity-100 scale-110' 
+                                    : 'opacity-0 group-hover:opacity-100'
+                            } cursor-grab active:cursor-grabbing border border-gray-200/50`}>
+                                <GripVertical size={18} className="text-gray-700" />
+                            </div>
+                            
+                            {/* Remove Button - Premium */}
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeExisting(url);
+                                }}
+                                className={`absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-xl transition-all z-20 hover:bg-red-600 hover:scale-110 ${
+                                    isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                                title="Remover imagem"
+                            >
+                                <X size={14}/>
+                            </button>
+                            
+                            {/* Position Indicator - Premium */}
+                            <div className={`absolute bottom-2 left-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur-sm transition-all z-20 ${
+                                isDragOver ? 'scale-125 bg-primary-500' : ''
+                            }`}>
+                                #{idx + 1}
+                            </div>
+                            
+                            {/* Drop Zone Indicator */}
+                            {isDragOver && (
+                                <div className="absolute inset-0 border-4 border-dashed border-primary-400 bg-primary-100/30 flex items-center justify-center z-30">
+                                    <div className="bg-primary-600 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-xl">
+                                        Soltar aqui
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                {filesToUpload.map((file, idx) => {
+                    const positionInAll = (tripData.images?.length || 0) + idx + 1;
+                    const isDragging = draggedImage?.type === 'new' && draggedImage.index === idx;
+                    const isDragOver = dragOverIndex?.type === 'new' && dragOverIndex.index === idx;
+                    
+                    return (
+                        <div
+                            key={`new-${idx}`}
+                            draggable
+                            onDragStart={() => handleDragStart('new', idx)}
+                            onDragOver={(e) => handleDragOver(e, 'new', idx)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, 'new', idx)}
+                            onDragEnd={handleDragEnd}
+                            className={`relative aspect-square rounded-xl overflow-hidden transition-all duration-300 cursor-move group bg-amber-50 ${
+                                isDragging 
+                                    ? 'opacity-30 scale-90 rotate-2 shadow-2xl z-50' 
+                                    : isDragOver 
+                                    ? 'border-4 border-amber-500 ring-4 ring-amber-200/50 scale-110 shadow-2xl z-40 bg-amber-50' 
+                                    : 'border-2 border-amber-300 hover:border-amber-500 hover:shadow-xl hover:scale-105'
+                            }`}
+                        >
+                            <div className="absolute inset-0 z-0">
+                                <img 
+                                    src={URL.createObjectURL(file)} 
+                                    className={`w-full h-full object-cover transition-transform duration-300 pointer-events-none select-none ${
+                                        isDragging ? 'blur-sm opacity-50' : 'opacity-90 group-hover:opacity-100 group-hover:scale-110'
+                                    }`} 
+                                    alt="Preview" 
+                                    draggable={false}
+                                />
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-600/20 to-amber-700/20 z-10 pointer-events-none">
+                                <span className="bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm">
+                                    Novo
+                                </span>
+                            </div>
+                            
+                            {/* Overlay Gradient - Only on hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10" />
+                            
+                            {/* Drag Handle - Premium */}
+                            <div className={`absolute left-2 top-2 w-8 h-8 bg-white/95 backdrop-blur-md rounded-lg flex items-center justify-center shadow-xl transition-all z-20 ${
+                                isDragging 
+                                    ? 'opacity-100 scale-110' 
+                                    : 'opacity-0 group-hover:opacity-100'
+                            } cursor-grab active:cursor-grabbing border border-gray-200/50`}>
+                                <GripVertical size={18} className="text-gray-700" />
+                            </div>
+                            
+                            {/* Remove Button - Premium */}
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeNew(idx);
+                                }}
+                                className={`absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-lg flex items-center justify-center shadow-xl transition-all z-20 hover:bg-red-600 hover:scale-110 ${
+                                    isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
+                                }`}
+                                title="Remover imagem"
+                            >
+                                <X size={14}/>
+                            </button>
+                            
+                            {/* Position Indicator - Premium */}
+                            <div className={`absolute bottom-2 left-2 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur-sm transition-all z-20 ${
+                                isDragOver ? 'scale-125 bg-amber-500' : ''
+                            }`}>
+                                #{positionInAll}
+                            </div>
+                            
+                            {/* Drop Zone Indicator */}
+                            {isDragOver && (
+                                <div className="absolute inset-0 border-4 border-dashed border-amber-400 bg-amber-100/30 flex items-center justify-center z-30">
+                                    <div className="bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow-xl">
+                                        Soltar aqui
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
             {errors.images && <p className="text-red-500 text-xs mt-2">{errors.images}</p>}
         </div>
@@ -1280,6 +1754,141 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                     </span>
                 ))}
             </div>
+        </div>
+
+        {/* Included / Not Included */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* O que está incluso */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center shadow-sm">
+                <CheckCircle className="text-white" size={20} />
+              </div>
+              <div>
+                <label className="block text-base font-bold text-gray-900">O que está incluso</label>
+                <p className="text-xs text-gray-600 mt-0.5">Itens incluídos no pacote</p>
+              </div>
+            </div>
+            
+            <div className="relative mb-4">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                <Plus className="text-green-600" size={14} />
+              </div>
+              <input
+                type="text"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = e.currentTarget.value.trim();
+                    if (value && !tripData.included?.includes(value)) {
+                      setTripData(prev => ({
+                        ...prev,
+                        included: [...(prev.included || []), value]
+                      }));
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }}
+                className="w-full border-2 border-green-200 rounded-xl p-3.5 pl-12 bg-white text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all shadow-sm hover:shadow-md"
+                placeholder="Digite um item e pressione Enter..."
+              />
+            </div>
+            
+            <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+              {tripData.included?.map((item, idx) => (
+                <div key={idx} className="group flex items-center justify-between bg-white rounded-lg p-3.5 border border-green-200 shadow-sm hover:shadow-md hover:border-green-300 transition-all">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0 group-hover:bg-green-200 transition-colors">
+                      <Check size={14} className="text-green-600" strokeWidth={3} />
+                    </div>
+                    <span className="text-sm font-medium text-gray-800 truncate">{item}</span>
+                  </div>
+                  <button
+                    onClick={() => setTripData(prev => ({
+                      ...prev,
+                      included: prev.included?.filter((_, i) => i !== idx) || []
+                    }))}
+                    className="ml-3 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {(!tripData.included || tripData.included.length === 0) && (
+                <div className="text-center py-8 bg-white/50 rounded-lg border-2 border-dashed border-green-200">
+                  <CheckCircle className="text-green-300 mx-auto mb-2" size={32} />
+                  <p className="text-xs text-gray-500 font-medium">Nenhum item adicionado ainda</p>
+                  <p className="text-xs text-gray-400 mt-1">Adicione itens incluídos no pacote</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* O que não está incluso */}
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-sm">
+                <AlertTriangle className="text-white" size={20} />
+              </div>
+              <div>
+                <label className="block text-base font-bold text-gray-900">O que não está incluso</label>
+                <p className="text-xs text-gray-600 mt-0.5">Itens não incluídos (Opcional)</p>
+              </div>
+            </div>
+            
+            <div className="relative mb-4">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center">
+                <Plus className="text-amber-600" size={14} />
+              </div>
+              <input
+                type="text"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = e.currentTarget.value.trim();
+                    if (value && !tripData.notIncluded?.includes(value)) {
+                      setTripData(prev => ({
+                        ...prev,
+                        notIncluded: [...(prev.notIncluded || []), value]
+                      }));
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }}
+                className="w-full border-2 border-amber-200 rounded-xl p-3.5 pl-12 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all shadow-sm hover:shadow-md"
+                placeholder="Digite um item e pressione Enter..."
+              />
+            </div>
+            
+            <div className="space-y-2.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+              {tripData.notIncluded?.map((item, idx) => (
+                <div key={idx} className="group flex items-center justify-between bg-white rounded-lg p-3.5 border border-amber-200 shadow-sm hover:shadow-md hover:border-amber-300 transition-all">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+                      <span className="text-amber-600 font-bold text-sm">•</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-800 truncate">{item}</span>
+                  </div>
+                  <button
+                    onClick={() => setTripData(prev => ({
+                      ...prev,
+                      notIncluded: prev.notIncluded?.filter((_, i) => i !== idx) || []
+                    }))}
+                    className="ml-3 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {(!tripData.notIncluded || tripData.notIncluded.length === 0) && (
+                <div className="text-center py-8 bg-white/50 rounded-lg border-2 border-dashed border-amber-200">
+                  <AlertTriangle className="text-amber-300 mx-auto mb-2" size={32} />
+                  <p className="text-xs text-gray-500 font-medium">Nenhum item adicionado ainda</p>
+                  <p className="text-xs text-gray-400 mt-1">Adicione itens não incluídos (opcional)</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Itinerary by Day - Premium Feature */}
@@ -1416,104 +2025,129 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
   const renderStep3 = () => {
     return (
-    <div className="space-y-8 animate-[fadeIn_0.3s]">
-      {/* Main Configuration Section - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Configuration Toggles */}
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <User className="text-primary-600" size={20} />
-              Configurações de Passageiros
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">Defina as regras para passageiros nesta viagem</p>
-            
-            <div className="space-y-4">
-              {/* Allow Children */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                <div className="flex-1">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={tripData.passengerConfig?.allowChildren !== false}
-                      onChange={e => setTripData({ 
-                        ...tripData, 
-                        passengerConfig: {
-                          allowChildren: e.target.checked,
-                          allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                          childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                          allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
-                        }
-                      })}
-                      className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                    />
-                    <span className="ml-3 text-sm font-bold text-gray-700">Permitir crianças</span>
-                  </label>
-                  <p className="text-xs text-gray-500 ml-8 mt-1">Aceita passageiros menores de idade</p>
+    <>
+      <div className="w-full space-y-8">
+        {/* Main Configuration Section - Single Column Premium Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* COLUNA ESQUERDA: Configurações (2/3) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Card: Crianças */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center">
+                  <Users className="text-pink-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Crianças</h3>
+                  <p className="text-sm text-gray-500">Configure permissões para menores de idade</p>
                 </div>
               </div>
-
-              {/* Child Age Limit - Only show if allowChildren is true */}
-              {tripData.passengerConfig?.allowChildren !== false && (
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <label className="block text-sm font-bold text-gray-700 mb-3">
-                    Idade limite para criança
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min="0"
-                      max="18"
-                      value={tripData.passengerConfig?.childAgeLimit ?? 12}
-                      onChange={e => setTripData({ 
-                        ...tripData, 
-                        passengerConfig: {
-                          allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                          allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                          childAgeLimit: parseInt(e.target.value) || 12,
-                          allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
-                        }
-                      })}
-                      className="w-20 border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none font-semibold"
-                    />
-                    <span className="text-sm text-gray-600">anos (menores desta idade são considerados crianças)</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Allow Lap Child - Only show if allowChildren is true */}
-              {tripData.passengerConfig?.allowChildren !== false && (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                  <div className="flex-1">
-                    <label className="flex items-center cursor-pointer">
+              
+              <div className="space-y-5">
+                {/* Toggle: Permitir Crianças */}
+                <div className="flex items-center justify-between p-5 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl border border-pink-200">
+                  <div className="flex items-center gap-4">
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={tripData.passengerConfig?.allowLapChild ?? false}
+                        checked={tripData.passengerConfig?.allowChildren !== false}
+                        onChange={e => setTripData({ 
+                          ...tripData, 
+                          passengerConfig: {
+                            allowChildren: e.target.checked,
+                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0
+                          }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-pink-500"></div>
+                    </label>
+                    <div>
+                      <p className="text-base font-semibold text-gray-900">Permitir crianças</p>
+                      <p className="text-sm text-gray-600">Aceita passageiros menores de idade</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Idade Limite - Only show if allowChildren is true */}
+                {tripData.passengerConfig?.allowChildren !== false && (
+                  <div className="p-5 bg-gray-50 rounded-xl border border-gray-200">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                      Idade limite para criança
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="number"
+                        min="0"
+                        max="18"
+                        value={tripData.passengerConfig?.childAgeLimit ?? 12}
                         onChange={e => setTripData({ 
                           ...tripData, 
                           passengerConfig: {
                             allowChildren: tripData.passengerConfig?.allowChildren ?? true,
                             allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                            allowLapChild: e.target.checked,
-                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                            childAgeLimit: parseInt(e.target.value) || 12,
+                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0
                           }
                         })}
-                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-24 border-2 border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 text-lg font-bold text-center focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
                       />
-                      <span className="ml-3 text-sm font-bold text-gray-700">Permitir criança no colo</span>
-                    </label>
-                    <p className="text-xs text-gray-500 ml-8 mt-1">Crianças pequenas podem viajar sem assento próprio (geralmente até 2 anos)</p>
+                      <p className="text-sm text-gray-600">anos ou menos são considerados crianças</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Allow Seniors */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-primary-300 transition-colors">
-                <div className="flex-1">
-                  <label className="flex items-center cursor-pointer">
+                {/* Criança no Colo - Only show if allowChildren is true */}
+                {tripData.passengerConfig?.allowChildren !== false && (
+                  <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-200 hover:border-pink-300 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={tripData.passengerConfig?.allowLapChild ?? false}
+                          onChange={e => setTripData({ 
+                            ...tripData, 
+                            passengerConfig: {
+                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                              allowLapChild: e.target.checked,
+                              childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0
+                            }
+                          })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-pink-500"></div>
+                      </label>
+                      <div>
+                        <p className="text-base font-semibold text-gray-900">Permitir criança no colo</p>
+                        <p className="text-sm text-gray-600">Crianças pequenas podem viajar sem assento próprio (até 2 anos)</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card: Idosos */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                  <User className="text-blue-600" size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Idosos</h3>
+                  <p className="text-sm text-gray-500">Configure permissões para terceira idade</p>
+                </div>
+              </div>
+              
+              <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                <div className="flex items-center gap-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
                       checked={tripData.passengerConfig?.allowSeniors !== false}
@@ -1524,85 +2158,45 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                           allowSeniors: e.target.checked,
                           childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
                           allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7
+                          childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0
                         }
                       })}
-                      className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      className="sr-only peer"
                     />
-                    <span className="ml-3 text-sm font-bold text-gray-700">Permitir idosos</span>
+                    <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-500"></div>
                   </label>
-                  <p className="text-xs text-gray-500 ml-8 mt-1">Aceita passageiros da terceira idade (60+ anos)</p>
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">Permitir idosos</p>
+                    <p className="text-sm text-gray-600">Aceita passageiros da terceira idade (60+ anos)</p>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Right Column - Help Panel & Preview */}
-            <div className="space-y-4">
-              {/* Help Section */}
-              <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 shadow-sm">
-                <h4 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                  <Info className="text-primary-600" size={20} />
-                  Por que definir regras claras?
-                </h4>
-                
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                      <PawPrint className="text-amber-600" size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 mb-1">Animais & Crianças</p>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Evita surpresas no embarque e garante que o ambiente seja adequado para todos.
-                      </p>
-                    </div>
+          {/* COLUNA DIREITA: Preview (1/3) */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-6">
+              <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl border border-gray-200 shadow-lg p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center">
+                    <Check className="text-white" size={20} />
                   </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <FileText className="text-blue-600" size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 mb-1">Documentação</p>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Alerta o viajante sobre a necessidade de RG/CNH para viagens interestaduais.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <Shield className="text-green-600" size={18} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 mb-1">Clareza</p>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        Regras bem definidas reduzem cancelamentos e dúvidas no WhatsApp.
-                      </p>
-                    </div>
-                  </div>
+                  <h5 className="text-lg font-bold text-gray-900">Preview</h5>
                 </div>
-              </div>
-
-              {/* Live Preview Section */}
-              <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
-                <h5 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                  <Check className="text-primary-600" size={16} />
-                  Como o viajante vê no site:
-                </h5>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {/* Children Preview */}
                   {tripData.passengerConfig?.allowChildren === false ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
-                      <Ban className="text-red-500" size={14} />
-                      <span className="font-medium">Crianças não permitidas</span>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-red-50 px-4 py-3 rounded-xl border border-red-200">
+                      <Ban className="text-red-500" size={16} />
+                      <span className="font-semibold">Crianças não permitidas</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
-                      <Check className="text-green-600" size={14} />
-                      <span className="font-medium">Crianças permitidas</span>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 px-4 py-3 rounded-xl border border-green-200">
+                      <Check className="text-green-600" size={16} />
+                      <span className="font-semibold">Crianças permitidas</span>
                       {tripData.passengerConfig?.childAgeLimit && (
-                        <span className="text-slate-500">
+                        <span className="text-gray-500 text-xs">
                           (até {tripData.passengerConfig.childAgeLimit} anos)
                         </span>
                       )}
@@ -1611,33 +2205,33 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
                   {/* Seniors Preview */}
                   {tripData.passengerConfig?.allowSeniors === false ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-red-50 px-3 py-2.5 rounded-lg border border-red-200">
-                      <Ban className="text-red-500" size={14} />
-                      <span className="font-medium">Idosos não permitidos</span>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-red-50 px-4 py-3 rounded-xl border border-red-200">
+                      <Ban className="text-red-500" size={16} />
+                      <span className="font-semibold">Idosos não permitidos</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-green-50 px-3 py-2.5 rounded-lg border border-green-200">
-                      <Check className="text-green-600" size={14} />
-                      <span className="font-medium">Idosos permitidos</span>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-green-50 px-4 py-3 rounded-xl border border-green-200">
+                      <Check className="text-green-600" size={16} />
+                      <span className="font-semibold">Idosos permitidos</span>
                     </div>
                   )}
 
                   {/* Lap Child Preview */}
                   {tripData.passengerConfig?.allowLapChild && (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-blue-50 px-3 py-2.5 rounded-lg border border-blue-200">
-                      <Info className="text-blue-600" size={14} />
-                      <span className="font-medium">Criança no colo permitida</span>
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-blue-50 px-4 py-3 rounded-xl border border-blue-200">
+                      <Info className="text-blue-600" size={16} />
+                      <span className="font-semibold">Criança no colo permitida</span>
                     </div>
                   )}
 
                   {/* Child Price Preview */}
-              {tripData.passengerConfig?.allowChildren !== false && (
-                    <div className="flex items-center gap-2 text-xs text-slate-700 bg-purple-50 px-3 py-2.5 rounded-lg border border-purple-200">
-                      <DollarSign className="text-purple-600" size={14} />
-                      <span className="font-medium">
-                        Preço para crianças: {tripData.passengerConfig?.childPriceType === 'fixed' && tripData.passengerConfig?.childPriceFixed !== undefined
-                          ? `R$ ${tripData.passengerConfig.childPriceFixed.toLocaleString('pt-BR')} (fixo)`
-                          : `${Math.round((tripData.passengerConfig?.childPriceMultiplier || 0.7) * 100)}% do preço adulto`}
+                  {tripData.passengerConfig?.allowChildren !== false && (
+                    <div className="flex items-center gap-2 text-sm text-gray-700 bg-purple-50 px-4 py-3 rounded-xl border border-purple-200">
+                      <DollarSign className="text-purple-600" size={16} />
+                      <span className="font-semibold">
+                        {tripData.passengerConfig?.childPriceType === 'fixed' && tripData.passengerConfig?.childPriceFixed !== undefined
+                          ? `R$ ${Math.round((tripData.price || 500) - tripData.passengerConfig.childPriceFixed).toLocaleString('pt-BR')} desconto`
+                          : `${Math.round((1 - (tripData.passengerConfig?.childPriceMultiplier || 1.0)) * 100)}% desconto`}
                       </span>
                     </div>
                   )}
@@ -1650,24 +2244,24 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
 
       {/* Child Price Configuration - Full Width Card - Only show if allowChildren is true */}
       {tripData.passengerConfig?.allowChildren !== false && (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-sm p-6 lg:p-8">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="p-3 bg-blue-100 rounded-lg flex-shrink-0">
-              <DollarSign className="text-blue-600" size={24} />
-                    </div>
-                    <div className="flex-1">
-              <label className="block text-lg font-bold text-gray-900 mb-1.5">
-                        Preço para Crianças
-                      </label>
-              <p className="text-sm text-gray-600">
-                        Escolha entre porcentagem do preço adulto ou valor fixo
-                      </p>
-                    </div>
-                  </div>
+        <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 rounded-2xl border-2 border-emerald-200 shadow-lg p-8 lg:p-10 mt-12">
+          <div className="flex items-start gap-5 mb-8">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg flex-shrink-0">
+              <DollarSign className="text-white" size={28} />
+            </div>
+            <div className="flex-1">
+              <label className="block text-2xl font-bold text-gray-900 mb-2">
+                Desconto para Crianças
+              </label>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Configure o desconto aplicado ao preço da viagem para crianças. Escolha entre desconto percentual ou valor fixo em reais.
+              </p>
+            </div>
+          </div>
                   
-          <div className="bg-white rounded-lg p-6 lg:p-8 border border-blue-100">
+          <div className="bg-white rounded-xl p-8 lg:p-10 border border-emerald-100 shadow-md mt-6">
                     {/* Toggle between Percentage and Fixed */}
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex items-center gap-4 mb-8 bg-gray-50 p-1.5 rounded-xl">
                       <button
                         type="button"
                         onClick={() => setTripData({
@@ -1677,57 +2271,74 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                             allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
                             childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
                             allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0,
                             childPriceType: 'percentage',
                             childPriceFixed: tripData.passengerConfig?.childPriceFixed
                           }
                         })}
-                  className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
+                  className={`flex-1 px-6 py-3.5 rounded-lg font-bold text-sm transition-all ${
                           (tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage'
-                            ? 'bg-primary-600 text-white shadow-md'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg transform scale-[1.02]'
+                      : 'bg-transparent text-gray-600 hover:text-gray-900'
                         }`}
                       >
-                        Porcentagem
+                        Desconto em %
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTripData({
-                          ...tripData,
-                          passengerConfig: {
-                            allowChildren: tripData.passengerConfig?.allowChildren ?? true,
-                            allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
-                            childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
-                            allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                            childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
-                            childPriceType: 'fixed',
-                            childPriceFixed: tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)
-                          }
-                        })}
-                  className={`flex-1 px-5 py-3 rounded-lg font-bold text-sm transition-all ${
+                        onClick={() => {
+                          // Calculate initial fixed price based on current percentage discount or use default
+                          const currentPrice = tripData.price || 500;
+                          const currentMultiplier = tripData.passengerConfig?.childPriceMultiplier ?? 1.0;
+                          const currentDiscountPercent = (1 - currentMultiplier) * 100;
+                          const defaultDiscount = Math.round(currentPrice * (currentDiscountPercent / 100));
+                          
+                          // If childPriceFixed exists, use it; otherwise calculate from current discount
+                          const initialFixedPrice = tripData.passengerConfig?.childPriceFixed 
+                            ? tripData.passengerConfig.childPriceFixed 
+                            : (currentPrice - defaultDiscount);
+                          
+                          setTripData({
+                            ...tripData,
+                            passengerConfig: {
+                              allowChildren: tripData.passengerConfig?.allowChildren ?? true,
+                              allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
+                              childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
+                              allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
+                              childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0,
+                              childPriceType: 'fixed',
+                              childPriceFixed: Math.max(0, initialFixedPrice)
+                            }
+                          });
+                        }}
+                  className={`flex-1 px-6 py-3.5 rounded-lg font-bold text-sm transition-all ${
                           tripData.passengerConfig?.childPriceType === 'fixed'
-                            ? 'bg-primary-600 text-white shadow-md'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg transform scale-[1.02]'
+                      : 'bg-transparent text-gray-600 hover:text-gray-900'
                         }`}
                       >
-                        Valor Fixo
+                        Desconto em R$
                       </button>
                     </div>
 
                     {/* Input Section */}
                     {(tripData.passengerConfig?.childPriceType ?? 'percentage') === 'percentage' ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-gray-700">Porcentagem</label>
-                    <div className="relative">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-2">Desconto Percentual</label>
+                      <p className="text-xs text-gray-500 mb-4">Digite a porcentagem de desconto sobre o preço da viagem</p>
+                    </div>
+                    <div className="relative bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200">
                             <input
                               type="number"
                               min="0"
                               max="100"
-                              step="5"
-                              value={Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}
+                              step="1"
+                              value={Math.round((1 - (tripData.passengerConfig?.childPriceMultiplier ?? 1.0)) * 100)}
                               onChange={e => {
-                                const percentage = Math.max(0, Math.min(100, parseInt(e.target.value) || 70));
+                                const discount = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                                const multiplier = 1 - (discount / 100);
                                 setTripData({ 
                                   ...tripData, 
                                   passengerConfig: {
@@ -1735,65 +2346,112 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                                     allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
                                     childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
                                     allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                                    childPriceMultiplier: percentage / 100,
+                                    childPriceMultiplier: multiplier,
                                     childPriceType: 'percentage',
                                     childPriceFixed: tripData.passengerConfig?.childPriceFixed
                                   }
                                 });
                               }}
-                        className="w-full border-2 border-gray-300 rounded-lg px-8 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                        className="w-full bg-transparent border-0 pl-8 pr-20 py-4 text-gray-900 text-5xl font-bold text-center focus:ring-0 focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
-                      <div className="absolute right-8 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-500 pointer-events-none">
+                      <div className="absolute right-12 top-1/2 -translate-y-1/2 text-4xl font-bold text-emerald-600 pointer-events-none z-10">
                               %
                             </div>
                           </div>
-                    <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                      <Info size={14} className="mt-0.5 flex-shrink-0" />
-                      <span>
-                        {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% significa que crianças pagam {Math.round((tripData.passengerConfig?.childPriceMultiplier ?? 0.7) * 100)}% do preço do adulto
-                      </span>
+                    <div className="flex items-start gap-3 text-sm text-gray-700 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Info size={14} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold mb-1">Desconto de {Math.round((1 - (tripData.passengerConfig?.childPriceMultiplier ?? 1.0)) * 100)}%</p>
+                        <p className="text-xs text-gray-600">
+                          Crianças terão {Math.round((1 - (tripData.passengerConfig?.childPriceMultiplier ?? 1.0)) * 100)}% de desconto sobre o preço da viagem
+                        </p>
+                      </div>
                               </div>
                   </div>
                   
                   <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
-                      <div className="text-base text-gray-700 space-y-3">
-                        <>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-300">
-                            <span className="text-gray-600 font-medium">Preço adulto:</span>
-                            <span className="font-bold text-gray-900 text-lg">
-                              R$ {(tripData.price || 500).toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600 font-medium">
-                              Preço criança ({Math.round(((tripData.passengerConfig?.childPriceMultiplier ?? 0.7)) * 100)}%):
-                            </span>
-                            <span className="font-bold text-primary-600 text-lg">
-                              R$ {Math.round((tripData.price || 500) * (tripData.passengerConfig?.childPriceMultiplier ?? 0.7)).toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                        </>
-                      </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Exemplo de Cálculo</label>
+                      <p className="text-xs text-gray-500">Visualização do desconto aplicado</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border-2 border-gray-200 shadow-lg">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-300">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shadow-sm">
+                              <User className="text-gray-700" size={18} />
                             </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Preço Original</p>
+                              <p className="text-sm font-bold text-gray-900">Adulto</p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-gray-900 text-xl">
+                            R$ {(tripData.price || 500).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">-{Math.round((1 - (tripData.passengerConfig?.childPriceMultiplier ?? 1.0)) * 100)}%</span>
+                              </div>
+                              <span className="text-xs font-semibold text-emerald-700">Desconto</span>
+                            </div>
+                            <span className="text-sm font-bold text-emerald-600">
+                              -R$ {Math.round((tripData.price || 500) * (1 - (tripData.passengerConfig?.childPriceMultiplier ?? 1.0))).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm">
+                              <Users className="text-emerald-600" size={18} />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Preço Final</p>
+                              <p className="text-sm font-bold text-gray-900">Criança</p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-emerald-600 text-xl">
+                            R$ {Math.round((tripData.price || 500) * (tripData.passengerConfig?.childPriceMultiplier ?? 1.0)).toLocaleString('pt-BR')}
+                          </span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                      </div>
                     ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-gray-700">Valor Fixo</label>
-                    <div className="relative">
-                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xl pointer-events-none">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-2">Desconto em Reais</label>
+                      <p className="text-xs text-gray-500 mb-4">Digite o valor do desconto em reais sobre o preço da viagem</p>
+                    </div>
+                    <div className="relative bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border-2 border-emerald-200">
+                      <div className="absolute left-8 top-1/2 -translate-y-1/2 text-gray-600 font-bold text-2xl pointer-events-none">
                               R$
                             </div>
                             <input
                               type="number"
                               min="0"
                               step="1"
-                              value={tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)}
+                              value={(() => {
+                                const price = tripData.price || 500;
+                                if (tripData.passengerConfig?.childPriceFixed !== undefined) {
+                                  return Math.round(price - tripData.passengerConfig.childPriceFixed);
+                                }
+                                // Calculate from current percentage discount if available
+                                const multiplier = tripData.passengerConfig?.childPriceMultiplier ?? 1.0;
+                                const discountPercent = (1 - multiplier) * 100;
+                                return Math.round(price * (discountPercent / 100));
+                              })()}
                               onChange={e => {
-                                const value = Math.max(0, parseFloat(e.target.value) || 0);
+                                const price = tripData.price || 500;
+                                const discount = Math.max(0, Math.min(price, parseFloat(e.target.value) || 0));
+                                const finalPrice = price - discount;
                                 setTripData({ 
                                   ...tripData, 
                                   passengerConfig: {
@@ -1801,50 +2459,85 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
                                     allowSeniors: tripData.passengerConfig?.allowSeniors ?? true,
                                     childAgeLimit: tripData.passengerConfig?.childAgeLimit ?? 12,
                                     allowLapChild: tripData.passengerConfig?.allowLapChild ?? false,
-                                    childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 0.7,
+                                    childPriceMultiplier: tripData.passengerConfig?.childPriceMultiplier ?? 1.0,
                                     childPriceType: 'fixed',
-                                    childPriceFixed: value
+                                    childPriceFixed: finalPrice
                                   }
                                 });
                               }}
-                        className="w-full border-2 border-gray-300 rounded-lg pl-20 pr-6 py-5 bg-white text-gray-900 text-4xl font-bold text-center focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
+                        className="w-full bg-transparent border-0 pl-20 pr-6 py-4 text-gray-900 text-5xl font-bold text-center focus:ring-0 focus:outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
-                    <div className="flex items-start gap-2 text-xs text-gray-500 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                      <Info size={14} className="mt-0.5 flex-shrink-0" />
-                      <span>
-                        Crianças sempre pagarão R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}, independente do preço adulto
-                      </span>
+                    <div className="flex items-start gap-3 text-sm text-gray-700 bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Info size={14} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold mb-1">Desconto de R$ {tripData.passengerConfig?.childPriceFixed ? Math.round((tripData.price || 500) - tripData.passengerConfig.childPriceFixed).toLocaleString('pt-BR') : '0'}</p>
+                        <p className="text-xs text-gray-600">
+                          Crianças terão este valor descontado do preço da viagem
+                        </p>
+                      </div>
                               </div>
                   </div>
                   
                   <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-gray-700">Exemplo de Cálculo</label>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-5 border-2 border-gray-200 h-full flex flex-col justify-center">
-                      <div className="text-base text-gray-700 space-y-3">
-                        <>
-                          <div className="flex justify-between items-center pb-2 border-b border-gray-300">
-                            <span className="text-gray-600 font-medium">Preço adulto:</span>
-                            <span className="font-bold text-gray-900 text-lg">
-                              R$ {(tripData.price || 500).toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600 font-medium">Preço criança (fixo):</span>
-                            <span className="font-bold text-primary-600 text-lg">
-                              R$ {(tripData.passengerConfig?.childPriceFixed ?? Math.round((tripData.price || 500) * 0.7)).toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                        </>
-                      </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Exemplo de Cálculo</label>
+                      <p className="text-xs text-gray-500">Visualização do desconto aplicado</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-6 border-2 border-gray-200 shadow-lg">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center pb-3 border-b-2 border-gray-300">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shadow-sm">
+                              <User className="text-gray-700" size={18} />
                             </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Preço Original</p>
+                              <p className="text-sm font-bold text-gray-900">Adulto</p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-gray-900 text-xl">
+                            R$ {(tripData.price || 500).toLocaleString('pt-BR')}
+                          </span>
                         </div>
+                        <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">-R$</span>
+                              </div>
+                              <span className="text-xs font-semibold text-emerald-700">Desconto</span>
+                            </div>
+                            <span className="text-sm font-bold text-emerald-600">
+                              -R$ {tripData.passengerConfig?.childPriceFixed ? Math.round((tripData.price || 500) - tripData.passengerConfig.childPriceFixed).toLocaleString('pt-BR') : '0'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shadow-sm">
+                              <Users className="text-emerald-600" size={18} />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Preço Final</p>
+                              <p className="text-sm font-bold text-gray-900">Criança</p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-emerald-600 text-xl">
+                            R$ {(tripData.passengerConfig?.childPriceFixed ?? (tripData.price || 500)).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                       </div>
                     )}
                   </div>
                 </div>
               )}
-    </div>
+    </>
   );
   };
 
@@ -1895,7 +2588,7 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
       />
       
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-        <div className="bg-white rounded-2xl max-w-5xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+        <div className="bg-white rounded-2xl max-w-7xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
           <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full transition-colors"><X size={20}/></button>
         
         {/* Draft Restore Alert */}

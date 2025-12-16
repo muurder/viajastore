@@ -175,7 +175,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({
             <button
                 onClick={handleBooking}
                 disabled={isProcessing}
-                className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full bg-secondary-500 hover:bg-secondary-600 text-white py-4 rounded-full font-bold text-lg transition-all shadow-lg shadow-secondary-500/30 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
                 {isProcessing ? 'Processando...' : 'Reservar Agora'}
             </button>

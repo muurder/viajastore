@@ -409,27 +409,27 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
   return (
     <div className="w-full relative z-[100]">
-      {/* Desktop: Horizontal Bar - FIX: High z-index container */}
-      <div className="hidden md:flex bg-white rounded-full shadow-2xl border border-gray-100 p-2 items-center gap-2 relative z-[100]">
+      {/* Desktop: Unified Bar with inline button - Elástica */}
+      <div className="hidden md:flex bg-white rounded-full shadow-2xl border border-gray-100 items-center gap-0 relative z-[100] w-full flex-wrap xl:flex-nowrap">
         {/* Destination */}
-        <div className="flex-1 relative min-w-[200px]">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10">
-            <MapPin size={20} />
+        <div className="flex-1 relative min-w-[200px] px-3 md:px-4 py-3">
+          <div className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 text-gray-400 z-10">
+            <MapPin size={18} className="md:w-5 md:h-5" />
           </div>
           <input
             type="text"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Para onde você vai?"
-            className="w-full pl-12 pr-4 py-4 text-gray-900 placeholder-gray-400 font-medium text-base outline-none bg-transparent rounded-full"
+            className="w-full pl-10 md:pl-12 pr-2 py-2 text-gray-900 placeholder-gray-400 font-medium text-sm md:text-base outline-none bg-transparent"
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
 
-        <div className="w-px h-8 bg-gray-200"></div>
+        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
 
         {/* Date Range - FIX: High z-index for dropdown and proper text display */}
-        <div className="relative z-[110]">
+        <div className="relative z-[110] flex-shrink-0 px-2 py-2 min-w-[160px] md:min-w-[180px]">
           <button
             ref={datePickerButtonRef}
             type="button"
@@ -445,10 +445,10 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               e.stopPropagation();
               clickInsideRef.current = true; // Mark as inside click
             }}
-            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[280px]"
+            className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
           >
-            <Calendar size={20} className="text-gray-400 flex-shrink-0" />
-            <span className="text-sm flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">{getDateRangeText()}</span>
+            <Calendar size={18} className="text-gray-400 flex-shrink-0 md:w-5 md:h-5" />
+            <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getDateRangeText()}</span>
             {hasDatesSelected && (
               <button
                 type="button"
@@ -560,10 +560,10 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           )}
         </div>
 
-        <div className="w-px h-8 bg-gray-200"></div>
+        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
 
         {/* Guests - FIX: High z-index for dropdown and proper text display */}
-        <div className="relative z-[110]">
+        <div className="relative z-[110] flex-shrink-0 px-2 py-2 min-w-[140px] md:min-w-[160px]">
           <button
             ref={guestsPickerButtonRef}
             type="button"
@@ -579,10 +579,10 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
               e.stopPropagation();
               clickInsideRef.current = true; // Mark as inside click
             }}
-            className="flex items-center gap-3 px-6 py-4 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors min-w-[260px]"
+            className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
           >
-            <Users size={20} className="text-gray-400 flex-shrink-0" />
-            <span className="text-sm flex-1 min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis">{getGuestsText()}</span>
+            <Users size={18} className="text-gray-400 flex-shrink-0 md:w-5 md:h-5" />
+            <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getGuestsText()}</span>
             {isGuestsModified && (
               <button
                 type="button"
@@ -708,13 +708,15 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
           )}
         </div>
 
-        {/* Search Button */}
+        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
+
+        {/* Search Button - Inline dentro da barra - Não encolhe */}
         <button
           onClick={handleSearch}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-full transition-all shadow-lg shadow-primary-500/30 font-bold flex items-center justify-center gap-2 min-w-[140px] hover:scale-105 active:scale-95"
+          className="bg-secondary-500 hover:bg-secondary-600 text-white px-4 md:px-6 py-3 md:py-4 font-bold flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap transition-all flex-shrink-0 rounded-r-full xl:rounded-r-full md:rounded-full xl:rounded-l-none order-last xl:order-none mr-1"
         >
-          <Search size={20} />
-          Pesquisar
+          <Search size={18} className="md:w-5 md:h-5" />
+          <span className="text-xs md:text-base">Pesquisar</span>
         </button>
       </div>
 
@@ -878,7 +880,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
                   <button
                     onClick={() => setShowGuestsPicker(false)}
-                    className="w-full bg-primary-600 text-white font-bold py-3 rounded-xl mt-8"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-full mt-8 transition-colors shadow-lg"
                   >
                     Confirmar
                   </button>
@@ -890,10 +892,10 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
         <button
           onClick={handleSearch}
-          className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3 rounded-xl transition-colors shadow-lg font-bold flex items-center justify-center gap-2"
+          className="w-full bg-secondary-500 hover:bg-secondary-600 text-white py-4 rounded-full transition-all shadow-xl hover:shadow-2xl font-bold flex items-center justify-center gap-2 text-base"
         >
           <Search size={20} />
-          Pesquisar
+          Buscar
         </button>
       </div>
     </div>

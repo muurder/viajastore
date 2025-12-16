@@ -6,7 +6,7 @@ export const About: React.FC = () => (
   <div className="max-w-4xl mx-auto space-y-12 py-12 animate-[fadeIn_0.3s]">
     <div className="text-center">
       <h1 className="text-5xl font-extrabold text-gray-900 mb-6">Nossa Missão é Conectar</h1>
-      <p className="text-xl text-gray-500 max-w-2xl mx-auto">A ViajaStore nasceu para eliminar barreiras entre quem sonha em viajar e quem realiza sonhos.</p>
+      <p className="text-xl text-gray-500 max-w-2xl mx-auto">O SouNativo nasceu para eliminar barreiras entre quem sonha em viajar e quem realiza sonhos.</p>
     </div>
     
     <div className="bg-white p-10 rounded-3xl shadow-xl border border-gray-100">
@@ -43,7 +43,7 @@ export const Contact: React.FC = () => (
             <div className="space-y-6">
                 <div className="flex items-center gap-4">
                     <div className="bg-blue-50 p-3 rounded-full text-primary-600"><Mail size={20}/></div>
-                    <div><p className="text-xs font-bold text-gray-400 uppercase">Email</p><p className="font-medium">suporte@viajastore.com</p></div>
+                    <div><p className="text-xs font-bold text-gray-400 uppercase">Email</p><p className="font-medium">suporte@sounativo.com</p></div>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="bg-green-50 p-3 rounded-full text-green-600"><Phone size={20}/></div>
@@ -74,13 +74,13 @@ export const Terms: React.FC = () => (
       
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">1. Aceitação dos Termos</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        Ao acessar e usar a plataforma ViajaStore, você aceita e concorda em estar vinculado aos termos e disposições deste acordo. 
+        Ao acessar e usar a plataforma SouNativo, você aceita e concorda em estar vinculado aos termos e disposições deste acordo. 
         Se você não concorda com algum dos termos aqui estabelecidos, não deve utilizar nossos serviços.
       </p>
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">2. Descrição do Serviço</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        A ViajaStore é uma plataforma intermediária que conecta agências de viagens, guias turísticos e prestadores de serviços 
+        O SouNativo é uma plataforma intermediária que conecta agências de viagens, guias turísticos e prestadores de serviços 
         turísticos a consumidores finais. Não somos responsáveis pela prestação direta dos serviços de viagem, mas facilitamos 
         a conexão entre as partes.
       </p>
@@ -93,26 +93,26 @@ export const Terms: React.FC = () => (
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">4. Reservas e Pagamentos</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        Ao realizar uma reserva através da ViajaStore, você concorda em pagar o valor total indicado. Os pagamentos são processados 
+        Ao realizar uma reserva através do SouNativo, você concorda em pagar o valor total indicado. Os pagamentos são processados 
         de forma segura através de gateways certificados. A confirmação da reserva está sujeita à disponibilidade e aprovação do prestador.
       </p>
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">5. Cancelamentos e Reembolsos</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
         As políticas de cancelamento e reembolso variam conforme a agência e o pacote contratado. Leia atentamente as condições 
-        específicas na página de cada viagem antes de confirmar sua reserva. A ViajaStore atua como intermediária e não se responsabiliza 
+        específicas na página de cada viagem antes de confirmar sua reserva. O SouNativo atua como intermediária e não se responsabiliza 
         por políticas de cancelamento definidas pelos prestadores.
       </p>
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">6. Responsabilidades</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        A ViajaStore não se responsabiliza por atrasos, cancelamentos, mudanças de itinerário ou qualquer problema relacionado aos 
+        O SouNativo não se responsabiliza por atrasos, cancelamentos, mudanças de itinerário ou qualquer problema relacionado aos 
         serviços prestados pelas agências parceiras. Nossa responsabilidade limita-se à intermediação da transação.
       </p>
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">7. Propriedade Intelectual</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        Todo o conteúdo da plataforma, incluindo textos, imagens, logotipos e design, é propriedade da ViajaStore ou de seus 
+        Todo o conteúdo da plataforma, incluindo textos, imagens, logotipos e design, é propriedade do SouNativo ou de seus 
         licenciadores e está protegido por leis de propriedade intelectual.
       </p>
 
@@ -124,7 +124,7 @@ export const Terms: React.FC = () => (
 
       <h3 className="text-xl font-bold text-gray-900 mt-6 mb-3">9. Contato</h3>
       <p className="text-gray-700 leading-relaxed mb-4">
-        Para questões relacionadas a estes termos, entre em contato conosco através do email: <strong>legal@viajastore.com</strong>
+        Para questões relacionadas a estes termos, entre em contato conosco através do email: <strong>legal@sounativo.com</strong>
       </p>
     </div>
   </div>
@@ -137,7 +137,7 @@ export const Privacy: React.FC = () => (
       <p className="text-sm text-gray-500 mb-8">Última atualização: {new Date().toLocaleDateString('pt-BR')}</p>
       
       <p className="text-gray-700 leading-relaxed mb-6">
-        Na ViajaStore, levamos sua privacidade a sério. Esta política descreve como coletamos, usamos, armazenamos e protegemos 
+        No SouNativo, levamos sua privacidade a sério. Esta política descreve como coletamos, usamos, armazenamos e protegemos 
         suas informações pessoais.
       </p>
 
@@ -226,7 +226,7 @@ export const Privacy: React.FC = () => (
         Para exercer seus direitos ou esclarecer dúvidas sobre esta política, entre em contato conosco:
       </p>
       <ul className="list-none pl-0 text-gray-700 mb-4 space-y-2">
-        <li><strong>Email:</strong> privacidade@viajastore.com</li>
+        <li><strong>Email:</strong> privacidade@sounativo.com</li>
         <li><strong>Telefone:</strong> 0800 123 4567</li>
       </ul>
     </div>
@@ -280,7 +280,7 @@ export const Careers: React.FC = () => (
         <div className="bg-blue-50 p-8 rounded-2xl border border-blue-100">
             <Award size={48} className="text-primary-600 mx-auto mb-4" />
             <h3 className="text-xl font-bold mb-2">Nenhuma vaga aberta no momento</h3>
-            <p className="text-gray-600">Mas estamos sempre de olho em talentos! Envie seu currículo para <strong>talentos@viajastore.com</strong></p>
+            <p className="text-gray-600">Mas estamos sempre de olho em talentos! Envie seu currículo para <strong>talentos@sounativo.com</strong></p>
         </div>
     </div>
 );

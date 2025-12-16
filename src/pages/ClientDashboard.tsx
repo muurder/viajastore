@@ -25,6 +25,600 @@ const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) =
   return `https://wa.me/${digits}?text=${encoded}`;
 };
 
+// Component for Booking Details Modal Content
+interface BookingDetailsModalContentProps {
+  booking: BookingWithDetails;
+  trip: Trip;
+  agency: Agency | null;
+  bookingPassengers: any[];
+  currentClient: Client | null;
+  fetchTripImages?: (tripId: string, forceRefresh?: boolean) => Promise<string[]>;
+  getTripById: (tripId: string) => Trip | undefined;
+  onClose: () => void;
+  showToast: (message: string, type: 'success' | 'error' | 'info') => void;
+}
+
+const BookingDetailsModalContent: React.FC<BookingDetailsModalContentProps> = ({
+  booking,
+  trip: initialTrip,
+  agency,
+  bookingPassengers: initialBookingPassengers,
+  currentClient,
+  fetchTripImages,
+  getTripById,
+  onClose,
+  showToast
+}) => {
+  const [tripWithImages, setTripWithImages] = useState<Trip>(initialTrip);
+  const [imgError, setImgError] = useState(false);
+  const [bookingPassengers, setBookingPassengers] = useState<any[]>(initialBookingPassengers || []);
+  const [loadingPassengers, setLoadingPassengers] = useState(false);
+
+  // Load images on mount if they don't exist - same logic as BookingCard
+  useEffect(() => {
+    const loadImages = async () => {
+      // If trip already has images, use them
+      if (initialTrip.images && initialTrip.images.length > 0) {
+        setTripWithImages(initialTrip);
+        return;
+      }
+      
+      // Otherwise, try to fetch images
+      if (fetchTripImages) {
+        try {
+          const images = await fetchTripImages(initialTrip.id);
+          if (images && images.length > 0) {
+            setTripWithImages({ ...initialTrip, images });
+          } else {
+            setTripWithImages(initialTrip);
+          }
+        } catch (error) {
+          // Silently fail - will show placeholder
+          setTripWithImages(initialTrip);
+        }
+      } else {
+        setTripWithImages(initialTrip);
+      }
+    };
+
+    loadImages();
+  }, [initialTrip, fetchTripImages]);
+
+  // Update when trip prop changes
+  useEffect(() => {
+    setTripWithImages(initialTrip);
+    setImgError(false);
+  }, [initialTrip]);
+
+  // Load passengers if not available
+  useEffect(() => {
+    const loadPassengers = async () => {
+      // If already have passengers, use them
+      if (initialBookingPassengers && initialBookingPassengers.length > 0) {
+        setBookingPassengers(initialBookingPassengers);
+        return;
+      }
+
+      // Try to fetch from booking_passengers
+      if (booking.booking_passengers && booking.booking_passengers.length > 0) {
+        setBookingPassengers(booking.booking_passengers);
+        return;
+      }
+
+      // Try to fetch from database
+      if (booking.id && bookingPassengers.length === 0) {
+        setLoadingPassengers(true);
+        try {
+          const { supabase } = await import('../services/supabase');
+          if (supabase) {
+            const { data, error } = await supabase
+              .from('booking_passengers')
+              .select('*')
+              .eq('booking_id', booking.id)
+              .order('created_at', { ascending: true });
+            
+            if (!error && data && data.length > 0) {
+              setBookingPassengers(data);
+            } else if (booking.passengerDetails && booking.passengerDetails.length > 0) {
+              // Fallback to passengerDetails
+              setBookingPassengers(booking.passengerDetails);
+            }
+          }
+        } catch (error) {
+          logger.warn('Error loading passengers:', error);
+          // Fallback to passengerDetails if available
+          if (booking.passengerDetails && booking.passengerDetails.length > 0) {
+            setBookingPassengers(booking.passengerDetails);
+          }
+        } finally {
+          setLoadingPassengers(false);
+        }
+      }
+    };
+
+    loadPassengers();
+  }, [booking.id, booking.booking_passengers, booking.passengerDetails, initialBookingPassengers]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
+  // Get boarding point
+  const boardingPoint = tripWithImages.boardingPoints && tripWithImages.boardingPoints.length > 0 
+    ? tripWithImages.boardingPoints[0] 
+    : null;
+
+  // WhatsApp URL
+  const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, tripWithImages.title);
+
+  const imgUrl = tripWithImages.images?.[0] || null;
+
+  // Function to generate PDF
+  const handleGeneratePDF = async () => {
+    try {
+      let pdfPassengers: any[] = [];
+      if (bookingPassengers && bookingPassengers.length > 0) {
+        pdfPassengers = bookingPassengers.map((p: any) => {
+          const rawDoc = p.document?.replace(/\D/g, '') || p.cpf?.replace(/\D/g, '') || '';
+          let passengerType: string | undefined;
+          if (p.birth_date || p.birthDate) {
+            try {
+              const today = new Date();
+              const birth = new Date(p.birth_date || p.birthDate);
+              if (!isNaN(birth.getTime())) {
+                let age = today.getFullYear() - birth.getFullYear();
+                const monthDiff = today.getMonth() - birth.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                  age--;
+                }
+                passengerType = age < 12 ? 'child' : 'adult';
+              }
+            } catch (err) {
+              logger.warn('Error calculating age:', err);
+            }
+          }
+          return {
+            name: p.full_name || p.name || '---',
+            document: rawDoc,
+            birthDate: p.birth_date || p.birthDate,
+            type: passengerType || 'adult',
+            age: undefined
+          };
+        });
+      }
+      await generateTripVoucherPDF({
+        booking,
+        trip: tripWithImages,
+        agency: agency || null,
+        passengers: pdfPassengers,
+        voucherCode: booking.voucherCode,
+        client: currentClient || null
+      });
+      showToast('PDF gerado com sucesso!', 'success');
+    } catch (error: any) {
+      logger.error('Error generating PDF:', error);
+      showToast(error?.message || 'Erro ao gerar o PDF. Tente novamente.', 'error');
+    }
+  };
+
+  return (
+    <>
+      {/* Premium Header with Trip Image and Action Buttons */}
+      <div className="relative h-72 w-full overflow-hidden">
+        {!imgError && imgUrl ? (
+          <>
+            <img
+              src={imgUrl}
+              alt={tripWithImages.title}
+              className="w-full h-full object-cover"
+              onError={() => setImgError(true)}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/20" />
+          </>
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 flex items-center justify-center">
+            <div className="text-center">
+              <Plane size={56} className="text-slate-400 mx-auto mb-2" />
+              <p className="text-slate-500 text-sm font-medium">Sem imagem disponível</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Header Content */}
+        <div className="absolute inset-0 flex flex-col justify-end p-8 pb-8">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-bold text-white mb-3 leading-tight drop-shadow-lg">{tripWithImages.title}</h2>
+            <div className="flex items-center gap-4 text-white/95 mb-4">
+              {tripWithImages.destination && (
+                <>
+                  <MapPin size={18} className="text-white/90" />
+                  <span className="text-base font-medium">{tripWithImages.destination}</span>
+                </>
+              )}
+            </div>
+            {/* Status Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
+              <div className={`w-2 h-2 rounded-full ${
+                booking.status === 'CONFIRMED' ? 'bg-emerald-400' :
+                booking.status === 'PENDING' ? 'bg-amber-400' : 'bg-red-400'
+              }`} />
+              <span className="text-sm font-semibold text-white">
+                {booking.status === 'CONFIRMED' ? 'Confirmada' :
+                 booking.status === 'PENDING' ? 'Pendente' : 'Cancelada'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Body */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-8 space-y-8">
+          {/* Action Buttons - Outside Card */}
+          <div className="flex items-center justify-end gap-2">
+            <button 
+              onClick={handleGeneratePDF} 
+              className="px-3 py-2 bg-white text-primary-600 rounded-lg text-sm font-semibold flex items-center gap-1.5 hover:bg-primary-50 transition-all shadow-sm hover:shadow-md active:scale-95 border border-primary-200"
+            >
+              <Download size={16} /> 
+              PDF
+            </button>
+            {whatsappUrl && (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 bg-[#25D366] text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 hover:bg-[#128C7E] transition-all shadow-sm hover:shadow-md active:scale-95"
+              >
+                <MessageCircle size={16} className="fill-white" /> 
+                WhatsApp
+              </a>
+            )}
+          </div>
+
+          {/* Financial Summary - Premium Card */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary-500/5 to-transparent rounded-full -mr-16 -mt-16" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg">
+                  <ShoppingBag size={20} className="text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Resumo Financeiro</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Valor Total</p>
+                  <p className="text-3xl font-bold text-slate-900">{formatCurrency(booking.totalPrice)}</p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Método de Pagamento</p>
+                  <p className="text-lg font-semibold text-slate-800">
+                    {booking.paymentMethod === 'PIX' ? 'PIX' :
+                     booking.paymentMethod === 'CREDIT_CARD' ? 'Cartão de Crédito' :
+                     booking.paymentMethod === 'BOLETO' ? 'Boleto' : '---'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Código da Reserva</p>
+                  <p className="text-lg font-mono font-bold text-primary-600 tracking-wider">{booking.voucherCode}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Passengers List - Premium Enhanced Design */}
+          {loadingPassengers ? (
+            <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+              <div className="flex items-center justify-center py-8">
+                <Loader size={24} className="animate-spin text-primary-600" />
+                <span className="ml-3 text-slate-600">Carregando passageiros...</span>
+              </div>
+            </div>
+          ) : bookingPassengers.length > 0 ? (
+            <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                    <Users size={22} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Passageiros</h3>
+                    <p className="text-sm text-slate-500 mt-0.5">{bookingPassengers.length} {bookingPassengers.length === 1 ? 'passageiro' : 'passageiros'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {bookingPassengers.map((passenger: any, idx: number) => {
+                  // Handle different field names
+                  const passengerName = passenger.full_name || passenger.name || `Passageiro ${idx + 1}`;
+                  const passengerDoc = passenger.document || passenger.cpf || '';
+                  const passengerBirthDate = passenger.birth_date || passenger.birthDate || null;
+                  
+                  const formattedDoc = passengerDoc 
+                    ? (passengerDoc.replace(/\D/g, '').length === 11 
+                        ? passengerDoc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                        : passengerDoc)
+                    : '---';
+                  
+                  const isPrimary = passenger.is_primary || passenger.isPrimary || idx === 0;
+                  
+                  // Calculate age if birth_date is available
+                  let age: number | null = null;
+                  let ageDisplay = '';
+                  if (passengerBirthDate) {
+                    try {
+                      const today = new Date();
+                      const birth = new Date(passengerBirthDate);
+                      if (!isNaN(birth.getTime())) {
+                        age = today.getFullYear() - birth.getFullYear();
+                        const monthDiff = today.getMonth() - birth.getMonth();
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                          age--;
+                        }
+                        ageDisplay = age < 12 ? 'Criança' : age < 18 ? 'Adolescente' : 'Adulto';
+                      }
+                    } catch (err) {
+                      // Ignore
+                    }
+                  }
+                  
+                  return (
+                    <div
+                      key={idx}
+                      className={`group relative overflow-hidden rounded-xl p-6 border-2 transition-all duration-200 ${
+                        isPrimary
+                          ? 'bg-gradient-to-br from-primary-50 via-white to-primary-50/30 border-primary-300/60 shadow-md'
+                          : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-md'
+                      }`}
+                    >
+                      <div className="flex items-start gap-5">
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-base shadow-lg transition-transform group-hover:scale-110 ${
+                          isPrimary
+                            ? 'bg-gradient-to-br from-primary-600 to-primary-700 text-white'
+                            : 'bg-gradient-to-br from-slate-500 to-slate-600 text-white'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex-1">
+                              <p className="font-bold text-slate-900 text-lg leading-tight mb-1">
+                                {passengerName}
+                              </p>
+                              {isPrimary && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-100 text-primary-700 border border-primary-200">
+                                  Passageiro Principal
+                                </span>
+                              )}
+                            </div>
+                            {ageDisplay && (
+                              <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                                age! < 12 
+                                  ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}>
+                                {ageDisplay}
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                            {formattedDoc && formattedDoc !== '---' && (
+                              <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200/60">
+                                <CreditCard size={16} className="text-slate-500 flex-shrink-0" />
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Documento</p>
+                                  <p className="font-mono text-sm font-bold text-slate-900">{formattedDoc}</p>
+                                </div>
+                              </div>
+                            )}
+                            {passengerBirthDate && (
+                              <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200/60">
+                                <Calendar size={16} className="text-slate-500 flex-shrink-0" />
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Data de Nascimento</p>
+                                  <p className="text-sm font-bold text-slate-900">
+                                    {new Date(passengerBirthDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {age !== null && (
+                              <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200/60">
+                                <User size={16} className="text-slate-500 flex-shrink-0" />
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Idade</p>
+                                  <p className="text-sm font-bold text-slate-900">{age} {age === 1 ? 'ano' : 'anos'}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                  <Users size={20} className="text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Passageiros</h3>
+              </div>
+              <div className="text-center py-8">
+                <Users size={48} className="text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Nenhum passageiro encontrado</p>
+                <p className="text-sm text-slate-400 mt-1">Os dados dos passageiros não estão disponíveis no momento.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Trip Details Grid - Minimalist */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {tripWithImages.startDate && (
+              <div className="bg-white rounded-xl p-5 border border-slate-200/60 hover:border-slate-300 transition-colors">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <Calendar size={16} className="text-slate-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Data de Partida</p>
+                </div>
+                <p className="text-base font-bold text-slate-900">
+                  {new Date(tripWithImages.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+            {tripWithImages.durationDays && (
+              <div className="bg-white rounded-xl p-5 border border-slate-200/60 hover:border-slate-300 transition-colors">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <Clock size={16} className="text-slate-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Duração</p>
+                </div>
+                <p className="text-base font-bold text-slate-900">
+                  {tripWithImages.durationDays} {tripWithImages.durationDays === 1 ? 'dia' : 'dias'}
+                </p>
+              </div>
+            )}
+            {booking.date && (
+              <div className="bg-white rounded-xl p-5 border border-slate-200/60 hover:border-slate-300 transition-colors">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <Calendar size={16} className="text-slate-600" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Data da Reserva</p>
+                </div>
+                <p className="text-base font-bold text-slate-900">
+                  {new Date(booking.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Boarding Point - Premium Card */}
+          {boardingPoint && (
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                  <MapPin size={20} className="text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Ponto de Embarque</h3>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-slate-200/60 shadow-sm">
+                <p className="font-bold text-slate-900 text-lg mb-3">{boardingPoint.location || boardingPoint.address}</p>
+                {boardingPoint.time && (
+                  <div className="flex items-center gap-2 mb-4 text-slate-600">
+                    <Clock size={16} className="text-slate-400" />
+                    <span className="text-sm font-medium">Horário: {boardingPoint.time}</span>
+                  </div>
+                )}
+                {boardingPoint.location && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(boardingPoint.location)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-primary-600 hover:text-primary-700 hover:bg-primary-50 transition-all duration-200 border border-primary-200/60"
+                  >
+                    <ExternalLink size={16} />
+                    Abrir no Google Maps
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </>
+  );
+};
+
+// Component for loading trip images in list view
+interface TripImageProps {
+  tripId: string;
+  tripImages?: string[];
+  tripTitle: string;
+  fetchTripImages?: (tripId: string, forceRefresh?: boolean) => Promise<string[]>;
+  onImageLoaded?: (tripId: string, images: string[]) => void;
+}
+
+const TripImage: React.FC<TripImageProps> = ({ tripId, tripImages, tripTitle, fetchTripImages, onImageLoaded }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(tripImages?.[0] || null);
+  const [imgError, setImgError] = useState(false);
+  const onImageLoadedRef = useRef(onImageLoaded);
+
+  // Update ref when callback changes
+  useEffect(() => {
+    onImageLoadedRef.current = onImageLoaded;
+  }, [onImageLoaded]);
+
+  // Load images on mount if they don't exist - same logic as BookingCard
+  useEffect(() => {
+    const loadImages = async () => {
+      // If trip already has images, use them
+      if (tripImages && tripImages.length > 0) {
+        setImageUrl(tripImages[0]);
+        setImgError(false);
+        if (onImageLoadedRef.current) {
+          onImageLoadedRef.current(tripId, tripImages);
+        }
+        return;
+      }
+      
+      // Otherwise, try to fetch images
+      if (fetchTripImages) {
+        try {
+          const images = await fetchTripImages(tripId);
+          if (images && images.length > 0) {
+            setImageUrl(images[0]);
+            setImgError(false);
+            if (onImageLoadedRef.current) {
+              onImageLoadedRef.current(tripId, images);
+            }
+          } else {
+            setImageUrl(null);
+          }
+        } catch (error) {
+          // Silently fail - will show placeholder
+          logger.warn('Error loading trip images:', error);
+          setImageUrl(null);
+        }
+      } else {
+        setImageUrl(null);
+      }
+    };
+
+    loadImages();
+  }, [tripId, tripImages, fetchTripImages]);
+
+  // Update when tripImages prop changes
+  useEffect(() => {
+    setImageUrl(tripImages?.[0] || null);
+    setImgError(false);
+  }, [tripImages]);
+
+  if (imgError || !imageUrl) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+        <Plane size={20} className="text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={tripTitle}
+      className="w-full h-full object-cover"
+      onError={() => setImgError(true)}
+    />
+  );
+};
+
 // Helper function for dynamic greetings
 const getRandomGreeting = (userName: string) => {
   const greetings = [
@@ -625,6 +1219,9 @@ const ClientDashboard: React.FC = () => {
   const [suggestedTrips, setSuggestedTrips] = useState<Trip[]>([]);
 
   const [greeting, setGreeting] = useState('');
+
+  // State to store loaded trip images
+  const [loadedTripImages, setLoadedTripImages] = useState<Record<string, string[]>>({});
 
   // --- Data Reactivity Fix: Refresh data on mount/focus ---
   // Use ref to track if we're currently saving to avoid refresh loops
@@ -1506,18 +2103,16 @@ const ClientDashboard: React.FC = () => {
                            >
                              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                                {/* Image */}
-                               <div className="relative w-full sm:w-24 h-32 sm:h-24 rounded-lg overflow-hidden flex-shrink-0">
-                                 {trip.images?.[0] ? (
-                                   <img
-                                     src={trip.images[0]}
-                                     alt={trip.title}
-                                     className="w-full h-full object-cover"
-                                   />
-                                 ) : (
-                                   <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                                     <Plane size={20} className="text-gray-400" />
-                                   </div>
-                                 )}
+                               <div className="relative w-full sm:w-24 h-32 sm:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200">
+                                 <TripImage
+                                   tripId={trip.id}
+                                   tripImages={trip.images}
+                                   tripTitle={trip.title}
+                                   fetchTripImages={fetchTripImages}
+                                   onImageLoaded={(tripId, images) => {
+                                     setLoadedTripImages(prev => ({ ...prev, [tripId]: images }));
+                                   }}
+                                 />
                                </div>
                                
                                {/* Content */}
@@ -1683,18 +2278,16 @@ const ClientDashboard: React.FC = () => {
                            >
                              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                                {/* Image */}
-                               <div className="relative w-full sm:w-24 h-32 sm:h-24 rounded-lg overflow-hidden flex-shrink-0">
-                                 {trip.images?.[0] ? (
-                                   <img
-                                     src={trip.images[0]}
-                                     alt={trip.title}
-                                     className="w-full h-full object-cover"
-                                   />
-                                 ) : (
-                                   <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                                     <Plane size={20} className="text-gray-400" />
-                                   </div>
-                                 )}
+                               <div className="relative w-full sm:w-24 h-32 sm:h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-gray-100 to-gray-200">
+                                 <TripImage
+                                   tripId={trip.id}
+                                   tripImages={trip.images}
+                                   tripTitle={trip.title}
+                                   fetchTripImages={fetchTripImages}
+                                   onImageLoaded={(tripId, images) => {
+                                     setLoadedTripImages(prev => ({ ...prev, [tripId]: images }));
+                                   }}
+                                 />
                                </div>
                                
                                {/* Content */}
@@ -2213,196 +2806,41 @@ const ClientDashboard: React.FC = () => {
       )}
 
       {/* Booking Details Modal */}
-      {showDetailsModal && selectedBookingDetails && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setShowDetailsModal(false)}>
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-w-[calc(100vw-1rem)] max-h-[90vh] overflow-y-auto shadow-2xl relative mx-2" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setShowDetailsModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
-            >
-              <X size={24} />
-            </button>
+      {showDetailsModal && selectedBookingDetails && (() => {
+        const trip = selectedBookingDetails._trip || getTripById(selectedBookingDetails.tripId);
+        const agency = selectedBookingDetails._agency;
+        const bookingPassengers = selectedBookingDetails.booking_passengers || selectedBookingDetails.passengerDetails || [];
+        
+        if (!trip) return null;
 
-            {(() => {
-              const trip = selectedBookingDetails._trip || getTripById(selectedBookingDetails.tripId);
-              const agency = selectedBookingDetails._agency;
-              const bookingPassengers = selectedBookingDetails.booking_passengers || selectedBookingDetails.passengerDetails || [];
-              
-              if (!trip) return null;
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-[fadeIn_0.2s]" onClick={() => setShowDetailsModal(false)}>
+            <div className="bg-white rounded-2xl max-w-5xl w-full max-w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden shadow-[0_20px_60px_-12px_rgba(0,0,0,0.25)] relative flex flex-col animate-[scaleIn_0.2s]" onClick={e => e.stopPropagation()}>
+              {/* Close Button - Premium Style */}
+              <button
+                type="button"
+                onClick={() => setShowDetailsModal(false)}
+                className="absolute top-5 right-5 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-white/95 backdrop-blur-sm text-gray-500 hover:text-gray-700 hover:bg-white border border-gray-200/80 transition-all duration-200 hover:scale-110 active:scale-95 shadow-lg"
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
 
-              const formatCurrency = (value: number) => {
-                return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-              };
-
-              // Get boarding point
-              const boardingPoint = trip.boardingPoints && trip.boardingPoints.length > 0 
-                ? trip.boardingPoints[0] 
-                : null;
-
-              return (
-                <>
-                  {/* Header with Trip Image */}
-                  <div className="relative h-48 w-full">
-                    {trip.images && trip.images.length > 0 ? (
-                      <img
-                        src={trip.images[0]}
-                        alt={trip.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <Plane size={48} className="text-gray-400" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                    <div className="absolute bottom-6 left-6 right-6">
-                      <h2 className="text-2xl font-bold text-white mb-1">{trip.title}</h2>
-                      <p className="text-white/90">{trip.destination}</p>
-                    </div>
-                  </div>
-
-                  {/* Body */}
-                  <div className="p-6 space-y-6">
-                    {/* Financial Summary */}
-                    <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-6 border-2 border-primary-200">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <ShoppingBag size={20} className="text-primary-600" />
-                        Resumo Financeiro
-                      </h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Valor Total Pago</p>
-                          <p className="text-2xl font-bold text-primary-900">{formatCurrency(selectedBookingDetails.totalPrice)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600 mb-1">Método de Pagamento</p>
-                          <p className="text-lg font-semibold text-gray-900">
-                            {selectedBookingDetails.paymentMethod === 'PIX' ? 'PIX' :
-                             selectedBookingDetails.paymentMethod === 'CREDIT_CARD' ? 'Cartão de Crédito' :
-                             selectedBookingDetails.paymentMethod === 'BOLETO' ? 'Boleto' : '---'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Passengers List */}
-                    {bookingPassengers.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                          <Users size={20} className="text-primary-600" />
-                          Passageiros ({bookingPassengers.length})
-                        </h3>
-                        <div className="space-y-3">
-                          {bookingPassengers.map((passenger: any, idx: number) => {
-                            const formattedDoc = passenger.document 
-                              ? (passenger.document.replace(/\D/g, '').length === 11 
-                                  ? passenger.document.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-                                  : passenger.document)
-                              : (passenger.cpf 
-                                  ? passenger.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-                                  : '---');
-                            
-                            return (
-                              <div
-                                key={idx}
-                                className={`bg-white rounded-xl p-4 border-2 ${
-                                  passenger.is_primary || idx === 0
-                                    ? 'border-primary-200 bg-primary-50'
-                                    : 'border-gray-200 bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                      passenger.is_primary || idx === 0
-                                        ? 'bg-primary-600 text-white'
-                                        : 'bg-gray-400 text-white'
-                                    }`}>
-                                      {idx + 1}
-                                    </div>
-                                    <div>
-                                      <p className="font-bold text-gray-900">
-                                        {passenger.full_name || passenger.name || `Passageiro ${idx + 1}`}
-                                                </p>
-                                      {(passenger.is_primary || idx === 0) && (
-                                        <span className="text-xs text-primary-600 font-medium">Passageiro Principal</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mt-3 space-y-1 text-sm text-gray-600">
-                                  {formattedDoc && formattedDoc !== '---' && (
-                                    <div className="flex items-center gap-2">
-                                      <CreditCard size={14} className="text-gray-400" />
-                                      <span className="font-mono">{formattedDoc}</span>
-                                    </div>
-                                                )}
-                                                {passenger.birth_date && (
-                                    <div className="flex items-center gap-2">
-                                      <Calendar size={14} className="text-gray-400" />
-                                      <span>{new Date(passenger.birth_date).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                            );
-                          })}
-                                    </div>
-                      </div>
-                    )}
-
-                    {/* Boarding Point */}
-                    {boardingPoint && (
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                          <MapPin size={20} className="text-primary-600" />
-                          Ponto de Embarque
-                        </h3>
-                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                          <p className="font-semibold text-gray-900 mb-2">{boardingPoint.location || boardingPoint.address}</p>
-                          {boardingPoint.time && (
-                            <p className="text-sm text-gray-600 mb-3">Horário: {boardingPoint.time}</p>
-                          )}
-                          {boardingPoint.location && (
-                            <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(boardingPoint.location)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium text-sm"
-                            >
-                              <ExternalLink size={16} />
-                              Abrir no Google Maps
-                            </a>
-                          )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Trip Details */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Data de Partida</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {trip.startDate ? new Date(trip.startDate).toLocaleDateString('pt-BR') : '---'}
-                        </p>
-                    </div>
-                      {trip.durationDays && (
-                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                          <p className="text-xs font-bold text-gray-500 uppercase mb-1">Duração</p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}
-                          </p>
-                </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
+              <BookingDetailsModalContent
+                booking={selectedBookingDetails}
+                trip={trip}
+                agency={agency}
+                bookingPassengers={bookingPassengers}
+                currentClient={currentClient || null}
+                fetchTripImages={fetchTripImages}
+                getTripById={getTripById}
+                onClose={() => setShowDetailsModal(false)}
+                showToast={showToast}
+              />
             </div>
-         </div>
-      )}
+          </div>
+        );
+      })()}
 
       {(showReviewModal && selectedBooking) || (showEditReviewModal && editingReview) ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => { setShowReviewModal(false); setShowEditReviewModal(false); setSelectedBooking(null); setEditingReview(null); }}>

@@ -311,8 +311,10 @@ export const TripList: React.FC = () => {
 
   if (isResolvingAgency || loading && !initialTrips.length) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">
-        {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
+      <div className="max-w-[1600px] mx-auto px-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 items-stretch">
+          {[...Array(6)].map((_, i) => <TripCardSkeleton key={i} />)}
+        </div>
       </div>
     );
   }
@@ -336,7 +338,7 @@ export const TripList: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-gray-50 rounded-3xl -z-10" />
         )}
 
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto px-6 sm:px-6 lg:px-8">
           {/* Agency Header (if applicable) */}
           {currentAgency && (
             <div className="pt-8 pb-6">

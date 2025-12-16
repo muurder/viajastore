@@ -5034,95 +5034,157 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Guides Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-50/50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Guia</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Localização</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {filteredGuides.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto hidden md:block">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50">
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center">
-                        <BookOpen size={48} className="mx-auto mb-3 text-gray-300" />
-                        <p className="text-gray-500 font-medium">Nenhum guia encontrado</p>
-                        <p className="text-sm text-gray-400 mt-1">
-                          {searchTerm ? 'Tente ajustar sua busca' : 'Não há guias cadastrados no sistema'}
-                        </p>
-                      </td>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Guia</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Localização</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Plano</th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Ações</th>
                     </tr>
-                  ) : (
-                    filteredGuides.map(guide => (
-                      <tr key={guide.agencyId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={guide.logo || `https://ui-avatars.com/api/?name=${guide.name}`}
-                              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
-                              alt={guide.name}
-                            />
-                            <div>
-                              <p className="text-sm font-bold text-gray-900">{guide.name}</p>
-                              <p className="text-xs text-gray-500">{guide.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
-                          {guide.address?.city && guide.address?.state
-                            ? `${guide.address.city}, ${guide.address.state}`
-                            : guide.address?.city || guide.address?.state || 'Não informado'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionPlan === 'PREMIUM'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-gray-100 text-gray-700'
-                            }`}>
-                            {guide.subscriptionPlan === 'PREMIUM' ? 'Premium' : 'Basic'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionStatus === 'ACTIVE'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                            }`}>
-                            {guide.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end items-center gap-2">
-                            <button
-                              onClick={() => window.open(`/#/${guide.slug}`, '_blank')}
-                              className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Ver Perfil"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            <button
-                              onClick={() => { setSelectedItem(guide); setEditFormData({ name: guide.name, description: guide.description, email: guide.email, phone: guide.phone, whatsapp: guide.whatsapp, address: guide.address }); setModalType('EDIT_AGENCY'); }}
-                              className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                              title="Editar"
-                            >
-                              <Edit3 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleSoftDelete(guide.agencyId, 'agency')}
-                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Arquivar"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {filteredGuides.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center">
+                          <BookOpen size={48} className="mx-auto mb-3 text-gray-300" />
+                          <p className="text-gray-500 font-medium">Nenhum guia encontrado</p>
+                          <p className="text-sm text-gray-400 mt-1">
+                            {searchTerm ? 'Tente ajustar sua busca' : 'Não há guias cadastrados no sistema'}
+                          </p>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      filteredGuides.map(guide => (
+                        <tr key={guide.agencyId} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={guide.logo || `https://ui-avatars.com/api/?name=${guide.name}`}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                                alt={guide.name}
+                              />
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{guide.name}</p>
+                                <p className="text-xs text-gray-500">{guide.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {guide.address?.city && guide.address?.state
+                              ? `${guide.address.city}, ${guide.address.state}`
+                              : guide.address?.city || guide.address?.state || 'Não informado'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionPlan === 'PREMIUM'
+                                ? 'bg-purple-100 text-purple-700'
+                                : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {guide.subscriptionPlan === 'PREMIUM' ? 'Premium' : 'Basic'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionStatus === 'ACTIVE'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                              }`}>
+                              {guide.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end items-center gap-2">
+                              <button
+                                onClick={() => window.open(`/#/${guide.slug}`, '_blank')}
+                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Ver Perfil"
+                              >
+                                <Eye size={18} />
+                              </button>
+                              <button
+                                onClick={() => { setSelectedItem(guide); setEditFormData({ name: guide.name, description: guide.description, email: guide.email, phone: guide.phone, whatsapp: guide.whatsapp, address: guide.address }); setModalType('EDIT_AGENCY'); }}
+                                className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Editar"
+                              >
+                                <Edit3 size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleSoftDelete(guide.agencyId, 'agency')}
+                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Arquivar"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {filteredGuides.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    <BookOpen size={48} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-gray-500 font-medium">Nenhum guia encontrado</p>
+                  </div>
+                ) : (
+                  filteredGuides.map(guide => (
+                    <div key={guide.agencyId} className="p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={guide.logo || `https://ui-avatars.com/api/?name=${guide.name}`}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-gray-200"
+                          alt={guide.name}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{guide.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{guide.email}</p>
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${guide.subscriptionStatus === 'ACTIVE'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                          }`}>
+                          {guide.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+                        <span>{guide.address?.city || 'Localização n/a'}</span>
+                        <span className={`font-bold ${guide.subscriptionPlan === 'PREMIUM' ? 'text-purple-600' : 'text-gray-600'}`}>
+                          {guide.subscriptionPlan === 'PREMIUM' ? 'Premium' : 'Basic'}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => window.open(`/#/${guide.slug}`, '_blank')}
+                          className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1"
+                        >
+                          <Eye size={14} /> Ver
+                        </button>
+                        <button
+                          onClick={() => { setSelectedItem(guide); setEditFormData({ name: guide.name, description: guide.description, email: guide.email, phone: guide.phone, whatsapp: guide.whatsapp, address: guide.address }); setModalType('EDIT_AGENCY'); }}
+                          className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1"
+                        >
+                          <Edit3 size={14} /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleSoftDelete(guide.agencyId, 'agency')}
+                          className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         );
@@ -5140,68 +5202,110 @@ export const AdminDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 font-mono text-xs">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Data/Hora</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ator</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ação</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Alvo</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">IP</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Detalhes</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {enhancedAuditLogs.length === 0 ? (
+            <div className="overflow-hidden">
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 font-mono text-xs">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                        Nenhum log de auditoria encontrado
-                      </td>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Data/Hora</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ator</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Ação</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Alvo</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">IP</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Detalhes</th>
                     </tr>
-                  ) : (
-                    enhancedAuditLogs.map((log: any) => {
-                      const date = new Date(log.createdAt);
-                      const severityColor =
-                        log.severity === 'high' ? 'text-red-600 bg-red-50 border-red-200' :
-                          log.severity === 'medium' ? 'text-amber-600 bg-amber-50 border-amber-200' :
-                            'text-blue-600 bg-blue-50 border-blue-200';
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {enhancedAuditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                          Nenhum log de auditoria encontrado
+                        </td>
+                      </tr>
+                    ) : (
+                      enhancedAuditLogs.map((log: any) => {
+                        const date = new Date(log.createdAt);
+                        const severityColor =
+                          log.severity === 'high' ? 'text-red-600 bg-red-50 border-red-200' :
+                            log.severity === 'medium' ? 'text-amber-600 bg-amber-50 border-amber-200' :
+                              'text-blue-600 bg-blue-50 border-blue-200';
 
-                      return (
-                        <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 text-gray-900">
-                            <div className="flex flex-col">
-                              <span className="font-semibold">{date.toLocaleDateString('pt-BR')}</span>
-                              <span className="text-gray-500">{date.toLocaleTimeString('pt-BR')}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-gray-900 font-semibold">{log.adminEmail || 'Sistema'}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-1 rounded border font-semibold ${severityColor}`}>
+                        return (
+                          <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 text-gray-900">
+                              <div className="flex flex-col">
+                                <span className="font-semibold">{date.toLocaleDateString('pt-BR')}</span>
+                                <span className="text-gray-500">{date.toLocaleTimeString('pt-BR')}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-gray-900 font-semibold">{log.adminEmail || 'Sistema'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-1 rounded border font-semibold ${severityColor}`}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <code className="text-gray-600 bg-gray-100 px-2 py-1 rounded text-[10px]">
+                                {log.targetId}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3">
+                              <code className="text-gray-600 bg-gray-100 px-2 py-1 rounded text-[10px]">
+                                {log.ip}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 max-w-md">
+                              <p className="truncate" title={log.details}>{log.details}</p>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile List View */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {enhancedAuditLogs.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-gray-500">
+                    Nenhum log de auditoria encontrado
+                  </div>
+                ) : (
+                  enhancedAuditLogs.map((log: any) => {
+                    const date = new Date(log.createdAt);
+                    const severityColor =
+                      log.severity === 'high' ? 'text-red-600 bg-red-50 border-red-200' :
+                        log.severity === 'medium' ? 'text-amber-600 bg-amber-50 border-amber-200' :
+                          'text-blue-600 bg-blue-50 border-blue-200';
+
+                    return (
+                      <div key={log.id} className="p-4 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-bold ${severityColor}`}>
                               {log.action}
                             </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <code className="text-gray-600 bg-gray-100 px-2 py-1 rounded text-[10px]">
-                              {log.targetId}
-                            </code>
-                          </td>
-                          <td className="px-4 py-3">
-                            <code className="text-gray-600 bg-gray-100 px-2 py-1 rounded text-[10px]">
-                              {log.ip}
-                            </code>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 max-w-md">
-                            <p className="truncate" title={log.details}>{log.details}</p>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {date.toLocaleDateString('pt-BR')} {date.toLocaleTimeString('pt-BR')}
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-gray-900">{log.adminEmail || 'Sistema'}</span>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded text-xs font-mono text-gray-600 break-all">
+                          Target: {log.targetId}
+                        </div>
+                        {log.details && (
+                          <p className="text-sm text-gray-700 line-clamp-2">{log.details}</p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
         );

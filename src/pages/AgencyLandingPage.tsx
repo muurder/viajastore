@@ -394,7 +394,7 @@ const AgencyLandingPage: React.FC = () => {
   const handleContact = () => {
       if (agency.whatsapp) {
           const num = agency.whatsapp.replace(/\D/g, '');
-          const message = encodeURIComponent('Olá, vi seu site na ViajaStore e gostaria de saber mais sobre os pacotes.');
+          const message = encodeURIComponent('Olá, vi seu site no SouNativo e gostaria de saber mais sobre os pacotes.');
           window.open(`https://wa.me/${num}?text=${message}`, '_blank');
       } else if (agency.email) {
           window.location.href = `mailto:${agency.email}`;
@@ -947,10 +947,10 @@ const AgencyLandingPage: React.FC = () => {
               className="inline-flex items-center gap-3 px-6 py-3 bg-primary-50 hover:bg-primary-100 text-primary-700 hover:text-primary-800 font-bold rounded-xl transition-all shadow-sm hover:shadow-md border border-primary-200 text-sm uppercase tracking-wider"
             >
               <Globe size={16} className="text-primary-600" />
-              Voltar para ViajaStore
+              Voltar para SouNativo
             </Link>
             <p className="text-xs text-gray-500 text-center max-w-md">
-              Explore mais destinos e experiências incríveis no marketplace ViajaStore
+              Explore mais destinos e experiências incríveis no marketplace SouNativo
             </p>
           </div>
       </div>

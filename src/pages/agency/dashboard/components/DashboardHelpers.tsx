@@ -52,34 +52,60 @@ export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon
 interface ActionMenuProps { actions: { label: string; onClick: () => void; icon: React.ComponentType<LucideProps>; variant?: 'danger' | 'default'; isLoading?: boolean }[] }
 export const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
+            if (menuRef.current && !menuRef.current.contains(event.target as Node) &&
+                buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [isOpen]);
+
+    const handleToggle = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setMenuPosition({
+                top: rect.bottom + 8,
+                right: window.innerWidth - rect.right
+            });
+        }
+        setIsOpen(!isOpen);
+    };
 
     return (
-        <div className="relative" ref={menuRef}>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsOpen(!isOpen);
-                }}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors group"
-            >
-                <MoreHorizontal size={18} className="group-hover:scale-110 transition-transform" />
-            </button>
-            {isOpen && (
+        <>
+            <div className="relative">
+                <button
+                    ref={buttonRef}
+                    onClick={handleToggle}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors group"
+                >
+                    <MoreHorizontal size={18} className="group-hover:scale-110 transition-transform" />
+                </button>
+            </div>
+            {isOpen && menuPosition && (
                 <>
                     <div
-                        className="fixed inset-0 z-40"
+                        className="fixed inset-0 z-[9998]"
                         onClick={() => setIsOpen(false)}
                     ></div>
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-2 ring-primary-100">
+                    <div 
+                        ref={menuRef}
+                        className="fixed w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-[9999] overflow-hidden animate-[scaleIn_0.1s] origin-top-right ring-2 ring-primary-100"
+                        style={{
+                            top: `${menuPosition.top}px`,
+                            right: `${menuPosition.right}px`
+                        }}
+                    >
                         <div className="bg-gradient-to-r from-primary-600 to-primary-700 p-3 text-white">
                             <p className="text-xs font-bold uppercase tracking-wide">Ações do Pacote</p>
                         </div>
@@ -110,7 +136,7 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
                     </div>
                 </>
             )}
-        </div>
+        </>
     );
 };
 

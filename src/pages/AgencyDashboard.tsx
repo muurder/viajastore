@@ -35,7 +35,7 @@ import DashboardMobileTabs from '../components/mobile/DashboardMobileTabs';
 import { UpgradeModal } from './agency/dashboard/components/UpgradeModal';
 import SubscriptionConfirmationModal from './agency/dashboard/components/SubscriptionConfirmationModal';
 import { DEFAULT_OPERATIONAL_DATA } from './agency/dashboard/constants';
-import { Badge, ActionMenu } from './agency/dashboard/components/DashboardHelpers';
+import { Badge } from './agency/dashboard/components/DashboardHelpers';
 import { RecentBookingsTable, BookingDetailsView } from './agency/dashboard/AgencyBookings';
 import { OperationsModule } from './agency/dashboard/components/OperationsModule';
 import { AgencyReviews } from './agency/dashboard/components/AgencyReviews';
@@ -49,7 +49,7 @@ const AgencyDashboard: React.FC = () => {
         refreshData, loading: dataLoading,
         createTrip, updateTrip, deleteTrip, updateAgencyReview,
         clients, updateTripOperationalData, saveAgencyTheme,
-        getAgencyTheme
+        getAgencyTheme, fetchTripImages, trips: allTrips
     } = useData();
     const { currentAgency, myTrips, myBookings, agencyReviews } = useAgencyData();
     const { user, login, logout, updateUser, uploadImage } = useAuth();
@@ -76,6 +76,8 @@ const AgencyDashboard: React.FC = () => {
     const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
     const [loading, setLoading] = useState(false);
     const [selectedOperationalTripId, setSelectedOperationalTripId] = useState<string | null>(null);
+    // Map of trip IDs to trips with loaded images
+    const [tripsWithLoadedImages, setTripsWithLoadedImages] = useState<Map<string, Trip>>(new Map());
 
     // Subscription & Payment State
     const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
@@ -163,8 +165,29 @@ const AgencyDashboard: React.FC = () => {
         }
     };
 
-    const handleEditTrip = (trip: Trip) => {
-        setEditingTrip(trip);
+    const handleEditTrip = async (trip: Trip) => {
+        // Use trip with loaded images if available
+        let tripWithImages = tripsWithLoadedImages.get(trip.id) || trip;
+        
+        // If trip doesn't have images, try to load them
+        if ((!tripWithImages.images || tripWithImages.images.length === 0) && fetchTripImages) {
+            try {
+                const images = await fetchTripImages(trip.id);
+                if (images && images.length > 0) {
+                    tripWithImages = { ...tripWithImages, images };
+                    // Update the map for future use
+                    setTripsWithLoadedImages(prev => {
+                        const updated = new Map(prev);
+                        updated.set(trip.id, tripWithImages);
+                        return updated;
+                    });
+                }
+            } catch (error) {
+                logger.error(`[AgencyDashboard] Error loading images for editing trip ${trip.id}:`, error);
+            }
+        }
+        
+        setEditingTrip(tripWithImages);
         setShowCreateTrip(true);
     };
 
@@ -181,8 +204,11 @@ const AgencyDashboard: React.FC = () => {
             const baseSlug = generateSlugFromName(newTitle);
             const uniqueSlug = await generateUniqueSlug(baseSlug, 'trips');
 
+            // Get trip with loaded images if available
+            const tripWithImages = tripsWithLoadedImages.get(trip.id) || trip;
+
             // Omit ID and created_at/updated_at
-            const { id, created_at, updated_at, ...tripData } = trip;
+            const { id, created_at, updated_at, ...tripData } = tripWithImages;
 
             const newTrip = {
                 ...tripData,
@@ -193,7 +219,8 @@ const AgencyDashboard: React.FC = () => {
                 views: 0,
                 tripRating: 0,
                 tripTotalReviews: 0,
-                operationalData: DEFAULT_OPERATIONAL_DATA // Reset op data for copy
+                operationalData: DEFAULT_OPERATIONAL_DATA, // Reset op data for copy
+                images: tripWithImages.images || [] // Ensure images are copied
             };
 
             await createTrip({ ...newTrip, agencyId: currentAgency!.agencyId } as Trip);
@@ -231,9 +258,21 @@ const AgencyDashboard: React.FC = () => {
         if (!trip) return;
 
         try {
-            await updateTrip(tripId, { is_active: !trip.is_active });
-            showToast(`${tripLabel} ${!trip.is_active ? 'publicado' : 'pausado'} com sucesso.`, 'success');
+            // Get trip with loaded images if available
+            const tripToUpdate = tripsWithLoadedImages.get(trip.id) || trip;
+            
+            // Create updated trip with toggled status
+            const updatedTrip: Trip = {
+                ...tripToUpdate,
+                is_active: !tripToUpdate.is_active
+            };
+            
+            await updateTrip(updatedTrip);
+            showToast(`${tripLabel} ${!tripToUpdate.is_active ? 'publicado' : 'pausado'} com sucesso.`, 'success');
+            // Refresh data to update the UI
+            await refreshData();
         } catch (error: any) {
+            logger.error('Error toggling trip status:', error);
             showToast(`Erro ao alterar status: ${error.message}`, 'error');
         }
     };
@@ -354,9 +393,76 @@ const AgencyDashboard: React.FC = () => {
         return { activeTrips, totalSales, totalViews, conversionRate, totalRevenue: totalSales };
     }, [myTrips, myBookings]);
 
+    // Use allTrips to ensure we get the latest images that were loaded
     const filteredTrips = useMemo(() => {
-        return myTrips.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [myTrips, searchTerm]);
+        const agencyTrips = allTrips.filter(t => t.agencyId === currentAgency?.agencyId);
+        return agencyTrips.filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [allTrips, currentAgency?.agencyId, searchTerm]);
+
+    // Create stable trip IDs string for dependency
+    const filteredTripIds = useMemo(() => 
+        filteredTrips.map(t => t.id).sort().join(','), 
+        [filteredTrips]
+    );
+
+    // Load trip images when trips are displayed - Similar to TripCard logic
+    useEffect(() => {
+        if (currentAgency && fetchTripImages && filteredTrips.length > 0) {
+            const loadImagesForTrips = async () => {
+                const tripsToLoad = filteredTrips.filter(trip => {
+                    const existing = tripsWithLoadedImages.get(trip.id);
+                    // Load if: no existing entry, or trip has new images that existing doesn't have
+                    if (!existing) return true;
+                    if (trip.images && trip.images.length > 0) {
+                        const existingImages = existing.images || [];
+                        return existingImages.length === 0 || existingImages[0] !== trip.images[0];
+                    }
+                    // If trip has no images but existing does, keep existing
+                    // If both have no images, try to fetch
+                    return (!existing.images || existing.images.length === 0);
+                });
+
+                if (tripsToLoad.length > 0) {
+                    logger.log(`[AgencyDashboard] Loading images for ${tripsToLoad.length} trips`);
+                    
+                    const updatedTrips = new Map(tripsWithLoadedImages);
+                    
+                    await Promise.all(
+                        tripsToLoad.map(async (trip) => {
+                            try {
+                                // If trip already has images, use them
+                                if (trip.images && trip.images.length > 0) {
+                                    updatedTrips.set(trip.id, trip);
+                                    return;
+                                }
+
+                                // Otherwise, fetch images
+                                const images = await fetchTripImages(trip.id);
+                                if (images && images.length > 0) {
+                                    updatedTrips.set(trip.id, { ...trip, images });
+                                } else {
+                                    updatedTrips.set(trip.id, trip);
+                                }
+                            } catch (error) {
+                                logger.error(`[AgencyDashboard] Error loading images for trip ${trip.id}:`, error);
+                                updatedTrips.set(trip.id, trip);
+                            }
+                        })
+                    );
+                    
+                    setTripsWithLoadedImages(prev => {
+                        // Merge with previous to avoid losing other trips
+                        const merged = new Map(prev);
+                        updatedTrips.forEach((trip, id) => merged.set(id, trip));
+                        return merged;
+                    });
+                }
+            };
+
+            loadImagesForTrips();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredTripIds, currentAgency?.agencyId, fetchTripImages]); // Re-run when trip IDs change
 
     // Render Helpers
     const renderPlanTab = () => {
@@ -556,90 +662,313 @@ const AgencyDashboard: React.FC = () => {
                                 </div>
                             ) : tripViewMode === 'GRID' ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {filteredTrips.map(trip => (
-                                        <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group flex flex-col h-full">
-                                            <div className="relative h-48 bg-gray-100">
-                                                {trip.images?.[0] ? <img src={trip.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={trip.title} /> : <div className="flex items-center justify-center h-full text-gray-400"><ImageIcon size={32} /></div>}
-                                                <div className="absolute top-3 right-3 flex flex-col gap-2">
-                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
+                                    {filteredTrips.map(trip => {
+                                        // Use trip with loaded images if available, otherwise use original trip
+                                        const tripToDisplay = tripsWithLoadedImages.get(trip.id) || trip;
+                                        
+                                        return (
+                                            <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all group flex flex-col h-full">
+                                                <div className="relative h-48 bg-gray-100 overflow-hidden">
+                                                    {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
+                                                        <>
+                                                            <img 
+                                                                key={`${tripToDisplay.id}-${tripToDisplay.images[0]}`}
+                                                                src={tripToDisplay.images[0]} 
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                                alt={tripToDisplay.title}
+                                                                onError={(e) => {
+                                                                    // Hide broken image and show placeholder
+                                                                    e.currentTarget.style.display = 'none';
+                                                                    const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
+                                                                    if (placeholder) placeholder.style.display = 'flex';
+                                                                }}
+                                                            />
+                                                            <div className="hidden items-center justify-center h-full text-gray-400 absolute inset-0">
+                                                                <ImageIcon size={32} />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center h-full text-gray-400">
+                                                            <ImageIcon size={32} />
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute top-3 right-3 flex flex-col gap-2">
+                                                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 flex-1 flex flex-col">
+                                                    <h3 className="font-bold text-gray-900 mb-2 line-clamp-1" title={tripToDisplay.title}>{tripToDisplay.title}</h3>
+                                                    <div className="text-sm text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14} className="text-primary-500" /><span className="truncate">{tripToDisplay.destination}</span></div>
+
+                                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                                        <div className="bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Partida</p><p className="text-xs font-bold">{formatDate(tripToDisplay.startDate)}</p></div>
+                                                        <div className="text-right bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Preço</p><p className="text-sm font-extrabold text-primary-600">R$ {tripToDisplay.price.toLocaleString('pt-BR')}</p></div>
+                                                    </div>
+
+                                                    <div className="mt-auto border-t border-gray-100 pt-3 space-y-2">
+                                                        {/* Primary Actions Row */}
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')} 
+                                                                className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                                                            >
+                                                                <ExternalLink size={14} /> Ver
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleEditTrip(trip)} 
+                                                                className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                                                            >
+                                                                <Edit size={14} /> Editar
+                                                            </button>
+                                                        </div>
+                                                        {/* Secondary Actions Row */}
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button 
+                                                                onClick={() => handleDuplicateTrip(trip)}
+                                                                disabled={isDuplicatingTrip === trip.id}
+                                                                className="py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {isDuplicatingTrip === trip.id ? (
+                                                                    <Loader size={14} className="animate-spin" />
+                                                                ) : (
+                                                                    <Copy size={14} />
+                                                                )}
+                                                                Duplicar
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => toggleTripStatus(trip.id)}
+                                                                className="py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                                                            >
+                                                                {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                                                                {trip.is_active ? 'Pausar' : 'Publicar'}
+                                                            </button>
+                                                        </div>
+                                                        {/* Danger Actions Row */}
+                                                        <div className="flex gap-2">
+                                                            {planPermissions.canAccessOperational && (
+                                                                <button 
+                                                                    onClick={() => handleGoToOperational(trip.id)}
+                                                                    className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
+                                                                >
+                                                                    <Bus size={14} /> Operacional
+                                                                </button>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => handleDeleteTrip(trip.id)}
+                                                                className={`${planPermissions.canAccessOperational ? 'flex-1' : 'w-full'} py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]`}
+                                                            >
+                                                                <Trash2 size={14} /> Excluir
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="p-4 flex-1 flex flex-col">
-                                                <h3 className="font-bold text-gray-900 mb-2 line-clamp-1" title={trip.title}>{trip.title}</h3>
-                                                <div className="text-sm text-gray-500 mb-4 flex items-center gap-2"><MapPin size={14} className="text-primary-500" /><span className="truncate">{trip.destination}</span></div>
-
-                                                <div className="grid grid-cols-2 gap-2 mb-4">
-                                                    <div className="bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Partida</p><p className="text-xs font-bold">{formatDate(trip.startDate)}</p></div>
-                                                    <div className="text-right bg-gray-50 p-2 rounded-lg"><p className="text-[10px] text-gray-500 uppercase">Preço</p><p className="text-sm font-extrabold text-primary-600">R$ {trip.price.toLocaleString('pt-BR')}</p></div>
-                                                </div>
-
-                                                <div className="mt-auto border-t border-gray-100 pt-3 flex gap-2">
-                                                    <button onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${trip.slug || trip.id}`, '_blank')} className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1"><ExternalLink size={14} /> Ver</button>
-                                                    <button onClick={() => handleEditTrip(trip)} className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1"><Edit size={14} /> Editar</button>
-                                                    <ActionMenu actions={[
-                                                        { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTrip(trip) },
-                                                        { label: trip.is_active ? 'Pausar' : 'Publicar', icon: trip.is_active ? PauseCircle : PlayCircle, onClick: () => toggleTripStatus(trip.id) },
-                                                        { label: 'Excluir', icon: Trash2, onClick: () => handleDeleteTrip(trip.id), variant: 'danger' },
-                                                        ...(planPermissions.canAccessOperational ? [{ label: 'Operacional', icon: Bus, onClick: () => handleGoToOperational(trip.id) }] : [])
-                                                    ]} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                                     {/* Desktop Table */}
                                     <div className="hidden md:block overflow-x-auto">
                                         <table className="min-w-full divide-y divide-gray-100">
-                                            <thead className="bg-gray-50"><tr><th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th><th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Status</th><th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ações</th></tr></thead>
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase w-20">Imagem</th>
+                                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Pacote</th>
+                                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ações</th>
+                                                </tr>
+                                            </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {filteredTrips.map(trip => (
-                                                    <tr key={trip.id} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4"><div className="font-bold text-gray-900 text-sm">{trip.title}</div><div className="text-xs text-gray-500">{trip.destination} • {formatDate(trip.startDate)}</div></td>
-                                                        <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge></td>
-                                                        <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button onClick={() => handleEditTrip(trip)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Edit size={16} /></button><button onClick={() => handleDeleteTrip(trip.id)} className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button></div></td>
-                                                    </tr>
-                                                ))}
+                                                {filteredTrips.map(trip => {
+                                                    const tripToDisplay = tripsWithLoadedImages.get(trip.id) || trip;
+                                                    return (
+                                                        <tr key={trip.id} className="hover:bg-gray-50">
+                                                            <td className="px-6 py-4">
+                                                                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                                                    {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
+                                                                        <img 
+                                                                            src={tripToDisplay.images[0]} 
+                                                                            alt={tripToDisplay.title}
+                                                                            className="w-full h-full object-cover"
+                                                                            onError={(e) => {
+                                                                                e.currentTarget.style.display = 'none';
+                                                                                const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
+                                                                                if (placeholder) placeholder.style.display = 'flex';
+                                                                            }}
+                                                                        />
+                                                                    ) : null}
+                                                                    <div className="hidden w-full h-full items-center justify-center text-gray-400">
+                                                                        <ImageIcon size={20} />
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="font-bold text-gray-900 text-sm">{tripToDisplay.title}</div>
+                                                                <div className="text-xs text-gray-500">{tripToDisplay.destination} • {formatDate(tripToDisplay.startDate)}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge></td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-wrap justify-end gap-1.5">
+                                                                    <button 
+                                                                        onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')} 
+                                                                        className="p-2 text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-all hover:scale-105" 
+                                                                        title="Ver no site"
+                                                                    >
+                                                                        <ExternalLink size={16} />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleEditTrip(trip)} 
+                                                                        className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all hover:scale-105"
+                                                                        title="Editar"
+                                                                    >
+                                                                        <Edit size={16} />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleDuplicateTrip(trip)}
+                                                                        disabled={isDuplicatingTrip === trip.id}
+                                                                        className="p-2 text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        title="Duplicar"
+                                                                    >
+                                                                        {isDuplicatingTrip === trip.id ? (
+                                                                            <Loader size={16} className="animate-spin" />
+                                                                        ) : (
+                                                                            <Copy size={16} />
+                                                                        )}
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => toggleTripStatus(trip.id)}
+                                                                        className="p-2 text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-all hover:scale-105"
+                                                                        title={trip.is_active ? 'Pausar' : 'Publicar'}
+                                                                    >
+                                                                        {trip.is_active ? <PauseCircle size={16} /> : <PlayCircle size={16} />}
+                                                                    </button>
+                                                                    {planPermissions.canAccessOperational && (
+                                                                        <button 
+                                                                            onClick={() => handleGoToOperational(trip.id)}
+                                                                            className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all hover:scale-105"
+                                                                            title="Operacional"
+                                                                        >
+                                                                            <Bus size={16} />
+                                                                        </button>
+                                                                    )}
+                                                                    <button 
+                                                                        onClick={() => handleDeleteTrip(trip.id)} 
+                                                                        className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-all hover:scale-105"
+                                                                        title="Excluir"
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
 
                                     {/* Mobile Stacked Cards */}
                                     <div className="md:hidden divide-y divide-gray-100">
-                                        {filteredTrips.map(trip => (
-                                            <div key={trip.id} className="p-4 space-y-3">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900 text-sm line-clamp-2">{trip.title}</h4>
-                                                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                                                            <MapPin size={12} /> {trip.destination}
+                                        {filteredTrips.map(trip => {
+                                            const tripToDisplay = tripsWithLoadedImages.get(trip.id) || trip;
+                                            return (
+                                                <div key={trip.id} className="p-4 space-y-3">
+                                                    <div className="flex gap-3">
+                                                        {/* Image */}
+                                                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                                            {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
+                                                                <img 
+                                                                    src={tripToDisplay.images[0]} 
+                                                                    alt={tripToDisplay.title}
+                                                                    className="w-full h-full object-cover"
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.style.display = 'none';
+                                                                        const placeholder = e.currentTarget.nextElementSibling as HTMLElement;
+                                                                        if (placeholder) placeholder.style.display = 'flex';
+                                                                    }}
+                                                                />
+                                                            ) : null}
+                                                            <div className="hidden w-full h-full items-center justify-center text-gray-400">
+                                                                <ImageIcon size={20} />
+                                                            </div>
+                                                        </div>
+                                                        {/* Content */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex justify-between items-start mb-1">
+                                                                <h4 className="font-bold text-gray-900 text-sm line-clamp-2 flex-1">{tripToDisplay.title}</h4>
+                                                                <Badge color={trip.is_active ? 'green' : 'gray'} className="ml-2 flex-shrink-0">{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                                <MapPin size={12} /> {tripToDisplay.destination}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge>
-                                                </div>
 
                                                 <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
-                                                    <span className="flex items-center gap-1"><Calendar size={12} /> {formatDate(trip.startDate)}</span>
-                                                    <span className="font-bold">R$ {trip.price.toLocaleString('pt-BR')}</span>
+                                                    <span className="flex items-center gap-1"><Calendar size={12} /> {formatDate(tripToDisplay.startDate)}</span>
+                                                    <span className="font-bold">R$ {tripToDisplay.price.toLocaleString('pt-BR')}</span>
                                                 </div>
 
-                                                <div className="flex gap-2 pt-1">
-                                                    <button
-                                                        onClick={() => handleEditTrip(trip)}
-                                                        className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1"
-                                                    >
-                                                        <Edit size={14} /> Editar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteTrip(trip.id)}
-                                                        className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
+                                                <div className="space-y-2 pt-1">
+                                                    {/* Primary Actions */}
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')}
+                                                            className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1.5 transition-all"
+                                                        >
+                                                            <ExternalLink size={14} /> Ver
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleEditTrip(trip)}
+                                                            className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-all"
+                                                        >
+                                                            <Edit size={14} /> Editar
+                                                        </button>
+                                                    </div>
+                                                    {/* Secondary Actions */}
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={() => handleDuplicateTrip(trip)}
+                                                            disabled={isDuplicatingTrip === trip.id}
+                                                            className="py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isDuplicatingTrip === trip.id ? (
+                                                                <Loader size={14} className="animate-spin" />
+                                                            ) : (
+                                                                <Copy size={14} />
+                                                            )}
+                                                            Duplicar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleTripStatus(trip.id)}
+                                                            className="py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all"
+                                                        >
+                                                            {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                                                            {trip.is_active ? 'Pausar' : 'Publicar'}
+                                                        </button>
+                                                    </div>
+                                                    {/* Danger Actions */}
+                                                    <div className="flex gap-2">
+                                                        {planPermissions.canAccessOperational && (
+                                                            <button
+                                                                onClick={() => handleGoToOperational(trip.id)}
+                                                                className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-all"
+                                                            >
+                                                                <Bus size={14} /> Operacional
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteTrip(trip.id)}
+                                                            className={`${planPermissions.canAccessOperational ? 'flex-1' : 'w-full'} py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-all`}
+                                                        >
+                                                            <Trash2 size={14} /> Excluir
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                        );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -685,7 +1014,7 @@ const AgencyDashboard: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div><label className="block text-sm font-bold text-gray-700 mb-1">Nome</label><input value={profileForm.name || ''} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full p-2.5 border rounded-lg" /></div>
                                     <div><label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label><input value={profileForm.whatsapp || ''} onChange={e => setProfileForm({ ...profileForm, whatsapp: e.target.value })} className="w-full p-2.5 border rounded-lg" /></div>
-                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Slug (Link)</label><div className="flex"><span className="bg-gray-100 px-3 py-2 border border-r-0 rounded-l-lg text-gray-500 text-sm flex items-center">viajastore.com/</span><input value={profileForm.slug || ''} onChange={e => setProfileForm({ ...profileForm, slug: slugify(e.target.value) })} className="flex-1 p-2.5 border rounded-r-lg" /></div></div>
+                                    <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Slug (Link)</label><div className="flex"><span className="bg-gray-100 px-3 py-2 border border-r-0 rounded-l-lg text-gray-500 text-sm flex items-center">sounativo.com/</span><input value={profileForm.slug || ''} onChange={e => setProfileForm({ ...profileForm, slug: slugify(e.target.value) })} className="flex-1 p-2.5 border rounded-r-lg" /></div></div>
                                 </div>
                                 <div className="pt-4 border-t"><button type="submit" disabled={loading} className="bg-primary-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-700 flex items-center gap-2">{loading ? <Loader size={18} className="animate-spin" /> : <Save size={18} />} Salvar Alterações</button></div>
                             </form>

@@ -35,7 +35,7 @@ const App: React.FC = () => {
                 <Route path="/" element={<Layout />}>
                   <Route index element={<Home />} />
 
-                  {/* Global Routes (ViajaStore Context) */}
+                  {/* Global Routes (SouNativo Context) */}
                   <Route path="trips" element={<TripList />} />
                   <Route path="viagem/:slug" element={<TripDetails />} />
                   <Route path="agencies" element={<AgencyList />} />

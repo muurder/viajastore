@@ -158,25 +158,73 @@ const AgencyList: React.FC = () => {
             {loading ? (
                 <div className="flex items-center justify-center h-64"><Loader className="animate-spin text-primary-600" size={32} /></div>
             ) : (
-                <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                <div className={`grid gap-6 ${viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
                 {agencies.map(agency => (
-                    <Link key={agency.agencyId} to={`/${agency.slug}`} className={`bg-white border border-gray-100 rounded-2xl hover:shadow-lg transition-all duration-300 group relative flex animate-[fadeIn_0.3s] ${viewMode === 'grid' ? 'flex-col p-5 h-full' : 'flex-row p-4 items-center'}`}>
-                        <div className={`flex items-start ${viewMode === 'grid' ? 'justify-between mb-4 w-full' : 'gap-6 flex-1'}`}>
-                            <div className={`flex items-center gap-4 ${viewMode === 'grid' ? 'w-full' : ''}`}>
-                                <div className="relative flex-shrink-0">
-                                    <img src={agency.logo} alt={agency.name} className={`${viewMode === 'grid' ? 'w-16 h-16' : 'w-14 h-14'} rounded-full object-cover border border-gray-100 shadow-sm`}/>
+                    <Link key={agency.agencyId} to={`/${agency.slug}`} className={`bg-white border border-gray-100 rounded-3xl hover:shadow-xl transition-all duration-300 group relative flex animate-[fadeIn_0.3s] ${viewMode === 'grid' ? 'flex-col overflow-hidden h-full' : 'flex-row p-4 items-center'}`}>
+                        {viewMode === 'grid' ? (
+                          <>
+                            {/* Header Banner/Cover */}
+                            <div className="relative h-24 w-full bg-gradient-to-br from-emerald-500 to-emerald-600 overflow-hidden">
+                              {agency.logo && (
+                                <div className="absolute inset-0 opacity-20">
+                                  <img src={agency.logo} alt="" className="w-full h-full object-cover" />
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <h3 className={`font-bold text-gray-900 leading-tight group-hover:text-primary-600 transition-colors ${viewMode === 'grid' ? 'text-lg line-clamp-2' : 'text-lg truncate'}`}>{agency.name}</h3>
-                                    <div className="flex items-center text-sm text-gray-500 mt-1"><MapPin size={12} className="mr-1 flex-shrink-0" /> <span>Brasil</span></div>
-                                </div>
+                              )}
                             </div>
-                            {viewMode === 'list' && (<div className="hidden md:block flex-1 px-4 border-l border-gray-100 ml-4 h-full"><p className="text-gray-500 text-sm line-clamp-2">{agency.description}</p></div>)}
-                        </div>
-                        {viewMode === 'grid' && (<p className="text-gray-600 text-sm mb-4 line-clamp-2 flex-grow">{agency.description}</p>)}
-                        <div className={`${viewMode === 'grid' ? 'mt-auto pt-4 border-t border-gray-50 w-full flex items-center justify-between' : 'flex items-center gap-4 ml-auto border-l border-gray-100 pl-4'}`}>
-                            <div className={`text-sm font-bold text-primary-600 group-hover:text-primary-700 flex items-center whitespace-nowrap ${viewMode === 'list' ? 'bg-primary-50 px-4 py-2 rounded-lg' : ''}`}>Ver Página <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" /></div>
-                        </div>
+                            
+                            {/* Avatar invading banner */}
+                            <div className="relative -mt-10 px-6 flex justify-center">
+                              <div className="relative">
+                                <img 
+                                  src={agency.logo} 
+                                  alt={agency.name} 
+                                  className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-xl"
+                                />
+                                {agency.subscriptionStatus === 'ACTIVE' && (
+                                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-1 border-2 border-white">
+                                    <Shield size={12} className="text-white" fill="currentColor" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="px-6 pb-6 pt-2 flex-1 flex flex-col">
+                              <h3 className="text-center font-bold text-gray-900 text-lg leading-tight group-hover:text-emerald-600 transition-colors mb-2 line-clamp-2">
+                                {agency.name}
+                              </h3>
+                              <div className="flex items-center justify-center text-sm text-gray-500 mb-4">
+                                <MapPin size={14} className="mr-1.5 flex-shrink-0 text-emerald-500" />
+                                <span>Brasil</span>
+                              </div>
+                              <p className="text-gray-600 text-sm text-center line-clamp-3 mb-6 flex-grow">
+                                {agency.description || 'Agência especializada em experiências únicas de viagem.'}
+                              </p>
+                              
+                              {/* Button */}
+                              <button className="w-full border-2 border-emerald-600 text-emerald-600 px-4 py-2.5 rounded-full font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2 group-hover:gap-3">
+                                Ver Perfil
+                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-6 flex-1">
+                              <div className="relative flex-shrink-0">
+                                <img src={agency.logo} alt={agency.name} className="w-14 h-14 rounded-full object-cover border border-gray-100 shadow-sm"/>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-bold text-gray-900 leading-tight group-hover:text-emerald-600 transition-colors text-lg truncate">{agency.name}</h3>
+                                <div className="flex items-center text-sm text-gray-500 mt-1"><MapPin size={12} className="mr-1 flex-shrink-0" /> <span>Brasil</span></div>
+                              </div>
+                            </div>
+                            <div className="hidden md:block flex-1 px-4 border-l border-gray-100 ml-4 h-full"><p className="text-gray-500 text-sm line-clamp-2">{agency.description}</p></div>
+                            <div className="flex items-center gap-4 ml-auto border-l border-gray-100 pl-4">
+                              <div className="text-sm font-bold text-emerald-600 group-hover:text-emerald-700 flex items-center whitespace-nowrap bg-emerald-50 px-4 py-2 rounded-full">Ver Página <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" /></div>
+                            </div>
+                          </>
+                        )}
                     </Link>
                 ))}
                 </div>

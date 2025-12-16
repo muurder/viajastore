@@ -3,9 +3,8 @@ import { useData } from '../context/DataContext';
 import { TripCard, TripCardSkeleton } from '../components/TripCard';
 import HeroSearch from '../components/HeroSearch';
 import { NoImagePlaceholder } from '../components/NoImagePlaceholder';
-import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock, MessageCircle, TrendingUp, Star } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
-import { buildWhatsAppLink } from '../utils/whatsapp';
+import { MapPin, ArrowRight, Search, Filter, TreePine, Landmark, Utensils, Moon, Wallet, Drama, Palette, Umbrella, Mountain, Heart, Globe, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Trip } from '../types';
 import { logger } from '../utils/logger';
 
@@ -23,20 +22,38 @@ const INTEREST_CHIPS = [
   { label: 'Viagem barata', icon: Wallet, id: 'chip-barata' },
 ];
 
+const HERO_PHRASES = [
+  'O Brasil que você ainda não viu.',
+  'Sua próxima aventura começa aqui.',
+  'Conecte-se com a natureza.',
+  'Experiências autênticas, memórias eternas.',
+  'Descubra o extraordinário.',
+  'Rotas secretas, emoções verdadeiras.',
+  'Luxo discreto em cenários inesquecíveis.',
+  'Para quem busca sentir, não só visitar.',
+  'Histórias para contar, paisagens para lembrar.',
+  'Viaje com curadoria, viva o inesquecível.',
+  'Onde a natureza encontra a cultura.',
+  'Momentos únicos, destinos inesquecíveis.',
+  'Explore o Brasil com novos olhos.',
+  'Cada viagem é uma nova história.',
+  'Descubra lugares que tocam a alma.',
+  'Experiências que transformam sua perspectiva.',
+  'O melhor do Brasil em cada roteiro.',
+  'Viagens que ficam para sempre na memória.',
+  'Conecte-se com o que realmente importa.',
+  'Seu próximo destino te espera.'
+];
+
 // Removed DEFAULT_HERO_IMG - using NoImagePlaceholder instead
 
 const Home: React.FC = () => {
   const { searchTrips, agencies, loading: dataLoading, fetchTripImages } = useData();
-  const navigate = useNavigate();
 
   // Hero Data
   const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [heroLoading, setHeroLoading] = useState(true);
-
-  // Featured Dock Trips (Top 4 by views or featured)
-  const [featuredDockTrips, setFeaturedDockTrips] = useState<Trip[]>([]);
-  const [dockLoading, setDockLoading] = useState(true);
 
   // Grid Data
   const [gridTrips, setGridTrips] = useState<Trip[]>([]);
@@ -94,58 +111,6 @@ const Home: React.FC = () => {
       }
     };
     loadHero();
-  }, [searchTrips, dataLoading, fetchTripImages]);
-
-  // 2. Load Featured Dock Trips (Top 4 by views or featured)
-  useEffect(() => {
-    // FIX: Wait for data to be loaded before searching
-    if (dataLoading) {
-      return; // Don't search while data is still loading
-    }
-
-    const loadFeaturedDock = async () => {
-      setDockLoading(true);
-      try {
-        // First try to get featured trips sorted by views
-        const { data: featuredData } = await searchTrips({
-          limit: 10,
-          featured: true,
-          sort: 'RATING' // Will sort by rating, but we'll re-sort by views
-        });
-
-        let dockTrips: Trip[] = [];
-        if (featuredData && featuredData.length > 0) {
-          dockTrips = featuredData;
-        } else {
-          // Fallback: Get all trips and sort by views
-          const { data: allData } = await searchTrips({ limit: 20, sort: 'RATING' });
-          dockTrips = allData || [];
-        }
-
-        // Sort by views (descending) and take top 4
-        dockTrips.sort((a, b) => (b.views || 0) - (a.views || 0));
-        const top4Trips = dockTrips.slice(0, 4);
-
-        // FIX: Load images on-demand for each trip
-        const dockTripsWithImages = await Promise.all(
-          top4Trips.map(async (trip) => {
-            if (!trip.images || trip.images.length === 0) {
-              const images = await fetchTripImages(trip.id);
-              return { ...trip, images };
-            }
-            return trip;
-          })
-        );
-
-        setFeaturedDockTrips(dockTripsWithImages);
-      } catch (error) {
-        logger.error('Error loading featured dock trips:', error);
-        setFeaturedDockTrips([]);
-      } finally {
-        setDockLoading(false);
-      }
-    };
-    loadFeaturedDock();
   }, [searchTrips, dataLoading, fetchTripImages]);
 
   // 3. Fetch Grid Trips when Interest Changes
@@ -215,18 +180,6 @@ const Home: React.FC = () => {
     return () => clearInterval(id);
   }, [heroTrips.length]);
 
-  const currentHeroTrip = heroTrips[currentSlide];
-
-  // Find Agency for WhatsApp (Assumes Agencies are small list or we fetch on demand)
-  // For optimization, we are checking the pre-loaded agencies from context or could fetch
-  const currentHeroAgency = useMemo(() => {
-    return currentHeroTrip ? agencies.find(a => a.agencyId === currentHeroTrip.agencyId) : undefined;
-  }, [currentHeroTrip, agencies]);
-
-  const heroWhatsAppLink = (currentHeroAgency?.whatsapp && currentHeroTrip)
-    ? buildWhatsAppLink(currentHeroAgency.whatsapp, currentHeroTrip)
-    : null;
-
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const scrollAmount = scrollRef.current.clientWidth / 2;
@@ -269,238 +222,128 @@ const Home: React.FC = () => {
   const nextSlide = () => setCurrentSlide(prev => (prev + 1) % heroTrips.length);
   const prevSlide = () => setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
 
+  // Get featured trip for the highlighted card
+  const featuredTrip = heroTrips.length > 0 ? heroTrips[currentSlide] : null;
+  // Select random phrase on mount (changes on each refresh/F5)
+  const [heroPhrase] = useState(() => {
+    return HERO_PHRASES[Math.floor(Math.random() * HERO_PHRASES.length)];
+  });
+
   return (
-    <div className="space-y-12 pb-12">
-      {/* HERO SECTION - IMERSIVA */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[600px] md:min-h-[700px] flex flex-col group bg-gray-900">
-
-        {/* Background Images Carousel */}
-        {heroTrips.length > 0 ? (
-          heroTrips.map((trip, index) => {
-            // FIX: Rigorously check if trip has valid images before using fallback
-            const hasValidImages = trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0];
-            const displayImage = hasValidImages ? trip.images[0] : null;
-
-            return (
-              <div
-                key={trip.id}
-                className={`absolute inset-0 transition-opacity duration-[1200ms] ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-              >
-                {hasValidImages ? (
-                  <img
-                    key={`hero-img-${trip.id}-${index}`}
-                    src={trip.images[0]}
-                    alt={trip.title}
-                    className={`w-full h-full object-cover transition-transform duration-[10s] ease-linear ${index === currentSlide ? 'scale-110' : 'scale-100'} blur-[2px]`}
-                    onError={(e) => {
-                      // Hide image on error, placeholder will show
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : null}
-                {/* Show placeholder only if no valid image */}
-                {!hasValidImages && (
-                  <div className="w-full h-full">
-                    <NoImagePlaceholder
-                      title={trip.title}
-                      category={trip.category}
-                      size="large"
-                      className="w-full h-full"
-                    />
-                  </div>
-                )}
+    <div className="pb-12">
+      {/* HERO SHOWCASE */}
+      <div className="relative h-[85vh] min-h-[600px] flex items-center overflow-hidden">
+        {/* Background */}
+        <div className="absolute inset-0">
+          {featuredTrip && featuredTrip.images && featuredTrip.images.length > 0 && featuredTrip.images[0] ? (
+            <img
+              src={featuredTrip.images[0]}
+              alt={featuredTrip.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-6xl font-bold text-white/30 mb-4">SouNativo</div>
+                <div className="text-white/50">Carregando viagens...</div>
               </div>
-            );
-          })
-        ) : (
-          <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-50 via-slate-50 to-gray-100 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-6xl font-bold text-gray-300 mb-4">ViajaStore</div>
-              <div className="text-gray-400">Carregando viagens...</div>
             </div>
-          </div>
-        )}
-
-        {/* Enhanced Gradient Overlay - Stronger at bottom for dock readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/90 z-20 pointer-events-none"></div>
-
-        {/* Main Content - Centered */}
-        <div className="relative z-30 w-full max-w-[1600px] mx-auto px-6 md:px-12 flex-1 flex flex-col justify-center py-12 md:py-20">
-          {/* Centered Typography */}
-          <div className="text-center mb-10 animate-[fadeInUp_0.8s_ease-out]">
-            <h1 className="text-5xl md:text-7xl font-extrabold text-white leading-tight mb-6 drop-shadow-2xl">
-              Descubra o Brasil
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-200 max-w-2xl mx-auto font-light leading-relaxed drop-shadow-lg">
-              As melhores experiências de viagem você encontra aqui
-            </p>
-          </div>
-
-          {/* Hero Search Bar - FIX: High z-index to ensure dropdowns appear above cards */}
-          <div className="max-w-5xl mx-auto w-full animate-[fadeInUp_1.1s] relative z-[100]">
-            <HeroSearch />
-          </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
         </div>
 
-        {/* Featured Dock - Bottom Overlap - FIX: Lower z-index than search bar */}
-        <div className="relative z-[20] w-full max-w-[1600px] mx-auto px-6 md:px-12 pb-6">
-          {dockLoading ? (
-            <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 gap-4 md:grid md:grid-cols-4 md:pb-0 scrollbar-hide">
-              {[1, 2, 3, 4].map((n) => (
-                <div key={n} className="flex-shrink-0 w-[85vw] md:w-auto snap-center bg-white/90 backdrop-blur-md rounded-2xl p-4 border border-white/20 shadow-xl animate-pulse">
-                  <div className="w-full h-24 bg-gray-200 rounded-xl mb-3"></div>
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-6 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              ))}
+        {/* Content */}
+        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8 lg:px-12">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 lg:gap-12 items-center">
+            {/* Left: Inspiration + Search */}
+            <div className="xl:col-span-7 text-left space-y-4 md:space-y-6">
+              <div className="animate-[fadeInUp_0.8s_ease-out] space-y-3 md:space-y-4">
+                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold text-white leading-[1.1] drop-shadow-2xl tracking-tight">
+                  Descubra o Brasil
+                </h1>
+                <p className="text-lg sm:text-xl md:text-2xl text-white/90 font-light leading-relaxed drop-shadow-lg animate-in fade-in duration-1000">
+                  {heroPhrase}
+                </p>
+              </div>
+              <div className="w-full animate-[fadeInUp_1.1s]">
+                <HeroSearch />
+              </div>
             </div>
-          ) : featuredDockTrips.length > 0 ? (
-            <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 gap-4 md:grid md:grid-cols-4 md:pb-0 scrollbar-hide">
-              {featuredDockTrips.map((trip) => {
-                // Find agency and WhatsApp link
-                const tripAgency = agencies.find(a => a.agencyId === trip.agencyId);
-                const contactNumber = tripAgency?.whatsapp || tripAgency?.phone;
-                const whatsappLink = contactNumber ? buildWhatsAppLink(contactNumber, trip) : null;
 
-                const handleWhatsAppClick = (e: React.MouseEvent) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (whatsappLink) {
-                    window.open(whatsappLink, '_blank');
-                  }
-                };
+            {/* Right: Glass Card Featured - Premium Design */}
+            {featuredTrip && (
+              <div className="xl:col-span-5 w-full xl:w-auto mt-8 xl:mt-0">
+                <Link
+                  to={`/viagem/${featuredTrip.slug || featuredTrip.id}`}
+                  className="block backdrop-blur-xl bg-gradient-to-br from-white/20 via-white/15 to-white/10 border border-white/40 rounded-3xl p-7 md:p-9 text-white max-w-md mx-auto xl:ml-auto xl:mr-0 shadow-2xl shadow-black/50 relative overflow-hidden hover:scale-[1.02] hover:shadow-3xl hover:shadow-black/60 transition-all duration-300 cursor-pointer group"
+                >
+                  {/* Subtle gradient overlay for depth */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-secondary-500/10 pointer-events-none rounded-3xl"></div>
+                  
+                  <div className="relative z-10 space-y-5">
+                    {/* Badge - Premium */}
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-2 bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] border border-white/30">
+                        <span className="w-1.5 h-1.5 bg-secondary-300 rounded-full animate-pulse"></span>
+                        Destaque da Semana
+                      </span>
+                    </div>
 
-                return (
-                  <div
-                    key={trip.id}
-                    className="flex-shrink-0 w-[85vw] md:w-auto snap-center group/dock relative h-full"
-                    style={{ overflow: 'visible' }}
-                  >
-                    <Link
-                      to={`/viagem/${trip.slug || trip.id}`}
-                      className="bg-white/90 backdrop-blur-md rounded-2xl border-0 shadow-xl hover:bg-white hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 flex flex-col relative overflow-hidden h-full min-h-[320px] group/card"
-                    >
-                      <div className="relative w-full h-32 rounded-t-2xl overflow-hidden flex-shrink-0">
-                        {(trip.images && Array.isArray(trip.images) && trip.images.length > 0 && trip.images[0]) ? (
-                          <img
-                            key={`dock-img-${trip.id}`}
-                            src={trip.images[0]}
-                            alt={trip.title}
-                            className="w-full h-full object-cover group-hover/dock:scale-[1.15] transition-transform duration-700"
-                            onError={(e) => {
-                              // Hide image on error, placeholder will show
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <NoImagePlaceholder
-                            title={trip.title}
-                            category={trip.category}
-                            size="small"
-                            className="w-full h-full"
-                          />
-                        )}
-                        {(trip.featured || (trip.views || 0) > 100) && (
-                          <div className="absolute top-2 right-2 bg-primary-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
-                            <TrendingUp size={10} />
-                            {trip.featured ? 'Em Alta' : 'Oferta'}
-                          </div>
-                        )}
-                        {((trip as any).tripRating || trip.rating) && (
-                          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 z-10">
-                            <Star size={10} className="fill-amber-400 text-amber-400" />
-                            {((trip as any).tripRating || trip.rating || 0).toFixed(1)}
-                          </div>
-                        )}
-                        {/* Overlay Border to fix corner glitch */}
-                        <div className="absolute inset-0 rounded-t-2xl border-t border-x border-black/5 pointer-events-none z-20" />
+                    {/* Title - Elegant Typography */}
+                    <div className="space-y-2">
+                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-serif font-bold leading-[1.2] text-white drop-shadow-lg group-hover:text-secondary-200 transition-colors">
+                        {featuredTrip.title}
+                      </h2>
+                      <div className="h-px w-16 bg-gradient-to-r from-secondary-300 to-transparent group-hover:w-24 transition-all"></div>
+                    </div>
+
+                    {/* Description - Refined */}
+                    <p className="text-white/85 text-sm md:text-base leading-relaxed line-clamp-2 font-light group-hover:text-white/95 transition-colors">
+                      Uma experiência inesquecível em {featuredTrip.destination}. Curadoria premium para quem busca viver o extraordinário.
+                    </p>
+
+                    {/* Meta Info - Clean Icons */}
+                    <div className="flex items-center gap-5 text-white/80 text-xs md:text-sm flex-wrap pt-1">
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20 group-hover:bg-white/15 transition-colors">
+                        <MapPin size={15} className="text-secondary-200" />
+                        <span className="font-medium">{featuredTrip.destination}</span>
                       </div>
-
-                      <div className="flex-1 flex flex-col min-h-0 p-4">
-                        {/* Title with fixed height to ensure consistency */}
-                        <div className="h-10 mb-2 flex flex-col justify-center">
-                          <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 group-hover/dock:text-primary-600 transition-colors">
-                            {trip.title}
-                          </h3>
-                        </div>
-
-                        {/* Destination & Duration */}
-                        <div className="flex flex-col gap-1.5 mb-3 flex-shrink-0">
-                          {trip.destination && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                              <MapPin size={12} className="text-primary-600 flex-shrink-0" />
-                              <span className="truncate">{trip.destination}</span>
-                            </div>
-                          )}
-                          {trip.durationDays && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                              <Clock size={12} className="text-primary-600 flex-shrink-0" />
-                              <span>{trip.durationDays} {trip.durationDays === 1 ? 'dia' : 'dias'}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Price - Always at bottom */}
-                        <div className="mt-auto pt-2 border-t border-gray-100 flex-shrink-0">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">A partir de</span>
-                              <div className="flex items-baseline gap-0.5">
-                                <span className="text-xs text-gray-500 font-semibold">R$</span>
-                                <span className="text-xl font-extrabold text-gray-900">{trip.price.toLocaleString('pt-BR')}</span>
-                              </div>
-                            </div>
-                            <ArrowRight size={16} className="text-primary-600 opacity-0 group-hover/dock:opacity-100 group-hover/dock:translate-x-1 transition-all" />
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20 group-hover:bg-white/15 transition-colors">
+                        <Clock size={15} className="text-secondary-200" />
+                        <span className="font-medium">{featuredTrip.durationDays} {featuredTrip.durationDays === 1 ? 'dia' : 'dias'}</span>
                       </div>
+                    </div>
 
-                      {/* Full Card Border Overlay - Separated for perfect corners */}
-                      <div className="absolute inset-0 rounded-2xl border border-white/20 pointer-events-none z-20 ring-1 ring-black/5" />
-                    </Link>
-                    {whatsappLink && (
-                      <button
-                        onClick={handleWhatsAppClick}
-                        className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-[#25D366] text-white opacity-0 group-hover/dock:opacity-100 shadow-lg hover:bg-[#20BA5A] hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center z-50 border-2 border-white pointer-events-auto"
-                        style={{
-                          transform: 'translateZ(0)',
-                          willChange: 'transform, opacity',
-                          backfaceVisibility: 'hidden'
-                        }}
-                        title="Falar com a agência"
-                        aria-label="WhatsApp"
+                    {/* Price & CTA - Premium Layout */}
+                    <div className="flex items-end justify-between gap-4 pt-3 border-t border-white/20">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] text-white/60 uppercase tracking-wider font-semibold mb-1">A partir de</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-sm text-white/70 font-semibold">R$</span>
+                          <span className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-lg tracking-tight group-hover:text-secondary-200 transition-colors">{featuredTrip.price.toLocaleString('pt-BR')}</span>
+                        </div>
+                        <span className="text-[10px] text-white/50 mt-0.5">por pessoa</span>
+                      </div>
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-2 bg-white text-secondary-600 px-5 py-3 rounded-full font-bold hover:bg-white/95 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-black/40"
                       >
-                        <MessageCircle size={14} className="fill-white" strokeWidth={0} />
-                      </button>
-                    )}
+                        Explorar
+                        <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </div>
                   </div>
-                )
-              })}
-            </div>
-          ) : null}
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* Carousel Navigation */}
-        {heroTrips.length > 1 && (
-          <>
-            <button
-              onClick={prevSlide}
-              className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
-            >
-              <ChevronLeft size={32} />
-            </button>
-            <button
-              onClick={nextSlide}
-              className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-30 text-white/70 hover:text-white p-3 rounded-full hover:bg-white/10 backdrop-blur-sm transition-all"
-            >
-              <ChevronRight size={32} />
-            </button>
-          </>
-        )}
       </div>
 
-      {/* FILTERS & GRID */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      {/* GRID SECTION - Below Featured Card */}
+      <div className="max-w-[1600px] mx-auto px-6 sm:px-6 lg:px-8 mt-10 md:mt-16">
+        {/* FILTERS */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3 px-1"><div className="flex items-center gap-2 text-gray-500"><Filter size={16} /><span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span></div></div>
           <div className="relative group/scroll bg-white/60 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl py-3">

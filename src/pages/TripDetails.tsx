@@ -4,25 +4,28 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Trip, PassengerDetail } from '../types';
-import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe, Check } from 'lucide-react';
+import { Trip, PassengerDetail, UserRole } from '../types';
+import { MapPin, Clock, Calendar, CheckCircle, User, Star, Share2, Heart, ArrowLeft, MessageCircle, AlertTriangle, ShieldCheck, Tag, Bus, Globe, Check, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { buildWhatsAppLink } from '../utils/whatsapp';
 import { PassengerDataModal } from '../components/PassengerDataModal';
 import { BookingWidget } from '../components/BookingWidget';
 import { logger } from '../utils/logger';
 import { X } from 'lucide-react';
+import CreateTripWizard from '../components/agency/CreateTripWizard';
 
 const TripDetails: React.FC = () => {
   const { slug, tripSlug, agencySlug } = useParams<{ slug?: string; tripSlug?: string; agencySlug?: string }>();
   const activeSlug = tripSlug || slug;
 
-  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies, fetchTripImages, loading } = useData();
+  const { getTripBySlug, getAgencyBySlug, getAgencyPublicTrips, getTripById, addBooking, toggleFavorite, clients, getReviewsByTripId, agencies, fetchTripImages, loading, updateTrip, refreshData } = useData();
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [tripLoading, setTripLoading] = useState(true);
   const [tripError, setTripError] = useState<string | null>(null);
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Trip | undefined>(undefined);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
@@ -168,6 +171,22 @@ const TripDetails: React.FC = () => {
       });
     }
   }, [trip, fetchTripImages, imagesLoaded]);
+
+  // Keyboard navigation for gallery
+  useEffect(() => {
+    if (!trip || trip.images.length <= 1) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        setActiveImageIndex((prev) => (prev === 0 ? trip.images.length - 1 : prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        setActiveImageIndex((prev) => (prev === trip.images.length - 1 ? 0 : prev + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [trip]);
 
   // Favorites logic
   const currentUserData = user ? clients.find(c => c.id === user.id) : undefined;
@@ -370,6 +389,67 @@ const TripDetails: React.FC = () => {
 
   const whatsappLink = buildWhatsAppLink(agency.whatsapp || agency.phone, trip);
 
+  // Check if user can edit this trip
+  // Admin can edit any trip, Agency/Guide can only edit their own trips
+  const userAgency = user ? agencies.find(a => a.id === user.id) : undefined;
+  const canEdit = user && trip && (
+    user.role === UserRole.ADMIN || 
+    (user.role === UserRole.AGENCY && userAgency?.agencyId === trip.agencyId) ||
+    (user.role === UserRole.GUIDE && userAgency?.agencyId === trip.agencyId)
+  );
+
+  const handleEditTrip = async () => {
+    if (!trip) return;
+    
+    // Load images if not already loaded
+    let tripWithImages = trip;
+    if ((!trip.images || trip.images.length === 0) && fetchTripImages) {
+      try {
+        const images = await fetchTripImages(trip.id);
+        if (images && images.length > 0) {
+          tripWithImages = { ...trip, images };
+        }
+      } catch (error) {
+        logger.error(`[TripDetails] Error loading images for editing trip ${trip.id}:`, error);
+      }
+    }
+    
+    setEditingTrip(tripWithImages);
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = async () => {
+    setShowEditModal(false);
+    setEditingTrip(undefined);
+    await refreshData();
+    // Reload trip data
+    if (activeSlug) {
+      const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
+      let foundTrip: Trip | undefined = undefined;
+      
+      if (agency) {
+        const agencyTrips = getAgencyPublicTrips(agency.agencyId);
+        foundTrip = agencyTrips.find(t => t.slug === activeSlug);
+        if (!foundTrip) {
+          foundTrip = getTripById(activeSlug);
+          if (foundTrip && foundTrip.agencyId !== agency.agencyId) {
+            foundTrip = undefined;
+          }
+        }
+      } else {
+        foundTrip = getTripBySlug(activeSlug);
+        if (!foundTrip) {
+          foundTrip = getTripById(activeSlug);
+        }
+      }
+      
+      if (foundTrip) {
+        setTrip(foundTrip);
+      }
+    }
+    showToast('Viagem atualizada com sucesso!', 'success');
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-[fadeIn_0.3s] pb-32 lg:pb-8">
       {/* Breadcrumb / Back */}
@@ -378,6 +458,15 @@ const TripDetails: React.FC = () => {
           <ArrowLeft size={20} className="mr-2" /> Voltar
         </button>
         <div className="flex gap-2">
+          {canEdit && (
+            <button 
+              onClick={handleEditTrip} 
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors shadow-sm"
+            >
+              <Edit size={18} />
+              Editar Pacote
+            </button>
+          )}
           <button onClick={handleFavorite} className={`p-2 rounded-full border transition-colors ${isFavorite ? 'bg-red-50 text-red-500 border-red-100' : 'bg-white text-gray-400 border-gray-200 hover:text-red-500'}`}>
             <Heart size={20} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
@@ -392,9 +481,10 @@ const TripDetails: React.FC = () => {
         {/* Left Column: Content */}
         <div className="lg:col-span-2 space-y-8">
 
-          {/* Gallery */}
+          {/* Gallery - Premium Design */}
           <div className="space-y-4">
-            <div className="aspect-video w-full rounded-3xl overflow-hidden bg-gray-100 shadow-sm relative group">
+            {/* Main Image */}
+            <div className="relative aspect-video w-full rounded-2xl md:rounded-3xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-xl group">
               <img
                 src={trip.images[activeImageIndex] || ''}
                 alt={trip.title}
@@ -402,23 +492,93 @@ const TripDetails: React.FC = () => {
                 decoding="async"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute top-4 left-4">
-                <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-gray-800 shadow-sm">
+              
+              {/* Category Badge */}
+              <div className="absolute top-4 left-4 z-10">
+                <span className="bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider text-gray-800 shadow-lg">
                   {trip.category}
                 </span>
               </div>
-            </div>
-            {trip.images.length > 1 && (
-              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                {trip.images.map((img, idx) => (
+
+              {/* Image Counter */}
+              {trip.images.length > 1 && (
+                <div className="absolute top-4 right-4 z-10">
+                  <span className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-lg">
+                    {activeImageIndex + 1} / {trip.images.length}
+                  </span>
+                </div>
+              )}
+
+              {/* Navigation Arrows */}
+              {trip.images.length > 1 && (
+                <>
                   <button
-                    key={idx}
-                    onClick={() => setActiveImageIndex(idx)}
-                    className={`relative w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeImageIndex === idx ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                    onClick={() => setActiveImageIndex((prev) => (prev === 0 ? trip.images.length - 1 : prev - 1))}
+                    className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/95 backdrop-blur-md flex items-center justify-center shadow-xl hover:bg-white transition-all md:opacity-0 md:group-hover:opacity-100 hover:scale-110 active:scale-95"
+                    aria-label="Imagem anterior"
                   >
-                    <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                    <ChevronLeft size={20} className="text-gray-900" />
                   </button>
-                ))}
+                  <button
+                    onClick={() => setActiveImageIndex((prev) => (prev === trip.images.length - 1 ? 0 : prev + 1))}
+                    className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/95 backdrop-blur-md flex items-center justify-center shadow-xl hover:bg-white transition-all md:opacity-0 md:group-hover:opacity-100 hover:scale-110 active:scale-95"
+                    aria-label="Próxima imagem"
+                  >
+                    <ChevronRight size={20} className="text-gray-900" />
+                  </button>
+                </>
+              )}
+
+              {/* Gradient Overlay for better text readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
+
+              {/* Dots Indicator for Mobile */}
+              {trip.images.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-2 md:hidden">
+                  {trip.images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        activeImageIndex === idx 
+                          ? 'bg-white w-6' 
+                          : 'bg-white/50 hover:bg-white/75'
+                      }`}
+                      aria-label={`Ir para imagem ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Thumbnails */}
+            {trip.images.length > 1 && (
+              <div className="relative">
+                <div className="flex gap-2 md:gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory">
+                  {trip.images.map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`relative flex-shrink-0 rounded-lg md:rounded-xl overflow-hidden border-2 transition-all duration-300 snap-center ${
+                        activeImageIndex === idx 
+                          ? 'border-primary-600 ring-2 md:ring-4 ring-primary-100 shadow-lg scale-105' 
+                          : 'border-gray-200 opacity-60 hover:opacity-100 hover:border-gray-300 hover:scale-102 active:scale-95'
+                      }`}
+                      style={{ width: '70px', height: '70px' }}
+                    >
+                      <img 
+                        src={img} 
+                        alt={`Imagem ${idx + 1}`} 
+                        loading="lazy" 
+                        decoding="async" 
+                        className="w-full h-full object-cover" 
+                      />
+                      {activeImageIndex === idx && (
+                        <div className="absolute inset-0 bg-primary-600/20 pointer-events-none" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -450,9 +610,9 @@ const TripDetails: React.FC = () => {
           </div>
 
           {/* Description */}
-          <div className="prose prose-blue max-w-none text-gray-600">
+          <div className="prose prose-blue max-w-none text-gray-600 min-w-0">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Sobre a experiência</h3>
-            <p className="whitespace-pre-line leading-relaxed">{trip.description}</p>
+            <p className="whitespace-pre-line leading-relaxed break-words">{trip.description}</p>
           </div>
 
           {/* Included / Not Included */}
@@ -487,9 +647,9 @@ const TripDetails: React.FC = () => {
               <h3 className="text-xl font-bold text-gray-900 mb-6">Roteiro Dia a Dia</h3>
               <div className="space-y-4">
                 {trip.itinerary.map((day) => (
-                  <div key={day.day} className="border border-gray-200 rounded-xl p-5 hover:border-primary-200 transition-colors bg-white">
-                    <h4 className="font-bold text-lg text-primary-700 mb-2">Dia {day.day}: {day.title}</h4>
-                    <p className="text-gray-600 text-sm leading-relaxed">{day.description}</p>
+                  <div key={day.day} className="border border-gray-200 rounded-xl p-5 hover:border-primary-200 transition-colors bg-white min-w-0">
+                    <h4 className="font-bold text-lg text-primary-700 mb-2 break-words">Dia {day.day}: {day.title}</h4>
+                    <p className="text-gray-600 text-sm leading-relaxed break-words whitespace-pre-wrap">{day.description}</p>
                   </div>
                 ))}
               </div>
@@ -617,6 +777,18 @@ const TripDetails: React.FC = () => {
             allowLapChild: false,
             childPriceMultiplier: 0.7
           }}
+        />
+      )}
+
+      {/* Edit Trip Modal */}
+      {showEditModal && editingTrip && (
+        <CreateTripWizard
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingTrip(undefined);
+          }}
+          onSuccess={handleEditSuccess}
+          initialTripData={editingTrip}
         />
       )}
 

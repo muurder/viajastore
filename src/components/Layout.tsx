@@ -7,6 +7,7 @@ import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart, Menu, X } from 'lucide-react';
+import { Logo } from './ui/Logo';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
@@ -116,9 +117,15 @@ const Layout: React.FC = () => {
   useEffect(() => {
     if (!location.pathname.includes('/viagem/')) {
       if ((isAgencyMode || isAgencyDashboard) && currentAgency) {
-        document.title = `${currentAgency.name} | ${platformSettings?.platform_name || 'ViajaStore'}`;
+        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
+          ? platformSettings.platform_name 
+          : 'SouNativo';
+        document.title = `${currentAgency.name} | ${platformName}`;
       } else {
-        document.title = `${platformSettings?.platform_name || 'ViajaStore'} | O maior marketplace de viagens`;
+        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
+          ? platformSettings.platform_name 
+          : 'SouNativo';
+        document.title = `${platformName} | O maior marketplace de viagens`;
       }
     }
   }, [location.pathname, isAgencyMode, isAgencyDashboard, currentAgency, platformSettings]);
@@ -291,7 +298,7 @@ const Layout: React.FC = () => {
 
       {/* Navbar */}
       <nav
-        className="bg-white shadow-sm sticky top-0 z-50"
+        className="sticky top-0 z-50 bg-white shadow-sm"
         style={{
           backgroundColor: platformSettings?.background_color || '#ffffff',
           opacity: platformSettings?.background_transparency || 1.0,
@@ -332,25 +339,24 @@ const Layout: React.FC = () => {
 
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!showAgencyHeader ? (
-                    // FIX: Show ViajaStore logo immediately for global pages (no loading state)
+                    // Show SouNativo logo immediately for global pages
                     <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform"
-                      >
-                        <line x1="22" y1="2" x2="11" y2="13" />
-                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                      </svg>
                       {platformSettings?.platform_logo_url ? (
-                        <img src={platformSettings.platform_logo_url} alt={platformSettings.platform_name} className="h-8 w-auto mr-2" />
-                      ) : null}
-                      <span className="font-bold text-xl tracking-tight text-primary-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
+                        <>
+                          <img src={platformSettings.platform_logo_url} alt={(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'} className="h-8 w-auto mr-2" />
+                          <span className="font-bold text-xl tracking-tight text-primary-800 hidden md:inline">
+                            {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
+                              ? platformSettings.platform_name 
+                              : 'SouNativo'}
+                          </span>
+                        </>
+                      ) : (
+                        <Logo 
+                          className="h-8" 
+                          showText={true}
+                          variant="default"
+                        />
+                      )}
                     </>
                   ) : (
                     // FIX: Only show skeleton if we're actually in agency mode AND loading
@@ -374,25 +380,13 @@ const Layout: React.FC = () => {
                           <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
                         </div>
                       ) : (
-                        // FIX: Fallback to ViajaStore logo if agency not found (instead of showing slug)
+                        // Fallback to SouNativo logo if agency not found
                         <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-8 w-8 mr-2 text-primary-600 group-hover:rotate-12 transition-transform"
-                          >
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                          </svg>
                           {platformSettings?.platform_logo_url ? (
                             <img src={platformSettings.platform_logo_url} alt={platformSettings.platform_name} className="h-8 w-auto mr-2" />
-                          ) : null}
-                          <span className="font-bold text-xl tracking-tight text-primary-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
+                          ) : (
+                            <Logo className="h-8" showText={true} />
+                          )}
                         </>
                       )}
                     </div>
@@ -402,13 +396,19 @@ const Layout: React.FC = () => {
                 <div className="hidden md:ml-8 md:flex md:space-x-8">
                   {!showAgencyHeader ? (
                     <>
-                      <Link to="/trips" className={getLinkClasses('/trips')}>Explorar Viagens</Link>
-                      <Link to="/agencies" className={getLinkClasses('/agencies')}>Agências</Link>
+                      <Link to="/trips" className={getLinkClasses('/trips')}>
+                        Explorar Viagens
+                      </Link>
+                      <Link to="/agencies" className={getLinkClasses('/agencies')}>
+                        Agências
+                      </Link>
                       <Link to="/guides" className={getLinkClasses('/guides')}>
                         <Compass size={16} className="inline mr-1" />
                         Guias de Turismo
                       </Link>
-                      <Link to="/about" className={getLinkClasses('/about')}>Sobre</Link>
+                      <Link to="/about" className={getLinkClasses('/about')}>
+                        Sobre
+                      </Link>
                     </>
                   ) : currentAgency && (
                     <>
@@ -496,8 +496,18 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Link to={{ hash: 'login' }} className="text-gray-500 hover:text-gray-900 font-medium transition-colors">Entrar</Link>
-                    <Link to={{ hash: 'signup' }} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30">Criar Conta</Link>
+                    <Link 
+                      to={{ hash: 'login' }} 
+                      className="text-gray-500 hover:text-gray-900 font-medium transition-colors"
+                    >
+                      Entrar
+                    </Link>
+                    <Link 
+                      to={{ hash: 'signup' }} 
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30"
+                    >
+                      Criar Conta
+                    </Link>
                   </div>
                 )}
               </div>
@@ -632,7 +642,7 @@ const Layout: React.FC = () => {
         {isMicrositeClientArea ? (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
-              <Globe size={12} className="mr-2" /> Voltar para o Marketplace {platformSettings?.platform_name || 'ViajaStore'}
+              <Globe size={12} className="mr-2" /> Voltar para o Marketplace {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'}
             </Link>
           </div>
         ) : (
@@ -646,7 +656,7 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <div className="mb-4">
-                    <span className="text-xl font-bold text-gray-900">{platformSettings?.platform_name || 'ViajaStore'}</span>
+                    <span className="text-xl font-bold text-gray-900">{(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'}</span>
                     <p className="text-gray-500 text-sm mt-2 max-w-sm">Conectando você às melhores experiências de viagem do Brasil.</p>
                   </div>
                 )}
@@ -679,11 +689,12 @@ const Layout: React.FC = () => {
             </div>
             <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center">
               <p className="text-sm text-gray-400">
-                &copy; {new Date().getFullYear()} {platformSettings?.platform_name || 'ViajaStore'}. Todos os direitos reservados.
+                &copy; {new Date().getFullYear()} {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'}. Todos os direitos reservados.
               </p>
               <div className="flex items-center gap-2 mt-4 md:mt-0">
                 <span className="text-[10px] text-gray-400 uppercase font-bold">Powered by</span>
-                <span className="text-xs font-extrabold text-gray-600">{platformSettings?.platform_name || 'ViajaStore'}</span>
+                <Logo className="h-4" showText={false} />
+                <span className="text-xs font-extrabold text-gray-600">{(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'}</span>
               </div>
             </div>
           </div>
