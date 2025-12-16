@@ -513,15 +513,10 @@ const AgencyDashboard: React.FC = () => {
             <ConfirmDialog isOpen={showPaymentManagementDialog} onClose={() => setShowPaymentManagementDialog(false)} onConfirm={() => window.open('https://wa.me/5511987697684?text=Quero%20gerenciar%20meu%20plano', '_blank')} title="Gerenciar Assinatura" message="Para alterar dados de pagamento ou cancelar, entre em contato com nosso suporte financeiro." confirmText="Falar com Suporte" variant="info" />
 
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-                {/* Dashboard Tabs for Mobile - Only show if not in Layout? 
-                        Actually, AgencyLayout handles the frame. AgencyDashboard now just renders content.
-                        But on mobile, we might want the tabs within the content area if the layout doesn't provide them. 
-                        For now, let's keep them here as they control the TABS within this specific page.
-                    */}
-                <DashboardMobileTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={tabs} />
+            <div className="flex-1 w-full bg-gray-50">
+                <DashboardMobileTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={tabs} className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-sm shadow-sm" />
 
-                <div className="max-w-7xl mx-auto space-y-6">
+                <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto space-y-6">
 
                     {/* OVERVIEW TAB */}
                     {activeTab === 'OVERVIEW' && (

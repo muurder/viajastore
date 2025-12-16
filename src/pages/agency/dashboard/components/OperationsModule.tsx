@@ -54,7 +54,9 @@ export const OperationsModule: React.FC<OperationsModuleProps> = ({
         if (selectedTripId) {
             refreshData();
         }
-    }, [selectedTripId, refreshData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTripId]);
+
 
     const confirmDeleteTrip = async () => {
         if (!tripToDelete) return;
