@@ -226,6 +226,87 @@ const AgencyLandingPage: React.FC = () => {
       }
   }, [agency, getAgencyTheme, setAgencyTheme]);
 
+  // Apply background image to body (not hero card)
+  useEffect(() => {
+      const body = document.body;
+      const html = document.documentElement;
+      
+      if (fullTheme?.backgroundImage) {
+          // Apply background to body and html
+          body.style.backgroundImage = `url(${fullTheme.backgroundImage})`;
+          body.style.backgroundSize = 'cover';
+          body.style.backgroundPosition = 'center';
+          body.style.backgroundAttachment = 'fixed';
+          body.style.backgroundRepeat = 'no-repeat';
+          html.style.backgroundImage = `url(${fullTheme.backgroundImage})`;
+          html.style.backgroundSize = 'cover';
+          html.style.backgroundPosition = 'center';
+          html.style.backgroundAttachment = 'fixed';
+          html.style.backgroundRepeat = 'no-repeat';
+          
+          // Apply blur and opacity via overlay
+          if (!document.getElementById('theme-background-overlay')) {
+              const overlay = document.createElement('div');
+              overlay.id = 'theme-background-overlay';
+              overlay.style.cssText = `
+                  position: fixed;
+                  top: 0;
+                  left: 0;
+                  width: 100%;
+                  height: 100%;
+                  background: rgba(255, 255, 255, ${1 - (fullTheme.backgroundOpacity || 1)});
+                  backdrop-filter: blur(${fullTheme.backgroundBlur || 0}px);
+                  -webkit-backdrop-filter: blur(${fullTheme.backgroundBlur || 0}px);
+                  z-index: -1;
+                  pointer-events: none;
+              `;
+              document.body.appendChild(overlay);
+          } else {
+              const overlay = document.getElementById('theme-background-overlay');
+              if (overlay) {
+                  overlay.style.background = `rgba(255, 255, 255, ${1 - (fullTheme.backgroundOpacity || 1)})`;
+                  overlay.style.backdropFilter = `blur(${fullTheme.backgroundBlur || 0}px)`;
+                  overlay.style.webkitBackdropFilter = `blur(${fullTheme.backgroundBlur || 0}px)`;
+              }
+          }
+      } else {
+          // Remove background when no theme background
+          body.style.backgroundImage = '';
+          body.style.backgroundSize = '';
+          body.style.backgroundPosition = '';
+          body.style.backgroundAttachment = '';
+          body.style.backgroundRepeat = '';
+          html.style.backgroundImage = '';
+          html.style.backgroundSize = '';
+          html.style.backgroundPosition = '';
+          html.style.backgroundAttachment = '';
+          html.style.backgroundRepeat = '';
+          
+          const overlay = document.getElementById('theme-background-overlay');
+          if (overlay) {
+              overlay.remove();
+          }
+      }
+      
+      return () => {
+          // Cleanup on unmount
+          body.style.backgroundImage = '';
+          body.style.backgroundSize = '';
+          body.style.backgroundPosition = '';
+          body.style.backgroundAttachment = '';
+          body.style.backgroundRepeat = '';
+          html.style.backgroundImage = '';
+          html.style.backgroundSize = '';
+          html.style.backgroundPosition = '';
+          html.style.backgroundAttachment = '';
+          html.style.backgroundRepeat = '';
+          const overlay = document.getElementById('theme-background-overlay');
+          if (overlay) {
+              overlay.remove();
+          }
+      };
+  }, [fullTheme?.backgroundImage, fullTheme?.backgroundBlur, fullTheme?.backgroundOpacity]);
+
   // FIX: Wait for data to load before showing error
   // If we're still loading and don't have agency yet, show loading spinner
   if (loading && !agency) {
@@ -423,11 +504,6 @@ const AgencyLandingPage: React.FC = () => {
         className="bg-gray-900 rounded-b-3xl md:rounded-3xl shadow-2xl overflow-hidden relative min-h-[500px] md:min-h-[580px] flex items-center group mx-0 md:mx-4 lg:mx-8 mt-0 md:mt-4"
         style={{ 
           borderRadius: headerStyle === 'transparent' ? borderRadius : undefined,
-          backgroundImage: fullTheme?.backgroundImage ? `url(${fullTheme.backgroundImage})` : undefined,
-          backgroundSize: fullTheme?.backgroundImage ? 'cover' : undefined,
-          backgroundPosition: fullTheme?.backgroundImage ? 'center' : undefined,
-          filter: fullTheme?.backgroundBlur ? `blur(${fullTheme.backgroundBlur}px)` : undefined,
-          opacity: fullTheme?.backgroundOpacity !== undefined ? fullTheme.backgroundOpacity : undefined,
         }}
       >
           {agency.heroMode === 'STATIC' ? (

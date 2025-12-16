@@ -1,12 +1,12 @@
 
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, Outlet, useNavigate, useLocation, useSearchParams, useMatch } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, ChevronDown, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart, Menu, X } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart, Menu, X } from 'lucide-react';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency } from '../types';
@@ -20,10 +20,6 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-
-  // User dropdown state
-  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Mobile Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,23 +37,6 @@ const Layout: React.FC = () => {
       behavior: 'auto'
     });
   }, [location.pathname]);
-
-  // Click outside handler for user dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
-        setIsUserDropdownOpen(false);
-      }
-    };
-
-    if (isUserDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isUserDropdownOpen]);
 
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const potentialSlug = pathSegments[0];
@@ -211,13 +190,10 @@ const Layout: React.FC = () => {
       // Prompt for password
       const userPassword = prompt(`Digite a senha para ${email}:`);
       if (!userPassword) {
-        setIsUserDropdownOpen(false);
         return;
       }
       finalPassword = userPassword;
     }
-
-    setIsUserDropdownOpen(false);
 
     // Show loading toast
     showToast('Fazendo login...', 'info');
@@ -453,241 +429,70 @@ const Layout: React.FC = () => {
               {/* Desktop Right Menu */}
               <div className="hidden md:flex items-center">
                 {user ? (
-                  <div className="ml-4 flex items-center md:ml-6 gap-3">
-                    {/* Only show direct Dashboard link if NOT already in dashboard (to avoid redundancy) */}
-                    {!isInDashboard && (user.role === 'AGENCY' || user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && (acc.role === 'ADMIN' || acc.role === 'AGENCY'))) && (
-                      <Link
-                        to={dashboardRoute}
-                        className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors text-gray-600 hover:text-primary-600 hover:bg-gray-50"
-                      >
-                        <LayoutDashboard size={16} /> {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')) ? 'Painel Master' : (isGuide ? 'Meu Painel de Guia' : 'Meu Painel')}
-                      </Link>
-                    )}
+                  <div className="ml-4 flex items-center md:ml-6 gap-4">
+                    {/* Elemento 1: Botão de Ação Principal (Dashboard) */}
+                    <Link
+                      to={dashboardRoute}
+                      className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors text-slate-600 hover:text-primary-600 hover:bg-gray-50"
+                      title={
+                        user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')
+                          ? 'Painel Master'
+                          : isGuide
+                            ? 'Meu Painel de Guia'
+                            : 'Ir para Painel'
+                      }
+                    >
+                      <LayoutDashboard size={16} />
+                      <span>
+                        {user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')
+                          ? 'Painel Master'
+                          : isGuide
+                            ? 'Meu Painel de Guia'
+                            : 'Ir para Painel'}
+                      </span>
+                    </Link>
 
-                    {/* User Dropdown */}
-                    <div className="relative" ref={userDropdownRef}>
-                      <button
-                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                        className="flex items-center gap-2 bg-gray-50 py-1.5 px-3 rounded-full border border-gray-100 hover:bg-white hover:shadow-sm transition-all group"
-                      >
-                        {user.avatar ? (
-                          <img src={user.avatar} alt={user.name} className="w-7 h-7 rounded-full object-cover border border-gray-200" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-xs font-bold">
+                    {/* Elemento 2: Divisor Vertical */}
+                    <div className="h-6 w-px bg-slate-200" />
+
+                    {/* Elemento 3: Botão Sair (Logout) */}
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"
+                      title="Sair da conta"
+                    >
+                      <LogOut size={18} />
+                    </button>
+
+                    {/* Elemento 4: Avatar (Link para Perfil) */}
+                    <Link
+                      to={userProfileLink}
+                      className="flex items-center transition-transform hover:scale-105"
+                      title="Configurações de Conta"
+                    >
+                      {(() => {
+                        // Para Agency, usar logo; para outros (Client, Admin), usar avatar
+                        const avatarUrl = user.role === 'AGENCY' 
+                          ? (user as Agency).logo 
+                          : user.avatar;
+                        
+                        if (avatarUrl) {
+                          return (
+                            <img
+                              src={avatarUrl}
+                              alt={user.name}
+                              className="w-8 h-8 rounded-full object-cover border-2 border-gray-200 hover:border-primary-300 transition-colors"
+                            />
+                          );
+                        }
+                        
+                        return (
+                          <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-sm font-bold border-2 border-gray-200 hover:border-primary-300 transition-colors">
                             {user.name.charAt(0).toUpperCase()}
                           </div>
-                        )}
-                        <span className="max-w-[120px] truncate text-sm font-medium text-gray-700">{user.name}</span>
-                        <ChevronDown
-                          size={16}
-                          className={`text-gray-400 transition-transform duration-200 ${isUserDropdownOpen ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-
-                      {/* Dropdown Menu */}
-                      {isUserDropdownOpen && (
-                        <>
-                          {/* Backdrop */}
-                          <div
-                            className="fixed inset-0 bg-black/10 z-[98]"
-                            onClick={() => setIsUserDropdownOpen(false)}
-                          />
-                          {/* Menu */}
-                          <div className="absolute right-0 top-full mt-2 w-56 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-gray-100 p-2 z-[99] animate-[scaleIn_0.15s]">
-                            <Link
-                              to={userProfileLink}
-                              onClick={() => setIsUserDropdownOpen(false)}
-                              className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                            >
-                              <User size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                              <span className="font-medium">Meu Perfil</span>
-                            </Link>
-
-                            {user.role === 'AGENCY' && (
-                              <>
-                                {/* Dashboard link - only show if not already in dashboard */}
-                                {!isInDashboard && (
-                                  <Link
-                                    to="/agency/dashboard"
-                                    onClick={() => setIsUserDropdownOpen(false)}
-                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                  >
-                                    <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                    <span className="font-medium">{isGuide ? 'Acessar Painel de Guia' : 'Acessar Painel da Agência'}</span>
-                                  </Link>
-                                )}
-                                {/* If in dashboard, show quick links to different tabs */}
-                                {isInDashboard && (
-                                  <>
-                                    <Link
-                                      to="/agency/dashboard?tab=OVERVIEW"
-                                      onClick={() => setIsUserDropdownOpen(false)}
-                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                    >
-                                      <BarChart2 size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                      <span className="font-medium">Visão Geral</span>
-                                    </Link>
-                                    <Link
-                                      to="/agency/dashboard?tab=TRIPS"
-                                      onClick={() => setIsUserDropdownOpen(false)}
-                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                    >
-                                      <Plane size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                      <span className="font-medium">{isGuide ? 'Minhas Experiências' : 'Meus Pacotes'}</span>
-                                    </Link>
-                                    <Link
-                                      to="/agency/dashboard?tab=BOOKINGS"
-                                      onClick={() => setIsUserDropdownOpen(false)}
-                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                    >
-                                      <ShoppingBag size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                      <span className="font-medium">Reservas</span>
-                                    </Link>
-                                  </>
-                                )}
-                                <Link
-                                  to={themeLink}
-                                  onClick={() => setIsUserDropdownOpen(false)}
-                                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                >
-                                  <Palette size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                  <span className="font-medium">Aparência</span>
-                                </Link>
-                              </>
-                            )}
-
-                            {/* Client Dashboard Links */}
-                            {user.role === 'CLIENT' && (
-                              <>
-                                {!isInDashboard && (
-                                  <Link
-                                    to={dashboardRoute}
-                                    onClick={() => setIsUserDropdownOpen(false)}
-                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                  >
-                                    <LayoutDashboard size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                    <span className="font-medium">Meu Painel</span>
-                                  </Link>
-                                )}
-                                {isInDashboard && (
-                                  <>
-                                    <Link
-                                      to="/client/dashboard/BOOKINGS"
-                                      onClick={() => setIsUserDropdownOpen(false)}
-                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                    >
-                                      <ShoppingBag size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                      <span className="font-medium">Minhas Viagens</span>
-                                    </Link>
-                                    <Link
-                                      to="/client/dashboard/FAVORITES"
-                                      onClick={() => setIsUserDropdownOpen(false)}
-                                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors group"
-                                    >
-                                      <Heart size={16} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                      <span className="font-medium">Favoritos</span>
-                                    </Link>
-                                  </>
-                                )}
-                              </>
-                            )}
-
-                            {/* Admin Quick Access to Other Dashboards */}
-                            {user.role === 'ADMIN' && (
-                              <>
-                                <div className="border-t border-gray-100 my-1"></div>
-                                <div className="px-2 py-1.5">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Shield size={14} className="text-primary-600" />
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Acesso Admin</span>
-                                  </div>
-                                  <Link
-                                    to="/client/dashboard/BOOKINGS"
-                                    onClick={() => setIsUserDropdownOpen(false)}
-                                    className="flex items-center gap-2 px-2.5 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group"
-                                  >
-                                    <User size={14} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                    <span className="font-medium">Painel Cliente</span>
-                                  </Link>
-                                  <Link
-                                    to="/agency/dashboard"
-                                    onClick={() => setIsUserDropdownOpen(false)}
-                                    className="flex items-center gap-2 px-2.5 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group"
-                                  >
-                                    <Briefcase size={14} className="text-gray-400 group-hover:text-primary-600 transition-colors" />
-                                    <span className="font-medium">Painel Agência</span>
-                                  </Link>
-                                </div>
-                              </>
-                            )}
-
-                            {/* Quick Account Switch - Admin Only */}
-                            {/* Show Quick Switch for any test account or admin */}
-                            {(user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email)) && (
-                              <>
-                                <div className="border-t border-gray-100 my-1"></div>
-                                <div className="px-2 py-1.5">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Zap size={14} className="text-primary-600" />
-                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Troca Rápida</span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {TEST_ACCOUNTS.map((account) => {
-                                      const Icon = account.icon;
-                                      const isCurrentUser = user.email === account.email;
-                                      const hasPassword = account.password || account.requiresPassword;
-                                      return (
-                                        <button
-                                          key={account.email}
-                                          onClick={async () => {
-                                            if (!isCurrentUser && hasPassword) {
-                                              await handleQuickLogin(account.email, account.password || '', account.requiresPassword);
-                                            }
-                                          }}
-                                          disabled={isCurrentUser || !hasPassword}
-                                          className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs rounded-lg transition-all ${isCurrentUser
-                                            ? 'bg-primary-50 text-primary-700 cursor-not-allowed'
-                                            : !hasPassword
-                                              ? 'text-gray-400 cursor-not-allowed opacity-50'
-                                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                            }`}
-                                          title={
-                                            isCurrentUser
-                                              ? 'Conta atual'
-                                              : !hasPassword
-                                                ? 'Senha não configurada'
-                                                : `Fazer login como ${account.name}`
-                                          }
-                                        >
-                                          <Icon size={14} className={isCurrentUser ? 'text-primary-600' : 'text-gray-400'} />
-                                          <span className="font-medium truncate flex-1 text-left">{account.name}</span>
-                                          {isCurrentUser && (
-                                            <div className="w-1.5 h-1.5 rounded-full bg-primary-600"></div>
-                                          )}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </>
-                            )}
-
-                            <div className="border-t border-gray-100 my-1"></div>
-
-                            <button
-                              onClick={() => {
-                                setIsUserDropdownOpen(false);
-                                handleLogout();
-                              }}
-                              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
-                            >
-                              <LogOut size={16} className="text-red-500 group-hover:text-red-600 transition-colors" />
-                              <span className="font-medium">Sair</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                        );
+                      })()}
+                    </Link>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
@@ -758,13 +563,20 @@ const Layout: React.FC = () => {
                   <div className="px-4 py-2">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Minha Conta</p>
                     <div className="flex items-center gap-3 mb-4">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold">
-                          {user.name.charAt(0)}
-                        </div>
-                      )}
+                      {(() => {
+                        // Para Agency, usar logo; para outros (Client, Admin), usar avatar
+                        const avatarUrl = user.role === 'AGENCY' 
+                          ? (user as Agency).logo 
+                          : user.avatar;
+                        
+                        return avatarUrl ? (
+                          <img src={avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold">
+                            {user.name.charAt(0)}
+                          </div>
+                        );
+                      })()}
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-gray-900 truncate">{user.name}</p>
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
@@ -776,11 +588,14 @@ const Layout: React.FC = () => {
                     <User size={20} className="text-gray-400" /> Meu Perfil
                   </Link>
 
-                  {(user.role === 'AGENCY' || user.role === 'ADMIN') && (
-                    <Link to={dashboardRoute} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                      <LayoutDashboard size={20} className="text-gray-400" /> Painel
-                    </Link>
-                  )}
+                  <Link to={dashboardRoute} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                    <LayoutDashboard size={20} className="text-gray-400" />
+                    {user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')
+                      ? 'Painel Master'
+                      : isGuide
+                        ? 'Meu Painel de Guia'
+                        : 'Meu Painel'}
+                  </Link>
 
                   <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium mt-2">
                     <LogOut size={20} /> Sair

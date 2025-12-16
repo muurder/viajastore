@@ -52,20 +52,21 @@ export const extractColorsFromImage = async (file: File): Promise<ExtractedColor
       const colorMap = new Map<string, number>();
       const colorSamples: Array<[number, number, number]> = [];
 
-      // Sample colors (every 10th pixel for performance)
-      for (let i = 0; i < data.length; i += 40) {
+      // Improved color sampling: sample every 8th pixel for better accuracy
+      // Also use a more sophisticated quantization (16 levels instead of 8)
+      for (let i = 0; i < data.length; i += 32) {
         const r = data[i];
         const g = data[i + 1];
         const b = data[i + 2];
         const a = data[i + 3];
 
-        // Skip transparent pixels
-        if (a < 128) continue;
+        // Skip transparent or very transparent pixels
+        if (a < 200) continue;
 
-        // Quantize colors to reduce noise (group similar colors)
-        const qr = Math.floor(r / 32) * 32;
-        const qg = Math.floor(g / 32) * 32;
-        const qb = Math.floor(b / 32) * 32;
+        // Improved quantization: 16 levels (more precise)
+        const qr = Math.floor(r / 16) * 16;
+        const qg = Math.floor(g / 16) * 16;
+        const qb = Math.floor(b / 16) * 16;
         const key = `${qr},${qg},${qb}`;
 
         colorMap.set(key, (colorMap.get(key) || 0) + 1);
@@ -210,7 +211,7 @@ const desaturateColor = (rgb: [number, number, number], amount: number): [number
 };
 
 /**
- * Generate 3 intelligent color palettes from a base color
+ * Generate 6 intelligent color palettes from a base color
  */
 export const generateColorPalettes = (baseColor: string): ColorPalette[] => {
   const baseRgb = hexToRgb(baseColor);
@@ -224,22 +225,70 @@ export const generateColorPalettes = (baseColor: string): ColorPalette[] => {
   };
   
   // 2. Soft (Pastel/Monochromatic) - Lightened base + neutral gray
-  const lightened = lightenColor(baseRgb, 0.4); // 40% lighter
+  const lightened = lightenColor(baseRgb, 0.4);
   const soft: ColorPalette = {
     name: 'Suave',
     primary: rgbToHex(lightened[0], lightened[1], lightened[2]),
-    secondary: '#6B7280' // Neutral gray
+    secondary: '#6B7280'
   };
   
   // 3. Professional (Dark) - Darkened base + dark gray/black
-  const darkened = darkenColor(baseRgb, 0.3); // 30% darker
+  const darkened = darkenColor(baseRgb, 0.3);
   const professional: ColorPalette = {
     name: 'Profissional',
     primary: rgbToHex(darkened[0], darkened[1], darkened[2]),
-    secondary: '#111827' // Dark gray/black
+    secondary: '#111827'
   };
   
-  return [vibrant, soft, professional];
+  // 4. Elegant (Monochromatic) - Base + lighter/darker variations
+  const lighter = lightenColor(baseRgb, 0.2);
+  const darker = darkenColor(baseRgb, 0.15);
+  const elegant: ColorPalette = {
+    name: 'Elegante',
+    primary: baseColor,
+    secondary: rgbToHex(darker[0], darker[1], darker[2])
+  };
+  
+  // 5. Modern (Analogous) - Base + adjacent color on color wheel
+  const analogous = getAnalogousColor(baseRgb);
+  const modern: ColorPalette = {
+    name: 'Moderno',
+    primary: baseColor,
+    secondary: rgbToHex(analogous[0], analogous[1], analogous[2])
+  };
+  
+  // 6. Bold (Triadic) - Base + triadic colors
+  const triadic = getTriadicColor(baseRgb);
+  const bold: ColorPalette = {
+    name: 'Ousado',
+    primary: baseColor,
+    secondary: rgbToHex(triadic[0], triadic[1], triadic[2])
+  };
+  
+  return [vibrant, soft, professional, elegant, modern, bold];
+};
+
+/**
+ * Get analogous color (adjacent on color wheel)
+ */
+const getAnalogousColor = (rgb: [number, number, number]): [number, number, number] => {
+  const [r, g, b] = rgb;
+  // Shift hue by 30 degrees (analogous)
+  // Simple approximation: increase green component
+  return [
+    Math.min(255, Math.max(0, r + 20)),
+    Math.min(255, Math.max(0, g + 30)),
+    Math.min(255, Math.max(0, b - 10))
+  ];
+};
+
+/**
+ * Get triadic color (120 degrees on color wheel)
+ */
+const getTriadicColor = (rgb: [number, number, number]): [number, number, number] => {
+  const [r, g, b] = rgb;
+  // Triadic: rotate colors
+  return [g, b, r];
 };
 
 /**
