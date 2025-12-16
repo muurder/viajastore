@@ -6,16 +6,17 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
-import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart, Menu, X } from 'lucide-react';
+import { LogOut, Instagram, Facebook, Twitter, User, ShieldCheck, Home as HomeIcon, Map, ShoppingBag, Globe, ChevronRight, LogIn, UserPlus, LayoutDashboard, Palette, Compass, Zap, Building, Shield, Briefcase, BarChart2, Plane, Heart, Menu, X, ArrowRight } from 'lucide-react';
 import { Logo } from './ui/Logo';
 import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
-import { Agency } from '../types';
+import { Agency, Trip } from '../types';
+import HeroSearch from './HeroSearch';
 
 
 const Layout: React.FC = () => {
   const { user, logout, login, reloadUser, exitImpersonate, isImpersonating } = useAuth();
-  const { getAgencyBySlug, getAgencyTheme, loading: dataLoading, platformSettings } = useData();
+  const { getAgencyBySlug, getAgencyTheme, loading: dataLoading, platformSettings, searchTrips, fetchTripImages } = useData();
   const { setAgencyTheme, resetAgencyTheme } = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -285,6 +286,71 @@ const Layout: React.FC = () => {
   }, [user, isAgencyMode, activeSlug]);
 
 
+  // Hero banner state - only for home page
+  const isHomePage = location.pathname === '/' || location.pathname === '';
+  const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // Load hero trips for banner
+  useEffect(() => {
+    if (!isHomePage) return;
+    
+    if (dataLoading) return;
+
+    const loadHero = async () => {
+      try {
+        let tripsData: Trip[] = [];
+        const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
+        if (featuredData && featuredData.length > 0) {
+          tripsData = featuredData;
+        } else {
+          const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
+          tripsData = generalData || [];
+        }
+
+        if (tripsData.length > 0) {
+          tripsData.sort(() => 0.5 - Math.random());
+        }
+
+        const tripsWithImages = await Promise.all(
+          tripsData.map(async (trip) => {
+            if (!trip.images || trip.images.length === 0) {
+              const images = await fetchTripImages(trip.id);
+              return { ...trip, images };
+            }
+            return trip;
+          })
+        );
+
+        setHeroTrips(tripsWithImages);
+      } catch (error) {
+        console.error('Error loading hero trips:', error);
+        setHeroTrips([]);
+      }
+    };
+
+    loadHero();
+  }, [isHomePage, searchTrips, dataLoading, fetchTripImages]);
+
+  // Carousel logic
+  useEffect(() => {
+    if (!heroTrips.length || !isHomePage) return;
+    const id = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % heroTrips.length);
+    }, 8000);
+    return () => clearInterval(id);
+  }, [heroTrips.length, isHomePage]);
+
+  const featuredTrip = heroTrips.length > 0 ? heroTrips[currentSlide] : null;
+  const HERO_PHRASES = [
+    'O Brasil que você ainda não viu.',
+    'Sua próxima aventura começa aqui.',
+    'Conecte-se com a natureza.',
+    'Experiências autênticas, memórias eternas.',
+    'Descubra o extraordinário.',
+  ];
+  const [heroPhrase] = useState(() => HERO_PHRASES[Math.floor(Math.random() * HERO_PHRASES.length)]);
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-colors duration-300 pb-16 md:pb-0">
       {/* Auth Modal */}
@@ -296,9 +362,89 @@ const Layout: React.FC = () => {
         />
       )}
 
+      {/* Hero Banner - Fixed in Header (only on home) */}
+      {isHomePage && (
+        <div className="relative h-[85vh] min-h-[600px] flex items-center overflow-hidden">
+          {/* Background Image */}
+          <div className="absolute inset-0">
+            {featuredTrip && featuredTrip.images && featuredTrip.images.length > 0 && featuredTrip.images[0] ? (
+              <img
+                src={featuredTrip.images[0]}
+                alt={featuredTrip.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-6xl font-bold text-white/30 mb-4">SouNativo</div>
+                  <div className="text-white/50">Carregando viagens...</div>
+                </div>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
+          </div>
+
+          {/* Content Overlay */}
+          <div className="relative z-10 w-full px-4 sm:px-6 md:px-8 lg:px-12">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 lg:gap-12 items-center">
+              {/* Left: Inspiration + Search */}
+              <div className="xl:col-span-7 text-left space-y-4 md:space-y-6">
+                <div className="animate-[fadeInUp_0.8s_ease-out] space-y-3 md:space-y-4">
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold text-white leading-[1.1] drop-shadow-2xl tracking-tight">
+                    Descubra o Brasil
+                  </h1>
+                  <p className="text-lg sm:text-xl md:text-2xl text-white/90 font-light leading-relaxed drop-shadow-lg animate-in fade-in duration-1000">
+                    {heroPhrase}
+                  </p>
+                </div>
+                <div className="w-full animate-[fadeInUp_1.1s]">
+                  <HeroSearch />
+                </div>
+              </div>
+
+              {/* Right: Glass Card Featured */}
+              {featuredTrip && (
+                <div className="xl:col-span-5 w-full xl:w-auto mt-8 xl:mt-0">
+                  <Link
+                    to={`/viagem/${featuredTrip.slug || featuredTrip.id}`}
+                    className="block backdrop-blur-xl bg-gradient-to-br from-white/20 via-white/15 to-white/10 border border-white/40 rounded-3xl p-7 md:p-9 text-white max-w-md mx-auto xl:ml-auto xl:mr-0 shadow-2xl shadow-black/50 relative overflow-hidden hover:scale-[1.02] hover:shadow-3xl hover:shadow-black/60 transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-secondary-500/10 pointer-events-none rounded-3xl"></div>
+                    <div className="relative z-10 space-y-5">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-2 bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] border border-white/30">
+                          <span className="w-1.5 h-1.5 bg-secondary-300 rounded-full animate-pulse"></span>
+                          Destaque da Semana
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-serif font-bold leading-[1.2] text-white drop-shadow-lg group-hover:text-secondary-200 transition-colors">
+                          {featuredTrip.title}
+                        </h2>
+                        <div className="h-px w-16 bg-gradient-to-r from-secondary-300 to-transparent group-hover:w-24 transition-all"></div>
+                      </div>
+                      <p className="text-white/85 text-sm md:text-base leading-relaxed line-clamp-2 font-light group-hover:text-white/95 transition-colors">
+                        Uma experiência inesquecível em {featuredTrip.destination || 'um destino especial'}.
+                      </p>
+                      <div className="pt-2">
+                        <div className="inline-flex items-center gap-2 bg-white text-secondary-600 px-5 py-3 rounded-full font-bold hover:bg-white/95 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-black/40">
+                          Explorar
+                          <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navbar */}
       <nav
-        className="sticky top-0 z-50 bg-white shadow-sm"
+        className={`${isHomePage ? 'absolute top-0 left-0 right-0' : 'sticky top-0'} z-[60] bg-white/95 backdrop-blur-sm shadow-sm`}
         style={{
           backgroundColor: platformSettings?.background_color || '#ffffff',
           opacity: platformSettings?.background_transparency || 1.0,
@@ -306,7 +452,7 @@ const Layout: React.FC = () => {
           WebkitBackdropFilter: platformSettings?.background_blur ? 'blur(10px)' : 'none'
         }}
       >
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           {isMicrositeClientArea && currentAgency ? (
             // Microsite Client Dashboard Header
             <div className="flex justify-between h-16">
@@ -633,20 +779,20 @@ const Layout: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-grow w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow w-full px-0 py-0">
         <Outlet />
       </main>
 
       {/* Footer */}
       <footer className={`${isMicrositeClientArea ? 'bg-gray-100' : 'bg-white border-t border-gray-200'} pt-12 pb-8 mt-auto`}>
         {isMicrositeClientArea ? (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="w-full px-4 sm:px-6 lg:px-8 text-center">
             <Link to="/" className="inline-flex items-center text-gray-400 hover:text-primary-600 font-bold uppercase tracking-wider transition-colors">
               <Globe size={12} className="mr-2" /> Voltar para o Marketplace {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'}
             </Link>
           </div>
         ) : (
-          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="w-full px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
               <div className="col-span-1 md:col-span-2">
                 {currentAgency ? (

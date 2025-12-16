@@ -50,10 +50,7 @@ const HERO_PHRASES = [
 const Home: React.FC = () => {
   const { searchTrips, agencies, loading: dataLoading, fetchTripImages } = useData();
 
-  // Hero Data
-  const [heroTrips, setHeroTrips] = useState<Trip[]>([]);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [heroLoading, setHeroLoading] = useState(true);
+  // Hero Data - Removed, now in Layout
 
   // Grid Data
   const [gridTrips, setGridTrips] = useState<Trip[]>([]);
@@ -64,54 +61,7 @@ const Home: React.FC = () => {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // 1. Initial Load: Fetch Hero Trips (Random/Featured)
-  useEffect(() => {
-    // FIX: Wait for data to be loaded before searching
-    if (dataLoading) {
-      return; // Don't search while data is still loading
-    }
-
-    const loadHero = async () => {
-      setHeroLoading(true);
-      try {
-        let tripsData: Trip[] = [];
-
-        // Try to fetch a larger pool of featured trips
-        const { data: featuredData } = await searchTrips({ limit: 20, featured: true, sort: 'DATE_ASC' });
-        if (featuredData && featuredData.length > 0) {
-          tripsData = featuredData;
-        } else {
-          // Fallback: If no featured trips, get general active trips
-          const { data: generalData } = await searchTrips({ limit: 10, sort: 'DATE_ASC' });
-          tripsData = generalData || [];
-        }
-
-        // Shuffle the results to randomize the hero
-        if (tripsData.length > 0) {
-          tripsData.sort(() => 0.5 - Math.random());
-        }
-
-        // FIX: Load images on-demand for each trip
-        const tripsWithImages = await Promise.all(
-          tripsData.map(async (trip) => {
-            if (!trip.images || trip.images.length === 0) {
-              const images = await fetchTripImages(trip.id);
-              return { ...trip, images };
-            }
-            return trip;
-          })
-        );
-
-        setHeroTrips(tripsWithImages);
-      } catch (error) {
-        logger.error('Error loading hero trips:', error);
-        setHeroTrips([]);
-      } finally {
-        setHeroLoading(false);
-      }
-    };
-    loadHero();
-  }, [searchTrips, dataLoading, fetchTripImages]);
+  // Hero loading removed - now in Layout
 
   // 3. Fetch Grid Trips when Interest Changes
   useEffect(() => {
@@ -171,14 +121,7 @@ const Home: React.FC = () => {
   }, [selectedInterests, searchTrips, dataLoading, fetchTripImages]);
 
 
-  // Carousel Logic
-  useEffect(() => {
-    if (!heroTrips.length) return;
-    const id = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-    }, 8000);
-    return () => clearInterval(id);
-  }, [heroTrips.length]);
+  // Carousel logic removed - now in Layout
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -219,130 +162,12 @@ const Home: React.FC = () => {
     setSelectedInterests([]);
   };
 
-  const nextSlide = () => setCurrentSlide(prev => (prev + 1) % heroTrips.length);
-  const prevSlide = () => setCurrentSlide(prev => (prev - 1 + heroTrips.length) % heroTrips.length);
-
-  // Get featured trip for the highlighted card
-  const featuredTrip = heroTrips.length > 0 ? heroTrips[currentSlide] : null;
-  // Select random phrase on mount (changes on each refresh/F5)
-  const [heroPhrase] = useState(() => {
-    return HERO_PHRASES[Math.floor(Math.random() * HERO_PHRASES.length)];
-  });
+  // Hero slide logic removed - now in Layout
 
   return (
     <div className="pb-12">
-      {/* HERO SHOWCASE */}
-      <div className="relative h-[85vh] min-h-[600px] flex items-center overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0">
-          {featuredTrip && featuredTrip.images && featuredTrip.images.length > 0 && featuredTrip.images[0] ? (
-            <img
-              src={featuredTrip.images[0]}
-              alt={featuredTrip.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-6xl font-bold text-white/30 mb-4">SouNativo</div>
-                <div className="text-white/50">Carregando viagens...</div>
-              </div>
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 sm:px-6 md:px-8 lg:px-12">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 lg:gap-12 items-center">
-            {/* Left: Inspiration + Search */}
-            <div className="xl:col-span-7 text-left space-y-4 md:space-y-6">
-              <div className="animate-[fadeInUp_0.8s_ease-out] space-y-3 md:space-y-4">
-                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold text-white leading-[1.1] drop-shadow-2xl tracking-tight">
-                  Descubra o Brasil
-                </h1>
-                <p className="text-lg sm:text-xl md:text-2xl text-white/90 font-light leading-relaxed drop-shadow-lg animate-in fade-in duration-1000">
-                  {heroPhrase}
-                </p>
-              </div>
-              <div className="w-full animate-[fadeInUp_1.1s]">
-                <HeroSearch />
-              </div>
-            </div>
-
-            {/* Right: Glass Card Featured - Premium Design */}
-            {featuredTrip && (
-              <div className="xl:col-span-5 w-full xl:w-auto mt-8 xl:mt-0">
-                <Link
-                  to={`/viagem/${featuredTrip.slug || featuredTrip.id}`}
-                  className="block backdrop-blur-xl bg-gradient-to-br from-white/20 via-white/15 to-white/10 border border-white/40 rounded-3xl p-7 md:p-9 text-white max-w-md mx-auto xl:ml-auto xl:mr-0 shadow-2xl shadow-black/50 relative overflow-hidden hover:scale-[1.02] hover:shadow-3xl hover:shadow-black/60 transition-all duration-300 cursor-pointer group"
-                >
-                  {/* Subtle gradient overlay for depth */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-secondary-500/10 pointer-events-none rounded-3xl"></div>
-                  
-                  <div className="relative z-10 space-y-5">
-                    {/* Badge - Premium */}
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-2 bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] border border-white/30">
-                        <span className="w-1.5 h-1.5 bg-secondary-300 rounded-full animate-pulse"></span>
-                        Destaque da Semana
-                      </span>
-                    </div>
-
-                    {/* Title - Elegant Typography */}
-                    <div className="space-y-2">
-                      <h2 className="text-2xl md:text-3xl lg:text-4xl font-serif font-bold leading-[1.2] text-white drop-shadow-lg group-hover:text-secondary-200 transition-colors">
-                        {featuredTrip.title}
-                      </h2>
-                      <div className="h-px w-16 bg-gradient-to-r from-secondary-300 to-transparent group-hover:w-24 transition-all"></div>
-                    </div>
-
-                    {/* Description - Refined */}
-                    <p className="text-white/85 text-sm md:text-base leading-relaxed line-clamp-2 font-light group-hover:text-white/95 transition-colors">
-                      Uma experiência inesquecível em {featuredTrip.destination}. Curadoria premium para quem busca viver o extraordinário.
-                    </p>
-
-                    {/* Meta Info - Clean Icons */}
-                    <div className="flex items-center gap-5 text-white/80 text-xs md:text-sm flex-wrap pt-1">
-                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20 group-hover:bg-white/15 transition-colors">
-                        <MapPin size={15} className="text-secondary-200" />
-                        <span className="font-medium">{featuredTrip.destination}</span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/20 group-hover:bg-white/15 transition-colors">
-                        <Clock size={15} className="text-secondary-200" />
-                        <span className="font-medium">{featuredTrip.durationDays} {featuredTrip.durationDays === 1 ? 'dia' : 'dias'}</span>
-                      </div>
-                    </div>
-
-                    {/* Price & CTA - Premium Layout */}
-                    <div className="flex items-end justify-between gap-4 pt-3 border-t border-white/20">
-                      <div className="flex flex-col">
-                        <span className="text-[11px] text-white/60 uppercase tracking-wider font-semibold mb-1">A partir de</span>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm text-white/70 font-semibold">R$</span>
-                          <span className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-lg tracking-tight group-hover:text-secondary-200 transition-colors">{featuredTrip.price.toLocaleString('pt-BR')}</span>
-                        </div>
-                        <span className="text-[10px] text-white/50 mt-0.5">por pessoa</span>
-                      </div>
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-2 bg-white text-secondary-600 px-5 py-3 rounded-full font-bold hover:bg-white/95 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-black/40"
-                      >
-                        Explorar
-                        <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* GRID SECTION - Below Featured Card */}
-      <div className="max-w-[1600px] mx-auto px-6 sm:px-6 lg:px-8 mt-10 md:mt-16">
+      {/* GRID SECTION - Banner is now in Layout header */}
+      <div className="w-full px-6 sm:px-6 lg:px-8 mt-10 md:mt-16">
         {/* FILTERS */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3 px-1"><div className="flex items-center gap-2 text-gray-500"><Filter size={16} /><span className="text-xs font-bold uppercase tracking-wider">Filtrar por interesse</span></div></div>
