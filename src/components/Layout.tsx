@@ -184,11 +184,9 @@ const Layout: React.FC = () => {
   const TEST_ACCOUNTS: QuickAccount[] = [
     { name: 'Admin Teste', email: 'admin@teste.com', password: 'admin123', role: 'ADMIN', icon: ShieldCheck },
     { name: 'Cliente Teste', email: 'cliente@teste.com', password: 'cliente123', role: 'CLIENT', icon: User },
-    { name: 'Agência Teste', email: 'agencia@teste.com', password: 'agencia123', role: 'AGENCY', icon: Building },
-    { name: 'Guia Turístico Teste', email: 'guia@teste.com', password: 'guia123', role: 'AGENCY', icon: Compass },
-    { name: 'Admin Real', email: 'juannicolas1@gmail.com', password: '', role: 'ADMIN', icon: ShieldCheck, requiresPassword: true },
-    { name: 'Juan Nicolas Agência', email: 'juan.agencia@viajastore.com', password: 'agencia123', role: 'AGENCY', icon: Building },
-    { name: 'Juan Nicolas Guia', email: 'juan.guia@viajastore.com', password: 'guia123', role: 'AGENCY', icon: Compass },
+    { name: 'Admin (admin@sounativo.com)', email: 'admin@viajastore.com', password: '', role: 'ADMIN', icon: ShieldCheck, requiresPassword: true },
+    { name: 'Agência (pedro@gmail.com)', email: 'pedro@gmail.com', password: '', role: 'AGENCY', icon: Building, requiresPassword: true },
+    { name: 'Cliente (4agencia@gmail.com)', email: '4agencia@gmail.com', password: '', role: 'CLIENT', icon: User, requiresPassword: true },
   ];
 
   const handleQuickLogin = async (email: string, password: string, requiresPassword?: boolean) => {

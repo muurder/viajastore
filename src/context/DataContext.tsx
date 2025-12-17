@@ -404,13 +404,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // FIX: Join with profiles (client:client_id) to get client name and avatar
         ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
-          .select('*, trips:trip_id(*, agencies:agency_id(*)), client:client_id(full_name, avatar_url)') // Deep nesting + client join
+          .select('*, trips:trip_id(*, agencies:trips_agency_id_fkey(*)), client:client_id(full_name, avatar_url)') // Deep nesting + client join
           .in('trip_id', myTripIds));
 
       } else if (user.role === UserRole.CLIENT) {
         logger.log("[DataContext] _fetchBookingsForCurrentUser: Client user, fetching bookings for client ID:", user.id);
         ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
-          .select('*, trips:trip_id(*, agencies:agency_id(*)), booking_passengers(*)')
+          .select('*, trips:trip_id(*, agencies:trips_agency_id_fkey(*)), booking_passengers(*)')
           .eq('client_id', user.id)
           .order('created_at', { ascending: false })); // Use created_at instead of date
       }
@@ -2134,7 +2134,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (updatedSettings) {
         setPlatformSettings({
           id: updatedSettings.id,
-          platform_name: updatedSettings.platform_name || 'ViajaStore',
+          platform_name: updatedSettings.platform_name || 'SouNativo',
           platform_logo_url: updatedSettings.platform_logo_url,
           maintenance_mode: updatedSettings.maintenance_mode || false,
           layout_style: updatedSettings.layout_style || 'rounded',
@@ -2413,7 +2413,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Restore default settings
       await sb.from('platform_settings').update({
-        platform_name: 'ViajaStore',
+        platform_name: 'SouNativo',
         platform_logo_url: null,
         maintenance_mode: false,
         layout_style: 'rounded',
