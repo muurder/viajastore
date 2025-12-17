@@ -532,11 +532,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     
     const userId = authData.user?.id;
+    const hasSession = Boolean(authData?.session?.access_token);
 
     // If user is created in auth but not immediately signed in (e.g., email confirmation)
     if (!userId) {
         logger.log("[AuthContext] Auth user created, but not signed in (email confirmation likely needed).");
         return { success: true, message: 'Verifique seu email para confirmar o cadastro.', role: role, email: data.email };
+    }
+
+    // IMPORTANT: If Supabase did not return a session (common when email confirmation is enabled),
+    // the client does NOT have a JWT yet, so any insert/upsert guarded by RLS (auth.uid()) will fail.
+    // We store a pending role to be applied on the next SIGNED_IN event and stop here.
+    if (!hasSession) {
+      try {
+        localStorage.setItem('viajastore_pending_role', role.toString());
+      } catch {
+        // ignore - non-fatal
+      }
+      logger.log("[AuthContext] Registration created Auth user but no session was returned. Skipping DB writes until user confirms email and signs in.");
+      return {
+        success: true,
+        message: 'Conta criada! Verifique seu email para confirmar o cadastro e depois faça login.',
+        role,
+        email: data.email
+      };
     }
 
     // 2. Create corresponding DB records. 
@@ -554,6 +573,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (profileError) {
           logger.error("[AuthContext] Profile Upsert Error:", profileError);
+          // If RLS blocks profile upsert, the Auth user may still exist. Treat as "pending provisioning"
+          // so the next SIGNED_IN event can run ensureUserRecord().
+          if (
+            profileError.code === '42501' ||
+            String(profileError.message || '').toLowerCase().includes('row-level security') ||
+            String(profileError.message || '').toLowerCase().includes('violates row-level security')
+          ) {
+            try {
+              localStorage.setItem('viajastore_pending_role', role.toString());
+            } catch {
+              // ignore
+            }
+            return {
+              success: true,
+              role,
+              userId,
+              email: data.email,
+              message: 'Conta criada, mas a criação do perfil no banco foi adiada por segurança (RLS). Faça login (ou confirme seu email) para finalizar.'
+            };
+          }
           throw profileError;
       }
 

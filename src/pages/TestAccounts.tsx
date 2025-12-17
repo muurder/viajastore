@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserRole } from '../types';
 import { CheckCircle, XCircle, Loader, User, Building, Shield, Compass, Lock, AlertTriangle } from 'lucide-react';
+import { checkSupabaseConnection, getSupabaseDiagnostics, SupabaseConnectionCheckResult } from '../services/supabase';
 
 interface TestAccount {
   role: UserRole;
@@ -60,6 +61,9 @@ const TestAccounts: React.FC = () => {
   const [created, setCreated] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
+  const [sbDiag, setSbDiag] = useState(() => getSupabaseDiagnostics());
+  const [sbCheck, setSbCheck] = useState<SupabaseConnectionCheckResult | null>(null);
+  const [sbChecking, setSbChecking] = useState(false);
 
   // Security check: Only allow in development or localhost
   useEffect(() => {
@@ -86,6 +90,35 @@ const TestAccounts: React.FC = () => {
 
     checkAccess();
   }, [user, navigate, showToast]);
+
+  useEffect(() => {
+    // Atualiza diagnóstico no mount (útil após rebuild/restart)
+    setSbDiag(getSupabaseDiagnostics());
+  }, []);
+
+  const runSupabaseCheck = async () => {
+    try {
+      setSbChecking(true);
+      setSbCheck(null);
+      setSbDiag(getSupabaseDiagnostics());
+      const res = await checkSupabaseConnection('trips');
+      setSbCheck(res);
+
+      if (!res.configured) {
+        showToast('error', 'Supabase não configurado. Verifique o .env e reinicie o dev server.');
+      } else if (!res.auth.ok && !res.db.ok) {
+        showToast('error', 'Falha ao conectar no Supabase (auth e banco). Veja o diagnóstico abaixo.');
+      } else if (!res.db.ok) {
+        showToast('warning', 'Conectou no Supabase, mas a query no banco falhou (possível RLS/tabela).');
+      } else {
+        showToast('success', 'Conexão com Supabase OK (auth + banco).');
+      }
+    } catch {
+      showToast('error', 'Erro ao testar conexão com Supabase.');
+    } finally {
+      setSbChecking(false);
+    }
+  };
 
   // Show loading while checking access
   if (isAllowed === null) {
@@ -340,6 +373,81 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui`}
           </div>
 
           <div className="mt-8 space-y-4">
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 mb-2">🔌 Diagnóstico Supabase</h3>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <p>
+                      <span className="font-semibold">Configurado:</span>{' '}
+                      {sbDiag.configured ? (
+                        <span className="text-green-700">Sim</span>
+                      ) : (
+                        <span className="text-red-700">Não</span>
+                      )}
+                    </p>
+                    <p className="break-all">
+                      <span className="font-semibold">URL:</span> {sbDiag.url || '(vazio)'}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Project ref:</span> {sbDiag.projectRef || '(não detectado)'}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Anon key:</span>{' '}
+                      {sbDiag.anonKeyPresent ? `presente (len ${sbDiag.anonKeyLength}, …${sbDiag.anonKeySuffix})` : 'ausente'}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Se você alterou o <code className="bg-gray-100 px-1 rounded">.env</code> agora, <strong>reinicie</strong> o dev server (o Vite não recarrega env via hot reload).
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={runSupabaseCheck}
+                  disabled={sbChecking}
+                  className={`px-5 py-3 rounded-lg font-semibold transition-all ${
+                    sbChecking ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'
+                  }`}
+                >
+                  {sbChecking ? (
+                    <div className="flex items-center gap-2">
+                      <Loader size={16} className="animate-spin" />
+                      <span>Testando...</span>
+                    </div>
+                  ) : (
+                    'Testar conexão'
+                  )}
+                </button>
+              </div>
+
+              {sbCheck && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className={`p-3 rounded-lg border ${sbCheck.auth.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <p className="text-sm font-semibold text-gray-900">Auth</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">OK:</span> {sbCheck.auth.ok ? 'Sim' : 'Não'} ({sbCheck.auth.ms}ms)
+                    </p>
+                    {!sbCheck.auth.ok && sbCheck.auth.error && (
+                      <p className="text-xs text-red-700 mt-1 break-words">{sbCheck.auth.error}</p>
+                    )}
+                  </div>
+
+                  <div className={`p-3 rounded-lg border ${sbCheck.db.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <p className="text-sm font-semibold text-gray-900">Banco (PostgREST)</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">Tabela:</span> {sbCheck.db.table}
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">OK:</span> {sbCheck.db.ok ? 'Sim' : 'Não'} ({sbCheck.db.ms}ms)
+                    </p>
+                    {!sbCheck.db.ok && sbCheck.db.error && (
+                      <p className="text-xs text-red-700 mt-1 break-words">{sbCheck.db.error}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <AlertTriangle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
