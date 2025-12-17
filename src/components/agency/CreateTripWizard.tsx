@@ -536,6 +536,14 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
   
   // --- CRITICAL: BULLETPROOF UPLOAD LOGIC ---
   const handlePublish = async () => {
+    // 0. Validate ALL required fields, not just current step
+    if (!tripData.title || !tripData.destination || tripData.price === undefined || tripData.price === null || isNaN(tripData.price) || tripData.price <= 0 || !tripData.startDate || !tripData.endDate) {
+       showToast("Verifique os dados da viagem (Título, Destino, Preço, Datas).", "error");
+       // Force go to step 0 if validation fails
+       if (currentStep !== 0) setCurrentStep(0);
+       return;
+    }
+
     if (!validateStep()) {
       showToast("Preencha todos os campos obrigatórios.", "error");
       return;
@@ -1013,7 +1021,10 @@ const CreateTripWizard: React.FC<CreateTripWizardProps> = ({ onClose, onSuccess,
               <input
                 type="number"
                 value={tripData.price || ''}
-                onChange={e => setTripData({ ...tripData, price: parseFloat(e.target.value) })}
+                onChange={e => {
+                  const val = parseFloat(e.target.value);
+                  setTripData({ ...tripData, price: isNaN(val) ? 0 : val });
+                }}
                 className={`w-full border ${errors.price ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 pl-10 text-base bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500`}
                 placeholder="0.00"
                 min="0"

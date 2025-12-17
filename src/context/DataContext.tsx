@@ -754,7 +754,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         client_id: review.clientId,
         rating: review.rating,
         comment: review.comment,
-        date: review.date,
+        created_at: review.date, // Map date to created_at
         client_name: review.clientName,
       });
       showToast('Avaliação enviada com sucesso!', 'success');
@@ -1138,7 +1138,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         slug: uniqueSlug,
         description: trip.description,
         destination: trip.destination,
-        price: trip.price,
+        price: trip.price || 0,
+        price_per_person: trip.price || 0, // FIX: Map price to price_per_person (required by DB)
         start_date: trip.startDate,
         end_date: trip.endDate,
         duration_days: trip.durationDays,
@@ -1231,7 +1232,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         slug: uniqueSlug,
         description: trip.description,
         destination: trip.destination,
-        price: trip.price,
+        price: trip.price || 0,
+        price_per_person: trip.price || 0, // FIX: Map price to price_per_person (required by DB)
         start_date: trip.startDate,
         end_date: trip.endDate,
         duration_days: trip.durationDays,
