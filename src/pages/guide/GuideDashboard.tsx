@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import DashboardMobileTabs, { TabItem } from '../../components/mobile/DashboardMobileTabs';
+import NotificationCenter from '../../components/NotificationCenter';
 
 // Mock Opportunities
 const MOCK_JOBS = [
@@ -81,6 +82,7 @@ const GuideDashboard: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <NotificationCenter />
                     <div className="hidden md:flex flex-col items-end mr-2">
                         <span className="text-sm font-bold text-gray-700">{user.name}</span>
                         <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={10} /> Cadastur Ativo</span>
@@ -104,8 +106,8 @@ const GuideDashboard: React.FC = () => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center gap-2 px-6 py-3 border-b-2 font-bold transition-colors ${activeTab === tab.id
-                                    ? 'border-primary-600 text-primary-600 bg-primary-50/50 rounded-t-lg'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-primary-600 text-primary-600 bg-primary-50/50 rounded-t-lg'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             <tab.icon size={18} /> {tab.label}

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { UserRole, Trip, Agency, Client, AgencyReview, ThemePalette, TripCategory, UserStats, Booking, OperationalData, RoomConfig, ManualPassenger, BroadcastMessage, BroadcastWithInteractions, BroadcastTargetRole } from '../types';
+import Sidebar from '../components/Sidebar';
 
 const ALL_TRIP_CATEGORIES: TripCategory[] = [
   'PRAIA', 'AVENTURA', 'FAMILIA', 'ROMANTICO', 'URBANO',
@@ -179,8 +180,8 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ actions }) => {
                     setIsOpen(false);
                   }}
                   className={`w-full text-left px-4 py-2.5 text-sm font-medium flex items-center gap-3 transition-colors ${action.variant === 'danger'
-                      ? 'text-red-600 hover:bg-red-50'
-                      : 'text-gray-700 hover:bg-gray-50'
+                    ? 'text-red-600 hover:bg-red-50'
+                    : 'text-gray-700 hover:bg-gray-50'
                     }`}
                 >
                   <action.icon size={16} /> {action.label}
@@ -265,8 +266,8 @@ const AgenciesFilterModal: React.FC<AgenciesFilterModalProps> = ({
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${agency.subscriptionStatus === 'ACTIVE'
-                              ? 'bg-green-50 text-green-700'
-                              : 'bg-red-50 text-red-700'
+                            ? 'bg-green-50 text-green-700'
+                            : 'bg-red-50 text-red-700'
                             }`}>
                             {agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                           </span>
@@ -437,8 +438,8 @@ const UsersFilterModal: React.FC<UsersFilterModalProps> = ({
                           <p className="text-xs text-gray-500 mt-0.5">{client.email}</p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${client.status === 'ACTIVE'
-                            ? 'bg-green-50 text-green-700'
-                            : 'bg-red-50 text-red-700'
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-red-50 text-red-700'
                           }`}>
                           {client.status === 'ACTIVE' ? 'Ativo' : 'Suspenso'}
                         </span>
@@ -473,8 +474,8 @@ const UsersFilterModal: React.FC<UsersFilterModalProps> = ({
                             <button
                               onClick={(e) => { e.stopPropagation(); onUserAction(client, 'toggle'); }}
                               className={`p-2 rounded-lg transition-colors ${client.status === 'ACTIVE'
-                                  ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                                  : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
                                 }`}
                               title={client.status === 'ACTIVE' ? 'Suspender' : 'Ativar'}
                             >
@@ -790,8 +791,8 @@ const AgencyDetailModal: React.FC<AgencyDetailModalProps> = ({
               </div>
               <div className="text-right">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${agency.subscriptionStatus === 'ACTIVE'
-                    ? 'bg-green-500/20 text-green-100 border border-green-300/30'
-                    : 'bg-red-500/20 text-red-100 border border-red-300/30'
+                  ? 'bg-green-500/20 text-green-100 border border-green-300/30'
+                  : 'bg-red-500/20 text-red-100 border border-red-300/30'
                   }`}>
                   {agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                 </span>
@@ -846,10 +847,10 @@ const AgencyDetailModal: React.FC<AgencyDetailModalProps> = ({
                             </p>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${booking.status === 'CONFIRMED'
-                              ? 'bg-green-100 text-green-700'
-                              : booking.status === 'PENDING'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-gray-100 text-gray-700'
+                            ? 'bg-green-100 text-green-700'
+                            : booking.status === 'PENDING'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-gray-100 text-gray-700'
                             }`}>
                             {booking.status}
                           </span>
@@ -974,8 +975,8 @@ const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
               </div>
               <div className="text-right">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${client.status === 'ACTIVE'
-                    ? 'bg-green-500/20 text-green-100 border border-green-300/30'
-                    : 'bg-red-500/20 text-red-100 border border-red-300/30'
+                  ? 'bg-green-500/20 text-green-100 border border-green-300/30'
+                  : 'bg-red-500/20 text-red-100 border border-red-300/30'
                   }`}>
                   {client.status === 'ACTIVE' ? 'Ativo' : 'Suspenso'}
                 </span>
@@ -1025,10 +1026,10 @@ const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                             </p>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${booking.status === 'CONFIRMED'
-                              ? 'bg-green-100 text-green-700'
-                              : booking.status === 'PENDING'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-gray-100 text-gray-700'
+                            ? 'bg-green-100 text-green-700'
+                            : booking.status === 'PENDING'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-gray-100 text-gray-700'
                             }`}>
                             {booking.status}
                           </span>
@@ -1337,6 +1338,20 @@ export const AdminDashboard: React.FC = () => {
   const [customDateStart, setCustomDateStart] = useState<string>('');
   const [customDateEnd, setCustomDateEnd] = useState<string>('');
   const [broadcastTemplates, setBroadcastTemplates] = useState<Array<{ id: string; name: string; title: string; message: string; target_role: BroadcastTargetRole }>>([]);
+
+  // Sidebar State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('adminSidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((prev: boolean) => {
+      const newValue = !prev;
+      localStorage.setItem('adminSidebarCollapsed', JSON.stringify(newValue));
+      return newValue;
+    });
+  };
 
   const handleSetAgencyView = (view: 'cards' | 'list') => {
     setAgencyView(view);
@@ -2800,8 +2815,8 @@ export const AdminDashboard: React.FC = () => {
                 {/* Select All Checkbox */}
                 <div className="mb-3 flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={handleToggleAllPendingAgencies}>
                   <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${selectedPendingAgencies.length === pendingAgencies.length && pendingAgencies.length > 0
-                      ? 'bg-primary-600 border-primary-600'
-                      : 'border-gray-300 hover:border-primary-400'
+                    ? 'bg-primary-600 border-primary-600'
+                    : 'border-gray-300 hover:border-primary-400'
                     }`}>
                     {selectedPendingAgencies.length === pendingAgencies.length && pendingAgencies.length > 0 && (
                       <Check size={14} className="text-white" strokeWidth={3} />
@@ -2928,8 +2943,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('all')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${activityFilter === 'all'
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       Todas
@@ -2937,8 +2952,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('user')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'user'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
                         }`}
                     >
                       <Users size={12} /> Usuários
@@ -2946,8 +2961,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('agency')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'agency'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
                         }`}
                     >
                       <Building2 size={12} /> Agências
@@ -2955,8 +2970,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('trip')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'trip'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-50 text-green-600 hover:bg-green-100'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-green-50 text-green-600 hover:bg-green-100'
                         }`}
                     >
                       <Package size={12} /> Viagens
@@ -2964,8 +2979,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('settings')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'settings'
-                          ? 'bg-gray-600 text-white'
-                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                         }`}
                     >
                       <Settings size={12} /> Config
@@ -3224,8 +3239,8 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   onClick={() => setShowUserTrash(!showUserTrash)}
                   className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showUserTrash
-                      ? 'bg-red-50 text-red-700 border-2 border-red-200'
-                      : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
+                    ? 'bg-red-50 text-red-700 border-2 border-red-200'
+                    : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
                     }`}
                 >
                   {showUserTrash ? <ArchiveRestore size={16} /> : <Archive size={16} />}
@@ -3240,8 +3255,8 @@ export const AdminDashboard: React.FC = () => {
                     handleSetUserView('cards');
                   }}
                   className={`p-2 rounded-lg transition-all ${userView === 'cards'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                    ? 'bg-white text-primary-600 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
                     }`}
                   title="Visualização em Cards"
                 >
@@ -3252,8 +3267,8 @@ export const AdminDashboard: React.FC = () => {
                     handleSetUserView('list');
                   }}
                   className={`p-2 rounded-lg transition-all ${userView === 'list'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                    ? 'bg-white text-primary-600 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
                     }`}
                   title="Visualização em Lista"
                 >
@@ -3806,8 +3821,8 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   onClick={() => setShowAgencyTrash(!showAgencyTrash)}
                   className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showAgencyTrash
-                      ? 'bg-red-50 text-red-700 border-2 border-red-200'
-                      : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
+                    ? 'bg-red-50 text-red-700 border-2 border-red-200'
+                    : 'bg-gray-50 text-gray-600 border-2 border-gray-200 hover:bg-gray-100'
                     }`}
                 >
                   {showAgencyTrash ? <ArchiveRestore size={16} /> : <Archive size={16} />}
@@ -3822,8 +3837,8 @@ export const AdminDashboard: React.FC = () => {
                     handleSetAgencyView('cards');
                   }}
                   className={`p-2 rounded-lg transition-all ${agencyView === 'cards'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                    ? 'bg-white text-primary-600 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
                     }`}
                   title="Visualização em Cards"
                 >
@@ -3834,8 +3849,8 @@ export const AdminDashboard: React.FC = () => {
                     handleSetAgencyView('list');
                   }}
                   className={`p-2 rounded-lg transition-all ${agencyView === 'list'
-                      ? 'bg-white text-primary-600 shadow-sm'
-                      : 'text-gray-400 hover:text-gray-600'
+                    ? 'bg-white text-primary-600 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
                     }`}
                   title="Visualização em Lista"
                 >
@@ -4007,8 +4022,8 @@ export const AdminDashboard: React.FC = () => {
                                 <button
                                   onClick={(e) => { e.stopPropagation(); adminSuspendAgency(agency.agencyId); }}
                                   className={`px-3 py-2 text-amber-600 bg-amber-50 hover:bg-amber-100 border-transparent rounded-lg font-semibold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 ${agency.subscriptionStatus === 'ACTIVE'
-                                      ? ''
-                                      : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+                                    ? ''
+                                    : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
                                     }`}
                                   title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'}
                                 >
@@ -4164,8 +4179,8 @@ export const AdminDashboard: React.FC = () => {
                             </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${agency.subscriptionStatus === 'ACTIVE'
-                                  ? 'bg-green-50 text-green-700'
-                                  : 'bg-red-50 text-red-700'
+                                ? 'bg-green-50 text-green-700'
+                                : 'bg-red-50 text-red-700'
                                 }`}>
                                 {agency.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                               </span>
@@ -4289,8 +4304,8 @@ export const AdminDashboard: React.FC = () => {
                                     <button
                                       onClick={(e) => { e.stopPropagation(); adminSuspendAgency(agency.agencyId); }}
                                       className={`p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors ${agency.subscriptionStatus === 'ACTIVE'
-                                          ? ''
-                                          : 'text-emerald-600 hover:bg-emerald-50'
+                                        ? ''
+                                        : 'text-emerald-600 hover:bg-emerald-50'
                                         }`}
                                       title={agency.subscriptionStatus === 'ACTIVE' ? 'Suspender' : 'Reativar'}
                                     >
@@ -4580,8 +4595,8 @@ export const AdminDashboard: React.FC = () => {
                               toggleTripStatus(trip.id);
                             }}
                             className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 min-w-[100px] ${trip.is_active
-                                ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                                : 'bg-green-50 text-green-600 hover:bg-green-100'
+                              ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                              : 'bg-green-50 text-green-600 hover:bg-green-100'
                               }`}
                             title={trip.is_active ? 'Pausar' : 'Publicar'}
                           >
@@ -4594,8 +4609,8 @@ export const AdminDashboard: React.FC = () => {
                               toggleTripFeatureStatus(trip.id);
                             }}
                             className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 min-w-[100px] ${trip.featured
-                                ? 'bg-purple-50 text-purple-600 hover:bg-purple-100'
-                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                              ? 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                               }`}
                             title={trip.featured ? 'Remover Destaque' : 'Destacar'}
                           >
@@ -4849,8 +4864,8 @@ export const AdminDashboard: React.FC = () => {
                             <button
                               onClick={() => toggleTripStatus(trip.id)}
                               className={`p-2 rounded-lg transition-colors ${trip.is_active
-                                  ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                                  : 'text-green-600 hover:text-green-700 hover:bg-green-50'
+                                ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                                : 'text-green-600 hover:text-green-700 hover:bg-green-50'
                                 }`}
                               title={trip.is_active ? 'Pausar' : 'Publicar'}
                             >
@@ -4859,8 +4874,8 @@ export const AdminDashboard: React.FC = () => {
                             <button
                               onClick={() => toggleTripFeatureStatus(trip.id)}
                               className={`p-2 rounded-lg transition-colors ${trip.featured
-                                  ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'
-                                  : 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
+                                ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'
+                                : 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
                                 }`}
                               title={trip.featured ? 'Remover Destaque' : 'Destacar'}
                             >
@@ -5080,16 +5095,16 @@ export const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionPlan === 'PREMIUM'
-                                ? 'bg-purple-100 text-purple-700'
-                                : 'bg-gray-100 text-gray-700'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-gray-100 text-gray-700'
                               }`}>
                               {guide.subscriptionPlan === 'PREMIUM' ? 'Premium' : 'Basic'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${guide.subscriptionStatus === 'ACTIVE'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
                               }`}>
                               {guide.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                             </span>
@@ -5147,13 +5162,13 @@ export const AdminDashboard: React.FC = () => {
                           <p className="text-xs text-gray-500 truncate">{guide.email}</p>
                         </div>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${guide.subscriptionStatus === 'ACTIVE'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
                           }`}>
                           {guide.subscriptionStatus === 'ACTIVE' ? 'Ativo' : 'Inativo'}
                         </span>
                       </div>
-                      
+
                       <div className="flex justify-between items-center text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
                         <span>{guide.address?.city || 'Localização n/a'}</span>
                         <span className={`font-bold ${guide.subscriptionPlan === 'PREMIUM' ? 'text-purple-600' : 'text-gray-600'}`}>
@@ -5459,13 +5474,13 @@ export const AdminDashboard: React.FC = () => {
                           type="button"
                           onClick={() => setPlatformSettingsForm({ ...platformSettingsForm, layout_style: style })}
                           className={`p-4 border-2 rounded-xl transition-all ${platformSettingsForm.layout_style === style
-                              ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-200'
-                              : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-200'
+                            : 'border-gray-200 hover:border-gray-300'
                             }`}
                         >
                           <div className={`w-full h-16 mb-2 ${style === 'rounded' ? 'rounded-2xl' :
-                              style === 'square' ? 'rounded-none' :
-                                'rounded-sm'
+                            style === 'square' ? 'rounded-none' :
+                              'rounded-sm'
                             } bg-gradient-to-br from-primary-400 to-secondary-400`}></div>
                           <p className="text-xs font-semibold text-gray-700 capitalize">{style === 'rounded' ? 'Arredondado' : style === 'square' ? 'Quadrado' : 'Minimal'}</p>
                         </button>
@@ -5803,8 +5818,8 @@ export const AdminDashboard: React.FC = () => {
               <button
                 onClick={() => setBroadcastSubTab('compose')}
                 className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${broadcastSubTab === 'compose'
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  ? 'border-slate-900 text-slate-900 bg-slate-50'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
               >
                 <Edit3 size={16} />
@@ -5813,8 +5828,8 @@ export const AdminDashboard: React.FC = () => {
               <button
                 onClick={() => setBroadcastSubTab('reports')}
                 className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${broadcastSubTab === 'reports'
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  ? 'border-slate-900 text-slate-900 bg-slate-50'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
               >
                 <BarChart3 size={16} />
@@ -5823,8 +5838,8 @@ export const AdminDashboard: React.FC = () => {
               <button
                 onClick={() => setBroadcastSubTab('templates')}
                 className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${broadcastSubTab === 'templates'
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  ? 'border-slate-900 text-slate-900 bg-slate-50'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
               >
                 <FileText size={16} />
@@ -5833,8 +5848,8 @@ export const AdminDashboard: React.FC = () => {
               <button
                 onClick={() => setBroadcastSubTab('scheduled')}
                 className={`flex items-center gap-2 py-3 px-6 font-semibold text-sm border-b-2 transition-colors ${broadcastSubTab === 'scheduled'
-                    ? 'border-slate-900 text-slate-900 bg-slate-50'
-                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  ? 'border-slate-900 text-slate-900 bg-slate-50'
+                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
               >
                 <Clock size={16} />
@@ -6093,9 +6108,9 @@ export const AdminDashboard: React.FC = () => {
                                     <div className="flex items-center gap-3 mb-2">
                                       <h3 className="text-lg font-semibold text-slate-900">{broadcast.title}</h3>
                                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${broadcast.target_role === 'ALL' ? 'bg-purple-100 text-purple-700' :
-                                          broadcast.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
-                                            broadcast.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
-                                              'bg-green-100 text-green-700'
+                                        broadcast.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
+                                          broadcast.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
+                                            'bg-green-100 text-green-700'
                                         }`}>
                                         {broadcast.target_role === 'ALL' ? 'Todos' :
                                           broadcast.target_role === 'CLIENT' ? 'Clientes' :
@@ -6272,9 +6287,9 @@ export const AdminDashboard: React.FC = () => {
                           <div className="flex items-start justify-between mb-2">
                             <h3 className="font-semibold text-slate-900">{template.name}</h3>
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${template.target_role === 'ALL' ? 'bg-purple-100 text-purple-700' :
-                                template.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
-                                  template.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-green-100 text-green-700'
+                              template.target_role === 'CLIENT' ? 'bg-blue-100 text-blue-700' :
+                                template.target_role === 'AGENCY' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-green-100 text-green-700'
                               }`}>
                               {template.target_role === 'ALL' ? 'Todos' :
                                 template.target_role === 'CLIENT' ? 'Clientes' :
@@ -6382,8 +6397,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('all')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${activityFilter === 'all'
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       Todas
@@ -6391,8 +6406,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('user')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'user'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
                         }`}
                     >
                       <Users size={12} /> Usuários
@@ -6400,8 +6415,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('agency')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'agency'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
                         }`}
                     >
                       <Building2 size={12} /> Agências
@@ -6409,8 +6424,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('trip')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'trip'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-50 text-green-600 hover:bg-green-100'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-green-50 text-green-600 hover:bg-green-100'
                         }`}
                     >
                       <Package size={12} /> Viagens
@@ -6418,8 +6433,8 @@ export const AdminDashboard: React.FC = () => {
                     <button
                       onClick={() => setActivityFilter('settings')}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 ${activityFilter === 'settings'
-                          ? 'bg-gray-600 text-white'
-                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                         }`}
                     >
                       <Settings size={12} /> Config
@@ -6546,1179 +6561,1181 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto pb-12 min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-        <h1 className="text-3xl font-bold text-gray-900">Painel Master</h1>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={handleRefresh} disabled={isProcessing} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
-            {isProcessing ? <Loader size={18} className="animate-spin mr-2" /> : <RefreshCw size={18} className="mr-2" />}
-            Atualizar Dados
-          </button>
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 outline-none" />
-          </div>
-        </div>
-      </div>
+    <>
+      {/* Sidebar Navigation */}
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+      />
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 mb-8 overflow-x-auto bg-white rounded-t-xl px-2 scrollbar-hide shadow-sm">
-        <button onClick={() => handleTabChange('OVERVIEW')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'OVERVIEW' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><LayoutGrid size={16} /> Visão Geral</button>
-        <button onClick={() => handleTabChange('USERS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'USERS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Users size={16} /> Usuários {deletedUsers.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedUsers.length}</span>}</button>
-        <button onClick={() => handleTabChange('AGENCIES')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors relative ${activeTab === 'AGENCIES' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Briefcase size={16} /> Agências {deletedAgencies.length > 0 && <span className="absolute top-2 right-2 bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{deletedAgencies.length}</span>}</button>
-        <button onClick={() => handleTabChange('TRIPS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'TRIPS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Plane size={16} /> Viagens</button>
-        <button onClick={() => handleTabChange('REVIEWS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'REVIEWS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Star size={16} /> Avaliações</button>
-        <button onClick={() => handleTabChange('GUIDES')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'GUIDES' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><BookOpen size={16} /> Guias de Turismo</button>
-        <button onClick={() => handleTabChange('SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Palette size={16} /> Temas</button>
-        <button onClick={() => handleTabChange('AUDIT_LOGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'AUDIT_LOGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Lock size={16} /> Segurança & Logs</button>
-        <button onClick={() => handleTabChange('GLOBAL_SETTINGS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'GLOBAL_SETTINGS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Shield size={16} /> Configurações Globais</button>
-        <button onClick={() => handleTabChange('BROADCASTS')} className={`flex items-center gap-2 py-4 px-6 font-bold text-sm border-b-2 whitespace-nowrap transition-colors ${activeTab === 'BROADCASTS' ? 'border-primary-600 text-primary-600 bg-primary-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}><Megaphone size={16} /> Comunicados</button>
-      </div>
-
-      {/* Bulk Actions & View Toggles */}
-
-      {/* Filter Bar for Trips */}
-      {activeTab === 'TRIPS' && (
-        <>
-          {/* Toolbar with Filters, View Toggle, and Bulk Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Filter size={16} className="text-gray-500" />
-                <span className="text-sm font-bold text-gray-700">Filtros:</span>
-              </div>
-
-              <div className="w-48">
-                <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                  <option value="">Todas as Agências</option>
-                  {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
-                </select>
-              </div>
-              <div className="w-48">
-                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
-                  <option value="">Todas as Categorias</option>
-                  {tripCategories.map(category => <option key={category as string} value={category as string}>{(category as string).replace('_', ' ')}</option>)}
-                </select>
-              </div>
-              {(agencyFilter || categoryFilter) && (
-                <button onClick={() => { setAgencyFilter(''); setCategoryFilter(''); }} className="text-sm font-bold text-red-500 hover:underline">Limpar Filtros</button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* View Toggle */}
-              <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
-                <button
-                  onClick={() => handleSetTripView('list')}
-                  className={`p-2.5 rounded-lg transition-all ${tripView === 'list'
-                      ? 'bg-white text-primary-600 shadow-sm border border-primary-100'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  title="Visualização em lista"
-                >
-                  <List size={18} />
-                </button>
-                <button
-                  onClick={() => handleSetTripView('cards')}
-                  className={`p-2.5 rounded-lg transition-all ${tripView === 'cards'
-                      ? 'bg-white text-primary-600 shadow-sm border border-primary-100'
-                      : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  title="Visualização em cards"
-                >
-                  <LayoutGrid size={18} />
-                </button>
-              </div>
-
-              {/* Results count */}
-              <span className="text-sm text-gray-600 font-medium">
-                {filteredTrips.length} viagem{filteredTrips.length !== 1 ? 'ns' : ''}
-              </span>
-            </div>
-          </div>
-
-          {/* Bulk Actions Bar */}
-          {selectedTrips.length > 0 && (
-            <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg flex items-center justify-between">
-              <span className="text-sm font-bold text-primary-700">
-                {selectedTrips.length} viagem(ns) selecionada(s)
-              </span>
-              <button
-                onClick={handleBulkDeleteTrips}
-                disabled={isProcessing}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Trash2 size={16} />
-                Excluir Selecionadas
+      {/* Main Content */}
+      <div
+        className={`min-h-screen pb-12 transition-all duration-300 ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`}
+      >
+        <div className="max-w-[1600px] mx-auto px-6 pt-6">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h1 className="text-3xl font-bold text-gray-900">Painel Master</h1>
+            <div className="flex flex-wrap gap-3">
+              <button onClick={handleRefresh} disabled={isProcessing} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-bold flex items-center hover:bg-gray-200 transition-colors disabled:opacity-50">
+                {isProcessing ? <Loader size={18} className="animate-spin mr-2" /> : <RefreshCw size={18} className="mr-2" />}
+                Atualizar Dados
               </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {renderContent()}
-
-      {/* Modals */}
-
-      {modalType === 'EDIT_USER' && selectedItem && currentUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => { setModalType(null); setSelectedItem(null); setEditFormData({}); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Usuário</h2>
-
-            <div className="flex border-b border-gray-200 mb-6">
-              <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'PROFILE' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Perfil</button>
-              <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'SECURITY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Segurança</button>
-              <button onClick={() => setModalTab('HISTORY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'HISTORY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Histórico</button>
-            </div>
-
-            {modalTab === 'PROFILE' && (
-              <form onSubmit={(e) => { e.preventDefault(); handleUserUpdate(e); }} className="space-y-6">
-                <div className="flex flex-col items-center gap-4 mb-6">
-                  <div className="relative w-24 h-24 rounded-full group">
-                    <img src={editFormData.avatar || currentUser?.avatar || `https://ui-avatars.com/api/?name=${editFormData.name || currentUser?.name || 'Usuário'}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
-                    <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
-                      {isUploadingAvatar ? <Loader className="animate-spin" size={20} /> : <Camera size={20} />}
-                      <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
-                    </label>
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900">{editFormData.name || currentUser?.name || 'Usuário'}</h3>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label>
-                  <input
-                    value={editFormData.name || currentUser?.name || ''}
-                    onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="Nome completo do usuário"
-                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editFormData.email || currentUser?.email || ''}
-                    onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="email@exemplo.com"
-                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
-                  <input
-                    value={editFormData.phone || currentUser?.phone || ''}
-                    onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="(00) 00000-0000"
-                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">CPF</label>
-                  <input
-                    value={editFormData.cpf || currentUser?.cpf || ''}
-                    onChange={e => setEditFormData({ ...editFormData, cpf: e.target.value })}
-                    className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="000.000.000-00"
-                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
-                  />
-                </div>
-                <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
-              </form>
-            )}
-            {modalTab === 'SECURITY' && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
-                  <p className="text-sm text-gray-700 font-medium">Resetar Senha</p>
-                  <button onClick={() => sendPasswordReset(currentUser?.email || selectedItem?.email || '')} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
-                    <Key size={16} /> Enviar Link
-                  </button>
-                </div>
-                <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
-                  <p className="text-sm text-red-700 font-medium">Excluir Conta</p>
-                  <button onClick={() => handlePermanentDelete(currentUser?.id || selectedItem?.id, currentUser?.role || selectedItem?.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
-                    <Trash2 size={16} /> Excluir
-                  </button>
-                </div>
+              <div className="relative">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-primary-500 focus:border-primary-500 outline-none" />
               </div>
-            )}
-            {modalTab === 'HISTORY' && (() => {
-              const userId = currentUser?.id || selectedItem?.id;
-              // Get user activities
-              const userBookings = bookings.filter(b => b.clientId === userId).slice(0, 10);
-              const userReviews = reviews.filter(r => r.clientId === userId).slice(0, 10);
-              const userAuditLogs = auditLogs.filter(log => {
-                const userEmail = currentUser?.email || selectedItem?.email || '';
-                const userName = currentUser?.name || selectedItem?.name || '';
-                return log.details?.toLowerCase().includes(userEmail.toLowerCase()) ||
-                  log.details?.toLowerCase().includes(userName.toLowerCase());
-              }).slice(0, 10);
+            </div>
+          </div>
 
-              const allActivities: Array<{
-                id: string;
-                type: 'booking' | 'review' | 'activity';
-                title: string;
-                description: string;
-                date: string;
-                icon: any;
-                color: string;
-              }> = [];
+          {/* Bulk Actions & View Toggles */}
 
-              // Add bookings
-              userBookings.forEach(booking => {
-                const trip = trips.find(t => t.id === booking.tripId);
-                allActivities.push({
-                  id: `booking-${booking.id}`,
-                  type: 'booking',
-                  title: 'Nova Reserva',
-                  description: `Reservou "${trip?.title || 'Viagem'}" - R$ ${booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                  date: booking.date || booking.createdAt || new Date().toISOString(),
-                  icon: ShoppingBag,
-                  color: 'text-green-600 bg-green-50 border-green-200'
-                });
-              });
+          {/* Filter Bar for Trips */}
+          {activeTab === 'TRIPS' && (
+            <>
+              {/* Toolbar with Filters, View Toggle, and Bulk Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-gray-500" />
+                    <span className="text-sm font-bold text-gray-700">Filtros:</span>
+                  </div>
 
-              // Add reviews
-              userReviews.forEach(review => {
-                const agency = agencies.find(a => a.agencyId === review.agencyId);
-                allActivities.push({
-                  id: `review-${review.id}`,
-                  type: 'review',
-                  title: 'Nova Avaliação',
-                  description: `Avaliou ${agency?.name || 'Agência'} com ${review.rating} estrelas`,
-                  date: review.createdAt || new Date().toISOString(),
-                  icon: Star,
-                  color: 'text-amber-600 bg-amber-50 border-amber-200'
-                });
-              });
-
-              // Add audit logs
-              userAuditLogs.forEach(log => {
-                allActivities.push({
-                  id: `log-${log.id}`,
-                  type: 'activity',
-                  title: log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                  description: log.details || '',
-                  date: log.createdAt,
-                  icon: Activity,
-                  color: 'text-blue-600 bg-blue-50 border-blue-200'
-                });
-              });
-
-              // Sort by date, newest first
-              allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-              return (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
-                  {allActivities.length > 0 ? (
-                    allActivities.map(activity => {
-                      const Icon = activity.icon;
-                      const timeAgo = new Date(activity.date);
-                      const now = new Date();
-                      const diffMs = now.getTime() - timeAgo.getTime();
-                      const diffMins = Math.floor(diffMs / 60000);
-                      const diffHours = Math.floor(diffMs / 3600000);
-                      const diffDays = Math.floor(diffMs / 86400000);
-
-                      let timeLabel = '';
-                      if (diffMins < 1) timeLabel = 'Agora';
-                      else if (diffMins < 60) timeLabel = `${diffMins}min atrás`;
-                      else if (diffHours < 24) timeLabel = `${diffHours}h atrás`;
-                      else if (diffDays < 7) timeLabel = `${diffDays}d atrás`;
-                      else timeLabel = timeAgo.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-
-                      return (
-                        <div key={activity.id} className={`p-4 rounded-xl border ${activity.color} hover:shadow-md transition-all`}>
-                          <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-lg bg-white border ${activity.color.split(' ')[2] || 'border-gray-200'} flex-shrink-0`}>
-                              <Icon size={18} className={activity.color.split(' ')[0] || 'text-gray-600'} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-gray-900 mb-1">{activity.title}</p>
-                              <p className="text-xs text-gray-600 mb-2">{activity.description}</p>
-                              <div className="flex items-center justify-between">
-                                <p className="text-[10px] text-gray-400 font-medium">{timeLabel}</p>
-                                <p className="text-[10px] text-gray-400">{timeAgo.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-12 text-gray-400">
-                      <Activity size={48} className="mx-auto mb-3 opacity-50" />
-                      <p className="text-sm font-medium">Nenhuma atividade encontrada</p>
-                      <p className="text-xs mt-1">As atividades do usuário aparecerão aqui</p>
-                    </div>
+                  <div className="w-48">
+                    <select value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                      <option value="">Todas as Agências</option>
+                      {activeAgencies.map(agency => <option key={agency.id} value={agency.agencyId}>{agency.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="w-48">
+                    <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full border border-gray-200 rounded-lg text-sm p-2.5 outline-none focus:ring-primary-500 focus:border-primary-500 bg-gray-50">
+                      <option value="">Todas as Categorias</option>
+                      {tripCategories.map(category => <option key={category as string} value={category as string}>{(category as string).replace('_', ' ')}</option>)}
+                    </select>
+                  </div>
+                  {(agencyFilter || categoryFilter) && (
+                    <button onClick={() => { setAgencyFilter(''); setCategoryFilter(''); }} className="text-sm font-bold text-red-500 hover:underline">Limpar Filtros</button>
                   )}
                 </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
-      {modalType === 'MANAGE_SUB' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
-            <div className="flex items-center gap-4 mb-6">
-              <img src={selectedItem.logo || `https://ui-avatars.com/api/?name=${selectedItem.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt="" />
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{selectedItem.name}</h3>
-                <p className="text-sm text-gray-500">{selectedItem.email}</p>
+                <div className="flex items-center gap-3">
+                  {/* View Toggle */}
+                  <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
+                    <button
+                      onClick={() => handleSetTripView('list')}
+                      className={`p-2.5 rounded-lg transition-all ${tripView === 'list'
+                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      title="Visualização em lista"
+                    >
+                      <List size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleSetTripView('cards')}
+                      className={`p-2.5 rounded-lg transition-all ${tripView === 'cards'
+                        ? 'bg-white text-primary-600 shadow-sm border border-primary-100'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      title="Visualização em cards"
+                    >
+                      <LayoutGrid size={18} />
+                    </button>
+                  </div>
+
+                  {/* Results count */}
+                  <span className="text-sm text-gray-600 font-medium">
+                    {filteredTrips.length} viagem{filteredTrips.length !== 1 ? 'ns' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bulk Actions Bar */}
+              {selectedTrips.length > 0 && (
+                <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg flex items-center justify-between">
+                  <span className="text-sm font-bold text-primary-700">
+                    {selectedTrips.length} viagem(ns) selecionada(s)
+                  </span>
+                  <button
+                    onClick={handleBulkDeleteTrips}
+                    disabled={isProcessing}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 size={16} />
+                    Excluir Selecionadas
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {renderContent()}
+
+          {/* Modals */}
+
+          {modalType === 'EDIT_USER' && selectedItem && currentUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <button onClick={() => { setModalType(null); setSelectedItem(null); setEditFormData({}); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Usuário</h2>
+
+                <div className="flex border-b border-gray-200 mb-6">
+                  <button onClick={() => setModalTab('PROFILE')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'PROFILE' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Perfil</button>
+                  <button onClick={() => setModalTab('SECURITY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'SECURITY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Segurança</button>
+                  <button onClick={() => setModalTab('HISTORY')} className={`flex-1 py-3 text-sm font-bold border-b-2 ${modalTab === 'HISTORY' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Histórico</button>
+                </div>
+
+                {modalTab === 'PROFILE' && (
+                  <form onSubmit={(e) => { e.preventDefault(); handleUserUpdate(e); }} className="space-y-6">
+                    <div className="flex flex-col items-center gap-4 mb-6">
+                      <div className="relative w-24 h-24 rounded-full group">
+                        <img src={editFormData.avatar || currentUser?.avatar || `https://ui-avatars.com/api/?name=${editFormData.name || currentUser?.name || 'Usuário'}`} alt="" className="w-full h-full object-cover rounded-full border-4 border-gray-200" />
+                        <label className="absolute bottom-0 right-0 bg-primary-600 text-white p-2 rounded-full cursor-pointer hover:bg-primary-700 shadow-md transition-transform hover:scale-110">
+                          {isUploadingAvatar ? <Loader className="animate-spin" size={20} /> : <Camera size={20} />}
+                          <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={isUploadingAvatar} />
+                        </label>
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900">{editFormData.name || currentUser?.name || 'Usuário'}</h3>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Nome Completo</label>
+                      <input
+                        value={editFormData.name || currentUser?.name || ''}
+                        onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
+                        className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="Nome completo do usuário"
+                        style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={editFormData.email || currentUser?.email || ''}
+                        onChange={e => setEditFormData({ ...editFormData, email: e.target.value })}
+                        className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="email@exemplo.com"
+                        style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
+                      <input
+                        value={editFormData.phone || currentUser?.phone || ''}
+                        onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })}
+                        className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="(00) 00000-0000"
+                        style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">CPF</label>
+                      <input
+                        value={editFormData.cpf || currentUser?.cpf || ''}
+                        onChange={e => setEditFormData({ ...editFormData, cpf: e.target.value })}
+                        className="w-full border border-gray-300 !bg-white !text-gray-900 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="000.000.000-00"
+                        style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                      />
+                    </div>
+                    <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
+                  </form>
+                )}
+                {modalTab === 'SECURITY' && (
+                  <div className="space-y-6">
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                      <p className="text-sm text-gray-700 font-medium">Resetar Senha</p>
+                      <button onClick={() => sendPasswordReset(currentUser?.email || selectedItem?.email || '')} disabled={isProcessing} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-100 flex items-center gap-2 disabled:opacity-50">
+                        <Key size={16} /> Enviar Link
+                      </button>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
+                      <p className="text-sm text-red-700 font-medium">Excluir Conta</p>
+                      <button onClick={() => handlePermanentDelete(currentUser?.id || selectedItem?.id, currentUser?.role || selectedItem?.role)} disabled={isProcessing} className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 disabled:opacity-50">
+                        <Trash2 size={16} /> Excluir
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {modalTab === 'HISTORY' && (() => {
+                  const userId = currentUser?.id || selectedItem?.id;
+                  // Get user activities
+                  const userBookings = bookings.filter(b => b.clientId === userId).slice(0, 10);
+                  const userReviews = reviews.filter(r => r.clientId === userId).slice(0, 10);
+                  const userAuditLogs = auditLogs.filter(log => {
+                    const userEmail = currentUser?.email || selectedItem?.email || '';
+                    const userName = currentUser?.name || selectedItem?.name || '';
+                    return log.details?.toLowerCase().includes(userEmail.toLowerCase()) ||
+                      log.details?.toLowerCase().includes(userName.toLowerCase());
+                  }).slice(0, 10);
+
+                  const allActivities: Array<{
+                    id: string;
+                    type: 'booking' | 'review' | 'activity';
+                    title: string;
+                    description: string;
+                    date: string;
+                    icon: any;
+                    color: string;
+                  }> = [];
+
+                  // Add bookings
+                  userBookings.forEach(booking => {
+                    const trip = trips.find(t => t.id === booking.tripId);
+                    allActivities.push({
+                      id: `booking-${booking.id}`,
+                      type: 'booking',
+                      title: 'Nova Reserva',
+                      description: `Reservou "${trip?.title || 'Viagem'}" - R$ ${booking.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                      date: booking.date || booking.createdAt || new Date().toISOString(),
+                      icon: ShoppingBag,
+                      color: 'text-green-600 bg-green-50 border-green-200'
+                    });
+                  });
+
+                  // Add reviews
+                  userReviews.forEach(review => {
+                    const agency = agencies.find(a => a.agencyId === review.agencyId);
+                    allActivities.push({
+                      id: `review-${review.id}`,
+                      type: 'review',
+                      title: 'Nova Avaliação',
+                      description: `Avaliou ${agency?.name || 'Agência'} com ${review.rating} estrelas`,
+                      date: review.createdAt || new Date().toISOString(),
+                      icon: Star,
+                      color: 'text-amber-600 bg-amber-50 border-amber-200'
+                    });
+                  });
+
+                  // Add audit logs
+                  userAuditLogs.forEach(log => {
+                    allActivities.push({
+                      id: `log-${log.id}`,
+                      type: 'activity',
+                      title: log.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      description: log.details || '',
+                      date: log.createdAt,
+                      icon: Activity,
+                      color: 'text-blue-600 bg-blue-50 border-blue-200'
+                    });
+                  });
+
+                  // Sort by date, newest first
+                  allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                  return (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin">
+                      {allActivities.length > 0 ? (
+                        allActivities.map(activity => {
+                          const Icon = activity.icon;
+                          const timeAgo = new Date(activity.date);
+                          const now = new Date();
+                          const diffMs = now.getTime() - timeAgo.getTime();
+                          const diffMins = Math.floor(diffMs / 60000);
+                          const diffHours = Math.floor(diffMs / 3600000);
+                          const diffDays = Math.floor(diffMs / 86400000);
+
+                          let timeLabel = '';
+                          if (diffMins < 1) timeLabel = 'Agora';
+                          else if (diffMins < 60) timeLabel = `${diffMins}min atrás`;
+                          else if (diffHours < 24) timeLabel = `${diffHours}h atrás`;
+                          else if (diffDays < 7) timeLabel = `${diffDays}d atrás`;
+                          else timeLabel = timeAgo.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+
+                          return (
+                            <div key={activity.id} className={`p-4 rounded-xl border ${activity.color} hover:shadow-md transition-all`}>
+                              <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-lg bg-white border ${activity.color.split(' ')[2] || 'border-gray-200'} flex-shrink-0`}>
+                                  <Icon size={18} className={activity.color.split(' ')[0] || 'text-gray-600'} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-gray-900 mb-1">{activity.title}</p>
+                                  <p className="text-xs text-gray-600 mb-2">{activity.description}</p>
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-[10px] text-gray-400 font-medium">{timeLabel}</p>
+                                    <p className="text-[10px] text-gray-400">{timeAgo.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-12 text-gray-400">
+                          <Activity size={48} className="mx-auto mb-3 opacity-50" />
+                          <p className="text-sm font-medium">Nenhuma atividade encontrada</p>
+                          <p className="text-xs mt-1">As atividades do usuário aparecerão aqui</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
-            <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Plano</label>
-                <select value={editFormData.plan} onChange={e => setEditFormData({ ...editFormData, plan: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
-                  <option value="BASIC">Básico</option>
-                  <option value="PREMIUM">Premium</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Status</label>
-                <select value={editFormData.status} onChange={e => setEditFormData({ ...editFormData, status: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
-                  <option value="ACTIVE">Ativo</option>
-                  <option value="INACTIVE">Inativo</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Expira em</label>
-                <div className="flex gap-2 items-center">
-                  <input type="datetime-local" value={editFormData.expiresAt?.slice(0, 16)} onChange={e => setEditFormData({ ...editFormData, expiresAt: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-                  <button type="button" onClick={() => addSubscriptionTime(30)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+30d</button>
-                  <button type="button" onClick={() => addSubscriptionTime(365)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+1a</button>
-                </div>
-              </div>
-              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Assinatura</button>
-            </form>
-          </div>
-        </div>
-      )}
+          )}
 
-      {modalType === 'EDIT_AGENCY' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-            <form onSubmit={handleAgencyUpdate} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Nome</label>
-                <input value={editFormData.name || ''} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label>
-                <input value={editFormData.slug || ''} onChange={e => setEditFormData({ ...editFormData, slug: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
-                <textarea value={editFormData.description || ''} onChange={e => setEditFormData({ ...editFormData, description: e.target.value })} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label>
-                <input value={editFormData.cnpj || ''} onChange={e => setEditFormData({ ...editFormData, cnpj: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
-                <input value={editFormData.phone || ''} onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label>
-                <input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({ ...editFormData, whatsapp: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
-                <input value={editFormData.website || ''} onChange={e => setEditFormData({ ...editFormData, website: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, zipCode: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={editFormData.address?.street || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, street: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, number: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={editFormData.address?.city || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, city: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
-                  <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label><input value={editFormData.address?.state || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, state: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
-                </div>
-              </div>
-              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_REVIEW' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
-            <form onSubmit={handleReviewUpdate} className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label>
-                <textarea value={editFormData.comment || ''} onChange={e => setEditFormData({ ...editFormData, comment: e.target.value })} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
-                <input type="number" min="1" max="5" value={editFormData.rating || 0} onChange={e => setEditFormData({ ...editFormData, rating: Number(e.target.value) })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
-              </div>
-              <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'EDIT_TRIP' && selectedItem && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-10"><X size={20} /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
-            <form onSubmit={handleTripUpdate} className="space-y-6 animate-[fadeIn_0.3s]">
-              {/* Título e Descrição */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <div className="space-y-4">
+          {modalType === 'MANAGE_SUB' && selectedItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Gerenciar Assinatura</h2>
+                <div className="flex items-center gap-4 mb-6">
+                  <img src={selectedItem.logo || `https://ui-avatars.com/api/?name=${selectedItem.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt="" />
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Título <span className="text-red-500">*</span></label>
-                    <input
-                      value={editFormData.title || ''}
-                      onChange={e => setEditFormData({ ...editFormData, title: e.target.value })}
-                      className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      required
+                    <h3 className="text-xl font-bold text-gray-900">{selectedItem.name}</h3>
+                    <p className="text-sm text-gray-500">{selectedItem.email}</p>
+                  </div>
+                </div>
+                <form onSubmit={handleSubscriptionUpdate} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Plano</label>
+                    <select value={editFormData.plan} onChange={e => setEditFormData({ ...editFormData, plan: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
+                      <option value="BASIC">Básico</option>
+                      <option value="PREMIUM">Premium</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Status</label>
+                    <select value={editFormData.status} onChange={e => setEditFormData({ ...editFormData, status: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500">
+                      <option value="ACTIVE">Ativo</option>
+                      <option value="INACTIVE">Inativo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Expira em</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="datetime-local" value={editFormData.expiresAt?.slice(0, 16)} onChange={e => setEditFormData({ ...editFormData, expiresAt: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                      <button type="button" onClick={() => addSubscriptionTime(30)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+30d</button>
+                      <button type="button" onClick={() => addSubscriptionTime(365)} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-200">+1a</button>
+                    </div>
+                  </div>
+                  <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Assinatura</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {modalType === 'EDIT_AGENCY' && selectedItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Agência</h2>
+                <form onSubmit={handleAgencyUpdate} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Nome</label>
+                    <input value={editFormData.name || ''} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Slug (URL)</label>
+                    <input value={editFormData.slug || ''} onChange={e => setEditFormData({ ...editFormData, slug: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Descrição</label>
+                    <textarea value={editFormData.description || ''} onChange={e => setEditFormData({ ...editFormData, description: e.target.value })} rows={3} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">CNPJ</label>
+                    <input value={editFormData.cnpj || ''} onChange={e => setEditFormData({ ...editFormData, cnpj: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Telefone</label>
+                    <input value={editFormData.phone || ''} onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp</label>
+                    <input value={editFormData.whatsapp || ''} onChange={e => setEditFormData({ ...editFormData, whatsapp: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Website</label>
+                    <input value={editFormData.website || ''} onChange={e => setEditFormData({ ...editFormData, website: e.target.value })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Endereço</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">CEP</label><input value={editFormData.address?.zipCode || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, zipCode: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rua</label><input value={editFormData.address?.street || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, street: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Número</label><input value={editFormData.address?.number || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, number: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cidade</label><input value={editFormData.address?.city || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, city: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
+                      <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label><input value={editFormData.address?.state || ''} onChange={e => setEditFormData({ ...editFormData, address: { ...editFormData.address, state: e.target.value } })} className="w-full border p-2 rounded-lg" /></div>
+                    </div>
+                  </div>
+                  <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {modalType === 'EDIT_REVIEW' && selectedItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full"><X size={20} /></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Avaliação</h2>
+                <form onSubmit={handleReviewUpdate} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Comentário</label>
+                    <textarea value={editFormData.comment || ''} onChange={e => setEditFormData({ ...editFormData, comment: e.target.value })} rows={4} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
+                    <input type="number" min="1" max="5" value={editFormData.rating || 0} onChange={e => setEditFormData({ ...editFormData, rating: Number(e.target.value) })} className="w-full border p-2.5 rounded-lg outline-none focus:ring-primary-500 focus:border-primary-500" />
+                  </div>
+                  <button type="submit" disabled={isProcessing} className="w-full bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50"><Save size={18} /> Salvar Alterações</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {modalType === 'EDIT_TRIP' && selectedItem && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-3xl w-full p-8 shadow-2xl relative max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 p-2 rounded-full z-10"><X size={20} /></button>
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Editar Viagem: {selectedItem.title}</h2>
+                <form onSubmit={handleTripUpdate} className="space-y-6 animate-[fadeIn_0.3s]">
+                  {/* Título e Descrição */}
+                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Título <span className="text-red-500">*</span></label>
+                        <input
+                          value={editFormData.title || ''}
+                          onChange={e => setEditFormData({ ...editFormData, title: e.target.value })}
+                          className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
+                        <textarea
+                          value={editFormData.description || ''}
+                          onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
+                          rows={5}
+                          className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Destino com Mapa */}
+                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <MapPin className="text-primary-600" size={20} />
+                      Destino e Localização <span className="text-red-500">*</span>
+                    </h3>
+                    {/* Use SimpleLocationPicker - mais confiável e funciona com iframe */}
+                    <SimpleLocationPicker
+                      value={editFormData.destination || ''}
+                      coordinates={locationCoords || (editFormData.latitude && editFormData.longitude ? { lat: editFormData.latitude, lng: editFormData.longitude } : null)}
+                      onChange={handleLocationChange}
+                      onCoordinatesChange={handleCoordinatesChange}
+                      placeholder={editFormData.destination || "Ex: Serrinha do Alambari, Resende"}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Descrição</label>
-                    <textarea
-                      value={editFormData.description || ''}
-                      onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
-                      rows={5}
-                      className="w-full border border-gray-300 p-3 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              {/* Destino com Mapa */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <MapPin className="text-primary-600" size={20} />
-                  Destino e Localização <span className="text-red-500">*</span>
-                </h3>
-                {/* Use SimpleLocationPicker - mais confiável e funciona com iframe */}
-                <SimpleLocationPicker
-                  value={editFormData.destination || ''}
-                  coordinates={locationCoords || (editFormData.latitude && editFormData.longitude ? { lat: editFormData.latitude, lng: editFormData.longitude } : null)}
-                  onChange={handleLocationChange}
-                  onCoordinatesChange={handleCoordinatesChange}
-                  placeholder={editFormData.destination || "Ex: Serrinha do Alambari, Resende"}
-                />
-              </div>
+                  {/* Preço e Datas */}
+                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                      <DollarSign className="text-primary-600" size={20} />
+                      Preço e Datas
+                    </h3>
 
-              {/* Preço e Datas */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <DollarSign className="text-primary-600" size={20} />
-                  Preço e Datas
-                </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                          <input
+                            type="number"
+                            value={editFormData.price || 0}
+                            onChange={e => setEditFormData({ ...editFormData, price: Number(e.target.value) })}
+                            className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Preço por Pessoa <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="number"
-                        value={editFormData.price || 0}
-                        onChange={e => setEditFormData({ ...editFormData, price: Number(e.target.value) })}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        required
-                      />
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
+                          <input
+                            type="date"
+                            lang="pt-BR"
+                            value={editFormData.startDate || ''}
+                            onChange={e => setEditFormData({ ...editFormData, startDate: e.target.value })}
+                            min={normalizeDateToISO(new Date())}
+                            className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Data de Fim <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
+                          <input
+                            type="date"
+                            lang="pt-BR"
+                            value={editFormData.endDate || ''}
+                            onChange={e => setEditFormData({ ...editFormData, endDate: e.target.value })}
+                            min={editFormData.startDate || normalizeDateToISO(new Date())}
+                            className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                          <input
+                            type="number"
+                            value={editFormData.durationDays || 1}
+                            onChange={e => {
+                              const value = parseInt(e.target.value) || 1;
+                              setEditFormData({ ...editFormData, durationDays: value });
+                            }}
+                            className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
+                            min="1"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                          <Clock size={12} />
+                          {editFormData.startDate && editFormData.endDate ? (
+                            <span>
+                              Calculado automaticamente: <strong>{editFormData.durationDays || 1}</strong> {editFormData.durationDays === 1 ? 'dia' : 'dias'}
+                              {(() => {
+                                try {
+                                  const [startYear, startMonth, startDay] = (editFormData.startDate || '').split('-').map(Number);
+                                  const [endYear, endMonth, endDay] = (editFormData.endDate || '').split('-').map(Number);
+                                  const start = new Date(startYear, startMonth - 1, startDay);
+                                  const end = new Date(endYear, endMonth - 1, endDay);
+                                  const diffTime = end.getTime() - start.getTime();
+                                  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                  return ` (de ${startDay}/${startMonth}/${startYear} até ${endDay}/${endMonth}/${endYear})`;
+                                } catch {
+                                  return '';
+                                }
+                              })()}
+                            </span>
+                          ) : (
+                            <span className="text-amber-600">Preencha as datas para calcular automaticamente</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Validation message */}
+                    {editFormData.startDate && editFormData.endDate && new Date(editFormData.startDate) > new Date(editFormData.endDate) && (
+                      <p className="text-red-500 text-sm font-bold bg-red-50 p-3 rounded-lg mt-4 flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        A data final deve ser depois da inicial.
+                      </p>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Início <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
-                      <input
-                        type="date"
-                        lang="pt-BR"
-                        value={editFormData.startDate || ''}
-                        onChange={e => setEditFormData({ ...editFormData, startDate: e.target.value })}
-                        min={normalizeDateToISO(new Date())}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                        required
-                      />
-                    </div>
-                  </div>
+                  {/* Categorias (Pills/Badges) */}
+                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <Tag className="text-primary-600" size={20} />
+                      Categorias <span className="text-red-500">*</span>
+                      <span className="text-xs font-normal text-gray-500">(Clique para selecionar)</span>
+                    </h3>
 
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Data de Fim <span className="text-red-500">*</span></label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={18} />
-                      <input
-                        type="date"
-                        lang="pt-BR"
-                        value={editFormData.endDate || ''}
-                        onChange={e => setEditFormData({ ...editFormData, endDate: e.target.value })}
-                        min={editFormData.startDate || normalizeDateToISO(new Date())}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 pr-3 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                        required
-                      />
-                    </div>
-                  </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      {ALL_TRIP_CATEGORIES.map(category => {
+                        const categoryKey = category as string;
+                        const categoryLabel = categoryKey.replace(/_/g, ' ');
+                        const isSelected = editFormData.categories?.includes(category as TripCategory) || false;
 
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Duração (Dias)</label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="number"
-                        value={editFormData.durationDays || 1}
-                        onChange={e => {
-                          const value = parseInt(e.target.value) || 1;
-                          setEditFormData({ ...editFormData, durationDays: value });
-                        }}
-                        className="w-full border border-gray-300 rounded-lg p-3 pl-10 bg-white text-gray-900 outline-none focus:ring-2 focus:ring-primary-500"
-                        min="1"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <Clock size={12} />
-                      {editFormData.startDate && editFormData.endDate ? (
-                        <span>
-                          Calculado automaticamente: <strong>{editFormData.durationDays || 1}</strong> {editFormData.durationDays === 1 ? 'dia' : 'dias'}
-                          {(() => {
-                            try {
-                              const [startYear, startMonth, startDay] = (editFormData.startDate || '').split('-').map(Number);
-                              const [endYear, endMonth, endDay] = (editFormData.endDate || '').split('-').map(Number);
-                              const start = new Date(startYear, startMonth - 1, startDay);
-                              const end = new Date(endYear, endMonth - 1, endDay);
-                              const diffTime = end.getTime() - start.getTime();
-                              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                              return ` (de ${startDay}/${startMonth}/${startYear} até ${endDay}/${endMonth}/${endYear})`;
-                            } catch {
-                              return '';
-                            }
-                          })()}
-                        </span>
-                      ) : (
-                        <span className="text-amber-600">Preencha as datas para calcular automaticamente</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Validation message */}
-                {editFormData.startDate && editFormData.endDate && new Date(editFormData.startDate) > new Date(editFormData.endDate) && (
-                  <p className="text-red-500 text-sm font-bold bg-red-50 p-3 rounded-lg mt-4 flex items-center gap-2">
-                    <AlertCircle size={16} />
-                    A data final deve ser depois da inicial.
-                  </p>
-                )}
-              </div>
-
-              {/* Categorias (Pills/Badges) */}
-              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Tag className="text-primary-600" size={20} />
-                  Categorias <span className="text-red-500">*</span>
-                  <span className="text-xs font-normal text-gray-500">(Clique para selecionar)</span>
-                </h3>
-
-                <div className="flex flex-wrap gap-2.5">
-                  {ALL_TRIP_CATEGORIES.map(category => {
-                    const categoryKey = category as string;
-                    const categoryLabel = categoryKey.replace(/_/g, ' ');
-                    const isSelected = editFormData.categories?.includes(category as TripCategory) || false;
-
-                    return (
-                      <button
-                        key={categoryKey}
-                        type="button"
-                        onClick={() => {
-                          const currentCategories = editFormData.categories || [];
-                          if (isSelected) {
-                            // Remove category
-                            setEditFormData({
-                              ...editFormData,
-                              categories: currentCategories.filter(cat => cat !== category)
-                            });
-                          } else {
-                            // Add category
-                            setEditFormData({
-                              ...editFormData,
-                              categories: [...currentCategories, category as TripCategory]
-                            });
-                          }
-                        }}
-                        className={`
+                        return (
+                          <button
+                            key={categoryKey}
+                            type="button"
+                            onClick={() => {
+                              const currentCategories = editFormData.categories || [];
+                              if (isSelected) {
+                                // Remove category
+                                setEditFormData({
+                                  ...editFormData,
+                                  categories: currentCategories.filter(cat => cat !== category)
+                                });
+                              } else {
+                                // Add category
+                                setEditFormData({
+                                  ...editFormData,
+                                  categories: [...currentCategories, category as TripCategory]
+                                });
+                              }
+                            }}
+                            className={`
                           inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium
                           transition-all duration-200 ease-in-out
                           focus:outline-none focus:ring-2 focus:ring-offset-2
                           ${isSelected
-                            ? 'bg-primary-600 text-white shadow-md hover:bg-primary-700 focus:ring-primary-500 transform scale-105'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 focus:ring-gray-400 border border-gray-200'
-                          }
+                                ? 'bg-primary-600 text-white shadow-md hover:bg-primary-700 focus:ring-primary-500 transform scale-105'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 focus:ring-gray-400 border border-gray-200'
+                              }
                         `}
-                      >
-                        {isSelected && (
-                          <CheckCircle2Icon size={16} className="flex-shrink-0" />
-                        )}
-                        <span>{categoryLabel}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          >
+                            {isSelected && (
+                              <CheckCircle2Icon size={16} className="flex-shrink-0" />
+                            )}
+                            <span>{categoryLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                {(!editFormData.categories || editFormData.categories.length === 0) && (
-                  <p className="text-xs text-amber-600 mt-4 flex items-center gap-1.5 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                    <AlertCircle size={14} />
-                    <span>Selecione pelo menos uma categoria</span>
-                  </p>
-                )}
+                    {(!editFormData.categories || editFormData.categories.length === 0) && (
+                      <p className="text-xs text-amber-600 mt-4 flex items-center gap-1.5 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                        <AlertCircle size={14} />
+                        <span>Selecione pelo menos uma categoria</span>
+                      </p>
+                    )}
 
-                {editFormData.categories && editFormData.categories.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-3">
-                    <strong>{editFormData.categories.length}</strong> {editFormData.categories.length === 1 ? 'categoria selecionada' : 'categorias selecionadas'}
-                  </p>
-                )}
+                    {editFormData.categories && editFormData.categories.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        <strong>{editFormData.categories.length}</strong> {editFormData.categories.length === 1 ? 'categoria selecionada' : 'categorias selecionadas'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Botões */}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setModalType(null)}
+                      className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader size={18} className="animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={18} />
+                          Salvar Alterações
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
+            </div>
+          )}
 
-              {/* Botões */}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-bold hover:bg-gray-200 transition-colors"
-                >
-                  Cancelar
+          {modalType === 'VIEW_STATS' && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}>
+              <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-colors z-10">
+                  <X size={20} />
                 </button>
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-bold hover:bg-primary-700 flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
-                >
-                  {isProcessing ? (
+                <div className="mb-6">
+                  <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Estatísticas dos Usuários</h2>
+                  <p className="text-sm text-gray-500">Análise detalhada de {selectedUsers.length} usuário(s) selecionado(s)</p>
+                </div>
+                <div className="space-y-4">
+                  {userStats.length > 0 ? (
                     <>
-                      <Loader size={18} className="animate-spin" />
-                      Salvando...
+                      {userStats.map(stat => (
+                        <div key={stat.userId} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border-2 border-gray-200 shadow-lg hover:shadow-xl transition-all">
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="font-extrabold text-gray-900 text-xl">{stat.userName}</p>
+                            <Badge color="blue">ID: {stat.userId.slice(0, 8)}...</Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="bg-white p-4 rounded-xl border border-gray-200">
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Gasto</p>
+                              <p className="text-2xl font-extrabold text-primary-600">R$ {stat.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-gray-200">
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Reservas</p>
+                              <p className="text-2xl font-extrabold text-green-600">{stat.totalBookings}</p>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-gray-200">
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Avaliações</p>
+                              <p className="text-2xl font-extrabold text-amber-600">{stat.totalReviews}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Summary */}
+                      <div className="bg-gradient-to-r from-primary-500 to-secondary-500 p-6 rounded-2xl text-white shadow-xl">
+                        <p className="text-sm font-bold uppercase tracking-wider mb-3 opacity-90">Resumo Total</p>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs opacity-80 mb-1">Total Gasto</p>
+                            <p className="text-2xl font-extrabold">R$ {userStats.reduce((sum, s) => sum + s.totalSpent, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs opacity-80 mb-1">Total Reservas</p>
+                            <p className="text-2xl font-extrabold">{userStats.reduce((sum, s) => sum + s.totalBookings, 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs opacity-80 mb-1">Total Avaliações</p>
+                            <p className="text-2xl font-extrabold">{userStats.reduce((sum, s) => sum + s.totalReviews, 0)}</p>
+                          </div>
+                        </div>
+                      </div>
                     </>
                   ) : (
-                    <>
-                      <Save size={18} />
-                      Salvar Alterações
-                    </>
+                    <div className="text-center py-12">
+                      <StatsIcon size={48} className="mx-auto text-gray-300 mb-4" />
+                      <p className="text-sm text-gray-500 font-medium">Nenhum dado disponível para os usuários selecionados.</p>
+                    </div>
                   )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {modalType === 'VIEW_STATS' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]" onClick={() => setModalType(null)}>
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setModalType(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-colors z-10">
-              <X size={20} />
-            </button>
-            <div className="mb-6">
-              <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Estatísticas dos Usuários</h2>
-              <p className="text-sm text-gray-500">Análise detalhada de {selectedUsers.length} usuário(s) selecionado(s)</p>
-            </div>
-            <div className="space-y-4">
-              {userStats.length > 0 ? (
-                <>
-                  {userStats.map(stat => (
-                    <div key={stat.userId} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border-2 border-gray-200 shadow-lg hover:shadow-xl transition-all">
-                      <div className="flex items-center justify-between mb-4">
-                        <p className="font-extrabold text-gray-900 text-xl">{stat.userName}</p>
-                        <Badge color="blue">ID: {stat.userId.slice(0, 8)}...</Badge>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Gasto</p>
-                          <p className="text-2xl font-extrabold text-primary-600">R$ {stat.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                        </div>
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Reservas</p>
-                          <p className="text-2xl font-extrabold text-green-600">{stat.totalBookings}</p>
-                        </div>
-                        <div className="bg-white p-4 rounded-xl border border-gray-200">
-                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Avaliações</p>
-                          <p className="text-2xl font-extrabold text-amber-600">{stat.totalReviews}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {/* Summary */}
-                  <div className="bg-gradient-to-r from-primary-500 to-secondary-500 p-6 rounded-2xl text-white shadow-xl">
-                    <p className="text-sm font-bold uppercase tracking-wider mb-3 opacity-90">Resumo Total</p>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs opacity-80 mb-1">Total Gasto</p>
-                        <p className="text-2xl font-extrabold">R$ {userStats.reduce((sum, s) => sum + s.totalSpent, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs opacity-80 mb-1">Total Reservas</p>
-                        <p className="text-2xl font-extrabold">{userStats.reduce((sum, s) => sum + s.totalBookings, 0)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs opacity-80 mb-1">Total Avaliações</p>
-                        <p className="text-2xl font-extrabold">{userStats.reduce((sum, s) => sum + s.totalReviews, 0)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <StatsIcon size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-sm text-gray-500 font-medium">Nenhum dado disponível para os usuários selecionados.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Change Plan */}
-      {modalType === 'CHANGE_PLAN' && selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="bg-white border-b border-slate-200 p-6 relative">
-              <button
-                onClick={() => setModalType(null)}
-                className="absolute top-4 right-4 text-slate-500 hover:bg-slate-100 p-2 rounded-full transition-all"
-              >
-                <X size={20} />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-100 rounded-lg">
-                  <CreditCard size={24} className="text-slate-700" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-semibold text-slate-900">Mudar Plano</h2>
-                  <p className="text-sm text-slate-600 mt-1">{selectedItem.name}</p>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Content */}
-            <div className="p-6 space-y-6">
-              {/* Current Plan Info */}
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-5 rounded-xl border-2 border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plano Atual</p>
-                    <Badge color={selectedItem.subscriptionPlan === 'PREMIUM' ? 'purple' : selectedItem.subscriptionPlan === 'BASIC' ? 'blue' : 'gray'} className="text-sm py-1.5 px-3">
-                      {selectedItem.subscriptionPlan === 'PREMIUM' ? '⭐ Premium' : selectedItem.subscriptionPlan === 'BASIC' ? '📦 Básico' : selectedItem.subscriptionPlan || 'Starter'}
-                    </Badge>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
-                    <Badge color={selectedItem.subscriptionStatus === 'ACTIVE' ? 'green' : selectedItem.subscriptionStatus === 'PENDING' ? 'amber' : 'amber'}>
-                      {selectedItem.subscriptionStatus === 'ACTIVE' ? '✓ Ativo' : selectedItem.subscriptionStatus === 'PENDING' ? '⏳ Pendente' : '✗ Inativo'}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Plan Options */}
-              <div className="space-y-3">
-                <p className="text-sm font-bold text-gray-700 uppercase tracking-wide">Selecione um Plano</p>
-                <div className="grid grid-cols-2 gap-4">
+          {/* Modal: Change Plan */}
+          {modalType === 'CHANGE_PLAN' && selectedItem && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-[fadeIn_0.2s]">
+              <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="bg-white border-b border-slate-200 p-6 relative">
                   <button
-                    onClick={() => handleChangePlan(selectedItem.agencyId, 'BASIC')}
-                    disabled={isProcessing || selectedItem.subscriptionPlan === 'BASIC'}
-                    className={`
-                      relative p-5 rounded-xl border-2 transition-all duration-200
-                      ${selectedItem.subscriptionPlan === 'BASIC'
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 hover:shadow-lg'
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
-                    `}
+                    onClick={() => setModalType(null)}
+                    className="absolute top-4 right-4 text-slate-500 hover:bg-slate-100 p-2 rounded-full transition-all"
                   >
-                    {selectedItem.subscriptionPlan === 'BASIC' && (
-                      <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        Atual
-                      </div>
-                    )}
-                    <div className="text-left">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Package size={20} className="text-blue-600" />
-                        </div>
-                        <p className="font-bold text-gray-900 text-lg">Básico</p>
-                      </div>
-                      <div className="mt-3">
-                        <p className="text-2xl font-extrabold text-gray-900">R$ 99,90</p>
-                        <p className="text-xs text-gray-500 mt-1">por mês</p>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <ul className="text-xs text-gray-600 space-y-1">
-                          <li className="flex items-center gap-1.5">
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                            <span>Até 10 pacotes</span>
-                          </li>
-                          <li className="flex items-center gap-1.5">
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                            <span>Suporte básico</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
+                    <X size={20} />
                   </button>
-
-                  <button
-                    onClick={() => handleChangePlan(selectedItem.agencyId, 'PREMIUM')}
-                    disabled={isProcessing || selectedItem.subscriptionPlan === 'PREMIUM'}
-                    className={`
-                      relative p-5 rounded-xl border-2 transition-all duration-200
-                      ${selectedItem.subscriptionPlan === 'PREMIUM'
-                        ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
-                        : 'border-gray-200 bg-white hover:border-purple-400 hover:bg-purple-50 hover:shadow-lg'
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
-                    `}
-                  >
-                    {selectedItem.subscriptionPlan === 'PREMIUM' && (
-                      <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        Atual
-                      </div>
-                    )}
-                    <div className="text-left">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-2 bg-purple-100 rounded-lg">
-                          <Sparkles size={20} className="text-purple-600" />
-                        </div>
-                        <p className="font-bold text-gray-900 text-lg">Premium</p>
-                      </div>
-                      <div className="mt-3">
-                        <p className="text-2xl font-extrabold text-gray-900">R$ 199,90</p>
-                        <p className="text-xs text-gray-500 mt-1">por mês</p>
-                      </div>
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <ul className="text-xs text-gray-600 space-y-1">
-                          <li className="flex items-center gap-1.5">
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                            <span>Pacotes ilimitados</span>
-                          </li>
-                          <li className="flex items-center gap-1.5">
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                            <span>Módulo operacional</span>
-                          </li>
-                          <li className="flex items-center gap-1.5">
-                            <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
-                            <span>Suporte prioritário</span>
-                          </li>
-                        </ul>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-100 rounded-lg">
+                      <CreditCard size={24} className="text-slate-700" />
                     </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    adminSuspendAgency(selectedItem.agencyId);
-                  }}
-                  disabled={isProcessing}
-                  className={`
-                    flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2
-                    ${selectedItem.subscriptionStatus === 'ACTIVE'
-                      ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-2 border-amber-200'
-                      : 'bg-green-50 text-green-700 hover:bg-green-100 border-2 border-green-200'
-                    }
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                  `}
-                >
-                  {isProcessing ? (
-                    <Loader size={16} className="animate-spin" />
-                  ) : selectedItem.subscriptionStatus === 'ACTIVE' ? (
-                    <>
-                      <Ban size={16} />
-                      Suspender Agência
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={16} />
-                      Reativar Agência
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setModalType(null)}
-                  disabled={isProcessing}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancelar
-                </button>
-              </div>
-
-              {/* Loading Overlay */}
-              {isProcessing && (
-                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader size={32} className="animate-spin text-primary-600" />
-                    <p className="text-sm font-semibold text-gray-700">Processando...</p>
+                    <div>
+                      <h2 className="text-2xl font-semibold text-slate-900">Mudar Plano</h2>
+                      <p className="text-sm text-slate-600 mt-1">{selectedItem.name}</p>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal: View Agency Details (Full Screen) */}
-      {modalType === 'VIEW_AGENCY_DETAILS' && agencyDetails.agency && (
-        <div className="fixed inset-0 z-50 bg-white overflow-y-auto animate-[fadeIn_0.2s]">
-          <div className="max-w-7xl mx-auto p-8">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
-              <div className="flex items-center gap-4">
-                <img src={agencyDetails.agency.logo || `https://ui-avatars.com/api/?name=${agencyDetails.agency.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt="" />
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{agencyDetails.agency.name}</h1>
-                  <p className="text-sm text-gray-500 font-mono">/{agencyDetails.agency.slug}</p>
-                </div>
-              </div>
-              <button onClick={() => setModalType(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full"><X size={24} /></button>
-            </div>
-
-            {/* Stats Grid */}
-            {agencyDetails.stats && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <p className="text-sm text-gray-500 mb-1">Receita Total</p>
-                  <p className="text-2xl font-bold text-gray-900">R$ {agencyDetails.stats.totalRevenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <p className="text-sm text-gray-500 mb-1">Vendas</p>
-                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalSales || 0}</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <p className="text-sm text-gray-500 mb-1">Visualizações</p>
-                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalViews || 0}</p>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <p className="text-sm text-gray-500 mb-1">Avaliação Média</p>
-                  <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.averageRating?.toFixed(1) || '-'}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Trips List */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Pacotes Ativos ({agencyDetails.trips.length})</h2>
-              <div className="space-y-3">
-                {agencyDetails.trips.length > 0 ? (
-                  agencyDetails.trips.map(trip => (
-                    <div key={trip.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
-                      <div className="flex items-center gap-4">
-                        <img src={trip.images?.[0] || 'https://placehold.co/80x60'} className="w-20 h-15 rounded-lg object-cover" alt="" />
-                        <div>
-                          <p className="font-bold text-gray-900">{trip.title}</p>
-                          <p className="text-sm text-gray-500">{trip.destination}</p>
-                        </div>
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                  {/* Current Plan Info */}
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-5 rounded-xl border-2 border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Plano Atual</p>
+                        <Badge color={selectedItem.subscriptionPlan === 'PREMIUM' ? 'purple' : selectedItem.subscriptionPlan === 'BASIC' ? 'blue' : 'gray'} className="text-sm py-1.5 px-3">
+                          {selectedItem.subscriptionPlan === 'PREMIUM' ? '⭐ Premium' : selectedItem.subscriptionPlan === 'BASIC' ? '📦 Básico' : selectedItem.subscriptionPlan || 'Starter'}
+                        </Badge>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</p>
-                        <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Inativo'}</Badge>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
+                        <Badge color={selectedItem.subscriptionStatus === 'ACTIVE' ? 'green' : selectedItem.subscriptionStatus === 'PENDING' ? 'amber' : 'amber'}>
+                          {selectedItem.subscriptionStatus === 'ACTIVE' ? '✓ Ativo' : selectedItem.subscriptionStatus === 'PENDING' ? '⏳ Pendente' : '✗ Inativo'}
+                        </Badge>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-8">Nenhum pacote cadastrado.</p>
-                )}
-              </div>
-            </div>
+                  </div>
 
-            {/* Activity Logs */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Histórico de Atividades</h2>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).length > 0 ? (
-                  auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).map(log => (
-                    <div key={log.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      <p className="text-sm font-bold text-gray-900">{log.action}</p>
-                      <p className="text-xs text-gray-600 mt-1">{log.details}</p>
-                      <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                  {/* Plan Options */}
+                  <div className="space-y-3">
+                    <p className="text-sm font-bold text-gray-700 uppercase tracking-wide">Selecione um Plano</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => handleChangePlan(selectedItem.agencyId, 'BASIC')}
+                        disabled={isProcessing || selectedItem.subscriptionPlan === 'BASIC'}
+                        className={`
+                      relative p-5 rounded-xl border-2 transition-all duration-200
+                      ${selectedItem.subscriptionPlan === 'BASIC'
+                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                            : 'border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 hover:shadow-lg'
+                          }
+                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
+                    `}
+                      >
+                        {selectedItem.subscriptionPlan === 'BASIC' && (
+                          <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            Atual
+                          </div>
+                        )}
+                        <div className="text-left">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Package size={20} className="text-blue-600" />
+                            </div>
+                            <p className="font-bold text-gray-900 text-lg">Básico</p>
+                          </div>
+                          <div className="mt-3">
+                            <p className="text-2xl font-extrabold text-gray-900">R$ 99,90</p>
+                            <p className="text-xs text-gray-500 mt-1">por mês</p>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <ul className="text-xs text-gray-600 space-y-1">
+                              <li className="flex items-center gap-1.5">
+                                <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                                <span>Até 10 pacotes</span>
+                              </li>
+                              <li className="flex items-center gap-1.5">
+                                <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                                <span>Suporte básico</span>
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => handleChangePlan(selectedItem.agencyId, 'PREMIUM')}
+                        disabled={isProcessing || selectedItem.subscriptionPlan === 'PREMIUM'}
+                        className={`
+                      relative p-5 rounded-xl border-2 transition-all duration-200
+                      ${selectedItem.subscriptionPlan === 'PREMIUM'
+                            ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
+                            : 'border-gray-200 bg-white hover:border-purple-400 hover:bg-purple-50 hover:shadow-lg'
+                          }
+                      disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white disabled:hover:shadow-none
+                    `}
+                      >
+                        {selectedItem.subscriptionPlan === 'PREMIUM' && (
+                          <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            Atual
+                          </div>
+                        )}
+                        <div className="text-left">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                              <Sparkles size={20} className="text-purple-600" />
+                            </div>
+                            <p className="font-bold text-gray-900 text-lg">Premium</p>
+                          </div>
+                          <div className="mt-3">
+                            <p className="text-2xl font-extrabold text-gray-900">R$ 199,90</p>
+                            <p className="text-xs text-gray-500 mt-1">por mês</p>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <ul className="text-xs text-gray-600 space-y-1">
+                              <li className="flex items-center gap-1.5">
+                                <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                                <span>Pacotes ilimitados</span>
+                              </li>
+                              <li className="flex items-center gap-1.5">
+                                <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                                <span>Módulo operacional</span>
+                              </li>
+                              <li className="flex items-center gap-1.5">
+                                <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                                <span>Suporte prioritário</span>
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </button>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-8">Nenhuma atividade registrada.</p>
-                )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adminSuspendAgency(selectedItem.agencyId);
+                      }}
+                      disabled={isProcessing}
+                      className={`
+                    flex-1 px-4 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2
+                    ${selectedItem.subscriptionStatus === 'ACTIVE'
+                          ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-2 border-amber-200'
+                          : 'bg-green-50 text-green-700 hover:bg-green-100 border-2 border-green-200'
+                        }
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                    >
+                      {isProcessing ? (
+                        <Loader size={16} className="animate-spin" />
+                      ) : selectedItem.subscriptionStatus === 'ACTIVE' ? (
+                        <>
+                          <Ban size={16} />
+                          Suspender Agência
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={16} />
+                          Reativar Agência
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setModalType(null)}
+                      disabled={isProcessing}
+                      className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+
+                  {/* Loading Overlay */}
+                  {isProcessing && (
+                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader size={32} className="animate-spin text-primary-600" />
+                        <p className="text-sm font-semibold text-gray-700">Processando...</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Floating Bulk Actions Bar */}
-      {activeTab === 'AGENCIES' && selectedAgencies.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 animate-[fadeIn_0.3s] transform transition-all">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-bold text-gray-700">
-              {selectedAgencies.length} Agência(s) selecionada(s)
-            </span>
-            <div className="flex gap-2">
-              <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors">Ativar</button>
-              <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors">Inativar</button>
-              <button onClick={() => handleMassChangePlan('BASIC')} className="bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors">Plano Básico</button>
-              <button onClick={() => handleMassChangePlan('PREMIUM')} className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors">Plano Premium</button>
-              <button onClick={() => handleMassArchiveAgencies()} className="bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors">Arquivar</button>
-              <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors">Excluir</button>
-              <button onClick={() => setSelectedAgencies([])} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
-                <X size={14} />
-              </button>
+          {/* Modal: View Agency Details (Full Screen) */}
+          {modalType === 'VIEW_AGENCY_DETAILS' && agencyDetails.agency && (
+            <div className="fixed inset-0 z-50 bg-white overflow-y-auto animate-[fadeIn_0.2s]">
+              <div className="max-w-7xl mx-auto p-8">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8 pb-6 border-b border-gray-200">
+                  <div className="flex items-center gap-4">
+                    <img src={agencyDetails.agency.logo || `https://ui-avatars.com/api/?name=${agencyDetails.agency.name}`} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" alt="" />
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900">{agencyDetails.agency.name}</h1>
+                      <p className="text-sm text-gray-500 font-mono">/{agencyDetails.agency.slug}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setModalType(null)} className="p-2 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full"><X size={24} /></button>
+                </div>
+
+                {/* Stats Grid */}
+                {agencyDetails.stats && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                      <p className="text-sm text-gray-500 mb-1">Receita Total</p>
+                      <p className="text-2xl font-bold text-gray-900">R$ {agencyDetails.stats.totalRevenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}</p>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                      <p className="text-sm text-gray-500 mb-1">Vendas</p>
+                      <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalSales || 0}</p>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                      <p className="text-sm text-gray-500 mb-1">Visualizações</p>
+                      <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.totalViews || 0}</p>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                      <p className="text-sm text-gray-500 mb-1">Avaliação Média</p>
+                      <p className="text-2xl font-bold text-gray-900">{agencyDetails.stats.averageRating?.toFixed(1) || '-'}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Trips List */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Pacotes Ativos ({agencyDetails.trips.length})</h2>
+                  <div className="space-y-3">
+                    {agencyDetails.trips.length > 0 ? (
+                      agencyDetails.trips.map(trip => (
+                        <div key={trip.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                          <div className="flex items-center gap-4">
+                            <img src={trip.images?.[0] || 'https://placehold.co/80x60'} className="w-20 h-15 rounded-lg object-cover" alt="" />
+                            <div>
+                              <p className="font-bold text-gray-900">{trip.title}</p>
+                              <p className="text-sm text-gray-500">{trip.destination}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-gray-900">R$ {trip.price.toLocaleString('pt-BR')}</p>
+                            <Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'Ativo' : 'Inativo'}</Badge>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-8">Nenhum pacote cadastrado.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Activity Logs */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">Histórico de Atividades</h2>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                    {auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).length > 0 ? (
+                      auditLogs.filter(log => log.details?.includes(agencyDetails.agency!.agencyId)).map(log => (
+                        <div key={log.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <p className="text-sm font-bold text-gray-900">{log.action}</p>
+                          <p className="text-xs text-gray-600 mt-1">{log.details}</p>
+                          <p className="text-[10px] text-gray-400 mt-1">{new Date(log.createdAt).toLocaleString()}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-8">Nenhuma atividade registrada.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Users Filter Modal */}
-      {usersFilterModal.isOpen && usersFilterModal.filterType && (
-        <UsersFilterModal
-          isOpen={usersFilterModal.isOpen}
-          onClose={() => setUsersFilterModal({ isOpen: false, filterType: null })}
-          title={
-            usersFilterModal.filterType === 'all' ? 'Total de Usuários' :
-              usersFilterModal.filterType === 'new' ? 'Novos este Mês' :
-                usersFilterModal.filterType === 'active' ? 'Ativos Agora' :
-                  'Bloqueados'
-          }
-          users={getFilteredUsers(usersFilterModal.filterType)}
-          onUserClick={(client) => {
-            setUsersFilterModal({ isOpen: false, filterType: null });
-            setClientDetailModal({ isOpen: true, client });
-          }}
-          onUserAction={handleUserFilterAction}
-          showUserTrash={showUserTrash}
-        />
-      )}
+          {/* Floating Bulk Actions Bar */}
+          {activeTab === 'AGENCIES' && selectedAgencies.length > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 animate-[fadeIn_0.3s] transform transition-all">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-bold text-gray-700">
+                  {selectedAgencies.length} Agência(s) selecionada(s)
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => handleMassUpdateAgencyStatus('ACTIVE')} className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition-colors">Ativar</button>
+                  <button onClick={() => handleMassUpdateAgencyStatus('INACTIVE')} className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors">Inativar</button>
+                  <button onClick={() => handleMassChangePlan('BASIC')} className="bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors">Plano Básico</button>
+                  <button onClick={() => handleMassChangePlan('PREMIUM')} className="bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors">Plano Premium</button>
+                  <button onClick={() => handleMassArchiveAgencies()} className="bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors">Arquivar</button>
+                  <button onClick={() => handleMassDeleteAgencies()} className="bg-red-50 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors">Excluir</button>
+                  <button onClick={() => setSelectedAgencies([])} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* Agencies Filter Modal */}
-      {agenciesFilterModal.isOpen && agenciesFilterModal.filterType && (
-        <AgenciesFilterModal
-          isOpen={agenciesFilterModal.isOpen}
-          onClose={() => setAgenciesFilterModal({ isOpen: false, filterType: null })}
-          title={
-            agenciesFilterModal.filterType === 'all' ? 'Total de Agências' :
-              agenciesFilterModal.filterType === 'premium' ? 'Planos Premium (PM)' :
-                agenciesFilterModal.filterType === 'basic' ? 'Planos Básicos (PB)' :
-                  agenciesFilterModal.filterType === 'free' ? 'Planos Gratuitos (FREE)' :
-                    agenciesFilterModal.filterType === 'pending' ? 'Agências Pendentes' :
-                      'Agências Ativas'
-          }
-          agencies={getFilteredAgencies(agenciesFilterModal.filterType)}
-          onAgencyClick={(agency) => {
-            setAgenciesFilterModal({ isOpen: false, filterType: null });
-            setAgencyDetailModal({ isOpen: true, agency });
-          }}
-          onAgencyAction={handleAgencyFilterAction}
-          showAgencyTrash={showAgencyTrash}
-        />
-      )}
+          {/* Users Filter Modal */}
+          {usersFilterModal.isOpen && usersFilterModal.filterType && (
+            <UsersFilterModal
+              isOpen={usersFilterModal.isOpen}
+              onClose={() => setUsersFilterModal({ isOpen: false, filterType: null })}
+              title={
+                usersFilterModal.filterType === 'all' ? 'Total de Usuários' :
+                  usersFilterModal.filterType === 'new' ? 'Novos este Mês' :
+                    usersFilterModal.filterType === 'active' ? 'Ativos Agora' :
+                      'Bloqueados'
+              }
+              users={getFilteredUsers(usersFilterModal.filterType)}
+              onUserClick={(client) => {
+                setUsersFilterModal({ isOpen: false, filterType: null });
+                setClientDetailModal({ isOpen: true, client });
+              }}
+              onUserAction={handleUserFilterAction}
+              showUserTrash={showUserTrash}
+            />
+          )}
 
-      {/* Agency Detail Modal */}
-      <AgencyDetailModal
-        isOpen={agencyDetailModal.isOpen}
-        agency={agencyDetailModal.agency}
-        onClose={() => setAgencyDetailModal({ isOpen: false, agency: null })}
-        onEdit={() => {
-          if (agencyDetailModal.agency) {
-            setSelectedItem(agencyDetailModal.agency);
-            setEditFormData({ name: agencyDetailModal.agency.name, description: agencyDetailModal.agency.description, cnpj: agencyDetailModal.agency.cnpj, slug: agencyDetailModal.agency.slug, phone: agencyDetailModal.agency.phone, whatsapp: agencyDetailModal.agency.whatsapp, website: agencyDetailModal.agency.website, address: agencyDetailModal.agency.address, bankInfo: agencyDetailModal.agency.bankInfo });
-            setModalType('EDIT_AGENCY');
-            setAgencyDetailModal({ isOpen: false, agency: null });
-          }
-        }}
-        bookings={bookings}
-        reviews={agencyReviews}
-        trips={trips}
-      />
+          {/* Agencies Filter Modal */}
+          {agenciesFilterModal.isOpen && agenciesFilterModal.filterType && (
+            <AgenciesFilterModal
+              isOpen={agenciesFilterModal.isOpen}
+              onClose={() => setAgenciesFilterModal({ isOpen: false, filterType: null })}
+              title={
+                agenciesFilterModal.filterType === 'all' ? 'Total de Agências' :
+                  agenciesFilterModal.filterType === 'premium' ? 'Planos Premium (PM)' :
+                    agenciesFilterModal.filterType === 'basic' ? 'Planos Básicos (PB)' :
+                      agenciesFilterModal.filterType === 'free' ? 'Planos Gratuitos (FREE)' :
+                        agenciesFilterModal.filterType === 'pending' ? 'Agências Pendentes' :
+                          'Agências Ativas'
+              }
+              agencies={getFilteredAgencies(agenciesFilterModal.filterType)}
+              onAgencyClick={(agency) => {
+                setAgenciesFilterModal({ isOpen: false, filterType: null });
+                setAgencyDetailModal({ isOpen: true, agency });
+              }}
+              onAgencyAction={handleAgencyFilterAction}
+              showAgencyTrash={showAgencyTrash}
+            />
+          )}
 
-      {/* Client Dashboard Popup */}
-      <ClientDashboardPopup
-        isOpen={clientDashboardPopup.isOpen}
-        clientId={clientDashboardPopup.clientId}
-        onClose={() => setClientDashboardPopup({ isOpen: false, clientId: null })}
-      />
-
-      {/* Client Detail Modal */}
-      <ClientDetailModal
-        isOpen={clientDetailModal.isOpen}
-        client={clientDetailModal.client}
-        onClose={() => setClientDetailModal({ isOpen: false, client: null })}
-        onEdit={() => {
-          if (clientDetailModal.client) {
-            setEditFormData(clientDetailModal.client);
-            setSelectedItem(clientDetailModal.client);
-            setModalType('EDIT_USER');
-            setModalTab('PROFILE');
-            setClientDetailModal({ isOpen: false, client: null });
-          }
-        }}
-        onAccessDashboard={(clientId) => {
-          setClientDetailModal({ isOpen: false, client: null });
-          setClientDashboardPopup({ isOpen: true, clientId });
-        }}
-        bookings={bookings}
-        reviews={agencyReviews}
-        trips={trips}
-      />
-
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
-        onConfirm={confirmDialog.onConfirm}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        variant={confirmDialog.variant}
-        confirmText={confirmDialog.confirmText}
-        isConfirming={isProcessing}
-      />
-
-      {/* Impersonate Mode Floating Button */}
-      {isImpersonating && (
-        <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
-          <button
-            onClick={async () => {
-              try {
-                await exitImpersonate();
-                // Wait a bit for state to update
-                setTimeout(() => {
-                  navigate('/admin/dashboard');
-                }, 100);
-              } catch (error) {
-                // Error handled in exitImpersonate
-                // Navigate anyway
-                navigate('/admin/dashboard');
+          {/* Agency Detail Modal */}
+          <AgencyDetailModal
+            isOpen={agencyDetailModal.isOpen}
+            agency={agencyDetailModal.agency}
+            onClose={() => setAgencyDetailModal({ isOpen: false, agency: null })}
+            onEdit={() => {
+              if (agencyDetailModal.agency) {
+                setSelectedItem(agencyDetailModal.agency);
+                setEditFormData({ name: agencyDetailModal.agency.name, description: agencyDetailModal.agency.description, cnpj: agencyDetailModal.agency.cnpj, slug: agencyDetailModal.agency.slug, phone: agencyDetailModal.agency.phone, whatsapp: agencyDetailModal.agency.whatsapp, website: agencyDetailModal.agency.website, address: agencyDetailModal.agency.address, bankInfo: agencyDetailModal.agency.bankInfo });
+                setModalType('EDIT_AGENCY');
+                setAgencyDetailModal({ isOpen: false, agency: null });
               }
             }}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
-            title="Sair do Modo Gerenciar"
-          >
-            <LogOut size={20} />
-            Sair do Modo Gerenciar
-          </button>
+            bookings={bookings}
+            reviews={agencyReviews}
+            trips={trips}
+          />
+
+          {/* Client Dashboard Popup */}
+          <ClientDashboardPopup
+            isOpen={clientDashboardPopup.isOpen}
+            clientId={clientDashboardPopup.clientId}
+            onClose={() => setClientDashboardPopup({ isOpen: false, clientId: null })}
+          />
+
+          {/* Client Detail Modal */}
+          <ClientDetailModal
+            isOpen={clientDetailModal.isOpen}
+            client={clientDetailModal.client}
+            onClose={() => setClientDetailModal({ isOpen: false, client: null })}
+            onEdit={() => {
+              if (clientDetailModal.client) {
+                setEditFormData(clientDetailModal.client);
+                setSelectedItem(clientDetailModal.client);
+                setModalType('EDIT_USER');
+                setModalTab('PROFILE');
+                setClientDetailModal({ isOpen: false, client: null });
+              }
+            }}
+            onAccessDashboard={(clientId) => {
+              setClientDetailModal({ isOpen: false, client: null });
+              setClientDashboardPopup({ isOpen: true, clientId });
+            }}
+            bookings={bookings}
+            reviews={agencyReviews}
+            trips={trips}
+          />
+
+          {/* Confirm Dialog */}
+          <ConfirmDialog
+            isOpen={confirmDialog.isOpen}
+            onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+            onConfirm={confirmDialog.onConfirm}
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            variant={confirmDialog.variant}
+            confirmText={confirmDialog.confirmText}
+            isConfirming={isProcessing}
+          />
+
+          {/* Impersonate Mode Floating Button */}
+          {isImpersonating && (
+            <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
+              <button
+                onClick={async () => {
+                  try {
+                    await exitImpersonate();
+                    // Wait a bit for state to update
+                    setTimeout(() => {
+                      navigate('/admin/dashboard');
+                    }, 100);
+                  } catch (error) {
+                    // Error handled in exitImpersonate
+                    // Navigate anyway
+                    navigate('/admin/dashboard');
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
+                title="Sair do Modo Gerenciar"
+              >
+                <LogOut size={20} />
+                Sair do Modo Gerenciar
+              </button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 };

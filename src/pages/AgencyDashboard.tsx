@@ -28,6 +28,7 @@ import { slugify } from '../utils/slugify';
 import SubscriptionModal from '../components/SubscriptionModal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
+import NotificationCenter from '../components/NotificationCenter';
 import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
 import DashboardMobileTabs from '../components/mobile/DashboardMobileTabs';
 
@@ -168,7 +169,7 @@ const AgencyDashboard: React.FC = () => {
     const handleEditTrip = async (trip: Trip) => {
         // Use trip with loaded images if available
         let tripWithImages = tripsWithLoadedImages.get(trip.id) || trip;
-        
+
         // If trip doesn't have images, try to load them
         if ((!tripWithImages.images || tripWithImages.images.length === 0) && fetchTripImages) {
             try {
@@ -186,7 +187,7 @@ const AgencyDashboard: React.FC = () => {
                 logger.error(`[AgencyDashboard] Error loading images for editing trip ${trip.id}:`, error);
             }
         }
-        
+
         setEditingTrip(tripWithImages);
         setShowCreateTrip(true);
     };
@@ -260,13 +261,13 @@ const AgencyDashboard: React.FC = () => {
         try {
             // Get trip with loaded images if available
             const tripToUpdate = tripsWithLoadedImages.get(trip.id) || trip;
-            
+
             // Create updated trip with toggled status
             const updatedTrip: Trip = {
                 ...tripToUpdate,
                 is_active: !tripToUpdate.is_active
             };
-            
+
             await updateTrip(updatedTrip);
             showToast(`${tripLabel} ${!tripToUpdate.is_active ? 'publicado' : 'pausado'} com sucesso.`, 'success');
             // Refresh data to update the UI
@@ -400,8 +401,8 @@ const AgencyDashboard: React.FC = () => {
     }, [allTrips, currentAgency?.agencyId, searchTerm]);
 
     // Create stable trip IDs string for dependency
-    const filteredTripIds = useMemo(() => 
-        filteredTrips.map(t => t.id).sort().join(','), 
+    const filteredTripIds = useMemo(() =>
+        filteredTrips.map(t => t.id).sort().join(','),
         [filteredTrips]
     );
 
@@ -424,9 +425,9 @@ const AgencyDashboard: React.FC = () => {
 
                 if (tripsToLoad.length > 0) {
                     logger.log(`[AgencyDashboard] Loading images for ${tripsToLoad.length} trips`);
-                    
+
                     const updatedTrips = new Map(tripsWithLoadedImages);
-                    
+
                     await Promise.all(
                         tripsToLoad.map(async (trip) => {
                             try {
@@ -449,7 +450,7 @@ const AgencyDashboard: React.FC = () => {
                             }
                         })
                     );
-                    
+
                     setTripsWithLoadedImages(prev => {
                         // Merge with previous to avoid losing other trips
                         const merged = new Map(prev);
@@ -622,7 +623,12 @@ const AgencyDashboard: React.FC = () => {
             <div className="flex-1 w-full bg-gray-50">
                 <DashboardMobileTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={tabs} className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-sm shadow-sm" />
 
-                <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto space-y-6">
+                {/* Notification Center */}
+                <div className="flex justify-end p-4 md:px-8 md:pt-6 md:pb-0">
+                    <NotificationCenter />
+                </div>
+
+                <div className="p-4 md:p-8 pt-2 pb-24 md:pb-8 max-w-7xl mx-auto space-y-6">
 
                     {/* OVERVIEW TAB */}
                     {activeTab === 'OVERVIEW' && (
@@ -665,16 +671,16 @@ const AgencyDashboard: React.FC = () => {
                                     {filteredTrips.map(trip => {
                                         // Use trip with loaded images if available, otherwise use original trip
                                         const tripToDisplay = tripsWithLoadedImages.get(trip.id) || trip;
-                                        
+
                                         return (
                                             <div key={trip.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all group flex flex-col h-full">
                                                 <div className="relative h-48 bg-gray-100 overflow-hidden">
                                                     {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
                                                         <>
-                                                            <img 
+                                                            <img
                                                                 key={`${tripToDisplay.id}-${tripToDisplay.images[0]}`}
-                                                                src={tripToDisplay.images[0]} 
-                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                                src={tripToDisplay.images[0]}
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                                 alt={tripToDisplay.title}
                                                                 onError={(e) => {
                                                                     // Hide broken image and show placeholder
@@ -708,14 +714,14 @@ const AgencyDashboard: React.FC = () => {
                                                     <div className="mt-auto border-t border-gray-100 pt-3 space-y-2">
                                                         {/* Primary Actions Row */}
                                                         <div className="flex gap-2">
-                                                            <button 
-                                                                onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')} 
+                                                            <button
+                                                                onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')}
                                                                 className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
                                                             >
                                                                 <ExternalLink size={14} /> Ver
                                                             </button>
-                                                            <button 
-                                                                onClick={() => handleEditTrip(trip)} 
+                                                            <button
+                                                                onClick={() => handleEditTrip(trip)}
                                                                 className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
                                                             >
                                                                 <Edit size={14} /> Editar
@@ -723,7 +729,7 @@ const AgencyDashboard: React.FC = () => {
                                                         </div>
                                                         {/* Secondary Actions Row */}
                                                         <div className="grid grid-cols-2 gap-2">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleDuplicateTrip(trip)}
                                                                 disabled={isDuplicatingTrip === trip.id}
                                                                 className="py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
@@ -735,7 +741,7 @@ const AgencyDashboard: React.FC = () => {
                                                                 )}
                                                                 Duplicar
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => toggleTripStatus(trip.id)}
                                                                 className="py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
                                                             >
@@ -746,14 +752,14 @@ const AgencyDashboard: React.FC = () => {
                                                         {/* Danger Actions Row */}
                                                         <div className="flex gap-2">
                                                             {planPermissions.canAccessOperational && (
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleGoToOperational(trip.id)}
                                                                     className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]"
                                                                 >
                                                                     <Bus size={14} /> Operacional
                                                                 </button>
                                                             )}
-                                                            <button 
+                                                            <button
                                                                 onClick={() => handleDeleteTrip(trip.id)}
                                                                 className={`${planPermissions.canAccessOperational ? 'flex-1' : 'w-full'} py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02]`}
                                                             >
@@ -787,8 +793,8 @@ const AgencyDashboard: React.FC = () => {
                                                             <td className="px-6 py-4">
                                                                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                                                                     {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
-                                                                        <img 
-                                                                            src={tripToDisplay.images[0]} 
+                                                                        <img
+                                                                            src={tripToDisplay.images[0]}
                                                                             alt={tripToDisplay.title}
                                                                             className="w-full h-full object-cover"
                                                                             onError={(e) => {
@@ -810,21 +816,21 @@ const AgencyDashboard: React.FC = () => {
                                                             <td className="px-6 py-4"><Badge color={trip.is_active ? 'green' : 'gray'}>{trip.is_active ? 'ATIVO' : 'RASCUNHO'}</Badge></td>
                                                             <td className="px-6 py-4">
                                                                 <div className="flex flex-wrap justify-end gap-1.5">
-                                                                    <button 
-                                                                        onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')} 
-                                                                        className="p-2 text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-all hover:scale-105" 
+                                                                    <button
+                                                                        onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')}
+                                                                        className="p-2 text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-all hover:scale-105"
                                                                         title="Ver no site"
                                                                     >
                                                                         <ExternalLink size={16} />
                                                                     </button>
-                                                                    <button 
-                                                                        onClick={() => handleEditTrip(trip)} 
+                                                                    <button
+                                                                        onClick={() => handleEditTrip(trip)}
                                                                         className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all hover:scale-105"
                                                                         title="Editar"
                                                                     >
                                                                         <Edit size={16} />
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => handleDuplicateTrip(trip)}
                                                                         disabled={isDuplicatingTrip === trip.id}
                                                                         className="p-2 text-purple-600 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -836,7 +842,7 @@ const AgencyDashboard: React.FC = () => {
                                                                             <Copy size={16} />
                                                                         )}
                                                                     </button>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => toggleTripStatus(trip.id)}
                                                                         className="p-2 text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-100 transition-all hover:scale-105"
                                                                         title={trip.is_active ? 'Pausar' : 'Publicar'}
@@ -844,7 +850,7 @@ const AgencyDashboard: React.FC = () => {
                                                                         {trip.is_active ? <PauseCircle size={16} /> : <PlayCircle size={16} />}
                                                                     </button>
                                                                     {planPermissions.canAccessOperational && (
-                                                                        <button 
+                                                                        <button
                                                                             onClick={() => handleGoToOperational(trip.id)}
                                                                             className="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all hover:scale-105"
                                                                             title="Operacional"
@@ -852,8 +858,8 @@ const AgencyDashboard: React.FC = () => {
                                                                             <Bus size={16} />
                                                                         </button>
                                                                     )}
-                                                                    <button 
-                                                                        onClick={() => handleDeleteTrip(trip.id)} 
+                                                                    <button
+                                                                        onClick={() => handleDeleteTrip(trip.id)}
                                                                         className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-all hover:scale-105"
                                                                         title="Excluir"
                                                                     >
@@ -878,8 +884,8 @@ const AgencyDashboard: React.FC = () => {
                                                         {/* Image */}
                                                         <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                                                             {tripToDisplay.images && tripToDisplay.images.length > 0 && tripToDisplay.images[0] ? (
-                                                                <img 
-                                                                    src={tripToDisplay.images[0]} 
+                                                                <img
+                                                                    src={tripToDisplay.images[0]}
                                                                     alt={tripToDisplay.title}
                                                                     className="w-full h-full object-cover"
                                                                     onError={(e) => {
@@ -905,69 +911,69 @@ const AgencyDashboard: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
-                                                    <span className="flex items-center gap-1"><Calendar size={12} /> {formatDate(tripToDisplay.startDate)}</span>
-                                                    <span className="font-bold">R$ {tripToDisplay.price.toLocaleString('pt-BR')}</span>
-                                                </div>
+                                                    <div className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 p-2 rounded-lg">
+                                                        <span className="flex items-center gap-1"><Calendar size={12} /> {formatDate(tripToDisplay.startDate)}</span>
+                                                        <span className="font-bold">R$ {tripToDisplay.price.toLocaleString('pt-BR')}</span>
+                                                    </div>
 
-                                                <div className="space-y-2 pt-1">
-                                                    {/* Primary Actions */}
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')}
-                                                            className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1.5 transition-all"
-                                                        >
-                                                            <ExternalLink size={14} /> Ver
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleEditTrip(trip)}
-                                                            className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-all"
-                                                        >
-                                                            <Edit size={14} /> Editar
-                                                        </button>
-                                                    </div>
-                                                    {/* Secondary Actions */}
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button
-                                                            onClick={() => handleDuplicateTrip(trip)}
-                                                            disabled={isDuplicatingTrip === trip.id}
-                                                            className="py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        >
-                                                            {isDuplicatingTrip === trip.id ? (
-                                                                <Loader size={14} className="animate-spin" />
-                                                            ) : (
-                                                                <Copy size={14} />
-                                                            )}
-                                                            Duplicar
-                                                        </button>
-                                                        <button
-                                                            onClick={() => toggleTripStatus(trip.id)}
-                                                            className="py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all"
-                                                        >
-                                                            {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
-                                                            {trip.is_active ? 'Pausar' : 'Publicar'}
-                                                        </button>
-                                                    </div>
-                                                    {/* Danger Actions */}
-                                                    <div className="flex gap-2">
-                                                        {planPermissions.canAccessOperational && (
+                                                    <div className="space-y-2 pt-1">
+                                                        {/* Primary Actions */}
+                                                        <div className="flex gap-2">
                                                             <button
-                                                                onClick={() => handleGoToOperational(trip.id)}
-                                                                className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-all"
+                                                                onClick={() => window.open(`/#/${currentAgency.slug}/viagem/${tripToDisplay.slug || tripToDisplay.id}`, '_blank')}
+                                                                className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg hover:bg-green-100 flex items-center justify-center gap-1.5 transition-all"
                                                             >
-                                                                <Bus size={14} /> Operacional
+                                                                <ExternalLink size={14} /> Ver
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => handleDeleteTrip(trip.id)}
-                                                            className={`${planPermissions.canAccessOperational ? 'flex-1' : 'w-full'} py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-all`}
-                                                        >
-                                                            <Trash2 size={14} /> Excluir
-                                                        </button>
+                                                            <button
+                                                                onClick={() => handleEditTrip(trip)}
+                                                                className="flex-1 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-all"
+                                                            >
+                                                                <Edit size={14} /> Editar
+                                                            </button>
+                                                        </div>
+                                                        {/* Secondary Actions */}
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <button
+                                                                onClick={() => handleDuplicateTrip(trip)}
+                                                                disabled={isDuplicatingTrip === trip.id}
+                                                                className="py-2 bg-purple-50 text-purple-700 text-xs font-bold rounded-lg hover:bg-purple-100 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {isDuplicatingTrip === trip.id ? (
+                                                                    <Loader size={14} className="animate-spin" />
+                                                                ) : (
+                                                                    <Copy size={14} />
+                                                                )}
+                                                                Duplicar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => toggleTripStatus(trip.id)}
+                                                                className="py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all"
+                                                            >
+                                                                {trip.is_active ? <PauseCircle size={14} /> : <PlayCircle size={14} />}
+                                                                {trip.is_active ? 'Pausar' : 'Publicar'}
+                                                            </button>
+                                                        </div>
+                                                        {/* Danger Actions */}
+                                                        <div className="flex gap-2">
+                                                            {planPermissions.canAccessOperational && (
+                                                                <button
+                                                                    onClick={() => handleGoToOperational(trip.id)}
+                                                                    className="flex-1 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 flex items-center justify-center gap-1.5 transition-all"
+                                                                >
+                                                                    <Bus size={14} /> Operacional
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleDeleteTrip(trip.id)}
+                                                                className={`${planPermissions.canAccessOperational ? 'flex-1' : 'w-full'} py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg hover:bg-red-100 flex items-center justify-center gap-1.5 transition-all`}
+                                                            >
+                                                                <Trash2 size={14} /> Excluir
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
+                                            );
                                         })}
                                     </div>
                                 </div>
