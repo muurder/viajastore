@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import DashboardMobileTabs, { TabItem } from '../../components/mobile/DashboardMobileTabs';
-import NotificationCenter from '../../components/NotificationCenter';
+import BroadcastSpotlight from '../../components/BroadcastSpotlight';
 
 // Mock Opportunities
 const MOCK_JOBS = [
@@ -82,7 +82,6 @@ const GuideDashboard: React.FC = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <NotificationCenter />
                     <div className="hidden md:flex flex-col items-end mr-2">
                         <span className="text-sm font-bold text-gray-700">{user.name}</span>
                         <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={10} /> Cadastur Ativo</span>
@@ -93,6 +92,9 @@ const GuideDashboard: React.FC = () => {
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto p-4 md:p-8">
+
+                {/* Broadcast Spotlight */}
+                <BroadcastSpotlight className="mb-6" />
 
                 {/* Mobile Tabs */}
                 <div className="md:hidden mb-6">

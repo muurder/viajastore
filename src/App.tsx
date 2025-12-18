@@ -17,6 +17,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AgencyDashboard } from './pages/AgencyDashboard';
 import AgencyLandingPage from './pages/AgencyLandingPage';
 import ClientDashboard from './pages/ClientDashboard'; // Fix: Import ClientDashboard as default export
+import ClientFeed from './pages/ClientFeed'; // Travel Feed experience
 import GuideDashboard from './pages/guide/GuideDashboard';
 import { About, Contact, Terms, Help, Privacy, Blog, Careers, Press } from './pages/StaticPages';
 import { NotFound, Unauthorized, CheckoutSuccess, ForgotPassword } from './pages/UtilityPages';
@@ -71,6 +72,7 @@ const App: React.FC = () => {
                     <Route path="guides" element={<HireGuides />} />
                   </Route>
                   <Route path="admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="client/feed" element={<ClientFeed />} />
                   <Route path="client/dashboard/:tab?" element={<ClientDashboard />} />
                   <Route path="guide/dashboard" element={<GuideDashboard />} />
 

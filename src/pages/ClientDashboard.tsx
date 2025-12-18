@@ -4,13 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { UserRole, Booking, BookingWithDetails, Address, AgencyReview, Agency, Trip, Client } from '../types';
 import { TripCard } from '../components/TripCard';
-import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass, Users, Clock, CreditCard, Eye, ArrowRight, CheckCircle2, AlertCircle, XCircle, Grid3x3, List, ArrowUpDown, ArrowDownAZ } from 'lucide-react';
+import { User, ShoppingBag, Heart, MapPin, Calendar, Settings, Download, Save, LogOut, X, QrCode, Trash2, AlertTriangle, Camera, Lock, Shield, Loader, Star, MessageCircle, Send, ExternalLink, Edit, Briefcase, Smile, Plane, Compass, Users, Clock, CreditCard, Eye, ArrowRight, CheckCircle2, AlertCircle, XCircle, Grid3x3, List, ArrowUpDown, ArrowDownAZ, Home } from 'lucide-react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { generateTripVoucherPDF } from '../utils/pdfGenerator';
 import { slugify } from '../utils/slugify';
 import { logger } from '../utils/logger';
-import NotificationCenter from '../components/NotificationCenter';
+import { TravelFeed } from '../components/feed';
+import { getDailyHeroImage } from '../utils/dailyHeroImage';
 
 // Helper function to build the WhatsApp URL
 const buildWhatsAppUrl = (phone: string | null | undefined, tripTitle: string) => {
@@ -240,7 +241,7 @@ const BookingDetailsModalContent: React.FC<BookingDetailsModalContentProps> = ({
             {/* Status Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
               <div className={`w-2 h-2 rounded-full ${booking.status === 'CONFIRMED' ? 'bg-emerald-400' :
-                  booking.status === 'PENDING' ? 'bg-amber-400' : 'bg-red-400'
+                booking.status === 'PENDING' ? 'bg-amber-400' : 'bg-red-400'
                 }`} />
               <span className="text-sm font-semibold text-white">
                 {booking.status === 'CONFIRMED' ? 'Confirmada' :
@@ -367,14 +368,14 @@ const BookingDetailsModalContent: React.FC<BookingDetailsModalContentProps> = ({
                     <div
                       key={idx}
                       className={`group relative overflow-hidden rounded-xl p-6 border-2 transition-all duration-200 ${isPrimary
-                          ? 'bg-gradient-to-br from-primary-50 via-white to-primary-50/30 border-primary-300/60 shadow-md'
-                          : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-md'
+                        ? 'bg-gradient-to-br from-primary-50 via-white to-primary-50/30 border-primary-300/60 shadow-md'
+                        : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-md'
                         }`}
                     >
                       <div className="flex items-start gap-5">
                         <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-base shadow-lg transition-transform group-hover:scale-110 ${isPrimary
-                            ? 'bg-gradient-to-br from-primary-600 to-primary-700 text-white'
-                            : 'bg-gradient-to-br from-slate-500 to-slate-600 text-white'
+                          ? 'bg-gradient-to-br from-primary-600 to-primary-700 text-white'
+                          : 'bg-gradient-to-br from-slate-500 to-slate-600 text-white'
                           }`}>
                           {idx + 1}
                         </div>
@@ -392,8 +393,8 @@ const BookingDetailsModalContent: React.FC<BookingDetailsModalContentProps> = ({
                             </div>
                             {ageDisplay && (
                               <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${age! < 12
-                                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
                                 }`}>
                                 {ageDisplay}
                               </span>
@@ -645,17 +646,20 @@ interface BookingCardProps {
 const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasReviewed, onOpenVoucher, onViewDetails, fetchTripImages, currentClient, user }) => {
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [tripWithImages, setTripWithImages] = useState<Trip>(trip);
+
+  // Separate state for image loading - prevents race conditions
+  const [tripImage, setTripImage] = useState<string | null>(trip.images?.[0] || null);
   const [imgError, setImgError] = useState(false);
   const [passengers, setPassengers] = useState<any[]>([]);
   const [loadingPassengers, setLoadingPassengers] = useState(false);
 
-  // Load images on mount if they don't exist
+  // Load images on mount if they don't exist - same logic as TripImage
   useEffect(() => {
     const loadImages = async () => {
       // If trip already has images, use them
       if (trip.images && trip.images.length > 0) {
-        setTripWithImages(trip);
+        setTripImage(trip.images[0]);
+        setImgError(false);
         return;
       }
 
@@ -664,27 +668,32 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
         try {
           const images = await fetchTripImages(trip.id);
           if (images && images.length > 0) {
-            setTripWithImages({ ...trip, images });
+            setTripImage(images[0]);
+            setImgError(false);
           } else {
-            setTripWithImages(trip);
+            // No images found - keep null to show fallback
+            setTripImage(null);
           }
         } catch (error) {
-          // Silently fail - will show placeholder
-          setTripWithImages(trip);
+          // Silently fail - will show fallback
+          logger.warn('Error loading trip images for booking card:', error);
+          setTripImage(null);
         }
       } else {
-        setTripWithImages(trip);
+        setTripImage(null);
       }
     };
 
     loadImages();
-  }, [trip, fetchTripImages]);
+  }, [trip.id, fetchTripImages]); // Only depend on trip.id, not entire trip object
 
-  // Update when trip prop changes
+  // Update when trip images prop changes (new images uploaded)
   useEffect(() => {
-    setTripWithImages(trip);
-    setImgError(false);
-  }, [trip]);
+    if (trip.images && trip.images.length > 0 && trip.images[0] !== tripImage) {
+      setTripImage(trip.images[0]);
+      setImgError(false);
+    }
+  }, [trip.images]);
 
   // Use booking_passengers from booking if available, otherwise fetch
   useEffect(() => {
@@ -816,10 +825,9 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
     }
   }, [booking]);
 
-  const imgUrl = tripWithImages.images?.[0] || 'https://placehold.co/400x300/e2e8f0/94a3b8?text=Sem+Imagem';
-  const startDate = tripWithImages.startDate;
+  const startDate = trip.startDate;
   const agencySlugForNav = agency?.slug;
-  const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, tripWithImages.title);
+  const whatsappUrl = buildWhatsAppUrl(agency?.whatsapp || agency?.phone, trip.title);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -847,12 +855,12 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
   const otherPassengers = passengerCount - 1;
 
   // Category display
-  const categoryDisplay = tripWithImages.categories && tripWithImages.categories.length > 0
-    ? tripWithImages.categories.map((c: any) => c.name || c).join(' • ')
-    : tripWithImages.category || 'Viagem';
+  const categoryDisplay = trip.categories && trip.categories.length > 0
+    ? trip.categories.map((c: any) => c.name || c).join(' • ')
+    : trip.category || 'Viagem';
 
-  const durationDisplay = tripWithImages.durationDays
-    ? `${tripWithImages.durationDays} ${tripWithImages.durationDays === 1 ? 'dia' : 'dias'}`
+  const durationDisplay = trip.durationDays
+    ? `${trip.durationDays} ${trip.durationDays === 1 ? 'dia' : 'dias'}`
     : '';
 
   const microDescription = durationDisplay
@@ -912,22 +920,38 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300">
       {/* Image Header - Full width on mobile, left on desktop */}
       <div className="relative h-48 md:h-40 w-full md:w-64 md:float-left md:mr-6">
-        {!imgError ? (
-          <img
-            src={imgUrl}
-            alt={tripWithImages.title}
-            className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-            <Plane size={32} className="text-gray-400" />
-          </div>
-        )}
+        {/* Background image - trip image or fallback travel image */}
+        <img
+          src={tripImage || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80'}
+          alt={trip.title}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80';
+          }}
+        />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-primary-900/80 via-primary-800/40 to-transparent" />
+
         {/* Status and Countdown Overlay */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
           {getStatusBadge()}
           {getCountdownBadge()}
+        </div>
+
+        {/* Days countdown badge - left bottom */}
+        {daysUntil !== null && daysUntil >= 0 && (
+          <div className="absolute top-3 left-3">
+            <span className="px-3 py-1.5 bg-white/95 text-primary-700 text-sm font-bold rounded-lg shadow-lg">
+              {daysUntil === 0 ? 'Hoje!' : `${daysUntil} dias`}
+            </span>
+          </div>
+        )}
+
+        {/* Trip title on image */}
+        <div className="absolute bottom-3 left-3 right-3">
+          <h4 className="text-white font-bold text-lg drop-shadow-lg line-clamp-2">
+            {trip.title}
+          </h4>
         </div>
       </div>
 
@@ -936,11 +960,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
         {/* Title & Destination */}
         <div className="mb-3">
           <h3 className="text-xl font-bold text-gray-900 mb-1 line-clamp-2">
-            {tripWithImages.title}
+            {trip.title}
           </h3>
           <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
             <MapPin size={14} className="text-primary-600" />
-            <span>{tripWithImages.destination}</span>
+            <span>{trip.destination}</span>
           </div>
           {agency && (
             <Link to={`/${agency.slug || ''}`} className="text-sm text-primary-600 hover:underline font-medium">
@@ -984,7 +1008,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, trip, agency, hasRev
               {startDate ? new Date(startDate).toLocaleDateString('pt-BR') : '---'}
             </span>
           </div>
-          {tripWithImages.durationDays && (
+          {trip.durationDays && (
             <div className="flex items-center text-gray-700 bg-gray-50 rounded-lg p-2">
               <Clock size={14} className="text-primary-600 mr-2" />
               <span className="font-medium">{durationDisplay}</span>
@@ -1930,92 +1954,173 @@ const ClientDashboard: React.FC = () => {
       )}
 
       {!isMicrositeMode && (
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Minha Área</h1>
-          <NotificationCenter />
-        </div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">Minha Área</h1>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
-        {/* Left Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-center mb-6 relative">
-            <div className="relative w-24 h-24 mx-auto mb-4 border-4 border-slate-200 rounded-full bg-slate-100 shadow-sm">
+        {/* Left Sidebar - Premium Style */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Profile Card with Gradient */}
+          <div className="bg-gradient-to-br from-stone-50 via-white to-stone-50 rounded-2xl border border-stone-200/80 overflow-hidden shadow-sm">
+            {/* Header with trip background image - shared daily image */}
+            <div className="relative h-20 overflow-hidden">
               <img
-                key={user?.avatar || currentClient?.avatar || 'avatar'}
-                src={currentClient?.avatar || user?.avatar || `https://ui-avatars.com/api/?name=${currentClient?.name || user?.name || 'Cliente'}`}
-                alt={currentClient?.name || user?.name || 'Cliente'}
-                className="w-full h-full rounded-full object-cover"
+                src={getDailyHeroImage(trips)}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
               />
-              <label className="absolute bottom-0 right-0 bg-white text-slate-700 p-2 rounded-full cursor-pointer hover:bg-slate-100 shadow-md transition-transform hover:scale-110 border border-slate-200">
-                <Camera size={14} />
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
-              </label>
-              {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-full"><div className="w-5 h-5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div></div>}
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-primary-900/80 via-primary-800/70 to-primary-700/60" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
             </div>
-            <h2 className="text-xl font-semibold text-slate-900 truncate">{currentClient?.name || user?.name || 'Cliente'}</h2>
-            <p className="text-sm text-slate-600 font-light truncate">{greeting}</p> {/* Dynamic Greeting */}
+
+            {/* Avatar - overlapping header */}
+            <div className="px-5 -mt-10">
+              <div className="relative inline-block">
+                <img
+                  key={user?.avatar || currentClient?.avatar || 'avatar'}
+                  src={currentClient?.avatar || user?.avatar || `https://ui-avatars.com/api/?name=${currentClient?.name || user?.name || 'Cliente'}&background=ffffff&color=1a5d3a&bold=true`}
+                  alt={currentClient?.name || user?.name || 'Cliente'}
+                  className="w-16 h-16 rounded-2xl object-cover ring-4 ring-white shadow-lg"
+                />
+                <label className="absolute -bottom-1 -right-1 bg-white text-primary-600 p-1.5 rounded-lg cursor-pointer hover:bg-primary-50 shadow-md transition-all hover:scale-110 border border-stone-200">
+                  <Camera size={12} />
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
+                </label>
+                {uploading && <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-2xl"><div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div></div>}
+              </div>
+            </div>
+
+            {/* Name & Badge */}
+            <div className="px-5 pt-3 pb-4">
+              <h2 className="font-bold text-stone-900 text-lg truncate">{currentClient?.name || user?.name || 'Cliente'}</h2>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary-100 text-primary-700 text-[10px] font-semibold uppercase tracking-wide rounded-full">
+                  <Star size={10} className="fill-current" />
+                  Viajante SouNativo
+                </span>
+              </div>
+            </div>
+
+            {/* Stats Row - Clicáveis */}
+            <div className="grid grid-cols-3 gap-px bg-stone-200/50">
+              <Link
+                to={getNavLink('BOOKINGS')}
+                className="bg-white text-center py-4 group hover:bg-blue-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-center w-8 h-8 mx-auto mb-1.5 bg-blue-100 rounded-lg group-hover:scale-110 transition-transform">
+                  <Plane size={14} className="text-blue-600" />
+                </div>
+                <p className="text-lg font-bold text-stone-900">{myBookings.length}</p>
+                <p className="text-[9px] text-stone-500 uppercase font-medium tracking-wide">Viagens</p>
+              </Link>
+              <Link
+                to={getNavLink('FAVORITES')}
+                className="bg-white text-center py-4 group hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-center w-8 h-8 mx-auto mb-1.5 bg-rose-100 rounded-lg group-hover:scale-110 transition-transform">
+                  <Heart size={14} className="text-rose-500" />
+                </div>
+                <p className="text-lg font-bold text-stone-900">{favoriteTrips.length}</p>
+                <p className="text-[9px] text-stone-500 uppercase font-medium tracking-wide">Favoritos</p>
+              </Link>
+              <Link
+                to={getNavLink('REVIEWS')}
+                className="bg-white text-center py-4 group hover:bg-amber-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-center w-8 h-8 mx-auto mb-1.5 bg-amber-100 rounded-lg group-hover:scale-110 transition-transform">
+                  <Star size={14} className="text-amber-500" />
+                </div>
+                <p className="text-lg font-bold text-stone-900">{myReviews.length}</p>
+                <p className="text-[9px] text-stone-500 uppercase font-medium tracking-wide">Avaliações</p>
+              </Link>
+            </div>
           </div>
 
-          <nav className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {[{ id: 'PROFILE', icon: User, label: 'Meu Perfil' }, { id: 'BOOKINGS', icon: ShoppingBag, label: 'Minhas Viagens' }, { id: 'REVIEWS', icon: Star, label: 'Minhas Avaliações' }, { id: 'FAVORITES', icon: Heart, label: 'Favoritos' }, { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço' }, { id: 'SECURITY', icon: Shield, label: 'Segurança' }].map((item) => (<Link key={item.id} to={getNavLink(item.id)} className={getTabClass(item.id)}> <item.icon size={18} className="mr-3" /> {item.label} </Link>))}
-            <div className="h-px bg-gray-100 my-1"></div>
-            <button onClick={handleLogout} className="w-full flex items-center px-6 py-4 text-left text-sm font-medium text-red-600 hover:bg-red-50 border-l-4 border-transparent transition-colors"> <LogOut size={18} className="mr-3" /> Sair da Conta </button>
-          </nav>
+          {/* Navigation Menu - Refined */}
+          <div className="bg-white rounded-2xl border border-stone-200/80 overflow-hidden shadow-sm">
+            <nav>
+              {[
+                { id: 'PROFILE', icon: Home, label: 'Início', color: 'text-emerald-600 bg-emerald-50' },
+                { id: 'BOOKINGS', icon: ShoppingBag, label: 'Minhas Viagens', color: 'text-blue-600 bg-blue-50' },
+                { id: 'REVIEWS', icon: Star, label: 'Minhas Avaliações', color: 'text-amber-600 bg-amber-50' },
+                { id: 'FAVORITES', icon: Heart, label: 'Favoritos', color: 'text-rose-600 bg-rose-50' },
+                { id: 'SETTINGS', icon: Settings, label: 'Dados & Endereço', color: 'text-violet-600 bg-violet-50' },
+                { id: 'SECURITY', icon: Shield, label: 'Segurança', color: 'text-slate-600 bg-slate-50' }
+              ].map((item, index) => (
+                <Link
+                  key={item.id}
+                  to={getNavLink(item.id)}
+                  className={`flex items-center gap-3 px-4 py-3.5 transition-all group relative ${activeTab === item.id
+                    ? 'bg-primary-50'
+                    : 'hover:bg-stone-50'
+                    } ${index < 5 ? 'border-b border-stone-100' : ''}`}
+                >
+                  {activeTab === item.id && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary-600 rounded-r" />
+                  )}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 ${activeTab === item.id ? 'bg-primary-100' : item.color.split(' ')[1]
+                    }`}>
+                    <item.icon size={16} className={activeTab === item.id ? 'text-primary-600' : item.color.split(' ')[0]} />
+                  </div>
+                  <span className={`text-sm font-medium ${activeTab === item.id ? 'text-primary-700' : 'text-stone-700'}`}>
+                    {item.label}
+                  </span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          {/* CTA Card with Trip Image Background - shared daily image */}
+          <div className="rounded-2xl overflow-hidden shadow-lg relative">
+            {/* Background image */}
+            <div className="absolute inset-0">
+              <img
+                src={getDailyHeroImage(trips)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-900/85 via-primary-800/75 to-primary-700/65" />
+            </div>
+
+            {/* Content */}
+            <div className="relative p-5 text-white">
+              <Compass size={24} className="mb-3 opacity-90" />
+              <h4 className="font-bold text-base mb-1 drop-shadow-sm">Explore o Mundo</h4>
+              <p className="text-xs text-white/90 mb-3 drop-shadow-sm">Descubra destinos incríveis para sua próxima aventura</p>
+              <Link
+                to="/trips"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-primary-700 rounded-lg text-xs font-semibold hover:bg-white/90 transition-colors shadow-md"
+              >
+                Ver Viagens
+                <ArrowRight size={12} />
+              </Link>
+            </div>
+          </div>
+
+          {/* Logout - Separate */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-stone-500 hover:text-red-600 hover:bg-red-50 rounded-xl border border-stone-200 transition-all"
+          >
+            <LogOut size={16} />
+            <span className="text-sm font-medium">Sair da Conta</span>
+          </button>
         </div>
 
         {/* Right Content Area */}
         <div className="lg:col-span-3">
 
           {activeTab === 'PROFILE' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 animate-[fadeIn_0.3s]">
-              <div className="flex justify-between items-center mb-6"> <h2 className="text-2xl font-semibold text-slate-900">Resumo do Perfil</h2> <Link to={getNavLink('SETTINGS')} className="text-slate-600 text-sm font-semibold hover:text-slate-900 hover:underline">Editar Dados</Link> </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Stat Card: Viagens */}
-                <div className="bg-slate-50 p-6 rounded-2xl flex items-center gap-4 border border-slate-200 shadow-sm">
-                  <div className="bg-white p-3 rounded-full shadow-sm text-slate-700"><Plane size={24} strokeWidth={1.5} /></div>
-                  <div>
-                    <p className="text-3xl font-semibold text-slate-900">{myBookings.length}</p>
-                    <p className="text-xs text-slate-600 uppercase font-semibold mt-0.5">Viagens Reservadas</p>
-                  </div>
-                </div>
-                {/* Stat Card: Favoritos */}
-                <div className="bg-slate-50 p-6 rounded-2xl flex items-center gap-4 border border-slate-200 shadow-sm">
-                  <div className="bg-white p-3 rounded-full shadow-sm text-slate-700"><Heart size={24} strokeWidth={1.5} /></div>
-                  <div>
-                    <p className="text-3xl font-semibold text-slate-900">{favoriteTrips.length}</p>
-                    <p className="text-xs text-slate-600 uppercase font-semibold mt-0.5">Viagens Favoritas</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Profile Details */}
-              <div className="mt-10 pt-6 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Nome</label> <p className="text-slate-900 font-medium">{currentClient?.name || '---'}</p> </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Email</label> <p className="text-slate-900 font-medium">{currentClient?.email || '---'}</p> </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">CPF</label> <p className="text-slate-900 font-medium">{currentClient?.cpf || '---'}</p> </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Telefone</label> <p className="text-slate-900 font-medium">{currentClient?.phone || '---'}</p> </div>
-                {currentClient?.address?.city && (
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 md:col-span-2"> <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Endereço</label> <p className="text-slate-900 font-medium">{currentClient.address.street}, {currentClient.address.number} - {currentClient.address.city}/{currentClient.address.state}</p> </div>
-                )}
-              </div>
-
-              {/* Suggested Trips Section */}
-              {suggestedTrips.length > 0 && (
-                <div className="mt-12 pt-8 border-t border-gray-100">
-                  <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                    <Compass size={24} className="text-slate-700" />
-                    🌎 Inspire-se para sua próxima aventura
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {suggestedTrips.map((trip) => (
-                      <TripCard key={trip.id} trip={trip} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <TravelFeed
+              bookings={myBookings}
+              favoriteTrips={favoriteTrips}
+              myReviews={myReviews}
+              getNavLink={getNavLink}
+              onLogout={handleLogout}
+            />
           )}
 
           {activeTab === 'BOOKINGS' && (
@@ -2030,8 +2135,8 @@ const ClientDashboard: React.FC = () => {
                     <button
                       onClick={() => setSortBy('date')}
                       className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${sortBy === 'date'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       <ArrowUpDown size={14} />
@@ -2040,8 +2145,8 @@ const ClientDashboard: React.FC = () => {
                     <button
                       onClick={() => setSortBy('alphabetical')}
                       className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${sortBy === 'alphabetical'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       <ArrowDownAZ size={14} />
@@ -2054,8 +2159,8 @@ const ClientDashboard: React.FC = () => {
                     <button
                       onClick={() => setViewMode('card')}
                       className={`p-2 rounded-md transition-colors ${viewMode === 'card'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       title="Visualização em Cards"
                     >
@@ -2064,8 +2169,8 @@ const ClientDashboard: React.FC = () => {
                     <button
                       onClick={() => setViewMode('list')}
                       className={`p-2 rounded-md transition-colors ${viewMode === 'list'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       title="Visualização em Lista"
                     >

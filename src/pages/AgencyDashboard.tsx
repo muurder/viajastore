@@ -28,7 +28,7 @@ import { slugify } from '../utils/slugify';
 import SubscriptionModal from '../components/SubscriptionModal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import CreateTripWizard from '../components/agency/CreateTripWizard';
-import NotificationCenter from '../components/NotificationCenter';
+import BroadcastSpotlight from '../components/BroadcastSpotlight';
 import { AgencyThemeManager } from '../components/admin/AgencyThemeManager';
 import DashboardMobileTabs from '../components/mobile/DashboardMobileTabs';
 
@@ -623,12 +623,10 @@ const AgencyDashboard: React.FC = () => {
             <div className="flex-1 w-full bg-gray-50">
                 <DashboardMobileTabs activeTab={activeTab} onTabChange={handleTabChange} tabs={tabs} className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-sm shadow-sm" />
 
-                {/* Notification Center */}
-                <div className="flex justify-end p-4 md:px-8 md:pt-6 md:pb-0">
-                    <NotificationCenter />
-                </div>
+                <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto space-y-6">
 
-                <div className="p-4 md:p-8 pt-2 pb-24 md:pb-8 max-w-7xl mx-auto space-y-6">
+                    {/* Broadcast Spotlight */}
+                    <BroadcastSpotlight />
 
                     {/* OVERVIEW TAB */}
                     {activeTab === 'OVERVIEW' && (

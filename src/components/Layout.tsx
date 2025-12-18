@@ -118,13 +118,13 @@ const Layout: React.FC = () => {
   useEffect(() => {
     if (!location.pathname.includes('/viagem/')) {
       if ((isAgencyMode || isAgencyDashboard) && currentAgency) {
-        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
-          ? platformSettings.platform_name 
+        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore')
+          ? platformSettings.platform_name
           : 'SouNativo';
         document.title = `${currentAgency.name} | ${platformName}`;
       } else {
-        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
-          ? platformSettings.platform_name 
+        const platformName = (platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore')
+          ? platformSettings.platform_name
           : 'SouNativo';
         document.title = `${platformName} | O maior marketplace de viagens`;
       }
@@ -292,7 +292,7 @@ const Layout: React.FC = () => {
   // Load hero trips for banner
   useEffect(() => {
     if (!isHomePage) return;
-    
+
     if (dataLoading) return;
 
     const loadHero = async () => {
@@ -489,14 +489,14 @@ const Layout: React.FC = () => {
                         <>
                           <img src={platformSettings.platform_logo_url} alt={(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') ? platformSettings.platform_name : 'SouNativo'} className="h-8 w-auto mr-2" />
                           <span className="font-bold text-xl tracking-tight text-primary-800 hidden md:inline">
-                            {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore') 
-                              ? platformSettings.platform_name 
+                            {(platformSettings?.platform_name && platformSettings.platform_name !== 'ViajaStore')
+                              ? platformSettings.platform_name
                               : 'SouNativo'}
                           </span>
                         </>
                       ) : (
-                        <Logo 
-                          className="h-8" 
+                        <Logo
+                          className="h-8"
                           showText={true}
                           variant="default"
                         />
@@ -595,7 +595,6 @@ const Layout: React.FC = () => {
                             : 'Ir para Painel'}
                       </span>
                     </Link>
-
                     {/* Elemento 2: Divisor Vertical */}
                     <div className="h-6 w-px bg-slate-200" />
 
@@ -616,10 +615,10 @@ const Layout: React.FC = () => {
                     >
                       {(() => {
                         // Para Agency, usar logo; para outros (Client, Admin), usar avatar
-                        const avatarUrl = user.role === 'AGENCY' 
-                          ? (user as Agency).logo 
+                        const avatarUrl = user.role === 'AGENCY'
+                          ? (user as Agency).logo
                           : user.avatar;
-                        
+
                         if (avatarUrl) {
                           return (
                             <img
@@ -629,7 +628,7 @@ const Layout: React.FC = () => {
                             />
                           );
                         }
-                        
+
                         return (
                           <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center text-sm font-bold border-2 border-gray-200 hover:border-primary-300 transition-colors">
                             {user.name.charAt(0).toUpperCase()}
@@ -640,14 +639,14 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
-                    <Link 
-                      to={{ hash: 'login' }} 
+                    <Link
+                      to={{ hash: 'login' }}
                       className="text-gray-500 hover:text-gray-900 font-medium transition-colors"
                     >
                       Entrar
                     </Link>
-                    <Link 
-                      to={{ hash: 'signup' }} 
+                    <Link
+                      to={{ hash: 'signup' }}
                       className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shadow-primary-500/30"
                     >
                       Criar Conta
@@ -719,10 +718,10 @@ const Layout: React.FC = () => {
                     <div className="flex items-center gap-3 mb-4">
                       {(() => {
                         // Para Agency, usar logo; para outros (Client, Admin), usar avatar
-                        const avatarUrl = user.role === 'AGENCY' 
-                          ? (user as Agency).logo 
+                        const avatarUrl = user.role === 'AGENCY'
+                          ? (user as Agency).logo
                           : user.avatar;
-                        
+
                         return avatarUrl ? (
                           <img src={avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                         ) : (
