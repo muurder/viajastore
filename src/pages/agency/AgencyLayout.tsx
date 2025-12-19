@@ -57,9 +57,9 @@ export const AgencyLayout: React.FC = () => {
     if (!currentAgency) return null; // Or loader
 
     return (
-        <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-            {/* Sidebar Desktop */}
-            <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 h-full flex-shrink-0 z-20">
+        <div className="flex bg-gray-50 font-sans">
+            {/* Sidebar Desktop - HIDDEN (usando sidebar do AgencyDashboard) */}
+            <aside className="hidden">
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {currentAgency.logo ? (
@@ -120,8 +120,8 @@ export const AgencyLayout: React.FC = () => {
                 </div>
             </aside>
 
-            {/* Main Content */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+            {/* Main Content Wrapper */}
+            <main className="flex-1 flex flex-col relative w-full">
                 {/* Mobile Header (Only visible on mobile) */}
                 <div className="md:hidden bg-white border-b border-gray-200 p-4 flex items-center justify-between flex-shrink-0 z-30">
                     <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ export const AgencyLayout: React.FC = () => {
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-y-auto w-full overflow-x-hidden">
+                <div className="flex-1">
                     <Outlet />
                 </div>
             </main>

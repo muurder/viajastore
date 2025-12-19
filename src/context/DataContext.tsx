@@ -409,10 +409,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       } else if (user.role === UserRole.CLIENT) {
         logger.log("[DataContext] _fetchBookingsForCurrentUser: Client user, fetching bookings for client ID:", user.id);
-        ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
-          .select('*, trips:trip_id(*, agencies:trips_agency_id_fkey(*)), booking_passengers(*)')
-          .eq('client_id', user.id)
-          .order('created_at', { ascending: false })); // Use created_at instead of date
+
+        // Try to fetch with booking_passengers, if it fails (400 - table doesn't exist or RLS blocks),
+        // fetch without it to prevent infinite loop
+        try {
+          ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
+            .select('*, trips:trip_id(*, agencies:trips_agency_id_fkey(*)), booking_passengers(*)')
+            .eq('client_id', user.id)
+            .order('created_at', { ascending: false }));
+
+          if (bookingsError) throw bookingsError;
+        } catch (passengersError: any) {
+          // If booking_passengers fails (likely 400 - table/RLS issue), fetch without it
+          logger.warn("[DataContext] booking_passengers fetch failed, fetching bookings without passengers:", passengersError.message);
+          ({ data: bookingsData, error: bookingsError } = await sb.from('bookings')
+            .select('*, trips:trip_id(*, agencies:trips_agency_id_fkey(*))')
+            .eq('client_id', user.id)
+            .order('created_at', { ascending: false }));
+        }
       }
 
       if (bookingsError) throw bookingsError;
@@ -1387,17 +1401,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
     logger.log("[DataContext] Updating operational data for trip:", tripId, "Data:", data);
+
+    // Optimistic update: Update local state first
+    setTrips(prevTrips => prevTrips.map(t =>
+      t.id === tripId ? { ...t, operationalData: data } : t
+    ));
+
     try {
       await sb.from('trips').update({ operational_data: data }).eq('id', tripId);
       showToast('Dados operacionais atualizados!', 'success');
-      _fetchGlobalAndClientProfiles(); // To ensure local cache is up-to-date
+      // REMOVED: _fetchGlobalAndClientProfiles() - This was causing the refresh!
       logger.log("[DataContext] Operational data updated successfully:", tripId);
     } catch (error: any) {
       logger.error("[DataContext] Error updating operational data:", error.message);
       showToast(`Erro ao atualizar dados operacionais: ${error.message}`, 'error');
+
+      // Rollback on error: refetch only this trip
+      const { data: tripData } = await sb.from('trips').select('*').eq('id', tripId).single();
+      if (tripData) {
+        setTrips(prevTrips => prevTrips.map(t =>
+          t.id === tripId ? tripData as Trip : t
+        ));
+      }
       throw error;
     }
-  }, [showToast, _fetchGlobalAndClientProfiles, guardSupabase]);
+  }, [showToast, guardSupabase]);
 
   const softDeleteEntity = useCallback(async (id: string, table: string) => {
     const sb = guardSupabase();

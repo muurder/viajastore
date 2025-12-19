@@ -1933,10 +1933,10 @@ const ClientDashboard: React.FC = () => {
 
 
   return (
-    <div className="max-w-[1600px] mx-auto py-6">
+    <div className="max-w-[1600px] mx-auto py-6 px-4 md:px-6">
       {/* Admin Impersonate Banner */}
       {isImpersonating && (
-        <div className="mb-6 bg-amber-50 border-b border-amber-200 p-4 rounded-lg flex items-center justify-between">
+        <div className="mb-6 bg-amber-50 border-b border-amber-200 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <AlertTriangle className="text-amber-600" size={20} />
             <div>
@@ -1954,7 +1954,7 @@ const ClientDashboard: React.FC = () => {
       )}
 
       {!isMicrositeMode && (
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Minha Área</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Minha Área</h1>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -2126,7 +2126,7 @@ const ClientDashboard: React.FC = () => {
           {activeTab === 'BOOKINGS' && (
             <div className="space-y-8 animate-[fadeIn_0.3s]">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Minhas Viagens</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">Minhas Viagens</h2>
 
                 {/* Sort and View Controls */}
                 <div className="flex items-center gap-3 flex-wrap">

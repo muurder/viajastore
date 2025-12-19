@@ -13,6 +13,9 @@ interface WelcomeHeroProps {
     };
     trips?: Trip[]; // Available trips for background images
     className?: string;
+    ctaText?: string; // Custom CTA button text
+    ctaLink?: string; // Custom CTA button link
+    showUpcomingBadge?: boolean; // Show "X viagens chegando" badge (default: true)
 }
 
 /**
@@ -35,7 +38,10 @@ const WelcomeHero: React.FC<WelcomeHeroProps> = ({
     userAvatar,
     stats,
     trips = [],
-    className = ''
+    className = '',
+    ctaText = 'Explorar Viagens',
+    ctaLink = '/trips',
+    showUpcomingBadge = true
 }) => {
     const [avatarError, setAvatarError] = useState(false);
 
@@ -148,9 +154,9 @@ const WelcomeHero: React.FC<WelcomeHeroProps> = ({
                                         <span className="text-white/80 text-sm ml-1">viagens</span>
                                     </div>
                                 </div>
-                                {stats.upcomingTrips > 0 && (
+                                {showUpcomingBadge && stats.upcomingTrips > 0 && (
                                     <div className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm font-medium">
-                                        🎉 {stats.upcomingTrips} viagem{stats.upcomingTrips > 1 ? 'ns' : ''} chegando!
+                                        🎉 {stats.upcomingTrips} viagem{stats.upcomingTrips > 1 ? 's' : ''} chegando!
                                     </div>
                                 )}
                             </div>
@@ -160,10 +166,10 @@ const WelcomeHero: React.FC<WelcomeHeroProps> = ({
                     {/* CTA Button */}
                     <div className="flex-shrink-0">
                         <Link
-                            to="/trips"
+                            to={ctaLink}
                             className="inline-flex items-center gap-2 px-6 py-3 bg-white text-primary-700 rounded-xl font-semibold shadow-lg shadow-black/20 hover:bg-white/95 hover:scale-[1.02] transition-all active:scale-[0.98]"
                         >
-                            Explorar Viagens
+                            {ctaText}
                             <ArrowRight size={18} />
                         </Link>
                     </div>

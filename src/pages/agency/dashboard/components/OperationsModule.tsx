@@ -50,13 +50,6 @@ export const OperationsModule: React.FC<OperationsModuleProps> = ({
 
     const filteredTrips = myTrips.filter(t => t.is_active && t.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    useEffect(() => {
-        if (selectedTripId) {
-            refreshData();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedTripId]);
-
 
     const confirmDeleteTrip = async () => {
         if (!tripToDelete) return;

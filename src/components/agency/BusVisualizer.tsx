@@ -42,93 +42,93 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
         const rowSeats = [];
         for (let c = 1; c <= cols; c++) {
             const seatNum = ((r - 1) * cols) + c;
-            
+
             // Add row number indicator in the aisle
             if (c === aisleAfterCol + 1) {
                 rowSeats.push(
-                    <div 
-                        key={`aisle-${r}`} 
+                    <div
+                        key={`aisle-${r}`}
                         className="w-8 flex justify-center items-center text-xs text-gray-300 font-mono select-none"
                     >
                         {r}
                     </div>
                 );
             }
-            
+
             if (seatNum <= totalSeats) {
                 const seatStr = seatNum.toString();
                 const occupant = isSeatOccupied(seatStr);
                 const isTarget = dragOverSeat === seatStr || (selectedPassenger && !occupant);
                 const isHovered = hoveredSeat === seatStr;
                 const passengerDetails = occupant && getPassengerDetails ? getPassengerDetails(occupant) : null;
-                
+
                 rowSeats.push(
                     <div
                         key={seatNum}
-                        onDragOver={(e) => { 
-                            e.preventDefault(); 
-                            if (!occupant) onDragOver(e, seatStr); 
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            if (!occupant) onDragOver(e, seatStr);
                         }}
                         onDragLeave={() => {
                             onDragLeave();
                             setHoveredSeat(null);
                         }}
-                        onDrop={(e) => { 
-                            e.preventDefault(); 
-                            onDragLeave(); 
-                            if (!occupant) onDrop(e, seatStr); 
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            onDragLeave();
+                            if (!occupant) onDrop(e, seatStr);
                         }}
                         onClick={() => onSeatClick(seatStr)}
                         onMouseEnter={() => setHoveredSeat(seatStr)}
                         onMouseLeave={() => setHoveredSeat(null)}
                         className={`
                             relative w-12 h-12 flex flex-col items-center justify-center transition-all duration-200
-                            ${occupant 
-                                ? 'cursor-pointer text-primary-600' 
-                                : isTarget 
-                                    ? 'cursor-pointer scale-110 text-green-500 bg-green-50 rounded-lg shadow-sm border border-green-200' 
+                            ${occupant
+                                ? 'cursor-pointer text-primary-600'
+                                : isTarget
+                                    ? 'cursor-pointer scale-110 text-green-500 bg-green-50 rounded-lg shadow-sm border border-green-200'
                                     : 'cursor-pointer text-gray-300 hover:text-gray-400'
                             }
                         `}
                     >
-                        <Armchair 
-                            size={40} 
+                        <Armchair
+                            size={40}
                             className={`
                                 transition-all 
-                                ${occupant 
-                                    ? 'fill-blue-600 stroke-blue-700' 
-                                    : isTarget 
-                                        ? 'fill-green-50 stroke-green-500' 
+                                ${occupant
+                                    ? 'fill-blue-600 stroke-blue-700'
+                                    : isTarget
+                                        ? 'fill-green-50 stroke-green-500'
                                         : 'fill-white stroke-current'
                                 }
-                            `} 
-                            strokeWidth={1.5} 
+                            `}
+                            strokeWidth={1.5}
                         />
                         {/* Content: Number for free, Initials for occupied */}
                         {occupant ? (
-                            <span 
+                            <span
                                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold text-white leading-none z-10"
                                 style={{ fontSize: '12px', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                             >
                                 {getInitials(occupant.passengerName)}
                             </span>
                         ) : (
-                            <span 
+                            <span
                                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm font-bold text-gray-700 leading-none"
                                 style={{ fontSize: '13px' }}
                             >
                                 {seatNum}
                             </span>
                         )}
-                        
+
                         {/* Enhanced Tooltip on Hover */}
                         {occupant && isHovered && (
-                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap min-w-[180px]">
+                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl z-50 pointer-events-none whitespace-nowrap min-w-[220px] max-w-[300px]">
                                 <div className="flex items-center gap-2 mb-1">
                                     {passengerDetails?.avatar ? (
-                                        <img 
-                                            src={passengerDetails.avatar} 
-                                            alt="" 
+                                        <img
+                                            src={passengerDetails.avatar}
+                                            alt=""
                                             className="w-8 h-8 rounded-full object-cover border border-gray-700"
                                         />
                                     ) : (
@@ -137,7 +137,7 @@ const BusVisualizer: React.FC<BusVisualizerProps> = ({
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-bold truncate">{occupant.passengerName}</div>
+                                        <div className="font-bold">{occupant.passengerName}</div>
                                         {passengerDetails?.status && (
                                             <div className="text-[10px] text-gray-300">{passengerDetails.status}</div>
                                         )}

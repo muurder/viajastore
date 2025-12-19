@@ -52,21 +52,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ stats, myTrips, myBookings, c
 
     return (
         <div className="space-y-6 animate-[fadeIn_0.3s]">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Bom dia, {currentAgency.name.split(' ')[0]}! 👋</h2>
-                    <p className="text-gray-500">Aqui está o resumo da sua agência hoje.</p>
-                </div>
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    <button onClick={() => window.open(`/#/${currentAgency.slug}`, '_blank')} className="w-full md:w-auto bg-white text-primary-600 border-2 border-primary-100 px-5 py-2.5 rounded-xl font-bold hover:bg-primary-50 transition-all flex items-center justify-center gap-2">
-                        <ExternalLink size={20} /> Ver meu Site
-                    </button>
-                    <button onClick={onCreateTrip} className="w-full md:w-auto bg-primary-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary-700 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                        <Plus size={20} /> Criar Nova Viagem
-                    </button>
-                </div>
-            </div>
-
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     title="Vendas Totais"

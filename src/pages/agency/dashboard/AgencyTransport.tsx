@@ -41,6 +41,14 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
     const [passengerEditForm, setPassengerEditForm] = useState({ name: '', document: '', phone: '', birthDate: '', rg: '', rgOrg: '' });
     const [passengerToDelete, setPassengerToDelete] = useState<string | null>(null);
 
+    // Trash/Deleted Passengers
+    const [deletedPassengers, setDeletedPassengers] = useState<Array<{
+        id: string;
+        name: string;
+        deletedAt: string;
+        data: any;
+    }>>(trip.operationalData?.deletedPassengers || []);
+
     // Passenger Details Modal
     const [passengerDetailsModal, setPassengerDetailsModal] = useState<{
         name: string;
@@ -125,6 +133,20 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
         fetchPassengers();
     }, [bookings]);
 
+    // Debug: Log loaded passengers
+    useEffect(() => {
+        console.log('[Transport] dbPassengers loaded:', dbPassengers.size, 'passengers');
+        dbPassengers.forEach((value, key) => {
+            console.log(`  [${key}]:`, value.full_name || '(no name)');
+        });
+
+        // Visual feedback for debugging
+        if (dbPassengers.size > 0) {
+            const namesCount = Array.from(dbPassengers.values()).filter(p => p.full_name).length;
+            console.log(`[Transport] ✅ ${namesCount} nomes carregados do banco de ${dbPassengers.size} passageiros`);
+        }
+    }, [dbPassengers]);
+
     // Derived Passengers List
     const opData = trip.operationalData as any;
     const nameOverrides = opData?.passengerNameOverrides || {};
@@ -140,11 +162,23 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
                 const dbName = dbPassenger?.full_name;
                 const detailName = passengerDetails[id]?.name || nameOverrides[id];
 
+                // Debug: Log passenger data
+                if (i > 0) {
+                    console.log(`[Transport] Passenger ${id}:`, {
+                        dbPassenger,
+                        dbName,
+                        detailName,
+                        bookingId: b.id,
+                        passengerIndex: i
+                    });
+                }
+
                 let finalName: string;
                 if (i === 0) {
                     finalName = dbName || detailName || nameOverrides[id] || clientName || 'Passageiro';
                 } else {
-                    finalName = dbName || detailName || nameOverrides[id] || '';
+                    // Para acompanhantes, usar nome do banco ou fallback descritivo
+                    finalName = dbName || detailName || nameOverrides[id] || `Acompanhante ${i} de ${clientName || 'Cliente'}`;
                 }
 
                 return {
@@ -171,10 +205,16 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
             isManual: true,
             isMain: false,
             isAccompaniment: false,
+            passengerIndex: -1, // Manual passengers don't have an index
             details: passengerDetails[p.id]
         }));
-        return [...booked, ...manual];
-    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers]);
+
+        const allPax = [...booked, ...manual];
+
+        // Filter out deleted passengers
+        const deletedIds = new Set(deletedPassengers.map(dp => dp.id));
+        return allPax.filter(p => !deletedIds.has(p.id));
+    }, [bookings, trip.id, clients, manualPassengers, nameOverrides, passengerDetails, dbPassengers, deletedPassengers]);
 
     const globalAssignmentMap = useMemo(() => {
         const map = new Map<string, string>();
@@ -597,39 +637,66 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
     const handleDeletePassenger = () => {
         if (!passengerToDelete) return;
 
-        if (passengerToDelete.startsWith('manual-')) {
-            const updatedManual = manualPassengers.filter(p => p.id !== passengerToDelete);
-            setManualPassengers(updatedManual);
-            const newPassengerDetails = { ...passengerDetails };
-            delete newPassengerDetails[passengerToDelete];
-            const newNameOverrides = { ...nameOverrides };
-            delete newNameOverrides[passengerToDelete];
-            onSave({
-                ...trip.operationalData,
-                manualPassengers: updatedManual,
-                passengerDetails: newPassengerDetails,
-                passengerNameOverrides: newNameOverrides
-            });
-        } else {
-            const newPassengerDetails = { ...passengerDetails };
-            delete newPassengerDetails[passengerToDelete];
-            const newNameOverrides = { ...nameOverrides };
-            delete newNameOverrides[passengerToDelete];
-            onSave({
-                ...trip.operationalData,
-                passengerDetails: newPassengerDetails,
-                passengerNameOverrides: newNameOverrides
-            });
+        // Find passenger data
+        const passenger = allPassengers.find(p => p.id === passengerToDelete);
+        if (!passenger) {
+            showToast('Passageiro não encontrado', 'error');
+            setPassengerToDelete(null);
+            return;
         }
 
+        // Move to trash instead of deleting
+        const deleted = {
+            id: passenger.id,
+            name: passenger.name,
+            deletedAt: new Date().toISOString(),
+            data: passenger
+        };
+
+        const newDeleted = [...deletedPassengers, deleted];
+        setDeletedPassengers(newDeleted);
+
+        // Remove from seats
         const updatedVehicles = vehicles.map(v => ({
             ...v,
             seats: v.seats.filter(s => s.bookingId !== passengerToDelete)
         }));
         saveVehicles(updatedVehicles);
 
+        // Save to operationalData
+        onSave({
+            ...trip.operationalData,
+            deletedPassengers: newDeleted
+        } as any);
+
         setPassengerToDelete(null);
-        showToast('Passageiro removido.', 'success');
+        showToast('Passageiro movido para lixeira', 'success');
+    };
+
+    const handleRestorePassenger = (passengerId: string) => {
+        const toRestore = deletedPassengers.find(dp => dp.id === passengerId);
+        if (!toRestore) return;
+
+        // Remove from trash
+        const newDeleted = deletedPassengers.filter(dp => dp.id !== passengerId);
+        setDeletedPassengers(newDeleted);
+
+        // Save to operationalData
+        onSave({
+            ...trip.operationalData,
+            deletedPassengers: newDeleted
+        } as any);
+
+        showToast(`${toRestore.name} restaurado!`, 'success');
+    };
+
+    const handleEmptyTrash = () => {
+        setDeletedPassengers([]);
+        onSave({
+            ...trip.operationalData,
+            deletedPassengers: []
+        } as any);
+        showToast('Lixeira esvaziada', 'success');
     };
 
     const getPassengerDetails = (seat: PassengerSeat) => {
@@ -771,11 +838,6 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
                                 key={p.id}
                                 draggable={!isAssigned}
                                 onDragStart={(e) => handleDragStart(e, p)}
-                                onClick={() => {
-                                    if (!isAssigned) {
-                                        setSelectedPassenger(isSelected ? null : { id: p.id, name: displayName, bookingId: p.bookingId });
-                                    }
-                                }}
                                 className={`
                                     p-3 rounded-lg border text-sm flex items-center justify-between group select-none transition-all relative
                                     ${isSelected ? 'bg-primary-600 border-primary-600 shadow-md ring-2 ring-primary-100 text-white' : ''}
@@ -795,14 +857,93 @@ export const TransportManager: React.FC<TransportManagerProps> = ({ trip, bookin
                                     </div>
                                 </div>
                                 {isAssigned && <span className="text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap truncate max-w-[80px]">{assignedInfo}</span>}
-                                <div className="flex items-center gap-1">
-                                    <button onClick={(e) => { e.stopPropagation(); setPassengerDetailsModal({ name: displayName, status: 'Detalhes', document: p.details?.document || '', phone: p.details?.phone || '', birthDate: p.details?.birthDate || '', avatar: undefined }); }} className={`p-1.5 rounded-full ${isSelected ? 'text-white' : 'text-gray-500 hover:bg-gray-50'}`}><Eye size={14} /></button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleOpenPassengerEdit(p); }} className={`p-1.5 rounded-full ${isSelected ? 'text-white' : 'text-blue-500 hover:bg-blue-50'}`}><Edit3 size={14} /></button>
-                                    <button onClick={(e) => { e.stopPropagation(); setPassengerToDelete(p.id); }} className={`p-1.5 rounded-full ${isSelected ? 'text-white' : 'text-red-500 hover:bg-red-50'}`}><Trash2 size={14} /></button>
+                                <div className="flex items-center gap-1 relative z-10">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setPassengerDetailsModal({
+                                                name: displayName,
+                                                status: 'Detalhes',
+                                                document: p.details?.document || '',
+                                                phone: p.details?.phone || '',
+                                                birthDate: p.details?.birthDate || '',
+                                                avatar: undefined
+                                            });
+                                        }}
+                                        className={`p-1.5 rounded-full hover:scale-110 transition-transform ${isSelected ? 'text-white hover:bg-white/20' : 'text-gray-500 hover:bg-gray-100'}`}
+                                    >
+                                        <Eye size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleOpenPassengerEdit(p);
+                                        }}
+                                        className={`p-1.5 rounded-full hover:scale-110 transition-transform ${isSelected ? 'text-white hover:bg-white/20' : 'text-blue-500 hover:bg-blue-50'}`}
+                                    >
+                                        <Edit3 size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setPassengerToDelete(p.id);
+                                        }}
+                                        className={`p-1.5 rounded-full hover:scale-110 transition-transform ${isSelected ? 'text-white hover:bg-white/20' : 'text-red-500 hover:bg-red-50'}`}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
                             </div>
                         );
                     })}
+
+                    {/* Trash Section */}
+                    {deletedPassengers.length > 0 && (
+                        <div className="border-t pt-4 mt-4">
+                            <div className="flex justify-between items-center mb-3">
+                                <h5 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center gap-1">
+                                    🗑️ Lixeira ({deletedPassengers.length})
+                                </h5>
+                                <button
+                                    type="button"
+                                    onClick={handleEmptyTrash}
+                                    className="text-xs text-red-600 hover:text-red-700 hover:underline font-medium"
+                                >
+                                    Esvaziar
+                                </button>
+                            </div>
+                            <div className="space-y-1">
+                                {deletedPassengers.map(dp => (
+                                    <div key={dp.id} className="p-2 bg-red-50 border border-red-100 rounded-lg flex justify-between items-center group hover:bg-red-100 transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-xs text-gray-700 font-medium truncate block">{dp.name}</span>
+                                            <span className="text-[10px] text-gray-500">
+                                                {new Date(dp.deletedAt).toLocaleString('pt-BR', {
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRestorePassenger(dp.id)}
+                                            className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium ml-2 flex-shrink-0"
+                                        >
+                                            Restaurar
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </aside>
 
