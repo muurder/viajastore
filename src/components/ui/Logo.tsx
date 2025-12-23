@@ -8,8 +8,8 @@ interface LogoProps {
   variant?: 'default' | 'white';
 }
 
-export const Logo: React.FC<LogoProps> = ({ 
-  className = '', 
+export const Logo: React.FC<LogoProps> = ({
+  className = '',
   showText = true,
   iconSize,
   variant = 'default'
@@ -31,8 +31,8 @@ export const Logo: React.FC<LogoProps> = ({
       {/* Icon Container with Leaf accent - Larger */}
       <div className="relative flex items-center justify-center flex-shrink-0">
         <div className="absolute -top-1 -right-1 z-10">
-          <Leaf 
-            size={size * 0.4} 
+          <Leaf
+            size={size * 0.4}
             className={
               variant === 'white'
                 ? 'text-white fill-white/20'
@@ -40,22 +40,21 @@ export const Logo: React.FC<LogoProps> = ({
             }
           />
         </div>
-        <MapPin 
-          size={size} 
-          className={`relative z-0 ${
-            variant === 'white'
-              ? 'text-white fill-white/20'
-              : 'text-secondary-500 fill-secondary-500/10'
-          }`}
+        <MapPin
+          size={size}
+          className={`relative z-0 ${variant === 'white'
+            ? 'text-white fill-white/20'
+            : 'text-secondary-500 fill-secondary-500/10'
+            }`}
           strokeWidth={2.5}
         />
       </div>
-      
+
       {/* Text - Larger and more prominent - SouNativo (junto) */}
       {showText && (
         <span className="font-bold tracking-tight whitespace-nowrap text-2xl md:text-3xl">
           <span className={variant === 'white' ? 'text-white' : 'text-stone-800'}>Sou</span>
-          <span className={variant === 'white' ? 'text-white' : 'text-primary-800'}>Nativo</span>
+          <span className={variant === 'white' ? 'text-white' : 'text-primary-500'}>Nativo</span>
         </span>
       )}
     </div>

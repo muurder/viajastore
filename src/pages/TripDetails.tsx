@@ -193,11 +193,14 @@ const TripDetails: React.FC = () => {
   const isFavorite = user?.role === 'CLIENT' && trip && currentUserData?.favorites.includes(trip.id);
 
   // Loading state with timeout
-  if (tripLoading || (loading && !trip)) {
+  // CRITICAL: Always show loading if DataContext is still loading global data
+  // This prevents the "Viagem não encontrada" error during initial data load
+  if (tripLoading || loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
         <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mb-4"></div>
         <p className="text-gray-600 font-medium">Carregando viagem...</p>
+        {loading && <p className="text-xs text-gray-400 mt-2">Aguardando dados globais...</p>}
       </div>
     );
   }
@@ -393,14 +396,14 @@ const TripDetails: React.FC = () => {
   // Admin can edit any trip, Agency/Guide can only edit their own trips
   const userAgency = user ? agencies.find(a => a.id === user.id) : undefined;
   const canEdit = user && trip && (
-    user.role === UserRole.ADMIN || 
+    user.role === UserRole.ADMIN ||
     (user.role === UserRole.AGENCY && userAgency?.agencyId === trip.agencyId) ||
     (user.role === UserRole.GUIDE && userAgency?.agencyId === trip.agencyId)
   );
 
   const handleEditTrip = async () => {
     if (!trip) return;
-    
+
     // Load images if not already loaded
     let tripWithImages = trip;
     if ((!trip.images || trip.images.length === 0) && fetchTripImages) {
@@ -413,7 +416,7 @@ const TripDetails: React.FC = () => {
         logger.error(`[TripDetails] Error loading images for editing trip ${trip.id}:`, error);
       }
     }
-    
+
     setEditingTrip(tripWithImages);
     setShowEditModal(true);
   };
@@ -426,7 +429,7 @@ const TripDetails: React.FC = () => {
     if (activeSlug) {
       const agency = agencySlug ? getAgencyBySlug(agencySlug) : undefined;
       let foundTrip: Trip | undefined = undefined;
-      
+
       if (agency) {
         const agencyTrips = getAgencyPublicTrips(agency.agencyId);
         foundTrip = agencyTrips.find(t => t.slug === activeSlug);
@@ -442,7 +445,7 @@ const TripDetails: React.FC = () => {
           foundTrip = getTripById(activeSlug);
         }
       }
-      
+
       if (foundTrip) {
         setTrip(foundTrip);
       }
@@ -459,8 +462,8 @@ const TripDetails: React.FC = () => {
         </button>
         <div className="flex gap-2">
           {canEdit && (
-            <button 
-              onClick={handleEditTrip} 
+            <button
+              onClick={handleEditTrip}
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors shadow-sm"
             >
               <Edit size={18} />
@@ -492,7 +495,7 @@ const TripDetails: React.FC = () => {
                 decoding="async"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              
+
               {/* Category Badge */}
               <div className="absolute top-4 left-4 z-10">
                 <span className="bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider text-gray-800 shadow-lg">
@@ -539,11 +542,10 @@ const TripDetails: React.FC = () => {
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        activeImageIndex === idx 
-                          ? 'bg-white w-6' 
-                          : 'bg-white/50 hover:bg-white/75'
-                      }`}
+                      className={`w-2 h-2 rounded-full transition-all ${activeImageIndex === idx
+                        ? 'bg-white w-6'
+                        : 'bg-white/50 hover:bg-white/75'
+                        }`}
                       aria-label={`Ir para imagem ${idx + 1}`}
                     />
                   ))}
@@ -559,19 +561,18 @@ const TripDetails: React.FC = () => {
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`relative flex-shrink-0 rounded-lg md:rounded-xl overflow-hidden border-2 transition-all duration-300 snap-center ${
-                        activeImageIndex === idx 
-                          ? 'border-primary-600 ring-2 md:ring-4 ring-primary-100 shadow-lg scale-105' 
-                          : 'border-gray-200 opacity-60 hover:opacity-100 hover:border-gray-300 hover:scale-102 active:scale-95'
-                      }`}
+                      className={`relative flex-shrink-0 rounded-lg md:rounded-xl overflow-hidden border-2 transition-all duration-300 snap-center ${activeImageIndex === idx
+                        ? 'border-primary-600 ring-2 md:ring-4 ring-primary-100 shadow-lg scale-105'
+                        : 'border-gray-200 opacity-60 hover:opacity-100 hover:border-gray-300 hover:scale-102 active:scale-95'
+                        }`}
                       style={{ width: '70px', height: '70px' }}
                     >
-                      <img 
-                        src={img} 
-                        alt={`Imagem ${idx + 1}`} 
-                        loading="lazy" 
-                        decoding="async" 
-                        className="w-full h-full object-cover" 
+                      <img
+                        src={img}
+                        alt={`Imagem ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
                       />
                       {activeImageIndex === idx && (
                         <div className="absolute inset-0 bg-primary-600/20 pointer-events-none" />
@@ -793,7 +794,7 @@ const TripDetails: React.FC = () => {
       )}
 
       {/* Mobile Fixed Booking Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
+      <div className="lg:hidden fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between gap-4 mb-2">
           <div className="flex flex-col">
             <span className="text-xs text-gray-500">A partir de</span>

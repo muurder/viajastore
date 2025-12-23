@@ -4809,9 +4809,10 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end items-center gap-2">
+                          <div className="flex justify-end items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 // Use helper function to ensure correct ISO format (YYYY-MM-DD)
                                 const formattedStartDate = normalizeDateToISO(trip.startDate);
                                 const formattedEndDate = normalizeDateToISO(trip.endDate);
@@ -4862,7 +4863,10 @@ export const AdminDashboard: React.FC = () => {
                               <Edit3 size={18} />
                             </button>
                             <button
-                              onClick={() => toggleTripStatus(trip.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTripStatus(trip.id);
+                              }}
                               className={`p-2 rounded-lg transition-colors ${trip.is_active
                                 ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
                                 : 'text-green-600 hover:text-green-700 hover:bg-green-50'
@@ -4872,7 +4876,10 @@ export const AdminDashboard: React.FC = () => {
                               {trip.is_active ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
                             </button>
                             <button
-                              onClick={() => toggleTripFeatureStatus(trip.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTripFeatureStatus(trip.id);
+                              }}
                               className={`p-2 rounded-lg transition-colors ${trip.featured
                                 ? 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'
                                 : 'text-gray-600 hover:text-gray-700 hover:bg-gray-50'
@@ -4882,7 +4889,10 @@ export const AdminDashboard: React.FC = () => {
                               <Sparkles size={18} />
                             </button>
                             <button
-                              onClick={() => handleDeleteTrip(trip.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTrip(trip.id);
+                              }}
                               className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                               title="Excluir"
                             >

@@ -712,7 +712,7 @@ const AgencyDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
                     {/* Left Sidebar - Desktop Only */}
-                    <div className="hidden lg:block lg:col-span-1 space-y-4">
+                    <div className="hidden md:block lg:col-span-1 space-y-4">
                         {/* Profile Card */}
                         <div className="bg-gradient-to-br from-stone-50 via-white to-stone-50 rounded-2xl border border-stone-200/80 overflow-hidden shadow-sm">
                             {/* Header with trip background image */}
@@ -889,7 +889,7 @@ const AgencyDashboard: React.FC = () => {
                                     }}
                                     trips={allTrips}
                                     ctaText="Ver meu Site"
-                                    ctaLink={`/#/${currentAgency?.slug}`}
+                                    ctaLink={`/${currentAgency?.slug}`}
                                     showUpcomingBadge={false}
                                 />
 

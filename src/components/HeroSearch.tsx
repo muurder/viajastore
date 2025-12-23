@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { MapPin, Calendar, Users, Search, ChevronDown, Plus, Minus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -409,260 +410,219 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
 
   return (
     <div className="w-full relative z-[100]">
-      {/* Desktop: Unified Bar with inline button - Elástica */}
-      <div className="hidden md:flex bg-white rounded-full shadow-2xl border border-gray-100 items-center gap-0 relative z-[100] w-full flex-wrap xl:flex-nowrap">
-        {/* Destination */}
-        <div className="flex-1 relative min-w-[200px] px-3 md:px-4 py-3">
-          <div className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 text-gray-400 z-10">
-            <MapPin size={18} className="md:w-5 md:h-5" />
-          </div>
-          <input
-            type="text"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="Para onde você vai?"
-            className="w-full pl-10 md:pl-12 pr-2 py-2 text-gray-900 placeholder-gray-400 font-medium text-sm md:text-base outline-none bg-transparent"
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          />
-        </div>
-
-        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
-
-        {/* Date Range - FIX: High z-index for dropdown and proper text display */}
-        <div className="relative z-[110] flex-shrink-0 px-2 py-2 min-w-[160px] md:min-w-[180px]">
-          <button
-            ref={datePickerButtonRef}
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              clickInsideRef.current = true; // Mark as inside click to prevent handleClickOutside from closing
-              setShowDatePicker(!showDatePicker);
-              setShowGuestsPicker(false);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              clickInsideRef.current = true; // Mark as inside click
-            }}
-            className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
-          >
-            <Calendar size={18} className="text-gray-400 flex-shrink-0 md:w-5 md:h-5" />
-            <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getDateRangeText()}</span>
-            {hasDatesSelected && (
-              <button
-                type="button"
-                onClick={clearDates}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  clickInsideRef.current = true;
-                }}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-                title="Limpar datas"
-              >
-                <X size={14} className="text-gray-500 hover:text-gray-700" />
-              </button>
-            )}
-            <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showDatePicker ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showDatePicker && datePickerPosition && (
-            <div
-              ref={datePickerRef}
-              className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[320px]"
-              style={{
-                top: `${datePickerPosition.top}px`,
-                left: `${datePickerPosition.left}px`,
-                maxWidth: 'calc(100vw - 2rem)',
-                maxHeight: 'calc(100vh - 2rem)',
-                overflow: 'auto'
-              }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    prevMonth();
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
-                >
-                  <ChevronDown size={16} className="rotate-90 text-gray-600" />
-                </button>
-                <h3 className="font-bold text-gray-900">{monthNames[currentMonth]} {currentYear}</h3>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    nextMonth();
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
-                >
-                  <ChevronDown size={16} className="-rotate-90 text-gray-600" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                  <div key={day} className="text-xs font-bold text-gray-500 text-center py-2">{day}</div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {calendarDays.map((date, idx) => {
-                  if (!date) return <div key={idx} className="aspect-square" />;
-
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const normalizedDate = new Date(date);
-                  normalizedDate.setHours(0, 0, 0, 0);
-                  const isPast = normalizedDate < today;
-                  const isSelected = isDateSelected(date);
-                  const isInRange = isDateInRange(date);
-
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                        if (!isPast) {
-                          handleDateClick(date);
-                        }
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                      }}
-                      onMouseEnter={() => !isPast && setHoveredDate(date)}
-                      onMouseLeave={() => setHoveredDate(null)}
-                      disabled={isPast}
-                      className={`
-                        aspect-square text-sm font-medium rounded-lg transition-colors relative z-[10000]
-                        ${isPast ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-700 hover:bg-gray-100 cursor-pointer'}
-                        ${isSelected ? 'bg-primary-600 text-white hover:bg-primary-700' : ''}
-                        ${isInRange && !isSelected ? 'bg-primary-50 text-primary-700' : ''}
-                        ${hoveredDate && !isPast && normalizedDate.getTime() === hoveredDate.getTime() && !isSelected && !isInRange ? 'bg-gray-100' : ''}
-                      `}
-                    >
-                      {date.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
+      {/* Desktop: Unified Bar with inline button - Refatorado para estabilidade */}
+      <div className="hidden md:block bg-white rounded-full shadow-2xl border border-gray-100 relative z-[100] w-full p-2">
+        <div className="flex items-center gap-0 w-full">
+          {/* Destination */}
+          <div className="flex-1 relative min-w-[120px] px-2 md:px-3 py-2">
+            <div className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+              <MapPin size={18} className="md:w-5 md:h-5" />
             </div>
-          )}
-        </div>
+            <input
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              placeholder="Para onde você vai?"
+              className="w-full pl-8 md:pl-10 pr-2 py-2 text-gray-900 placeholder-gray-400 font-medium text-sm md:text-base outline-none bg-transparent"
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
 
-        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
+          <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden lg:block"></div>
 
-        {/* Guests - FIX: High z-index for dropdown and proper text display */}
-        <div className="relative z-[110] flex-shrink-0 px-2 py-2 min-w-[140px] md:min-w-[160px]">
-          <button
-            ref={guestsPickerButtonRef}
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              clickInsideRef.current = true; // Mark as inside click to prevent handleClickOutside from closing
-              setShowGuestsPicker(!showGuestsPicker);
-              setShowDatePicker(false);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              clickInsideRef.current = true; // Mark as inside click
-            }}
-            className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
-          >
-            <Users size={18} className="text-gray-400 flex-shrink-0 md:w-5 md:h-5" />
-            <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getGuestsText()}</span>
-            {isGuestsModified && (
-              <button
-                type="button"
-                onClick={clearGuests}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  clickInsideRef.current = true;
-                }}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-                title="Limpar passageiros"
-              >
-                <X size={14} className="text-gray-500 hover:text-gray-700" />
-              </button>
-            )}
-            <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showGuestsPicker && guestsPickerPosition && (
-            <div
-              ref={guestsPickerRef}
-              className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 z-[99999] min-w-[240px]"
-              style={{
-                top: `${guestsPickerPosition.top}px`,
-                right: `${guestsPickerPosition.right}px`,
-                maxWidth: 'calc(100vw - 2rem)',
-                maxHeight: 'calc(100vh - 2rem)',
-                overflow: 'auto'
+          {/* Date Range */}
+          <div className="relative z-[110] flex-1 px-2 min-w-[110px] max-w-[200px]">
+            <button
+              ref={datePickerButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clickInsideRef.current = true;
+                setShowDatePicker(!showDatePicker);
+                setShowGuestsPicker(false);
               }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clickInsideRef.current = true;
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
             >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-gray-900">Adultos</div>
-                    <div className="text-xs text-gray-500">13 anos ou mais</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                        setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }));
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                      }}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[10000] cursor-pointer"
-                    >
-                      <Minus size={14} className="text-gray-600" />
-                    </button>
-                    <span className="font-bold text-gray-900 w-8 text-center">{guests.adults}</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                        setGuests(prev => ({ ...prev, adults: prev.adults + 1 }));
-                      }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clickInsideRef.current = true;
-                      }}
-                      className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[10000] cursor-pointer"
-                    >
-                      <Plus size={14} className="text-gray-600" />
-                    </button>
-                  </div>
+              <Calendar size={18} className="text-gray-400 flex-shrink-0" />
+              <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getDateRangeText()}</span>
+              {hasDatesSelected && (
+                <button
+                  type="button"
+                  onClick={clearDates}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clickInsideRef.current = true;
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                  title="Limpar datas"
+                >
+                  <X size={14} className="text-gray-500 hover:text-gray-700" />
+                </button>
+              )}
+              <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showDatePicker ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showDatePicker && datePickerPosition && ReactDOM.createPortal(
+              <div
+                ref={datePickerRef}
+                className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 min-w-[320px]"
+                style={{
+                  top: `${datePickerPosition.top}px`,
+                  left: `${datePickerPosition.left}px`,
+                  maxWidth: 'calc(100vw - 2rem)',
+                  maxHeight: 'calc(100vh - 2rem)',
+                  overflow: 'auto',
+                  zIndex: 999999
+                }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      prevMonth();
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
+                  >
+                    <ChevronDown size={16} className="rotate-90 text-gray-600" />
+                  </button>
+                  <h3 className="font-bold text-gray-900">{monthNames[currentMonth]} {currentYear}</h3>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      nextMonth();
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative z-[120]"
+                  >
+                    <ChevronDown size={16} className="-rotate-90 text-gray-600" />
+                  </button>
                 </div>
 
-                <div className="border-t border-gray-200 pt-4">
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
+                    <div key={day} className="text-xs font-bold text-gray-500 text-center py-2">{day}</div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((date, idx) => {
+                    if (!date) return <div key={idx} className="aspect-square" />;
+
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const normalizedDate = new Date(date);
+                    normalizedDate.setHours(0, 0, 0, 0);
+                    const isPast = normalizedDate < today;
+                    const isSelected = isDateSelected(date);
+                    const isInRange = isDateInRange(date);
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          clickInsideRef.current = true;
+                          if (!isPast) {
+                            handleDateClick(date);
+                          }
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          clickInsideRef.current = true;
+                        }}
+                        onMouseEnter={() => !isPast && setHoveredDate(date)}
+                        onMouseLeave={() => setHoveredDate(null)}
+                        disabled={isPast}
+                        className={`
+                          aspect-square text-sm font-medium rounded-lg transition-colors relative z-[10000]
+                          ${isPast ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-700 hover:bg-gray-100 cursor-pointer'}
+                          ${isSelected ? 'bg-primary-600 text-white hover:bg-primary-700' : ''}
+                          ${isInRange && !isSelected ? 'bg-primary-50 text-primary-700' : ''}
+                          ${hoveredDate && !isPast && normalizedDate.getTime() === hoveredDate.getTime() && !isSelected && !isInRange ? 'bg-gray-100' : ''}
+                        `}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+
+          <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden lg:block"></div>
+
+          {/* Guests */}
+          <div className="relative z-[110] flex-1 px-2 min-w-[90px] max-w-[160px]">
+            <button
+              ref={guestsPickerButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clickInsideRef.current = true;
+                setShowGuestsPicker(!showGuestsPicker);
+                setShowDatePicker(false);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                clickInsideRef.current = true;
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-gray-700 font-medium rounded-full hover:bg-gray-50 transition-colors whitespace-nowrap w-full"
+            >
+              <Users size={18} className="text-gray-400 flex-shrink-0" />
+              <span className="text-xs md:text-sm min-w-0 text-left whitespace-nowrap overflow-hidden text-ellipsis flex-1">{getGuestsText()}</span>
+              {isGuestsModified && (
+                <button
+                  type="button"
+                  onClick={clearGuests}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clickInsideRef.current = true;
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                  title="Limpar passageiros"
+                >
+                  <X size={14} className="text-gray-500 hover:text-gray-700" />
+                </button>
+              )}
+              <ChevronDown size={16} className={`text-gray-400 transition-transform flex-shrink-0 ${showGuestsPicker ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showGuestsPicker && guestsPickerPosition && ReactDOM.createPortal(
+              <div
+                ref={guestsPickerRef}
+                className="fixed bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 min-w-[240px]"
+                style={{
+                  top: `${guestsPickerPosition.top}px`,
+                  right: `${guestsPickerPosition.right}px`,
+                  maxWidth: 'calc(100vw - 2rem)',
+                  maxHeight: 'calc(100vh - 2rem)',
+                  overflow: 'auto',
+                  zIndex: 999999
+                }}
+              >
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-bold text-gray-900">Crianças</div>
-                      <div className="text-xs text-gray-500">0 a 12 anos</div>
+                      <div className="font-bold text-gray-900">Adultos</div>
+                      <div className="text-xs text-gray-500">13 anos ou mais</div>
                     </div>
                     <div className="flex items-center gap-3">
                       <button
@@ -671,7 +631,7 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                           e.preventDefault();
                           e.stopPropagation();
                           clickInsideRef.current = true;
-                          setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }));
+                          setGuests(prev => ({ ...prev, adults: Math.max(1, prev.adults - 1) }));
                         }}
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -682,14 +642,14 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                       >
                         <Minus size={14} className="text-gray-600" />
                       </button>
-                      <span className="font-bold text-gray-900 w-8 text-center">{guests.children}</span>
+                      <span className="font-bold text-gray-900 w-8 text-center">{guests.adults}</span>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           clickInsideRef.current = true;
-                          setGuests(prev => ({ ...prev, children: prev.children + 1 }));
+                          setGuests(prev => ({ ...prev, adults: prev.adults + 1 }));
                         }}
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -702,22 +662,69 @@ const HeroSearch: React.FC<HeroSearchProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  <div className="border-t border-gray-200 pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-gray-900">Crianças</div>
+                        <div className="text-xs text-gray-500">0 a 12 anos</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clickInsideRef.current = true;
+                            setGuests(prev => ({ ...prev, children: Math.max(0, prev.children - 1) }));
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clickInsideRef.current = true;
+                          }}
+                          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[10000] cursor-pointer"
+                        >
+                          <Minus size={14} className="text-gray-600" />
+                        </button>
+                        <span className="font-bold text-gray-900 w-8 text-center">{guests.children}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clickInsideRef.current = true;
+                            setGuests(prev => ({ ...prev, children: prev.children + 1 }));
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            clickInsideRef.current = true;
+                          }}
+                          className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:border-primary-500 transition-colors relative z-[10000] cursor-pointer"
+                        >
+                          <Plus size={14} className="text-gray-600" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {/* Search Button - Sempre dentro da barra */}
+          <div className="flex-shrink-0 pl-2">
+            <button
+              onClick={handleSearch}
+              className="h-12 bg-secondary-500 hover:bg-secondary-600 text-white px-6 md:px-8 font-bold flex items-center justify-center gap-2 whitespace-nowrap transition-all rounded-full shadow-lg hover:shadow-xl"
+            >
+              <Search size={18} className="md:w-5 md:h-5" />
+              <span className="text-sm md:text-base">Pesquisar</span>
+            </button>
+          </div>
         </div>
-
-        <div className="w-px h-8 md:h-10 bg-gray-200 flex-shrink-0 hidden xl:block"></div>
-
-        {/* Search Button - Inline dentro da barra - Não encolhe */}
-        <button
-          onClick={handleSearch}
-          className="bg-secondary-500 hover:bg-secondary-600 text-white px-4 md:px-6 py-3 md:py-4 font-bold flex items-center justify-center gap-1.5 md:gap-2 whitespace-nowrap transition-all flex-shrink-0 rounded-r-full xl:rounded-r-full md:rounded-full xl:rounded-l-none order-last xl:order-none mr-1"
-        >
-          <Search size={18} className="md:w-5 md:h-5" />
-          <span className="text-xs md:text-base">Pesquisar</span>
-        </button>
       </div>
 
       {/* Mobile: Vertical Stack - FIX: High z-index */}

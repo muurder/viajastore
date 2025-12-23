@@ -12,6 +12,7 @@ import AuthModal from './AuthModal';
 import BottomNav from './BottomNav';
 import { Agency, Trip } from '../types';
 import HeroSearch from './HeroSearch';
+import FeaturedSection from './FeaturedSection';
 
 
 const Layout: React.FC = () => {
@@ -360,11 +361,11 @@ const Layout: React.FC = () => {
         />
       )}
 
-      {/* Hero Banner - Fixed in Header (only on home) */}
+      {/* 🎨 PREMIUM HERO BANNER - Split-Screen Modern Design */}
       {isHomePage && (
-        <div className="relative h-[85vh] min-h-[600px] flex items-center overflow-hidden">
-          {/* Background Image */}
-          <div className="absolute inset-0">
+        <div className="relative w-full h-[85vh] min-h-[600px] md:min-h-[650px] flex items-center bg-stone-900 overflow-hidden">
+          {/* 🖼️ Background Image - The Protagonist */}
+          <div className="absolute inset-0 w-full h-full">
             {featuredTrip && featuredTrip.images && featuredTrip.images.length > 0 && featuredTrip.images[0] ? (
               <img
                 src={featuredTrip.images[0]}
@@ -372,73 +373,49 @@ const Layout: React.FC = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-900 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-white/30 mb-4">SouNativo</div>
-                  <div className="text-white/50">Carregando viagens...</div>
-                </div>
-              </div>
+              <img
+                src="https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?q=80&w=2070&auto=format&fit=crop"
+                alt="Aventura no Brasil"
+                className="w-full h-full object-cover"
+              />
             )}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
           </div>
 
-          {/* Content Overlay */}
-          <div className="relative z-10 w-full px-4 sm:px-6 md:px-8 lg:px-12">
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 lg:gap-12 items-center">
-              {/* Left: Inspiration + Search */}
-              <div className="xl:col-span-7 text-left space-y-4 md:space-y-6">
-                <div className="animate-[fadeInUp_0.8s_ease-out] space-y-3 md:space-y-4">
-                  <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold text-white leading-[1.1] drop-shadow-2xl tracking-tight">
-                    Descubra o Brasil
-                  </h1>
-                  <p className="text-lg sm:text-xl md:text-2xl text-white/90 font-light leading-relaxed drop-shadow-lg animate-in fade-in duration-1000">
-                    {heroPhrase}
-                  </p>
-                </div>
-                <div className="w-full animate-[fadeInUp_1.1s]">
-                  <HeroSearch />
-                </div>
+          {/* 🎭 Premium Gradient Overlay - The Secret Sauce */}
+          <div className="absolute inset-0 bg-gradient-to-r from-stone-900/90 via-stone-900/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-900/80 via-transparent to-transparent" />
+
+          {/* 📝 Content - Left Side */}
+          <div className="relative z-10 container mx-auto px-6 md:px-8 lg:px-12 h-full flex flex-col justify-center">
+            <div className="max-w-3xl space-y-6 md:space-y-8">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-xs md:text-sm font-semibold uppercase tracking-wider animate-[fadeInUp_0.6s_ease-out]">
+                <span className="w-2 h-2 bg-primary-400 rounded-full animate-pulse" />
+                Experiências Autênticas
               </div>
 
-              {/* Right: Glass Card Featured */}
-              {featuredTrip && (
-                <div className="xl:col-span-5 w-full xl:w-auto mt-8 xl:mt-0">
-                  <Link
-                    to={`/viagem/${featuredTrip.slug || featuredTrip.id}`}
-                    className="block backdrop-blur-xl bg-gradient-to-br from-white/20 via-white/15 to-white/10 border border-white/40 rounded-3xl p-7 md:p-9 text-white max-w-md mx-auto xl:ml-auto xl:mr-0 shadow-2xl shadow-black/50 relative overflow-hidden hover:scale-[1.02] hover:shadow-3xl hover:shadow-black/60 transition-all duration-300 cursor-pointer group"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary-900/10 via-transparent to-secondary-500/10 pointer-events-none rounded-3xl"></div>
-                    <div className="relative z-10 space-y-5">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-2 bg-white/25 backdrop-blur-sm text-white px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] border border-white/30">
-                          <span className="w-1.5 h-1.5 bg-secondary-300 rounded-full animate-pulse"></span>
-                          Destaque da Semana
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-serif font-bold leading-[1.2] text-white drop-shadow-lg group-hover:text-secondary-200 transition-colors">
-                          {featuredTrip.title}
-                        </h2>
-                        <div className="h-px w-16 bg-gradient-to-r from-secondary-300 to-transparent group-hover:w-24 transition-all"></div>
-                      </div>
-                      <p className="text-white/85 text-sm md:text-base leading-relaxed line-clamp-2 font-light group-hover:text-white/95 transition-colors">
-                        Uma experiência inesquecível em {featuredTrip.destination || 'um destino especial'}.
-                      </p>
-                      <div className="pt-2">
-                        <div className="inline-flex items-center gap-2 bg-white text-secondary-600 px-5 py-3 rounded-full font-bold hover:bg-white/95 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-black/40">
-                          Explorar
-                          <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              )}
+              {/* Headline - Impactante */}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight tracking-tight animate-[fadeInUp_0.8s_ease-out]">
+                Sua próxima grande<br />
+                <span className="text-primary-400">aventura</span> começa aqui
+              </h1>
+
+              {/* Subheadline */}
+              <p className="mt-6 text-lg md:text-xl lg:text-2xl text-stone-200 max-w-2xl leading-relaxed font-light animate-[fadeInUp_1s_ease-out]">
+                {heroPhrase}
+              </p>
+
+              {/* 🔍 Search Bar Premium - Destaque no Hero */}
+              <div className="relative z-50 mt-10 w-full max-w-4xl animate-[fadeInUp_1.4s_ease-out]" data-hero-search>
+                <HeroSearch />
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* 🌟 Featured Section - Overlap com Hero */}
+      {isHomePage && <FeaturedSection />}
 
       {/* Navbar */}
       <nav
@@ -472,14 +449,16 @@ const Layout: React.FC = () => {
             // Default Header (Global, Public Microsite OR Agency Dashboard)
             <div className="flex justify-between h-16">
               <div className="flex items-center">
-                {/* Mobile Menu Button - Left Aligned */}
-                <button
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="md:hidden p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg mr-2 transition-colors"
-                  aria-label="Abrir menu"
-                >
-                  <Menu size={24} />
-                </button>
+                {/* Mobile Menu Button - Left Aligned (Only shown when user is NOT logged in) */}
+                {!user && (
+                  <button
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    className="md:hidden p-2 text-gray-500 hover:text-primary-600 hover:bg-gray-100 rounded-lg mr-2 transition-colors"
+                    aria-label="Abrir menu"
+                  >
+                    <Menu size={24} />
+                  </button>
+                )}
 
                 <Link to={homeLink} className="flex-shrink-0 flex items-center group z-10 relative">
                   {!showAgencyHeader ? (
@@ -662,118 +641,120 @@ const Layout: React.FC = () => {
       </nav>
 
       {/* Mobile Drawer */}
-      {isMobileMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-[100] backdrop-blur-sm animate-[fadeIn_0.3s]"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 w-[280px] bg-white z-[101] shadow-2xl transform transition-transform duration-300 animate-[slideInLeft_0.3s] flex flex-col">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <span className="font-bold text-lg text-primary-600">Menu</span>
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {
+        isMobileMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/50 z-[100] backdrop-blur-sm animate-[fadeIn_0.3s]"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <div className="fixed inset-y-0 left-0 w-[280px] bg-white z-[101] shadow-2xl transform transition-transform duration-300 animate-[slideInLeft_0.3s] flex flex-col">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <span className="font-bold text-lg text-primary-600">Menu</span>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-            <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-              {!showAgencyHeader ? (
-                <>
-                  <Link to="/trips" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Map size={20} className="text-gray-400" /> Explorar Viagens
-                  </Link>
-                  <Link to="/agencies" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Building size={20} className="text-gray-400" /> Agências
-                  </Link>
-                  <Link to="/guides" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Compass size={20} className="text-gray-400" /> Guias de Turismo
-                  </Link>
-                  <Link to="/about" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Globe size={20} className="text-gray-400" /> Sobre
-                  </Link>
-                </>
-              ) : currentAgency && (
-                <>
-                  <Link to={`/${currentAgency.slug}`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <HomeIcon size={20} className="text-gray-400" /> Início
-                  </Link>
-                  <Link to={`/${currentAgency.slug}/trips`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Map size={20} className="text-gray-400" /> Pacotes
-                  </Link>
-                  <Link to={`/${currentAgency.slug}/guides`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <Compass size={20} className="text-gray-400" /> Guias
-                  </Link>
-                </>
-              )}
+              <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+                {!showAgencyHeader ? (
+                  <>
+                    <Link to="/trips" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Map size={20} className="text-gray-400" /> Explorar Viagens
+                    </Link>
+                    <Link to="/agencies" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Building size={20} className="text-gray-400" /> Agências
+                    </Link>
+                    <Link to="/guides" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Compass size={20} className="text-gray-400" /> Guias de Turismo
+                    </Link>
+                    <Link to="/about" className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Globe size={20} className="text-gray-400" /> Sobre
+                    </Link>
+                  </>
+                ) : currentAgency && (
+                  <>
+                    <Link to={`/${currentAgency.slug}`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <HomeIcon size={20} className="text-gray-400" /> Início
+                    </Link>
+                    <Link to={`/${currentAgency.slug}/trips`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Map size={20} className="text-gray-400" /> Pacotes
+                    </Link>
+                    <Link to={`/${currentAgency.slug}/guides`} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <Compass size={20} className="text-gray-400" /> Guias
+                    </Link>
+                  </>
+                )}
 
-              <div className="my-4 border-t border-gray-100"></div>
+                <div className="my-4 border-t border-gray-100"></div>
 
-              {user ? (
-                <>
-                  <div className="px-4 py-2">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Minha Conta</p>
-                    <div className="flex items-center gap-3 mb-4">
-                      {(() => {
-                        // Para Agency, usar logo; para outros (Client, Admin), usar avatar
-                        const avatarUrl = user.role === 'AGENCY'
-                          ? (user as Agency).logo
-                          : user.avatar;
+                {user ? (
+                  <>
+                    <div className="px-4 py-2">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Minha Conta</p>
+                      <div className="flex items-center gap-3 mb-4">
+                        {(() => {
+                          // Para Agency, usar logo; para outros (Client, Admin), usar avatar
+                          const avatarUrl = user.role === 'AGENCY'
+                            ? (user as Agency).logo
+                            : user.avatar;
 
-                        return avatarUrl ? (
-                          <img src={avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold">
-                            {user.name.charAt(0)}
-                          </div>
-                        );
-                      })()}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 truncate">{user.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                          return avatarUrl ? (
+                            <img src={avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold">
+                              {user.name.charAt(0)}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900 truncate">{user.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
                       </div>
                     </div>
+
+                    <Link to={userProfileLink} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <User size={20} className="text-gray-400" /> Meu Perfil
+                    </Link>
+
+                    <Link to={dashboardRoute} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
+                      <LayoutDashboard size={20} className="text-gray-400" />
+                      {user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')
+                        ? 'Painel Master'
+                        : isGuide
+                          ? 'Meu Painel de Guia'
+                          : 'Meu Painel'}
+                    </Link>
+
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium mt-2">
+                      <LogOut size={20} /> Sair
+                    </button>
+                  </>
+                ) : (
+                  <div className="p-4 space-y-3">
+                    <Link
+                      to={{ pathname: location.pathname, hash: '#login' }}
+                      className="w-full flex items-center justify-center py-3 px-4 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 active:scale-[0.98] transition-all"
+                    >
+                      Entrar
+                    </Link>
+                    <Link
+                      to={{ pathname: location.pathname, hash: '#signup' }}
+                      className="w-full flex items-center justify-center py-3 px-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 active:scale-[0.98] transition-all"
+                    >
+                      Criar Conta
+                    </Link>
                   </div>
-
-                  <Link to={userProfileLink} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <User size={20} className="text-gray-400" /> Meu Perfil
-                  </Link>
-
-                  <Link to={dashboardRoute} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-xl transition-colors font-medium">
-                    <LayoutDashboard size={20} className="text-gray-400" />
-                    {user.role === 'ADMIN' || TEST_ACCOUNTS.some(acc => acc.email === user.email && acc.role === 'ADMIN')
-                      ? 'Painel Master'
-                      : isGuide
-                        ? 'Meu Painel de Guia'
-                        : 'Meu Painel'}
-                  </Link>
-
-                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors font-medium mt-2">
-                    <LogOut size={20} /> Sair
-                  </button>
-                </>
-              ) : (
-                <div className="p-4 space-y-3">
-                  <Link
-                    to={{ pathname: location.pathname, hash: '#login' }}
-                    className="w-full flex items-center justify-center py-3 px-4 bg-primary-600 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 active:scale-[0.98] transition-all"
-                  >
-                    Entrar
-                  </Link>
-                  <Link
-                    to={{ pathname: location.pathname, hash: '#signup' }}
-                    className="w-full flex items-center justify-center py-3 px-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 active:scale-[0.98] transition-all"
-                  >
-                    Criar Conta
-                  </Link>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )
+      }
 
       {/* Main Content */}
       <main className="flex-grow w-full px-0 py-0">
@@ -848,31 +829,33 @@ const Layout: React.FC = () => {
       <BottomNav />
 
       {/* Impersonate Mode Floating Button */}
-      {isImpersonating && (
-        <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
-          <button
-            onClick={async () => {
-              try {
-                await exitImpersonate();
-                // Wait a bit for state to update
-                setTimeout(() => {
+      {
+        isImpersonating && (
+          <div className="fixed bottom-6 right-6 z-[9999] animate-[fadeIn_0.3s]">
+            <button
+              onClick={async () => {
+                try {
+                  await exitImpersonate();
+                  // Wait a bit for state to update
+                  setTimeout(() => {
+                    navigate('/admin/dashboard');
+                  }, 100);
+                } catch (error) {
+                  // Error handled in exitImpersonate
+                  // Navigate anyway
                   navigate('/admin/dashboard');
-                }, 100);
-              } catch (error) {
-                // Error handled in exitImpersonate
-                // Navigate anyway
-                navigate('/admin/dashboard');
-              }
-            }}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
-            title="Sair do Modo Gerenciar"
-          >
-            <LogOut size={20} />
-            Sair do Modo Gerenciar
-          </button>
-        </div>
-      )}
-    </div>
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 transition-all hover:scale-105"
+              title="Sair do Modo Gerenciar"
+            >
+              <LogOut size={20} />
+              Sair do Modo Gerenciar
+            </button>
+          </div>
+        )
+      }
+    </div >
   );
 };
 
